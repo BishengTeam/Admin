@@ -1,0 +1,137 @@
+import { useState, useCallback } from 'react'
+import { Table, Button, Input, Select, Popconfirm, Space, Tag, message } from 'antd'
+import { PlusOutlined, SearchOutlined } from '@ant-design/icons'
+import type { ColumnsType } from 'antd/es/table'
+import { PageContainer } from '@/components/PageContainer'
+import { StatusTag } from '@/components/StatusTag'
+import { usePagination } from '@/hooks/usePagination'
+import { contentService } from '@/services/content'
+import { CONTENT_STATUS_MAP, COURSE_CATEGORIES, COURSE_CATEGORY_COLOR_MAP } from '@/core/constants'
+import { formatDate, formatPrice } from '@/utils/format'
+import type { Course } from '@/types/content'
+import CourseModal from './components/CourseModal'
+
+export default function CourseList() {
+  const [keyword, setKeyword] = useState('')
+  const [searchText, setSearchText] = useState('')
+  const [category, setCategory] = useState<string | undefined>()
+  const [modalOpen, setModalOpen] = useState(false)
+  const [editingCourse, setEditingCourse] = useState<Course | null>(null)
+
+  const { data, loading, pagination, refresh } = usePagination(
+    (page) => contentService.listCourses({ keyword: searchText || undefined, category, ...page }),
+    [searchText, category],
+  )
+
+  const handleAdd = () => {
+    setEditingCourse(null)
+    setModalOpen(true)
+  }
+
+  const handleEdit = (course: Course) => {
+    setEditingCourse(course)
+    setModalOpen(true)
+  }
+
+  const handleDelete = async (id: number) => {
+    await contentService.deleteCourse(id)
+    message.success('删除成功')
+    refresh()
+  }
+
+  const handleModalClose = () => {
+    setModalOpen(false)
+    setEditingCourse(null)
+  }
+
+  const columns: ColumnsType<Course> = [
+    { title: '课程名称', dataIndex: 'name', width: 200 },
+    {
+      title: '类目',
+      dataIndex: 'category',
+      width: 100,
+      render: (c: string) => {
+        const cat = COURSE_CATEGORIES.find((item) => item.value === c)
+        return <Tag color={COURSE_CATEGORY_COLOR_MAP[c] || 'default'}>{cat?.label || c}</Tag>
+      },
+    },
+    {
+      title: '价格',
+      dataIndex: 'price',
+      width: 100,
+      render: (p: number) => formatPrice(p),
+    },
+    {
+      title: '班次数',
+      dataIndex: 'class_count',
+      width: 80,
+    },
+    {
+      title: '状态',
+      dataIndex: 'status',
+      width: 80,
+      render: (s: string) => <StatusTag status={s} map={CONTENT_STATUS_MAP} />,
+    },
+    {
+      title: '创建时间',
+      dataIndex: 'created_at',
+      width: 170,
+      render: (t: string) => formatDate(t),
+    },
+    {
+      title: '操作',
+      width: 120,
+      render: (_, record) => (
+        <Space>
+          <Button type="link" size="small" onClick={() => handleEdit(record)}>编辑</Button>
+          <Popconfirm title="确认删除此课程？" onConfirm={() => handleDelete(record.id)}>
+            <Button type="link" size="small" danger>删除</Button>
+          </Popconfirm>
+        </Space>
+      ),
+    },
+  ]
+
+  return (
+    <PageContainer
+      title="课程管理"
+      extra={<Button type="primary" icon={<PlusOutlined />} onClick={handleAdd}>新增课程</Button>}
+    >
+      <Space style={{ marginBottom: 16 }} wrap>
+        <Input
+          placeholder="搜索课程..."
+          prefix={<SearchOutlined />}
+          value={keyword}
+          onChange={(e) => setKeyword(e.target.value)}
+          style={{ width: 220 }}
+          onPressEnter={() => setSearchText(keyword)}
+          allowClear
+        />
+        <Select
+          placeholder="选择类目"
+          allowClear
+          style={{ width: 150 }}
+          options={COURSE_CATEGORIES}
+          onChange={(val) => setCategory(val)}
+        />
+        <Button type="primary" onClick={() => setSearchText(keyword)}>查询</Button>
+        <Button onClick={() => { setKeyword(''); setSearchText(''); setCategory(undefined); }}>重置</Button>
+      </Space>
+
+      <Table
+        rowKey="id"
+        columns={columns}
+        dataSource={data?.items}
+        loading={loading}
+        pagination={pagination}
+      />
+
+      <CourseModal
+        open={modalOpen}
+        course={editingCourse}
+        onClose={handleModalClose}
+        onSuccess={() => { handleModalClose(); refresh(); }}
+      />
+    </PageContainer>
+  )
+}

@@ -1,0 +1,216 @@
+import { useMemo, type ReactNode } from 'react'
+import { useNavigate, useLocation, Outlet } from 'react-router-dom'
+import { Layout, Menu, Button, Breadcrumb, Dropdown, Avatar, theme } from 'antd'
+import {
+  MenuFoldOutlined,
+  MenuUnfoldOutlined,
+  UserOutlined,
+  LogoutOutlined,
+  DashboardOutlined,
+  TeamOutlined,
+  ShoppingOutlined,
+  FileTextOutlined,
+  PictureOutlined,
+  ReadOutlined,
+  BookOutlined,
+} from '@ant-design/icons'
+import { useAppStore } from '@/stores/appStore'
+import { useAuthStore } from '@/stores/authStore'
+import { useAuth } from '@/hooks/useAuth'
+import type { AppRoute } from '@/routes'
+import { adminRoutes } from '@/routes'
+
+const { Header, Sider, Content } = Layout
+
+const iconMap: Record<string, ReactNode> = {
+  DashboardOutlined: <DashboardOutlined />,
+  TeamOutlined: <TeamOutlined />,
+  ShoppingOutlined: <ShoppingOutlined />,
+  FileTextOutlined: <FileTextOutlined />,
+  PictureOutlined: <PictureOutlined />,
+  ReadOutlined: <ReadOutlined />,
+  BookOutlined: <BookOutlined />,
+}
+
+function buildMenuItems(routes: AppRoute[]): any[] {
+  return routes
+    .filter((r) => r.meta && !r.meta.hidden)
+    .map((r) => {
+      const icon = r.meta?.icon ? iconMap[r.meta.icon] : undefined
+      if (r.children) {
+        const visibleChildren = r.children.filter((c) => c.meta && !c.meta.hidden)
+        return {
+          key: r.path!,
+          icon,
+          label: r.meta?.title,
+          children: visibleChildren.map((c) => ({
+            key: `${r.path}/${c.path}`,
+            icon: c.meta?.icon ? iconMap[c.meta.icon] : undefined,
+            label: c.meta?.title,
+          })),
+        }
+      }
+      return {
+        key: r.path!,
+        icon,
+        label: r.meta?.title,
+      }
+    })
+}
+
+function findBreadcrumb(pathname: string, routes: AppRoute[], parentPath = ''): { title: string }[] {
+  for (const r of routes) {
+    const fullPath = r.index ? parentPath : `${parentPath}/${r.path}`.replace(/\/+/g, '/')
+    if (r.children) {
+      const found = findBreadcrumb(pathname, r.children, r.path ? fullPath : parentPath)
+      if (found.length) {
+        if (r.meta?.title) {
+          return [{ title: r.meta.title }, ...found]
+        }
+        return found
+      }
+    }
+    if (pathname === `/admin/${r.path}` || pathname === fullPath) {
+      return r.meta?.title ? [{ title: r.meta.title }] : []
+    }
+  }
+  return []
+}
+
+export default function AdminLayout({ children }: { children?: ReactNode }) {
+  const navigate = useNavigate()
+  const location = useLocation()
+  const collapsed = useAppStore((s) => s.sidebarCollapsed)
+  const toggleCollapsed = useAppStore((s) => s.toggleCollapsed)
+  const { admin, permissions } = useAuth()
+  const logout = useAuthStore((s) => s.logout)
+  const { token: { colorBgContainer, borderRadiusLG } } = theme.useToken()
+
+  const menuItems = useMemo(() => {
+    const filtered = adminRoutes.filter(
+      (r) => !r.meta?.permission || permissions.includes(r.meta.permission),
+    )
+    return buildMenuItems(filtered)
+  }, [permissions])
+
+  const breadcrumbItems = useMemo(() => {
+    const items = findBreadcrumb(location.pathname, adminRoutes)
+    return [{ title: '首页' }, ...items]
+  }, [location.pathname])
+
+  const selectedKeys = useMemo(() => {
+    const path = location.pathname.replace('/admin/', '')
+    return [path]
+  }, [location.pathname])
+
+  const openKeys = useMemo(() => {
+    const parts = location.pathname.replace('/admin/', '').split('/')
+    if (parts.length > 1) {
+      return [parts[0]]
+    }
+    return []
+  }, [location.pathname])
+
+  const handleLogout = () => {
+    logout()
+    navigate('/admin/login', { replace: true })
+  }
+
+  return (
+    <Layout style={{ minHeight: '100vh' }}>
+      <Sider
+        trigger={null}
+        collapsible
+        collapsed={collapsed}
+        theme="dark"
+        width={240}
+        style={{
+          overflow: 'auto',
+          height: '100vh',
+          position: 'fixed',
+          left: 0,
+          top: 0,
+          bottom: 0,
+          zIndex: 10,
+        }}
+      >
+        <div
+          style={{
+            height: 64,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: '#fff',
+            fontWeight: 700,
+            fontSize: collapsed ? 16 : 20,
+            letterSpacing: 2,
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+          }}
+        >
+          {collapsed ? '后台' : import.meta.env.VITE_APP_TITLE}
+        </div>
+        <Menu
+          theme="dark"
+          mode="inline"
+          selectedKeys={selectedKeys}
+          defaultOpenKeys={openKeys}
+          items={menuItems}
+          onClick={({ key }) => navigate(`/admin/${key}`)}
+        />
+      </Sider>
+      <Layout style={{ marginLeft: collapsed ? 80 : 240, transition: 'margin-left 0.2s' }}>
+        <Header
+          style={{
+            padding: '0 24px',
+            background: colorBgContainer,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            position: 'sticky',
+            top: 0,
+            zIndex: 9,
+            boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            <Button
+              type="text"
+              icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+              onClick={toggleCollapsed}
+            />
+            <Breadcrumb items={breadcrumbItems} />
+          </div>
+          <Dropdown
+            menu={{
+              items: [
+                {
+                  key: 'logout',
+                  icon: <LogoutOutlined />,
+                  label: '退出登录',
+                  onClick: handleLogout,
+                },
+              ],
+            }}
+          >
+            <div style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Avatar size="small" icon={<UserOutlined />} src={admin?.avatar} />
+              <span>{admin?.username || '管理员'}</span>
+            </div>
+          </Dropdown>
+        </Header>
+        <Content
+          style={{
+            margin: 24,
+            padding: 24,
+            background: colorBgContainer,
+            borderRadius: borderRadiusLG,
+            minHeight: 280,
+          }}
+        >
+          {children || <Outlet />}
+        </Content>
+      </Layout>
+    </Layout>
+  )
+}
