@@ -1,32 +1,30 @@
-export type UserStatus = 'active' | 'banned'
-
 export interface User {
   id: number
-  avatar: string
-  username: string
+  openid: string
   phone: string
-  status: UserStatus
-  register_time: string
+  is_active: boolean
+  created_at: string
 }
 
 export interface UserFilter {
-  username?: string
+  openid?: string
   phone?: string
-  register_date_range?: [string, string]
+  created_at_start?: string
+  created_at_end?: string
 }
 
 export interface UserDetail extends User {
+  phone: string
   email?: string
   school?: string
-  created_at: string
   orders: UserOrderSummary[]
   conversations: UserConversationSummary[]
 }
 
 export interface UserOrderSummary {
   id: number
-  order_no: string
-  amount: number
+  out_trade_no: string
+  price: number
   status: string
   created_at: string
 }

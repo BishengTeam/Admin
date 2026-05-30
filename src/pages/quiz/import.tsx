@@ -7,10 +7,10 @@ import { quizService } from '@/services/quiz'
 import type { Category } from '@/types/quiz'
 
 interface ParsedQuestion {
-  content: string
-  options: { label: string; content: string }[]
-  answer: string[]
-  type: 'single' | 'multi'
+  question_text: string
+  options: Record<string, string>
+  answer: string
+  question_type: 'single' | 'multi'
 }
 
 const LABELS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']
@@ -30,25 +30,25 @@ function parseTxt(text: string): ParsedQuestion[] {
     const stemIdx = optionLines.findIndex((l) => !/^[A-H][.、．]\s/.test(l))
     const stem = stemIdx >= 0 ? optionLines[stemIdx] : optionLines[0]
 
-    const options: ParsedQuestion['options'] = []
+    const options: Record<string, string> = {}
     for (const line of optionLines) {
       const match = line.match(/^([A-H])[.、．]\s*(.+)/)
       if (match) {
-        options.push({ label: match[1], content: match[2] })
+        options[match[1]] = match[2]
       }
     }
 
     const answerMatch = answerLine.match(/[\[【]答案[\]】]\s*[:：]?\s*([A-H]+)/i)
     const answerStr = answerMatch ? answerMatch[1].toUpperCase() : ''
-    const answer = answerStr.split('').filter((c) => LABELS.includes(c))
+    const answer = answerStr.split('').filter((c) => LABELS.includes(c)).join('')
 
-    if (!stem || options.length === 0 || answer.length === 0) continue
+    if (!stem || Object.keys(options).length === 0 || answer.length === 0) continue
 
     questions.push({
-      content: stem,
+      question_text: stem,
       options,
       answer,
-      type: answer.length > 1 ? 'multi' : 'single',
+      question_type: answer.length > 1 ? 'multi' : 'single',
     })
   }
 

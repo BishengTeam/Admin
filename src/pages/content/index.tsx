@@ -55,7 +55,7 @@ export default function ContentManagement() {
   }
 
   const handleToggleStatus = async (id: number, checked: boolean) => {
-    await contentService.toggleStatus(id, checked ? 'online' : 'offline')
+    await contentService.update(id, { is_active: checked })
     message.success(checked ? '已上架' : '已下架')
     refresh()
   }
@@ -85,16 +85,16 @@ export default function ContentManagement() {
     { title: '标题', dataIndex: 'title', ellipsis: true },
     {
       title: '所属专区',
-      dataIndex: 'zone',
+      dataIndex: 'zone_type',
       width: 120,
     },
     {
       title: '状态',
-      dataIndex: 'status',
+      dataIndex: 'is_active',
       width: 100,
-      render: (status: string, record) => (
+      render: (is_active: boolean, record) => (
         <Switch
-          checked={status === 'online'}
+          checked={is_active}
           onChange={(checked) => handleToggleStatus(record.id, checked)}
           checkedChildren="上架"
           unCheckedChildren="下架"
@@ -103,7 +103,7 @@ export default function ContentManagement() {
     },
     {
       title: '排序',
-      dataIndex: 'sort_weight',
+      dataIndex: 'sort_order',
       width: 80,
     },
     {

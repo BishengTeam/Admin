@@ -3,6 +3,8 @@ import { Upload, message } from 'antd'
 import { PlusOutlined, LoadingOutlined } from '@ant-design/icons'
 import type { UploadFile, RcFile } from 'antd/es/upload/interface'
 
+// TODO: 后续替换为 OSS 直传，当前仅做 Base64 预览
+
 interface ImageUploadProps {
   value?: string
   onChange?: (url: string) => void
@@ -23,7 +25,7 @@ export function ImageUpload({ value, onChange, maxSize = 5 }: ImageUploadProps) 
       message.error(`图片大小不能超过 ${maxSize}MB`)
       return false
     }
-    return false // prevent auto upload
+    return false
   }
 
   const handleChange = (info: { file: UploadFile }) => {

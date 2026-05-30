@@ -194,7 +194,7 @@ export default function AdminLayout({ children }: { children?: ReactNode }) {
             }}
           >
             <div style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Avatar size="small" icon={<UserOutlined />} src={admin?.avatar} />
+              <Avatar size="small" icon={<UserOutlined />} />
               <span>{admin?.username || '管理员'}</span>
             </div>
           </Dropdown>

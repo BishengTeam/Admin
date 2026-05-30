@@ -31,13 +31,13 @@ const categories: Category[] = [
 
 let questionIdCounter = 40
 const questions: Question[] = [
-  { id: 1, category_id: 11, category_name: 'OSPF协议', type: 'single', content: 'OSPF使用哪种算法计算最短路径？', options: [{ label: 'A', content: '距离矢量算法' }, { label: 'B', content: '链路状态算法' }, { label: 'C', content: '路径向量算法' }, { label: 'D', content: '洪泛算法' }], correct_answer: ['B'], explanation: 'OSPF使用Dijkstra链路状态算法计算最短路径。' },
-  { id: 2, category_id: 11, category_name: 'OSPF协议', type: 'single', content: 'OSPF的默认Hello报文发送间隔是多少秒？', options: [{ label: 'A', content: '5秒' }, { label: 'B', content: '10秒' }, { label: 'C', content: '30秒' }, { label: 'D', content: '40秒' }], correct_answer: ['B'], explanation: '在广播和点对点网络上，OSPF Hello报文默认每10秒发送一次。' },
-  { id: 3, category_id: 12, category_name: 'VLAN技术', type: 'single', content: 'IEEE 802.1Q标准定义的VLAN标记占用多少字节？', options: [{ label: 'A', content: '2字节' }, { label: 'B', content: '4字节' }, { label: 'C', content: '8字节' }, { label: 'D', content: '12字节' }], correct_answer: ['B'], explanation: '802.1Q标签占用4个字节，插入在源MAC地址和类型字段之间。' },
-  { id: 4, category_id: 12, category_name: 'VLAN技术', type: 'single', content: 'Access端口接收不带VLAN标签的帧时，会如何处理？', options: [{ label: 'A', content: '丢弃该帧' }, { label: 'B', content: '打上PVID标签后转发' }, { label: 'C', content: '直接转发' }, { label: 'D', content: '广播该帧' }], correct_answer: ['B'], explanation: 'Access端口接收不带标签的帧时，会打上端口的PVID标签。' },
-  { id: 5, category_id: 13, category_name: 'STP协议', type: 'single', content: 'STP中网桥ID由什么组成？', options: [{ label: 'A', content: '网桥优先级+端口号' }, { label: 'B', content: '网桥优先级+MAC地址' }, { label: 'C', content: '端口号+MAC地址' }, { label: 'D', content: '网桥优先级+IP地址' }], correct_answer: ['B'], explanation: '网桥ID = 网桥优先级（2字节）+ MAC地址（6字节）。' },
-  { id: 6, category_id: 21, category_name: '防火墙', type: 'multi', content: '以下哪些是防火墙的主要功能？（多选）', options: [{ label: 'A', content: '包过滤' }, { label: 'B', content: 'NAT转换' }, { label: 'C', content: 'ARP代理' }, { label: 'D', content: '应用代理' }], correct_answer: ['A', 'B', 'D'], explanation: '防火墙主要功能包括包过滤、NAT转换、应用代理。ARP代理不是防火墙的基本功能。' },
-  { id: 7, category_id: 21, category_name: '防火墙', type: 'single', content: '包过滤防火墙在OSI模型哪一层工作？', options: [{ label: 'A', content: '应用层' }, { label: 'B', content: '传输层' }, { label: 'C', content: '网络层' }, { label: 'D', content: '数据链路层' }], correct_answer: ['C'], explanation: '包过滤防火墙主要工作在网络层，基于IP地址和端口号进行过滤。' },
+  { id: 1, category_id: 11, category_name: 'OSPF协议', question_type: 'single', question_text: 'OSPF使用哪种算法计算最短路径？', options: { A: '距离矢量算法', B: '链路状态算法', C: '路径向量算法', D: '洪泛算法' }, correct_answer: 'B', explanation: 'OSPF使用Dijkstra链路状态算法计算最短路径。' },
+  { id: 2, category_id: 11, category_name: 'OSPF协议', question_type: 'single', question_text: 'OSPF的默认Hello报文发送间隔是多少秒？', options: { A: '5秒', B: '10秒', C: '30秒', D: '40秒' }, correct_answer: 'B', explanation: '在广播和点对点网络上，OSPF Hello报文默认每10秒发送一次。' },
+  { id: 3, category_id: 12, category_name: 'VLAN技术', question_type: 'single', question_text: 'IEEE 802.1Q标准定义的VLAN标记占用多少字节？', options: { A: '2字节', B: '4字节', C: '8字节', D: '12字节' }, correct_answer: 'B', explanation: '802.1Q标签占用4个字节，插入在源MAC地址和类型字段之间。' },
+  { id: 4, category_id: 12, category_name: 'VLAN技术', question_type: 'single', question_text: 'Access端口接收不带VLAN标签的帧时，会如何处理？', options: { A: '丢弃该帧', B: '打上PVID标签后转发', C: '直接转发', D: '广播该帧' }, correct_answer: 'B', explanation: 'Access端口接收不带标签的帧时，会打上端口的PVID标签。' },
+  { id: 5, category_id: 13, category_name: 'STP协议', question_type: 'single', question_text: 'STP中网桥ID由什么组成？', options: { A: '网桥优先级+端口号', B: '网桥优先级+MAC地址', C: '端口号+MAC地址', D: '网桥优先级+IP地址' }, correct_answer: 'B', explanation: '网桥ID = 网桥优先级（2字节）+ MAC地址（6字节）。' },
+  { id: 6, category_id: 21, category_name: '防火墙', question_type: 'multi', question_text: '以下哪些是防火墙的主要功能？（多选）', options: { A: '包过滤', B: 'NAT转换', C: 'ARP代理', D: '应用代理' }, correct_answer: 'ABD', explanation: '防火墙主要功能包括包过滤、NAT转换、应用代理。ARP代理不是防火墙的基本功能。' },
+  { id: 7, category_id: 21, category_name: '防火墙', question_type: 'single', question_text: '包过滤防火墙在OSI模型哪一层工作？', options: { A: '应用层', B: '传输层', C: '网络层', D: '数据链路层' }, correct_answer: 'C', explanation: '包过滤防火墙主要工作在网络层，基于IP地址和端口号进行过滤。' },
 ]
 
 // Generate more questions
@@ -48,15 +48,15 @@ for (let i = 8; i <= 35; i++) {
     id: i,
     category_id: catId,
     category_name: cat.name,
-    type: i % 4 === 0 ? 'multi' : 'single',
-    content: `${cat.name}相关题目 #${i}：关于网络技术的选择题`,
-    options: [
-      { label: 'A', content: `选项A内容-${i}` },
-      { label: 'B', content: `选项B内容-${i}` },
-      { label: 'C', content: `选项C内容-${i}` },
-      { label: 'D', content: `选项D内容-${i}` },
-    ],
-    correct_answer: i % 4 === 0 ? ['A', 'C'] : ['B'],
+    question_type: i % 4 === 0 ? 'multi' : 'single',
+    question_text: `${cat.name}相关题目 #${i}：关于网络技术的选择题`,
+    options: {
+      A: `选项A内容-${i}`,
+      B: `选项B内容-${i}`,
+      C: `选项C内容-${i}`,
+      D: `选项D内容-${i}`,
+    },
+    correct_answer: i % 4 === 0 ? 'AC' : 'B',
     explanation: `题目${i}的答案解析`,
   })
   questionIdCounter = i
@@ -118,19 +118,10 @@ export function registerQuizMock(mock: MockAdapter) {
     let filtered = [...questions]
 
     if (params.keyword) {
-      filtered = filtered.filter((q) => q.content.includes(params.keyword))
+      filtered = filtered.filter((q) => q.question_text.includes(params.keyword))
     }
     if (params.category_id) {
       const catId = Number(params.category_id)
-      const catIds = new Set<number>()
-      function collectLeafIds(cat: Category) {
-        if (cat.children && cat.children.length) {
-          cat.children.forEach(collectLeafIds)
-        } else {
-          catIds.add(cat.id)
-        }
-      }
-      categories.forEach(collectLeafIds)
       filtered = filtered.filter((q) => q.category_id === catId)
     }
 
@@ -191,8 +182,8 @@ export function registerQuizMock(mock: MockAdapter) {
         id: ++questionIdCounter,
         category_id,
         category_name: cat?.name || '未知分类',
-        type: q.type,
-        content: q.content,
+        question_type: q.question_type,
+        question_text: q.question_text,
         options: q.options,
         correct_answer: q.answer,
         explanation: '',

@@ -21,7 +21,7 @@ request.interceptors.response.use(
     if (config.responseType === 'blob' || config.responseType === 'arraybuffer') {
       return data
     }
-    if (data.code !== 200 && data.code !== 201) {
+    if (data.code !== 0) {
       message.error(data.message || '请求失败')
       return Promise.reject(new Error(data.message))
     }

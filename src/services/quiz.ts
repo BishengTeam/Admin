@@ -41,7 +41,7 @@ export const quizService = {
 
   async importQuestions(data: {
     category_id: number
-    questions: { content: string; options: { label: string; content: string }[]; answer: string[]; type: string }[]
+    questions: { question_text: string; options: Record<string, string>; answer: string; question_type: string }[]
   }): Promise<{ count: number }> {
     return request.post('/admin/quiz/import', data)
   },

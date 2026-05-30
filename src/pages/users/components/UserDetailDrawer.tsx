@@ -12,10 +12,10 @@ interface UserDetailDrawerProps {
 }
 
 const orderColumns: ColumnsType<UserOrderSummary> = [
-  { title: '订单号', dataIndex: 'order_no', width: 150 },
+  { title: '订单号', dataIndex: 'out_trade_no', width: 150 },
   {
     title: '金额',
-    dataIndex: 'amount',
+    dataIndex: 'price',
     width: 100,
     render: (a: number) => formatPrice(a),
   },
@@ -61,15 +61,15 @@ export default function UserDetailDrawer({ user, open, onClose }: UserDetailDraw
     >
       <Descriptions column={2} bordered size="small" style={{ marginBottom: 24 }}>
         <Descriptions.Item label="头像">
-          <Avatar src={user.avatar} size="small" />
+          <Avatar size="small">{user.openid?.[0]}</Avatar>
         </Descriptions.Item>
-        <Descriptions.Item label="用户名">{user.username}</Descriptions.Item>
+        <Descriptions.Item label="用户名">{user.openid}</Descriptions.Item>
         <Descriptions.Item label="手机号">{formatPhone(user.phone)}</Descriptions.Item>
         <Descriptions.Item label="邮箱">{user.email || '-'}</Descriptions.Item>
         <Descriptions.Item label="学校">{user.school || '-'}</Descriptions.Item>
-        <Descriptions.Item label="注册时间">{formatDate(user.register_time)}</Descriptions.Item>
+        <Descriptions.Item label="注册时间">{formatDate(user.created_at)}</Descriptions.Item>
         <Descriptions.Item label="状态">
-          <StatusTag status={user.status} map={USER_STATUS_MAP} />
+          <StatusTag status={user.is_active} map={USER_STATUS_MAP} />
         </Descriptions.Item>
       </Descriptions>
 

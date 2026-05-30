@@ -1,22 +1,21 @@
-export type OrderStatus = 'pending' | 'paid' | 'completed' | 'refunded' | 'abnormal'
+export type OrderStatus = 'pending' | 'paid' | 'completed' | 'refunded' | 'abnormal' | 'closed'
 
 export interface Order {
   id: number
-  order_no: string
-  user_name: string
-  user_avatar: string
+  out_trade_no: string
+  candidate_name: string
   cert_type: string
-  amount: number
+  price: number
   status: OrderStatus
-  user_phone: string
+  candidate_phone: string
   created_at: string
 }
 
 export interface OrderFilter {
   status?: OrderStatus
-  date_range?: [string, string]
+  start_time?: string
+  end_time?: string
   cert_type?: string
-  user_phone?: string
 }
 
 export interface OrderDetail extends Order {
@@ -25,7 +24,6 @@ export interface OrderDetail extends Order {
   refund_reason?: string
   refund_amount?: number
 }
-
 
 export interface ReconciliationData {
   date: string

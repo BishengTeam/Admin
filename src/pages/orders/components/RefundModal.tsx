@@ -34,9 +34,9 @@ export default function RefundModal({ order, onSuccess, onCancel }: RefundModalP
       okButtonProps={{ danger: true }}
     >
       <Descriptions column={1} size="small" bordered style={{ marginBottom: 16 }}>
-        <Descriptions.Item label="订单号">{order.order_no}</Descriptions.Item>
-        <Descriptions.Item label="用户">{order.user_name}</Descriptions.Item>
-        <Descriptions.Item label="金额">{formatPrice(order.amount)}</Descriptions.Item>
+        <Descriptions.Item label="订单号">{order.out_trade_no}</Descriptions.Item>
+        <Descriptions.Item label="用户">{order.candidate_name}</Descriptions.Item>
+        <Descriptions.Item label="金额">{formatPrice(order.price)}</Descriptions.Item>
         <Descriptions.Item label="状态">
           <StatusTag status={order.status} map={ORDER_STATUS_MAP} />
         </Descriptions.Item>

@@ -1,18 +1,13 @@
 export type QuestionType = 'single' | 'multi'
 
-export interface QuestionOption {
-  label: string
-  content: string
-}
-
 export interface Question {
   id: number
   category_id: number
   category_name: string
-  type: QuestionType
-  content: string
-  options: QuestionOption[]
-  correct_answer: string[]
+  question_type: QuestionType
+  question_text: string
+  options: Record<string, string>
+  correct_answer: string
   explanation: string
 }
 

@@ -68,12 +68,12 @@ export default function QuestionTable({
   const columns: ColumnsType<Question> = [
     {
       title: '题目内容',
-      dataIndex: 'content',
+      dataIndex: 'question_text',
       ellipsis: true,
     },
     {
       title: '题型',
-      dataIndex: 'type',
+      dataIndex: 'question_type',
       width: 80,
       render: (t: string) => <Tag color={t === 'single' ? 'blue' : 'orange'}>{t === 'single' ? '单选' : '多选'}</Tag>,
     },

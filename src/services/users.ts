@@ -19,8 +19,8 @@ export const userService = {
     return request.get(`/admin/users/${id}/conversations`)
   },
 
-  async updateStatus(id: number, status: string): Promise<void> {
-    return request.patch(`/admin/users/${id}/status`, { status })
+  async updateStatus(id: number, is_active: boolean): Promise<void> {
+    return request.patch(`/admin/users/${id}/status`, { is_active })
   },
 
   async deleteUsers(ids: number[]): Promise<void> {

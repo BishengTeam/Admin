@@ -18,9 +18,9 @@ import UserDetailDrawer from './components/UserDetailDrawer'
 const { RangePicker } = DatePicker
 
 const searchFields: SearchField[] = [
-  { name: 'username', label: '用户名', span: 6, render: () => <Input placeholder="用户名" /> },
+  { name: 'openid', label: '用户名', span: 6, render: () => <Input placeholder="用户名" /> },
   { name: 'phone', label: '手机号', span: 6, render: () => <Input placeholder="手机号" /> },
-  { name: 'register_date_range', label: '注册时间', span: 8, render: () => <RangePicker /> },
+  { name: 'created_at_range', label: '注册时间', span: 8, render: () => <RangePicker /> },
 ]
 
 export default function UserList() {
@@ -36,13 +36,13 @@ export default function UserList() {
   )
 
   const handleSearch = useCallback((values: Record<string, unknown>) => {
-    const { username, phone, register_date_range } = values
+    const { openid, phone, created_at_range } = values
+    const rangeArr = created_at_range as [string, string] | undefined
     setFilters({
-      username: username as string | undefined,
+      openid: openid as string | undefined,
       phone: phone as string | undefined,
-      register_date_range: (register_date_range as [string, string] | undefined)?.filter(Boolean).length === 2
-        ? register_date_range as [string, string]
-        : undefined,
+      created_at_start: (rangeArr?.filter(Boolean).length === 2) ? rangeArr![0] : undefined,
+      created_at_end: (rangeArr?.filter(Boolean).length === 2) ? rangeArr![1] : undefined,
     })
   }, [])
 
@@ -57,9 +57,9 @@ export default function UserList() {
   }
 
   const handleToggleStatus = async (record: User) => {
-    const newStatus = record.status === 'active' ? 'banned' : 'active'
+    const newStatus = !record.is_active
     await userService.updateStatus(record.id, newStatus)
-    message.success(newStatus === 'banned' ? '已禁用' : '已启用')
+    message.success(newStatus ? '已启用' : '已禁用')
     refresh()
   }
 
@@ -92,7 +92,7 @@ export default function UserList() {
   }
 
   const columns: ColumnsType<User> = [
-    { title: '用户名', dataIndex: 'username', width: 120 },
+    { title: '用户名', dataIndex: 'openid', width: 120 },
     {
       title: '手机号',
       dataIndex: 'phone',
@@ -101,15 +101,15 @@ export default function UserList() {
     },
     {
       title: '注册时间',
-      dataIndex: 'register_time',
+      dataIndex: 'created_at',
       width: 180,
       render: (t: string) => formatDate(t),
     },
     {
       title: '状态',
-      dataIndex: 'status',
+      dataIndex: 'is_active',
       width: 80,
-      render: (s: string) => <StatusTag status={s} map={USER_STATUS_MAP} />,
+      render: (v: boolean) => <StatusTag status={v} map={USER_STATUS_MAP} />,
     },
     {
       title: '操作',
@@ -120,11 +120,11 @@ export default function UserList() {
             查看
           </Button>
           <Popconfirm
-            title={`确认${record.status === 'active' ? '禁用' : '启用'}此用户？`}
+            title={`确认${record.is_active ? '禁用' : '启用'}此用户？`}
             onConfirm={() => handleToggleStatus(record)}
           >
-            <Button type="link" size="small" danger={record.status === 'active'}>
-              {record.status === 'active' ? '禁用' : '启用'}
+            <Button type="link" size="small" danger={record.is_active}>
+              {record.is_active ? '禁用' : '启用'}
             </Button>
           </Popconfirm>
           <Popconfirm title="确认删除此用户？" onConfirm={() => handleDelete(record.id)}>

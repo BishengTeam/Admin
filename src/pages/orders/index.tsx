@@ -21,6 +21,7 @@ const statusTabs: { key: string; label: string }[] = [
   { key: 'paid', label: '已支付' },
   { key: 'completed', label: '已完成' },
   { key: 'refunded', label: '已退款' },
+  { key: 'closed', label: '已关闭' },
   { key: 'abnormal', label: '异常' },
 ]
 
@@ -51,13 +52,13 @@ export default function OrderList() {
   }
 
   const handleSearch = useCallback(() => {
-    setFilters((f) => ({ ...f, user_phone: searchPhone || undefined }))
+    setFilters((f) => ({ ...f, candidate_phone: searchPhone || undefined }))
   }, [searchPhone])
 
   const handleReset = useCallback(() => {
     setSearchPhone('')
     setFilters((f) => {
-      const { user_phone, ...rest } = f
+      const { candidate_phone, ...rest } = f
       return rest
     })
   }, [])
@@ -81,22 +82,22 @@ export default function OrderList() {
   const columns: ColumnsType<Order> = [
     {
       title: '订单号',
-      dataIndex: 'order_no',
+      dataIndex: 'out_trade_no',
       width: 160,
       render: (text: string) => <span style={{ fontFamily: 'monospace' }}>{text}</span>,
     },
     {
       title: '用户',
-      dataIndex: 'user_name',
+      dataIndex: 'candidate_name',
       width: 100,
-      render: (name: string, record) => (
+      render: (name: string) => (
         <Space>
-          <Avatar size="small" src={record.user_avatar}>{name[0]}</Avatar>
+          <Avatar size="small">{name?.[0]}</Avatar>
           <span>{name}</span>
         </Space>
       ),
     },
-    { title: '手机号', dataIndex: 'user_phone', width: 140 },
+    { title: '手机号', dataIndex: 'candidate_phone', width: 140 },
     {
       title: '认证类型',
       dataIndex: 'cert_type',
@@ -104,7 +105,7 @@ export default function OrderList() {
     },
     {
       title: '金额',
-      dataIndex: 'amount',
+      dataIndex: 'price',
       width: 100,
       render: (a: number) => <span style={{ fontWeight: 500 }}>{formatPrice(a)}</span>,
     },

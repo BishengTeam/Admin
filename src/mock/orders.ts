@@ -18,12 +18,11 @@ function randomStatus(): Order['status'] {
 
 const mockOrders: Order[] = Array.from({ length: 108 }, (_, i) => ({
   id: i + 1,
-  order_no: `ORD${String(i + 1).padStart(5, '0')}`,
-  user_name: users[i % users.length],
-  user_avatar: '',
-  user_phone: `1${[3,5,8,6,9][i % 5]}${String(Math.random() * 1e9).slice(0, 9)}`,
+  out_trade_no: `ORD${String(i + 1).padStart(5, '0')}`,
+  candidate_name: users[i % users.length],
+  candidate_phone: `1${[3,5,8,6,9][i % 5]}${String(Math.random() * 1e9).slice(0, 9)}`,
   cert_type: certTypes[i % certTypes.length],
-  amount: [120000, 180000, 300000, 80000, 150000, 50000][i % 6],
+  price: [120000, 180000, 300000, 80000, 150000, 50000][i % 6],
   status: randomStatus(),
   created_at: new Date(2026, 4, 1 + i * 0.5).toISOString(),
 }))
@@ -35,7 +34,7 @@ function getDetail(id: number): OrderDetail {
     pay_time: order.status !== 'pending' ? new Date(Date.parse(order.created_at) + 3600000).toISOString() : undefined,
     refund_time: order.status === 'refunded' ? new Date(Date.parse(order.created_at) + 86400000).toISOString() : undefined,
     refund_reason: order.status === 'refunded' ? '用户申请退款' : undefined,
-    refund_amount: order.status === 'refunded' ? order.amount : undefined,
+    refund_amount: order.status === 'refunded' ? order.price : undefined,
   }
 }
 
@@ -50,8 +49,8 @@ export function registerOrdersMock(mock: MockAdapter) {
     if (params.cert_type) {
       filtered = filtered.filter((o) => o.cert_type === params.cert_type)
     }
-    if (params.user_phone) {
-      filtered = filtered.filter((o) => o.user_phone.includes(params.user_phone))
+    if (params.candidate_phone) {
+      filtered = filtered.filter((o) => o.candidate_phone.includes(params.candidate_phone))
     }
 
     const page = Number(params.page) || 1

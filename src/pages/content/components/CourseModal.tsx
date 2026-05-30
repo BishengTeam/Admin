@@ -14,7 +14,7 @@ interface CourseModalProps {
   onSuccess: () => void
 }
 
-interface ScheduleFormValues {
+interface BatchFormValues {
   class_date?: dayjs.Dayjs
   start_time?: dayjs.Dayjs
   end_time?: dayjs.Dayjs
@@ -30,13 +30,13 @@ export default function CourseModal({ open, course, onClose, onSuccess }: Course
     if (open) {
       if (course) {
         form.setFieldsValue({
-          name: course.name,
+          title: course.title,
           category: course.category,
           price: course.price,
           teacher_name: course.teacher_name,
           teacher_contact: course.teacher_contact,
-          status: course.status,
-          schedules: course.schedules?.map((s) => ({
+          is_active: course.is_active,
+          batches: course.batches?.map((s) => ({
             ...s,
             class_date: s.class_date ? dayjs(s.class_date) : undefined,
             start_time: s.start_time ? dayjs(s.start_time, 'HH:mm') : undefined,
@@ -45,7 +45,7 @@ export default function CourseModal({ open, course, onClose, onSuccess }: Course
         })
       } else {
         form.resetFields()
-        form.setFieldsValue({ status: 'online', schedules: [] })
+        form.setFieldsValue({ is_active: true, batches: [] })
       }
     }
   }, [open, course, form])
@@ -55,14 +55,13 @@ export default function CourseModal({ open, course, onClose, onSuccess }: Course
     const data = {
       ...values,
       price: values.price,
-      schedules: (values.schedules || []).map((s: ScheduleFormValues) => ({
+      batches: (values.batches || []).map((s: BatchFormValues) => ({
         class_date: s.class_date?.format('YYYY-MM-DD') || '',
         start_time: s.start_time?.format('HH:mm') || '',
         end_time: s.end_time?.format('HH:mm') || '',
         price: s.price,
         location: s.location,
       })),
-      class_count: (values.schedules || []).length,
     }
 
     if (isEdit) {
@@ -86,7 +85,7 @@ export default function CourseModal({ open, course, onClose, onSuccess }: Course
     >
       <Form form={form} layout="vertical">
         <Space style={{ width: '100%' }} size={16}>
-          <Form.Item name="name" label="课程名称" rules={[requiredRule('课程名称')]} style={{ flex: 1 }}>
+          <Form.Item name="title" label="课程名称" rules={[requiredRule('课程名称')]} style={{ flex: 1 }}>
             <Input placeholder="请输入课程名称" />
           </Form.Item>
           <Form.Item name="category" label="类别" rules={[requiredRule('类别')]} style={{ width: 150 }}>
@@ -104,13 +103,13 @@ export default function CourseModal({ open, course, onClose, onSuccess }: Course
           <Form.Item name="teacher_contact" label="联系方式">
             <Input placeholder="手机号" style={{ width: 200 }} />
           </Form.Item>
-          <Form.Item name="status" label="状态">
+          <Form.Item name="is_active" label="状态">
             <Select options={STATUS_OPTIONS} style={{ width: 100 }} />
           </Form.Item>
         </Space>
 
         <h4 style={{ marginBottom: 8 }}>班次配置</h4>
-        <Form.List name="schedules">
+        <Form.List name="batches">
           {(fields, { add, remove }) => (
             <>
               {fields.map(({ key, name, ...restField }) => (

@@ -7,16 +7,14 @@ export function registerAuthMock(mock: MockAdapter) {
       return [
         200,
         {
-          code: 200,
+          code: 0,
           message: 'ok',
           data: {
-            token: 'mock-jwt-token-admin',
+            access_token: 'mock-jwt-token-admin',
             admin: {
               id: 1,
               username: 'admin',
-              avatar: '',
               role: 'super_admin',
-              role_name: '超级管理员',
             },
             permissions: [
               'dashboard:view',
@@ -37,7 +35,7 @@ export function registerAuthMock(mock: MockAdapter) {
   })
 
   mock.onPost('/admin/auth/logout').reply(200, {
-    code: 200,
+    code: 0,
     message: 'ok',
     data: null,
   })

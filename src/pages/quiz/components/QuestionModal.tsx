@@ -61,17 +61,24 @@ function CheckboxGroup({ value, onChange, children }: { value?: string[]; onChan
 export default function QuestionModal({ open, question, categories, onClose, onSuccess }: QuestionModalProps) {
   const [form] = Form.useForm()
   const isEdit = !!question
-  const questionType = Form.useWatch('type', form) as QuestionType | undefined
+  const questionType = Form.useWatch('question_type', form) as QuestionType | undefined
 
   useEffect(() => {
     if (open) {
       if (question) {
+        // Convert Record<string,string> options to Form.List format [{label, content}]
+        const optionsList = Object.entries(question.options).map(([label, content]) => ({
+          label,
+          content,
+        }))
         form.setFieldsValue({
           category_id: question.category_id,
-          type: question.type,
-          content: question.content,
-          options: question.options.map((o) => ({ label: o.label, content: o.content })),
-          correct_answer: question.correct_answer,
+          question_type: question.question_type,
+          question_text: question.question_text,
+          options: optionsList,
+          correct_answer: question.question_type === 'multi'
+            ? question.correct_answer.split('')
+            : question.correct_answer,
           explanation: question.explanation,
         })
       } else {
@@ -82,18 +89,27 @@ export default function QuestionModal({ open, question, categories, onClose, onS
 
   const handleSubmit = async () => {
     const values = await form.validateFields()
-    const options = values.options.map((item: { label?: string; content: string }, idx: number) => ({
-      label: item.label || LABELS[idx],
-      content: item.content,
-    }))
+
+    // Convert options list to Record<string,string>
+    const options: Record<string, string> = {}
+    const optionsList = values.options as { label?: string; content: string }[]
+    optionsList.forEach((item, idx) => {
+      const label = item.label || LABELS[idx]
+      options[label] = item.content
+    })
+
+    // correct_answer: string (single: "A", multi: "AC")
+    const correct_answer = Array.isArray(values.correct_answer)
+      ? values.correct_answer.sort().join('')
+      : values.correct_answer
 
     const data = {
       category_id: values.category_id,
       category_name: '',
-      type: values.type,
-      content: values.content,
+      question_type: values.question_type,
+      question_text: values.question_text,
       options,
-      correct_answer: Array.isArray(values.correct_answer) ? values.correct_answer : [values.correct_answer],
+      correct_answer,
       explanation: values.explanation || '',
     }
 
@@ -116,7 +132,7 @@ export default function QuestionModal({ open, question, categories, onClose, onS
       width={720}
       destroyOnClose
     >
-      <Form form={form} layout="vertical" initialValues={{ type: 'single' }}>
+      <Form form={form} layout="vertical" initialValues={{ question_type: 'single' }}>
         <Form.Item name="category_id" label="所属分类" rules={[requiredSelectRule('分类')]}>
           <TreeSelect
             treeData={categoryToTreeSelect(categories)}
@@ -125,14 +141,14 @@ export default function QuestionModal({ open, question, categories, onClose, onS
           />
         </Form.Item>
 
-        <Form.Item name="type" label="题型" rules={[requiredSelectRule('题型')]}>
+        <Form.Item name="question_type" label="题型" rules={[requiredSelectRule('题型')]}>
           <Radio.Group>
             <Radio value="single">单选题</Radio>
             <Radio value="multi">多选题</Radio>
           </Radio.Group>
         </Form.Item>
 
-        <Form.Item name="content" label="题目内容" rules={[requiredRule('题目内容')]}>
+        <Form.Item name="question_text" label="题目内容" rules={[requiredRule('题目内容')]}>
           <Input.TextArea rows={3} placeholder="请输入题目内容" />
         </Form.Item>
 

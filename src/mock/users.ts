@@ -4,15 +4,14 @@ import type { User, UserDetail } from '@/types/user'
 const firstNames = ['张', '李', '王', '刘', '陈', '杨', '赵', '黄', '周', '吴', '徐', '孙', '马', '朱', '胡', '林', '郭', '何', '高', '罗']
 const lastNames = ['伟', '芳', '娜', '敏', '静', '丽', '强', '磊', '洋', '艳', '勇', '军', '杰', '娟', '涛', '明', '超', '秀英', '华', '慧']
 
-const statuses: User['status'][] = ['active', 'active', 'active', 'active', 'active', 'active', 'active', 'banned']
+const activeFlags = [true, true, true, true, true, true, true, false]
 
 const mockUsers: User[] = Array.from({ length: 53 }, (_, i) => ({
   id: i + 1,
-  avatar: '',
-  username: `${firstNames[i % firstNames.length]}${lastNames[i % lastNames.length]}`,
+  openid: `${firstNames[i % firstNames.length]}${lastNames[i % lastNames.length]}`,
   phone: `1${[3,5,8,6,9,7][i % 6]}${String(Math.random() * 1e9).slice(0, 9)}`,
-  status: statuses[i % statuses.length],
-  register_time: new Date(2025, 0, 1 + i * 3).toISOString(),
+  is_active: activeFlags[i % activeFlags.length],
+  created_at: new Date(2025, 0, 1 + i * 3).toISOString(),
 }))
 
 const mockDetails: Record<number, UserDetail> = {}
@@ -24,11 +23,10 @@ function getDetail(id: number): UserDetail {
     ...user,
     email: `${user.phone}@example.com`,
     school: ['北京邮电大学', '华中科技大学', '电子科技大学', '西安电子科技大学', '南京邮电大学'][id % 5],
-    created_at: user.register_time,
     orders: Array.from({ length: 3 + (id % 5) }, (_, j) => ({
       id: id * 100 + j,
-      order_no: `ORD${String(id).padStart(4, '0')}${String(j).padStart(3, '0')}`,
-      amount: [120000, 180000, 300000, 80000, 150000][j % 5],
+      out_trade_no: `ORD${String(id).padStart(4, '0')}${String(j).padStart(3, '0')}`,
+      price: [120000, 180000, 300000, 80000, 150000][j % 5],
       status: ['paid', 'completed', 'pending', 'refunded', 'paid'][j % 5],
       created_at: new Date(2026, 2, 1 + j * 7).toISOString(),
     })),
@@ -54,14 +52,14 @@ export function registerUsersMock(mock: MockAdapter) {
     const params = config.params || {}
     let filtered = [...mockUsers]
 
-    if (params.username) {
-      filtered = filtered.filter((u) => u.username.includes(params.username))
+    if (params.openid) {
+      filtered = filtered.filter((u) => u.openid.includes(params.openid))
     }
     if (params.phone) {
       filtered = filtered.filter((u) => u.phone.includes(params.phone))
     }
-    if (params.status) {
-      filtered = filtered.filter((u) => u.status === params.status)
+    if (params.is_active !== undefined) {
+      filtered = filtered.filter((u) => u.is_active === params.is_active)
     }
 
     const page = Number(params.page) || 1
@@ -96,9 +94,9 @@ export function registerUsersMock(mock: MockAdapter) {
 
   mock.onPatch(/\/admin\/users\/\d+\/status/).reply((config) => {
     const id = Number(config.url!.match(/\/admin\/users\/(\d+)/)![1])
-    const { status } = JSON.parse(config.data)
+    const { is_active } = JSON.parse(config.data)
     const user = mockUsers.find((u) => u.id === id)
-    if (user) user.status = status
+    if (user) user.is_active = is_active
     return [200, { code: 200, message: 'ok', data: null }]
   })
 
@@ -114,10 +112,10 @@ export function registerUsersMock(mock: MockAdapter) {
   mock.onGet('/admin/users/export').reply((config) => {
     const params = config.params || {}
     let filtered = [...mockUsers]
-    if (params.username) filtered = filtered.filter((u) => u.username.includes(params.username))
+    if (params.openid) filtered = filtered.filter((u) => u.openid.includes(params.openid))
     if (params.phone) filtered = filtered.filter((u) => u.phone.includes(params.phone))
     const csv = ['用户名,手机号,状态,注册时间']
-      .concat(filtered.map((u) => [u.username, u.phone, u.status, u.register_time].join(',')))
+      .concat(filtered.map((u) => [u.openid, u.phone, u.is_active ? '正常' : '已禁用', u.created_at].join(',')))
       .join('\n')
     const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' })
     return [200, blob]

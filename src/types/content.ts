@@ -1,14 +1,12 @@
-export type ContentStatus = 'online' | 'offline'
-
 export interface ContentItem {
   id: number
   title: string
-  zone: string
+  zone_type: string
   cover_url: string
   description: string
-  external_url: string
-  sort_weight: number
-  status: ContentStatus
+  link_url: string
+  sort_order: number
+  is_active: boolean
   created_at: string
 }
 
@@ -19,20 +17,19 @@ export interface Banner {
   sort: number
   start_time: string
   end_time: string
-  status: ContentStatus
+  is_active: boolean
 }
 
 export interface Course {
   id: number
-  name: string
+  title: string
   category: string
   price: number
-  class_count: number
-  status: ContentStatus
+  is_active: boolean
   teacher_name: string
   teacher_contact: string
   created_at: string
-  schedules: ClassSchedule[]
+  batches: Record<string, any> | null
 }
 
 export interface ClassSchedule {

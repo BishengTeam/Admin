@@ -45,7 +45,7 @@ export default function CourseList() {
   }
 
   const columns: ColumnsType<Course> = [
-    { title: '课程名称', dataIndex: 'name', width: 200 },
+    { title: '课程名称', dataIndex: 'title', width: 200 },
     {
       title: '类目',
       dataIndex: 'category',
@@ -62,15 +62,10 @@ export default function CourseList() {
       render: (p: number) => formatPrice(p),
     },
     {
-      title: '班次数',
-      dataIndex: 'class_count',
-      width: 80,
-    },
-    {
       title: '状态',
-      dataIndex: 'status',
+      dataIndex: 'is_active',
       width: 80,
-      render: (s: string) => <StatusTag status={s} map={CONTENT_STATUS_MAP} />,
+      render: (v: boolean) => <StatusTag status={v} map={CONTENT_STATUS_MAP} />,
     },
     {
       title: '创建时间',

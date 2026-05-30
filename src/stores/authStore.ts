@@ -27,10 +27,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   login: async (username: string, password: string) => {
     const data = await authService.login(username, password)
-    setToken(data.token)
+    setToken(data.access_token)
     setAdminInfo(data.admin)
     setPermissions(data.permissions)
-    set({ token: data.token, admin: data.admin, permissions: data.permissions })
+    set({ token: data.access_token, admin: data.admin, permissions: data.permissions })
   },
 
   logout: () => {

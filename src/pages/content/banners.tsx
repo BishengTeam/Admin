@@ -76,7 +76,7 @@ export default function BannerConfig() {
       sort: values.sort || 0,
       start_time,
       end_time,
-      status: (values.status ? 'online' : 'offline') as 'online' | 'offline',
+      is_active: values.is_active === true,
     }
 
     if (editingBanner) {
@@ -111,9 +111,9 @@ export default function BannerConfig() {
     },
     {
       title: '状态',
-      dataIndex: 'status',
+      dataIndex: 'is_active',
       width: 80,
-      render: (s: string) => <StatusTag status={s} map={CONTENT_STATUS_MAP} />,
+      render: (v: boolean) => <StatusTag status={v} map={CONTENT_STATUS_MAP} />,
     },
     {
       title: '操作',
@@ -158,7 +158,7 @@ export default function BannerConfig() {
         width={520}
         destroyOnClose
       >
-        <Form form={form} layout="vertical" initialValues={{ sort: 0, status: true }}>
+        <Form form={form} layout="vertical" initialValues={{ sort: 0, is_active: true }}>
           <Form.Item name="image_url" label="图片" rules={[requiredRule('图片')]}>
             <ImageUpload />
           </Form.Item>
@@ -171,7 +171,7 @@ export default function BannerConfig() {
           <Form.Item name="time_range" label="有效期">
             <RangePicker showTime style={{ width: '100%' }} />
           </Form.Item>
-          <Form.Item name="status" label="启用" valuePropName="checked">
+          <Form.Item name="is_active" label="启用" valuePropName="checked">
             <Switch />
           </Form.Item>
         </Form>

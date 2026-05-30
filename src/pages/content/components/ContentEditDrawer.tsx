@@ -20,22 +20,21 @@ export default function ContentEditDrawer({ open, item, onClose, onSuccess }: Co
   useEffect(() => {
     if (open) {
       if (item) {
-        form.setFieldsValue({ ...item, status: item.status === 'online' })
+        form.setFieldsValue({ ...item })
       } else {
         form.resetFields()
-        form.setFieldsValue({ status: true, sort_weight: 0 })
+        form.setFieldsValue({ is_active: true, sort_order: 0 })
       }
     }
   }, [open, item, form])
 
   const handleSubmit = async () => {
     const values = await form.validateFields()
-    const data = { ...values, status: values.status ? 'online' : 'offline' }
     if (isEdit) {
-      await contentService.update(item!.id, data)
+      await contentService.update(item!.id, values)
       message.success('更新成功')
     } else {
-      await contentService.create(data)
+      await contentService.create(values)
       message.success('添加成功')
     }
     onSuccess()
@@ -63,7 +62,7 @@ export default function ContentEditDrawer({ open, item, onClose, onSuccess }: Co
           <ImageUpload />
         </Form.Item>
 
-        <Form.Item name="zone" label="所属专区" rules={[requiredRule('专区')]}>
+        <Form.Item name="zone_type" label="所属专区" rules={[requiredRule('专区')]}>
           <Select options={ZONE_OPTIONS} placeholder="选择专区" />
         </Form.Item>
 
@@ -71,15 +70,15 @@ export default function ContentEditDrawer({ open, item, onClose, onSuccess }: Co
           <Input.TextArea rows={3} placeholder="请输入描述" />
         </Form.Item>
 
-        <Form.Item name="external_url" label="外链URL" rules={[urlRule]}>
+        <Form.Item name="link_url" label="外链URL" rules={[urlRule]}>
           <Input placeholder="请输入外部链接" />
         </Form.Item>
 
-        <Form.Item name="sort_weight" label="排序权重">
+        <Form.Item name="sort_order" label="排序权重">
           <InputNumber min={0} style={{ width: '100%' }} placeholder="数字越大越靠前" />
         </Form.Item>
 
-        <Form.Item name="status" label="状态" valuePropName="checked">
+        <Form.Item name="is_active" label="状态" valuePropName="checked">
           <Switch checkedChildren="上架" unCheckedChildren="下架" />
         </Form.Item>
       </Form>
