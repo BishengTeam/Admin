@@ -36,7 +36,7 @@ export default function CourseModal({ open, course, onClose, onSuccess }: Course
           teacher_name: course.teacher_name,
           teacher_contact: course.teacher_contact,
           is_active: course.is_active,
-          batches: course.batches?.map((s) => ({
+          batches: (course.batches as Record<string, any>[])?.map((s) => ({
             ...s,
             class_date: s.class_date ? dayjs(s.class_date) : undefined,
             start_time: s.start_time ? dayjs(s.start_time, 'HH:mm') : undefined,

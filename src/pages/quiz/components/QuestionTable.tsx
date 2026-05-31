@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Table, Button, Space, Tag, Input, Popconfirm, message } from 'antd'
+import { Table, Button, Space, Tag, Input, message } from 'antd'
+import { ConfirmButton } from '@/components/ConfirmButton'
 import { PlusOutlined, SearchOutlined, UploadOutlined, DeleteOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import type { TableRowSelection } from 'antd/es/table/interface'
@@ -91,11 +92,16 @@ export default function QuestionTable({
           <Button type="link" size="small" onClick={() => handleEdit(record)}>
             编辑
           </Button>
-          <Popconfirm title="确认删除此题目？" onConfirm={() => handleDelete(record.id)}>
-            <Button type="link" size="small" danger>
-              删除
-            </Button>
-          </Popconfirm>
+          <ConfirmButton
+            title="删除题目"
+            description="此操作不可撤销，确认删除此题目？"
+            danger
+            type="link"
+            size="small"
+            onConfirm={() => handleDelete(record.id)}
+          >
+            删除
+          </ConfirmButton>
         </Space>
       ),
     },
@@ -114,14 +120,15 @@ export default function QuestionTable({
         />
         <Space>
           {selectedRowKeys.length > 0 && (
-            <Popconfirm
-              title={`确认删除选中的 ${selectedRowKeys.length} 道题目？`}
+            <ConfirmButton
+              title="批量删除"
+              description={`确认删除选中的 ${selectedRowKeys.length} 道题目？此操作不可撤销。`}
+              danger
+              icon={<DeleteOutlined />}
               onConfirm={handleBatchDelete}
             >
-              <Button danger icon={<DeleteOutlined />}>
-                删除 ({selectedRowKeys.length})
-              </Button>
-            </Popconfirm>
+              删除 ({selectedRowKeys.length})
+            </ConfirmButton>
           )}
           <Button icon={<UploadOutlined />} onClick={() => navigate('/admin/quiz/import')}>
             批量导入

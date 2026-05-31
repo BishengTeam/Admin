@@ -1,8 +1,9 @@
 import { useState, useCallback } from 'react'
-import { Table, Button, Input, Select, Popconfirm, Space, Tag, message } from 'antd'
+import { Table, Button, Input, Select, Space, Tag, message } from 'antd'
 import { PlusOutlined, SearchOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import { PageContainer } from '@/components/PageContainer'
+import { ConfirmButton } from '@/components/ConfirmButton'
 import { StatusTag } from '@/components/StatusTag'
 import { usePagination } from '@/hooks/usePagination'
 import { contentService } from '@/services/content'
@@ -79,9 +80,16 @@ export default function CourseList() {
       render: (_, record) => (
         <Space>
           <Button type="link" size="small" onClick={() => handleEdit(record)}>编辑</Button>
-          <Popconfirm title="确认删除此课程？" onConfirm={() => handleDelete(record.id)}>
-            <Button type="link" size="small" danger>删除</Button>
-          </Popconfirm>
+          <ConfirmButton
+            title="删除课程"
+            description="此操作不可撤销，确认删除此课程？"
+            danger
+            type="link"
+            size="small"
+            onConfirm={() => handleDelete(record.id)}
+          >
+            删除
+          </ConfirmButton>
         </Space>
       ),
     },

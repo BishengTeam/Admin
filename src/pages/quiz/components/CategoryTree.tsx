@@ -1,4 +1,5 @@
-import { Tree, Card, Button, Space, Popconfirm } from 'antd'
+import { Tree, Card, Button, Space } from 'antd'
+import { ConfirmButton } from '@/components/ConfirmButton'
 import { PlusOutlined, EditOutlined, DeleteOutlined, FolderOutlined } from '@ant-design/icons'
 import type { Category } from '@/types/quiz'
 import type { DataNode } from 'antd/es/tree'
@@ -62,22 +63,20 @@ export default function CategoryTree({
               if (cat) onRename(cat)
             }}
           />
-          <Popconfirm
-            title="删除此分类将同时删除其子分类和题目，确认？"
-            onConfirm={(e) => {
-              e?.stopPropagation()
+           <ConfirmButton
+            title="删除分类"
+            description="删除此分类将同时删除其子分类和题目，此操作不可撤销。"
+            danger
+            type="link"
+            size="small"
+            icon={<DeleteOutlined />}
+            onConfirm={async () => {
               const cat = findCategory(categories, key as number)
               if (cat) onDelete(cat)
             }}
           >
-            <Button
-              type="link"
-              size="small"
-              danger
-              icon={<DeleteOutlined />}
-              onClick={(e) => e.stopPropagation()}
-            />
-          </Popconfirm>
+            删除
+          </ConfirmButton>
         </Space>
       </div>
     )

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Row, Col, Card, Statistic, Table, Spin } from 'antd'
+import { Row, Col, Card, Statistic, Table, Spin, Result, Button } from 'antd'
 import {
   UserOutlined, MessageOutlined, SwapOutlined,
   ShoppingCartOutlined, CheckCircleOutlined, DollarOutlined,
@@ -9,6 +9,15 @@ import ReactECharts from 'echarts-for-react'
 import { PageContainer } from '@/components/PageContainer'
 import { dashboardService } from '@/services/dashboard'
 import type { DashboardData, SchoolRegistration } from '@/types/dashboard'
+
+const EMPTY_STATS: DashboardData['stats'] = {
+  total_users: 0,
+  total_conversations: 0,
+  transfer_rate: 0,
+  total_orders: 0,
+  payment_success_rate: 0,
+  total_revenue: 0,
+}
 
 const statCards = [
   { key: 'total_users', title: '注册用户数', icon: <UserOutlined />, color: '#1677ff' },
@@ -27,10 +36,42 @@ const schoolColumns: ColumnsType<SchoolRegistration> = [
 
 export default function Dashboard() {
   const [data, setData] = useState<DashboardData | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [retryKey, setRetryKey] = useState(0)
 
   useEffect(() => {
-    dashboardService.getData().then(setData)
-  }, [])
+    dashboardService
+      .getData()
+      .then((raw) => {
+        setData({
+          stats: { ...EMPTY_STATS, ...raw?.stats },
+          conversion_trend: raw?.conversion_trend ?? [],
+          quality_distribution: raw?.quality_distribution ?? [],
+          revenue_trend: raw?.revenue_trend ?? [],
+          school_registrations: raw?.school_registrations ?? [],
+        })
+      })
+      .catch((err) => {
+        setError(err?.message || '加载失败')
+      })
+  }, [retryKey])
+
+  if (error) {
+    return (
+      <PageContainer title="数据看板">
+        <Result
+          status="error"
+          title="数据加载失败"
+          subTitle={error}
+          extra={
+            <Button type="primary" onClick={() => { setError(null); setData(null); setRetryKey((k) => k + 1); }}>
+              重试
+            </Button>
+          }
+        />
+      </PageContainer>
+    )
+  }
 
   if (!data) {
     return (

@@ -6,7 +6,13 @@ import type { Category, QuestionFilter } from '@/types/quiz'
 import CategoryTree from './components/CategoryTree'
 import QuestionTable from './components/QuestionTable'
 
-function buildTreeSelectData(categories: Category[]): { title: string; value: number; children?: unknown[] }[] {
+interface TreeNodeData {
+  title: string
+  value: number
+  children?: TreeNodeData[]
+}
+
+function buildTreeSelectData(categories: Category[]): TreeNodeData[] {
   return categories.map((cat) => ({
     title: cat.name,
     value: cat.id,

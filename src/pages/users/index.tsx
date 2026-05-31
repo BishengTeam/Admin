@@ -1,9 +1,10 @@
 import { useState, useCallback } from 'react'
-import { Table, Input, DatePicker, Button, Space, Popconfirm, message } from 'antd'
+import { Table, Input, DatePicker, Button, Space, message } from 'antd'
 import { DownloadOutlined, DeleteOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import type { TableRowSelection } from 'antd/es/table/interface'
 import { PageContainer } from '@/components/PageContainer'
+import { ConfirmButton } from '@/components/ConfirmButton'
 import { SearchForm, type SearchField } from '@/components/SearchForm'
 import { StatusTag } from '@/components/StatusTag'
 import { usePagination } from '@/hooks/usePagination'
@@ -119,17 +120,25 @@ export default function UserList() {
           <Button type="link" size="small" onClick={(e) => { e.stopPropagation(); handleRowClick(record); }}>
             查看
           </Button>
-          <Popconfirm
-            title={`确认${record.is_active ? '禁用' : '启用'}此用户？`}
+           <ConfirmButton
+            title={record.is_active ? '禁用用户' : '启用用户'}
+            description={`确认${record.is_active ? '禁用' : '启用'}此用户？`}
+            type="link"
+            size="small"
             onConfirm={() => handleToggleStatus(record)}
           >
-            <Button type="link" size="small" danger={record.is_active}>
-              {record.is_active ? '禁用' : '启用'}
-            </Button>
-          </Popconfirm>
-          <Popconfirm title="确认删除此用户？" onConfirm={() => handleDelete(record.id)}>
-            <Button type="link" size="small" danger>删除</Button>
-          </Popconfirm>
+            {record.is_active ? '禁用' : '启用'}
+          </ConfirmButton>
+           <ConfirmButton
+            title="删除用户"
+            description="此操作不可撤销，确认删除此用户？"
+            danger
+            type="link"
+            size="small"
+            onConfirm={() => handleDelete(record.id)}
+          >
+            删除
+          </ConfirmButton>
         </Space>
       ),
     },
@@ -141,14 +150,15 @@ export default function UserList() {
         <SearchForm fields={searchFields} onSearch={handleSearch} onReset={handleReset} />
         <Space style={{ flexShrink: 0 }}>
           {selectedRowKeys.length > 0 && (
-            <Popconfirm
-              title={`确认删除选中的 ${selectedRowKeys.length} 个用户？`}
+             <ConfirmButton
+              title="批量删除"
+              description={`确认删除选中的 ${selectedRowKeys.length} 个用户？此操作不可撤销。`}
+              danger
+              icon={<DeleteOutlined />}
               onConfirm={handleBatchDelete}
             >
-              <Button danger icon={<DeleteOutlined />}>
-                删除 ({selectedRowKeys.length})
-              </Button>
-            </Popconfirm>
+              删除 ({selectedRowKeys.length})
+            </ConfirmButton>
           )}
           <Button icon={<DownloadOutlined />} loading={exporting} onClick={handleExport}>
             导出

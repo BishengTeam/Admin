@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react'
-import { Table, Button, Modal, Form, Input, InputNumber, DatePicker, Switch, Popconfirm, Space, Image, message } from 'antd'
+import { Table, Button, Modal, Form, Input, InputNumber, DatePicker, Switch, Space, Image, message } from 'antd'
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import type { TableRowSelection } from 'antd/es/table/interface'
 import { PageContainer } from '@/components/PageContainer'
+import { ConfirmButton } from '@/components/ConfirmButton'
 import { ImageUpload } from '@/components/ImageUpload'
 import { StatusTag } from '@/components/StatusTag'
 import { contentService } from '@/services/content'
@@ -121,9 +122,16 @@ export default function BannerConfig() {
       render: (_, record) => (
         <Space>
           <Button type="link" size="small" onClick={() => handleEdit(record)}>编辑</Button>
-          <Popconfirm title="确认删除此Banner？" onConfirm={() => handleDelete(record.id)}>
-            <Button type="link" size="small" danger>删除</Button>
-          </Popconfirm>
+          <ConfirmButton
+            title="删除Banner"
+            description="此操作不可撤销，确认删除此Banner？"
+            danger
+            type="link"
+            size="small"
+            onConfirm={() => handleDelete(record.id)}
+          >
+            删除
+          </ConfirmButton>
         </Space>
       ),
     },
@@ -135,14 +143,15 @@ export default function BannerConfig() {
       extra={
         <Space>
           {selectedRowKeys.length > 0 && (
-            <Popconfirm
-              title={`确认删除选中的 ${selectedRowKeys.length} 个Banner？`}
+            <ConfirmButton
+              title="批量删除"
+              description={`确认删除选中的 ${selectedRowKeys.length} 个Banner？此操作不可撤销。`}
+              danger
+              icon={<DeleteOutlined />}
               onConfirm={handleBatchDelete}
             >
-              <Button danger icon={<DeleteOutlined />}>
-                删除 ({selectedRowKeys.length})
-              </Button>
-            </Popconfirm>
+              删除 ({selectedRowKeys.length})
+            </ConfirmButton>
           )}
           <Button type="primary" icon={<PlusOutlined />} onClick={handleAdd}>新增Banner</Button>
         </Space>

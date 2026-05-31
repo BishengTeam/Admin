@@ -55,7 +55,13 @@ function parseTxt(text: string): ParsedQuestion[] {
   return questions
 }
 
-function buildCategoryTree(categories: Category[]): { title: string; value: number; children?: unknown[] }[] {
+interface TreeNodeData {
+  title: string
+  value: number
+  children?: TreeNodeData[]
+}
+
+function buildCategoryTree(categories: Category[]): TreeNodeData[] {
   return categories.map((cat) => ({
     title: cat.name,
     value: cat.id,

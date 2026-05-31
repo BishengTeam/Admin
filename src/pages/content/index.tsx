@@ -1,9 +1,10 @@
 import { useState, useCallback } from 'react'
-import { Table, Button, Input, Switch, Popconfirm, Space, Image, message } from 'antd'
+import { Table, Button, Input, Switch, Space, Image, message } from 'antd'
 import { PlusOutlined, SearchOutlined, DeleteOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import type { TableRowSelection } from 'antd/es/table/interface'
 import { PageContainer } from '@/components/PageContainer'
+import { ConfirmButton } from '@/components/ConfirmButton'
 import { usePagination } from '@/hooks/usePagination'
 import { contentService } from '@/services/content'
 import { formatDate } from '@/utils/format'
@@ -118,9 +119,16 @@ export default function ContentManagement() {
       render: (_, record) => (
         <Space>
           <Button type="link" size="small" onClick={() => handleEdit(record)}>编辑</Button>
-          <Popconfirm title="确认删除此内容？" onConfirm={() => handleDelete(record.id)}>
-            <Button type="link" size="small" danger>删除</Button>
-          </Popconfirm>
+          <ConfirmButton
+            title="删除内容"
+            description="此操作不可撤销，确认删除此内容？"
+            danger
+            type="link"
+            size="small"
+            onConfirm={() => handleDelete(record.id)}
+          >
+            删除
+          </ConfirmButton>
         </Space>
       ),
     },
@@ -144,14 +152,15 @@ export default function ContentManagement() {
         <Button type="primary" onClick={handleSearch}>查询</Button>
         <Button onClick={() => { setKeyword(''); setSearchText(''); }}>重置</Button>
         {selectedRowKeys.length > 0 && (
-          <Popconfirm
-            title={`确认删除选中的 ${selectedRowKeys.length} 条内容？`}
+          <ConfirmButton
+            title="批量删除"
+            description={`确认删除选中的 ${selectedRowKeys.length} 条内容？此操作不可撤销。`}
+            danger
+            icon={<DeleteOutlined />}
             onConfirm={handleBatchDelete}
           >
-            <Button danger icon={<DeleteOutlined />}>
-              删除 ({selectedRowKeys.length})
-            </Button>
-          </Popconfirm>
+            删除 ({selectedRowKeys.length})
+          </ConfirmButton>
         )}
       </Space>
 

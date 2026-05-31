@@ -1,9 +1,25 @@
+/// <reference types="vitest" />
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { resolve } from 'path'
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    react(),
+    {
+      name: 'html-inject-csp',
+      transformIndexHtml(html) {
+        return html.replace(
+          '<head>',
+          `<head>
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline';
+                 img-src 'self' data: https:; connect-src 'self';
+                 font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'" />`,
+        )
+      },
+    },
+  ],
   resolve: {
     alias: {
       '@': resolve(__dirname, 'src'),
@@ -14,5 +30,10 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
+  },
+  test: {
+    globals: true,
+    environment: 'jsdom',
+    setupFiles: './tests/setup.ts',
   },
 })
