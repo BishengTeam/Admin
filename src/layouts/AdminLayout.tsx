@@ -1,6 +1,7 @@
 import { useMemo, type ReactNode } from 'react'
 import { useNavigate, useLocation, Outlet } from 'react-router-dom'
 import { Layout, Menu, Button, Breadcrumb, Dropdown, Avatar, theme } from 'antd'
+import type { MenuProps } from 'antd'
 import {
   MenuFoldOutlined,
   MenuUnfoldOutlined,
@@ -19,6 +20,9 @@ import { useAuthStore } from '@/stores/authStore'
 import { useAuth } from '@/hooks/useAuth'
 import type { AppRoute } from '@/routes'
 import { adminRoutes } from '@/routes'
+import { ErrorBoundary } from '@/components/ErrorBoundary'
+
+const APP_TITLE: string = import.meta.env.VITE_APP_TITLE || '运营管理后台'
 
 const { Header, Sider, Content } = Layout
 
@@ -32,7 +36,7 @@ const iconMap: Record<string, ReactNode> = {
   BookOutlined: <BookOutlined />,
 }
 
-function buildMenuItems(routes: AppRoute[]): any[] {
+function buildMenuItems(routes: AppRoute[]): MenuProps['items'] {
   return routes
     .filter((r) => r.meta && !r.meta.hidden)
     .map((r) => {
@@ -111,8 +115,8 @@ export default function AdminLayout({ children }: { children?: ReactNode }) {
     return []
   }, [location.pathname])
 
-  const handleLogout = () => {
-    logout()
+  const handleLogout = async () => {
+    await logout()
     navigate('/admin/login', { replace: true })
   }
 
@@ -148,7 +152,7 @@ export default function AdminLayout({ children }: { children?: ReactNode }) {
             overflow: 'hidden',
           }}
         >
-          {collapsed ? '后台' : import.meta.env.VITE_APP_TITLE}
+          {collapsed ? '后台' : APP_TITLE}
         </div>
         <Menu
           theme="dark"
@@ -208,7 +212,9 @@ export default function AdminLayout({ children }: { children?: ReactNode }) {
             minHeight: 280,
           }}
         >
-          {children || <Outlet />}
+          <ErrorBoundary level="page">
+            {children || <Outlet />}
+          </ErrorBoundary>
         </Content>
       </Layout>
     </Layout>

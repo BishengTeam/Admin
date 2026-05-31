@@ -1,33 +1,33 @@
-import request from '@/core/request'
+import { http } from '@/core/request'
 import type { User, UserFilter, UserDetail, UserOrderSummary, UserConversationSummary } from '@/types/user'
 import type { PageData, PageParams } from '@/types/api'
 
 export const userService = {
   async list(params: UserFilter & PageParams): Promise<PageData<User>> {
-    return request.get('/admin/users', { params })
+    return http.get<PageData<User>>('/admin/users', { params })
   },
 
   async detail(id: number): Promise<UserDetail> {
-    return request.get(`/admin/users/${id}`)
+    return http.get<UserDetail>(`/admin/users/${id}`)
   },
 
   async getOrders(id: number): Promise<UserOrderSummary[]> {
-    return request.get(`/admin/users/${id}/orders`)
+    return http.get<UserOrderSummary[]>(`/admin/users/${id}/orders`)
   },
 
   async getConversations(id: number): Promise<UserConversationSummary[]> {
-    return request.get(`/admin/users/${id}/conversations`)
+    return http.get<UserConversationSummary[]>(`/admin/users/${id}/conversations`)
   },
 
   async updateStatus(id: number, is_active: boolean): Promise<void> {
-    return request.patch(`/admin/users/${id}/status`, { is_active })
+    return http.patch<void>(`/admin/users/${id}/status`, { is_active })
   },
 
   async deleteUsers(ids: number[]): Promise<void> {
-    return request.post('/admin/users/batch-delete', { ids })
+    return http.post<void>('/admin/users/batch-delete', { ids })
   },
 
   async exportUsers(params: UserFilter): Promise<Blob> {
-    return request.get('/admin/users/export', { params, responseType: 'blob' })
+    return http.get<Blob>('/admin/users/export', { params, responseType: 'blob' })
   },
 }

@@ -1,8 +1,17 @@
-import type { AdminInfo } from '@/types/admin'
-
 const TOKEN_KEY = 'admin_token'
-const ADMIN_KEY = 'admin_info'
-const PERMISSIONS_KEY = 'admin_permissions'
+
+// ── 事件机制：允许外部模块（如 request.ts）通知 Zustand store 认证已失效 ──
+type AuthClearListener = () => void
+const clearListeners: AuthClearListener[] = []
+
+/** 注册 clearAuth 回调。返回 unsubscribe 函数。 */
+export function onAuthClear(fn: AuthClearListener): () => void {
+  clearListeners.push(fn)
+  return () => {
+    const idx = clearListeners.indexOf(fn)
+    if (idx >= 0) clearListeners.splice(idx, 1)
+  }
+}
 
 export function getToken(): string | null {
   return localStorage.getItem(TOKEN_KEY)
@@ -16,26 +25,10 @@ export function clearToken(): void {
   localStorage.removeItem(TOKEN_KEY)
 }
 
-export function getAdminInfo(): AdminInfo | null {
-  const raw = localStorage.getItem(ADMIN_KEY)
-  return raw ? JSON.parse(raw) : null
-}
-
-export function setAdminInfo(admin: AdminInfo): void {
-  localStorage.setItem(ADMIN_KEY, JSON.stringify(admin))
-}
-
-export function getPermissions(): string[] {
-  const raw = localStorage.getItem(PERMISSIONS_KEY)
-  return raw ? JSON.parse(raw) : []
-}
-
-export function setPermissions(permissions: string[]): void {
-  localStorage.setItem(PERMISSIONS_KEY, JSON.stringify(permissions))
-}
-
+/** 清除本地 token，并通知所有订阅者（Zustand store 等）。 */
 export function clearAuth(): void {
   localStorage.removeItem(TOKEN_KEY)
-  localStorage.removeItem(ADMIN_KEY)
-  localStorage.removeItem(PERMISSIONS_KEY)
+  for (const fn of clearListeners) {
+    fn()
+  }
 }
