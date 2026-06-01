@@ -7,7 +7,35 @@
     <title>小程序平台管理后台</title>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <!--
+        内联骨架 — 在 React 挂载前模拟 AdminLayout 外观。
+        React 挂载时会替换 #root 全部内容，无需手动清除。
+        纯 CSS 无外部依赖，确保首帧渲染。
+      -->
+      <style>
+        .sk-root { display: flex; height: 100vh; background: #f5f5f5; }
+        .sk-sider { width: 240px; background: #001529; flex-shrink: 0;
+                    display: flex; align-items: center; justify-content: center; }
+        .sk-logo  { color: #fff; font: 700 20px -apple-system, sans-serif;
+                    letter-spacing: 2px; }
+        .sk-main  { flex: 1; display: flex; flex-direction: column; }
+        .sk-header{ height: 64px; background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+        .sk-body  { flex: 1; display: flex; justify-content: center; align-items: center; }
+        .sk-spin  { width: 36px; height: 36px; border: 3px solid #e0e0e0;
+                    border-top-color: #1677ff; border-radius: 50%;
+                    animation: sk-rot .8s linear infinite; }
+        @keyframes sk-rot { to { transform: rotate(360deg); } }
+        @media (max-width:768px) { .sk-sider { width: 80px; } .sk-logo { font-size:16px; } }
+      </style>
+      <div class="sk-root">
+        <div class="sk-sider"><span class="sk-logo"></span></div>
+        <div class="sk-main">
+          <div class="sk-header"></div>
+          <div class="sk-body"><div class="sk-spin"></div></div>
+        </div>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

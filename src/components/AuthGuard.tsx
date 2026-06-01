@@ -34,12 +34,14 @@ export default function AuthGuard() {
     return <Navigate to="/admin/login" state={{ from: location }} replace />
   }
 
-  // 有 token 但未从服务端初始化 → 加载中
+  // 有 token 但未从服务端初始化 → 显示布局骨架 + 加载中
+  // 直接渲染 AdminLayout 而非独立的 loading 容器，避免初始化完成
+  // 后因 DOM 结构突变（div → Layout）产生整体重排闪烁。
   if (!initialized) {
     return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+      <AdminLayout>
         <Spin size="large" />
-      </div>
+      </AdminLayout>
     )
   }
 

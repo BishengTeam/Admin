@@ -1,6 +1,6 @@
-import { useMemo, type ReactNode } from 'react'
+import { Suspense, useMemo, type ReactNode } from 'react'
 import { useNavigate, useLocation, Outlet } from 'react-router-dom'
-import { Layout, Menu, Button, Breadcrumb, Dropdown, Avatar, theme } from 'antd'
+import { Layout, Menu, Button, Breadcrumb, Dropdown, Avatar, Spin, theme } from 'antd'
 import type { MenuProps } from 'antd'
 import {
   MenuFoldOutlined,
@@ -26,6 +26,9 @@ const APP_TITLE: string = import.meta.env.VITE_APP_TITLE || '运营管理后台'
 
 const { Header, Sider, Content } = Layout
 
+// 注意：新增路由菜单时，若使用新图标，需同步更新此映射及顶部的 import。
+// 路由 meta.icon 存的是字符串名称（lazy 组件无法序列化 ReactNode），
+// AdminLayout 通过此映射在运行时解析为实际图标组件。
 const iconMap: Record<string, ReactNode> = {
   DashboardOutlined: <DashboardOutlined />,
   TeamOutlined: <TeamOutlined />,
@@ -203,7 +206,7 @@ export default function AdminLayout({ children }: { children?: ReactNode }) {
           >
             <div style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>
               <Avatar size="small" icon={<UserOutlined />} />
-              <span>{admin?.username || '管理员'}</span>
+              <span>{ admin?.username }</span>
             </div>
           </Dropdown>
         </Header>
@@ -217,7 +220,15 @@ export default function AdminLayout({ children }: { children?: ReactNode }) {
           }}
         >
           <ErrorBoundary level="page">
-            {children || <Outlet />}
+            <Suspense
+              fallback={
+                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 200 }}>
+                  <Spin size="large" />
+                </div>
+              }
+            >
+              {children || <Outlet />}
+            </Suspense>
           </ErrorBoundary>
         </Content>
       </Layout>

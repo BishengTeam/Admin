@@ -23,13 +23,43 @@ server {
     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
     add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
 
-    # SPA 前端路由（静态文件 + fallback）
+    # === SPA 缓存策略 ===
+
+    # 1. index.html — 每次验证（304），保证发版后用户拿到新入口
+    location = /index.html {
+        add_header Cache-Control "no-cache" always;
+        add_header Pragma "no-cache" always;
+        # 安全头在子 block 中需显式保留
+        add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header X-Frame-Options "DENY" always;
+        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    }
+
+    # 2. 带 hash 的构建产物 — 长期缓存，永远不重新验证
+    location /assets/ {
+        expires 1y;
+        add_header Cache-Control "public, immutable" always;
+        add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    }
+
+    # 3. 其他静态文件 (favicon.svg 等)
+    location ~* \.(svg|ico|png|jpg|woff2)$ {
+        expires 30d;
+        add_header Cache-Control "public" always;
+    }
+
+    # 4. SPA fallback — 兜底不缓存，走 index.html
     location / {
+        add_header Cache-Control "no-cache" always;
         try_files $uri $uri/ /index.html;
     }
 
-    # 管理后台：浏览器页面请求 → SPA fallback，API 请求 → 代理到后端
+    # 管理后台：浏览器页面 → index.html，API 请求 → 代理到后端
     location /admin/ {
+        add_header Cache-Control "no-cache" always;
         if ($is_page_request) {
             rewrite ^ /index.html last;
         }

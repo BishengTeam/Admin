@@ -1,5 +1,6 @@
+import { Suspense } from 'react'
 import { Outlet } from 'react-router-dom'
-import { Layout, Typography } from 'antd'
+import { Layout, Typography, Spin } from 'antd'
 
 const { Content } = Layout
 const { Title, Text } = Typography
@@ -26,7 +27,15 @@ export default function LoginLayout() {
           </Title>
           <Text style={{ color: 'rgba(255,255,255,0.75)' }}>{import.meta.env.VITE_APP_SUBTITLE}</Text>
         </div>
-        <Outlet />
+        <Suspense
+          fallback={
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 200 }}>
+              <Spin size="large" />
+            </div>
+          }
+        >
+          <Outlet />
+        </Suspense>
       </Content>
     </Layout>
   )
