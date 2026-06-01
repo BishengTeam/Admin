@@ -16,7 +16,7 @@ export interface OrderFilter {
   start_time?: string
   end_time?: string
   cert_type?: string
-  candidate_phone?: string
+  phone?: string
   date_range?: [string, string]
 }
 

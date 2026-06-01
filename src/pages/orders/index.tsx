@@ -51,13 +51,13 @@ export default function OrderList() {
   }
 
   const handleSearch = useCallback(() => {
-    setFilters((f) => ({ ...f, candidate_phone: searchPhone || undefined }))
+    setFilters((f) => ({ ...f, phone: searchPhone || undefined }))
   }, [searchPhone])
 
   const handleReset = useCallback(() => {
     setSearchPhone('')
     setFilters((f) => {
-      const { candidate_phone, ...rest } = f
+      const { phone, ...rest } = f
       return rest
     })
   }, [])

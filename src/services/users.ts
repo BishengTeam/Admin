@@ -20,7 +20,7 @@ export const userService = {
   },
 
   async updateStatus(id: number, is_active: boolean): Promise<void> {
-    return http.patch<void>(`/admin/users/${id}/status`, { is_active })
+    return http.put<void>(`/admin/users/${id}`, { is_active })
   },
 
   async deleteUsers(ids: number[]): Promise<void> {
