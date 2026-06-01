@@ -76,7 +76,7 @@ export default function QuestionModal({ open, question, categories, onClose, onS
           question_type: question.question_type,
           question_text: question.question_text,
           options: optionsList,
-          correct_answer: question.question_type === 'multi'
+          correct_answer: question.question_type === 'multiple_choice'
             ? question.correct_answer.split('')
             : question.correct_answer,
           explanation: question.explanation,
@@ -132,7 +132,7 @@ export default function QuestionModal({ open, question, categories, onClose, onS
       width={720}
       destroyOnClose
     >
-      <Form form={form} layout="vertical" initialValues={{ question_type: 'single' }}>
+      <Form form={form} layout="vertical" initialValues={{ question_type: 'single_choice' }}>
         <Form.Item name="category_id" label="所属分类" rules={[requiredSelectRule('分类')]}>
           <TreeSelect
             treeData={categoryToTreeSelect(categories)}
@@ -143,8 +143,9 @@ export default function QuestionModal({ open, question, categories, onClose, onS
 
         <Form.Item name="question_type" label="题型" rules={[requiredSelectRule('题型')]}>
           <Radio.Group>
-            <Radio value="single">单选题</Radio>
-            <Radio value="multi">多选题</Radio>
+            <Radio value="single_choice">单选题</Radio>
+            <Radio value="multiple_choice">多选题</Radio>
+            <Radio value="judge">判断题</Radio>
           </Radio.Group>
         </Form.Item>
 
@@ -181,7 +182,7 @@ export default function QuestionModal({ open, question, categories, onClose, onS
         </Form.List>
 
         <Form.Item name="correct_answer" label="正确选项" rules={[requiredSelectRule('正确选项')]}>
-          {questionType === 'multi' ? (
+          {questionType === 'multiple_choice' ? (
             <CheckboxGroup>
               {LABELS.slice(0, 6).map((l) => (
                 <Checkbox key={l} value={l}>{l}</Checkbox>

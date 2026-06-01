@@ -1,4 +1,4 @@
-export type QuestionType = 'single' | 'multi'
+export type QuestionType = 'single_choice' | 'multiple_choice' | 'judge'
 
 export interface Question {
   id: number
