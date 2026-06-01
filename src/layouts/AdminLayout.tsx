@@ -86,16 +86,18 @@ export default function AdminLayout({ children }: { children?: ReactNode }) {
   const location = useLocation()
   const collapsed = useAppStore((s) => s.sidebarCollapsed)
   const toggleCollapsed = useAppStore((s) => s.toggleCollapsed)
-  const { admin, permissions } = useAuth()
+  const { admin, permissions, initialized } = useAuth()
   const logout = useAuthStore((s) => s.logout)
   const { token: { colorBgContainer, borderRadiusLG } } = theme.useToken()
 
   const menuItems = useMemo(() => {
+    // 权限未加载时显示全部菜单（降级模式）
+    const hasPermissions = initialized && permissions.length > 0
     const filtered = adminRoutes.filter(
-      (r) => !r.meta?.permission || permissions.includes(r.meta.permission),
+      (r) => !r.meta?.permission || !hasPermissions || permissions.includes(r.meta.permission),
     )
     return buildMenuItems(filtered)
-  }, [permissions])
+  }, [permissions, initialized])
 
   const breadcrumbItems = useMemo(() => {
     const items = findBreadcrumb(location.pathname, adminRoutes)

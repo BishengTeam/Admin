@@ -48,8 +48,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const { admin, permissions } = await authService.me()
       set({ admin, permissions, initialized: true })
     } catch {
-      clearAuth()
-      set({ token: null, admin: null, permissions: [], initialized: true })
+      // /admin/auth/me 不可用时降级：保留 token，初始化标记为完成
+      // 用户可继续使用，菜单权限依赖 login 时缓存的 permissions
+      set({ initialized: true })
     }
   },
 
