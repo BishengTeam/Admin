@@ -28,7 +28,7 @@ export default function UserList() {
   const [filters, setFilters] = useState<UserFilter>({})
   const [selectedUser, setSelectedUser] = useState<UserDetail | null>(null)
   const [drawerOpen, setDrawerOpen] = useState(false)
-  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
+  const [selectedRowKeys, setSelectedRowKeys] = useState<number[]>([])
   const { exporting, startExport, finishExport } = useExport()
 
   const { data, loading, pagination, refresh } = usePagination(
@@ -71,7 +71,7 @@ export default function UserList() {
   }
 
   const handleBatchDelete = async () => {
-    await userService.deleteUsers(selectedRowKeys as number[])
+    await userService.deleteUsers(selectedRowKeys)
     message.success(`成功删除 ${selectedRowKeys.length} 个用户`)
     setSelectedRowKeys([])
     refresh()
@@ -89,7 +89,7 @@ export default function UserList() {
 
   const rowSelection: TableRowSelection<User> = {
     selectedRowKeys,
-    onChange: (keys) => setSelectedRowKeys(keys),
+    onChange: (keys) => setSelectedRowKeys(keys as number[]),
   }
 
   const columns: ColumnsType<User> = [

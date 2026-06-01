@@ -20,6 +20,19 @@ export interface Banner {
   is_active: boolean
 }
 
+export interface CourseBatch {
+  /** 上课日期 YYYY-MM-DD */
+  class_date: string
+  /** 开始时间 HH:mm */
+  start_time: string
+  /** 结束时间 HH:mm */
+  end_time: string
+  /** 价格（分） */
+  price: number
+  /** 上课地点 */
+  location: string
+}
+
 export interface Course {
   id: number
   title: string
@@ -29,7 +42,7 @@ export interface Course {
   teacher_name: string
   teacher_contact: string
   created_at: string
-  batches: Record<string, any> | null
+  batches: CourseBatch[] | null
 }
 
 export interface ClassSchedule {

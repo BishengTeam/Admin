@@ -2,13 +2,17 @@ import { useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { Form, Input, Button, Card, message, Alert } from 'antd'
 import { UserOutlined, LockOutlined } from '@ant-design/icons'
-import axios from 'axios'
+import type { LoginError } from '@/services/auth'
 import { useAuthStore } from '@/stores/authStore'
 import { requiredRule } from '@/utils/validator'
 
 interface LoginForm {
   username: string
   password: string
+}
+
+interface LoginLocationState {
+  from?: { pathname: string }
 }
 
 export default function LoginPage() {
@@ -19,7 +23,8 @@ export default function LoginPage() {
   const navigate = useNavigate()
   const location = useLocation()
 
-  const from = (location.state as { from?: { pathname: string } })?.from?.pathname || '/admin/dashboard'
+  const locationState = location.state as LoginLocationState
+  const from = locationState?.from?.pathname || '/admin/dashboard'
 
   const handleSubmit = async (values: LoginForm) => {
     setLoading(true)
@@ -33,28 +38,20 @@ export default function LoginPage() {
       await login(values.username, values.password)
       navigate(from, { replace: true })
     } catch (error) {
-      if (!axios.isAxiosError(error)) {
-        return
-      }
-      const status = error.response?.status
-      const detail: string | undefined = error.response?.data?.detail
+      const loginError = error as LoginError
 
-      if (status === 401) {
+      if (loginError.type === 'unauthorized') {
         // 认证失败 → 字段级错误，用户视线无需离开表单
         form.setFields([
-          { name: 'password', errors: [detail || '用户名或密码错误'] },
+          { name: 'password', errors: [loginError.message] },
         ])
-      } else if (status === 403) {
-        // 账号禁用等 → 全局 Alert
-        setErrorAlert(detail || '账号已被禁用，请联系管理员')
-      } else if (status === 429) {
-        // 频率限制 → 全局 Alert
-        setErrorAlert(detail || '操作过于频繁，请稍后再试')
-      } else if (!error.response) {
-        // 无响应 → 网络错误，提供比 request.ts 默认消息更具体的信息
-        message.error('网络连接失败，请检查网络')
+      } else if (loginError.type === 'network') {
+        // 网络错误 → toast 提示
+        message.error(loginError.message)
+      } else {
+        // forbidden / rate_limited / unknown → 全局 Alert
+        setErrorAlert(loginError.message)
       }
-      // 其余错误（业务 code≠0 等）由 request.ts 拦截器的 message.error 处理
     } finally {
       setLoading(false)
     }

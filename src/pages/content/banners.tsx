@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Table, Button, Modal, Form, Input, InputNumber, DatePicker, Switch, Space, Image, message } from 'antd'
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
@@ -9,31 +9,17 @@ import { StatusTag } from '@/components/StatusTag'
 import { contentService } from '@/services/content'
 import { CONTENT_STATUS_MAP } from '@/core/constants'
 import { requiredRule, urlRule } from '@/utils/validator'
+import { useBannerList } from '@/hooks/useBannerList'
 import type { Banner } from '@/types/content'
 
 const { RangePicker } = DatePicker
 
 export default function BannerConfig() {
-  const [banners, setBanners] = useState<Banner[]>([])
-  const [loading, setLoading] = useState(false)
+  const { banners, loading, refresh } = useBannerList()
   const [modalOpen, setModalOpen] = useState(false)
   const [editingBanner, setEditingBanner] = useState<Banner | null>(null)
-  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
+  const [selectedRowKeys, setSelectedRowKeys] = useState<number[]>([])
   const [form] = Form.useForm()
-
-  const loadBanners = async () => {
-    setLoading(true)
-    try {
-      const data = await contentService.listBanners()
-      setBanners(data)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  useEffect(() => {
-    loadBanners()
-  }, [])
 
   const handleAdd = () => {
     setEditingBanner(null)
@@ -53,19 +39,19 @@ export default function BannerConfig() {
     await contentService.deleteBanner(id)
     message.success('删除成功')
     setSelectedRowKeys((prev) => prev.filter((k) => k !== id))
-    loadBanners()
+    refresh()
   }
 
   const handleBatchDelete = async () => {
-    await contentService.deleteBanners(selectedRowKeys as number[])
+    await contentService.deleteBanners(selectedRowKeys)
     message.success(`成功删除 ${selectedRowKeys.length} 个Banner`)
     setSelectedRowKeys([])
-    loadBanners()
+    refresh()
   }
 
   const rowSelection: TableRowSelection<Banner> = {
     selectedRowKeys,
-    onChange: (keys) => setSelectedRowKeys(keys),
+    onChange: (keys) => setSelectedRowKeys(keys as number[]),
   }
 
   const handleSubmit = async () => {
@@ -88,7 +74,7 @@ export default function BannerConfig() {
       message.success('添加成功')
     }
     setModalOpen(false)
-    loadBanners()
+    refresh()
   }
 
   const columns: ColumnsType<Banner> = [

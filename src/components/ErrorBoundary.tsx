@@ -13,6 +13,14 @@ interface State {
   error: Error | null
 }
 
+/**
+ * 全局/页面级错误边界。
+ *
+ * 使用 Class 组件是因为 React 目前不支持用函数组件实现错误边界
+ * （componentDidCatch / getDerivedStateFromError 仅 Class 组件可用）。
+ * React 官方文档建议在错误边界中使用 Class 组件：
+ * https://react.dev/reference/react/Component#catching-rendering-errors-with-an-error-boundary
+ */
 export class ErrorBoundary extends Component<Props, State> {
   state: State = { error: null }
 

@@ -1,3 +1,5 @@
+import type { Category } from '@/types/quiz'
+
 export interface TreeNode {
   id: number
   parent_id: number | null
@@ -36,4 +38,21 @@ export function findTreeNode<T extends TreeNode>(tree: T[], id: number): T | nul
     }
   }
   return null
+}
+
+interface TreeNodeData {
+  title: string
+  value: number
+  children?: TreeNodeData[]
+}
+
+/**
+ * 将 Category[] 转为 Ant Design TreeSelect 所需格式
+ */
+export function buildTreeSelectData(categories: Category[]): TreeNodeData[] {
+  return categories.map((cat) => ({
+    title: cat.name,
+    value: cat.id,
+    children: cat.children ? buildTreeSelectData(cat.children) : undefined,
+  }))
 }

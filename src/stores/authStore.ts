@@ -5,7 +5,7 @@ import {
   clearAuth,
   onAuthClear,
 } from '@/core/auth'
-import { authService } from '@/services/auth'
+import { authService, normalizeLoginError } from '@/services/auth'
 import type { AdminInfo } from '@/types/admin'
 
 interface AuthState {
@@ -26,9 +26,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   initialized: false,
 
   login: async (username: string, password: string) => {
-    const data = await authService.login(username, password)
-    setToken(data.access_token)
-    set({ token: data.access_token, admin: data.admin, permissions: data.permissions, initialized: true })
+    try {
+      const data = await authService.login(username, password)
+      setToken(data.access_token)
+      set({ token: data.access_token, admin: data.admin, permissions: data.permissions, initialized: true })
+    } catch (error) {
+      throw normalizeLoginError(error)
+    }
   },
 
   logout: async () => {

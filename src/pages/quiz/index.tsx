@@ -3,22 +3,9 @@ import { Row, Col, Modal, Form, Input, TreeSelect, message } from 'antd'
 import { PageContainer } from '@/components/PageContainer'
 import { quizService } from '@/services/quiz'
 import type { Category, QuestionFilter } from '@/types/quiz'
+import { buildTreeSelectData } from '@/utils/tree'
 import CategoryTree from './components/CategoryTree'
 import QuestionTable from './components/QuestionTable'
-
-interface TreeNodeData {
-  title: string
-  value: number
-  children?: TreeNodeData[]
-}
-
-function buildTreeSelectData(categories: Category[]): TreeNodeData[] {
-  return categories.map((cat) => ({
-    title: cat.name,
-    value: cat.id,
-    children: cat.children ? buildTreeSelectData(cat.children) : undefined,
-  }))
-}
 
 export default function QuizManagement() {
   const [categories, setCategories] = useState<Category[]>([])
