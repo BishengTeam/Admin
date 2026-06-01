@@ -8,7 +8,8 @@ export function formatPrice(cents: number): string {
   return `¥${(cents / 100).toFixed(2)}`
 }
 
-export function formatPhone(phone: string): string {
+export function formatPhone(phone: string | null | undefined): string {
+  if (!phone) return '-'
   if (phone.length !== 11) return phone
   return `${phone.slice(0, 3)}****${phone.slice(7)}`
 }
