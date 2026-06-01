@@ -53,6 +53,7 @@ export default function BannerConfig() {
   const handleDelete = async (id: number) => {
     await contentService.deleteBanner(id)
     message.success('删除成功')
+    setSelectedRowKeys((prev) => prev.filter((k) => k !== id))
     loadBanners()
   }
 
