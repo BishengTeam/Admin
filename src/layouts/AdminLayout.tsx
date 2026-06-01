@@ -93,8 +93,10 @@ export default function AdminLayout({ children }: { children?: ReactNode }) {
   const menuItems = useMemo(() => {
     // 权限未加载时显示全部菜单（降级模式）
     const hasPermissions = initialized && permissions.length > 0
+    // permissions 包含 "*" 表示超级管理员，拥有全部权限
+    const isSuperAdmin = permissions.includes('*')
     const filtered = adminRoutes.filter(
-      (r) => !r.meta?.permission || !hasPermissions || permissions.includes(r.meta.permission),
+      (r) => !r.meta?.permission || !hasPermissions || isSuperAdmin || permissions.includes(r.meta.permission),
     )
     return buildMenuItems(filtered)
   }, [permissions, initialized])
