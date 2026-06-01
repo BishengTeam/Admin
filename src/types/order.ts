@@ -1,4 +1,4 @@
-export type OrderStatus = 'pending' | 'paid' | 'completed' | 'refunded' | 'abnormal' | 'closed'
+export type OrderStatus = 'pending' | 'paid' | 'completed' | 'refunded' | 'closed'
 
 export interface Order {
   id: number

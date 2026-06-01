@@ -22,7 +22,6 @@ const statusTabs: { key: string; label: string }[] = [
   { key: 'completed', label: '已完成' },
   { key: 'refunded', label: '已退款' },
   { key: 'closed', label: '已关闭' },
-  { key: 'abnormal', label: '异常' },
 ]
 
 const certOptions = [
