@@ -4,7 +4,7 @@ import type { PageData, PageParams } from '@/types/api'
 
 export const quizService = {
   async listCategories(): Promise<Category[]> {
-    return http.get<Category[]>('/admin/quiz/categories')
+    return http.get<Category[]>('/api/quiz/categories')
   },
 
   async createCategory(data: Partial<Category>): Promise<Category> {
@@ -20,7 +20,7 @@ export const quizService = {
   },
 
   async listQuestions(params: QuestionFilter & PageParams): Promise<PageData<Question>> {
-    return http.get<PageData<Question>>('/admin/quiz/questions', { params })
+    return http.get<PageData<Question>>('/api/quiz/questions', { params })
   },
 
   async createQuestion(data: Omit<Question, 'id'>): Promise<Question> {
