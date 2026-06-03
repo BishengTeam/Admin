@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react'
 import { Table, Tabs, Input, Select, DatePicker, Button, Avatar, Space, message } from 'antd'
-import { DownloadOutlined } from '@ant-design/icons'
+import { DownloadOutlined, EyeOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import { PageContainer } from '@/components/PageContainer'
 import { StatusTag } from '@/components/StatusTag'
@@ -10,8 +10,9 @@ import { orderService } from '@/services/orders'
 import { ORDER_STATUS_MAP } from '@/core/constants'
 import { formatDate, formatPrice } from '@/utils/format'
 import { downloadBlob } from '@/utils/download'
-import type { Order, OrderFilter, OrderStatus } from '@/types/order'
+import type { Order, OrderFilter, OrderStatus, OrderDetail } from '@/types/order'
 import RefundModal from './components/RefundModal'
+import OrderDetailDrawer from './components/OrderDetailDrawer'
 
 const { RangePicker } = DatePicker
 
@@ -33,11 +34,48 @@ const certOptions = [
   { label: '人社认证', value: '人社认证' },
 ]
 
+// ── 认证类型 → 列表摘要字段 ──
+// 每个 cert_type 取 2-3 个最关键的 extra_data 字段在列表中展示
+const certSummaryKeys: Record<string, string[]> = {
+  h3c: ['first_name', 'last_name', 'education'],
+  sangfor: ['email', 'exam_direction'],
+  nisp1: ['school', 'province'],
+  nisp2: ['school', 'province'],
+  renshe: ['branch'],
+}
+
+// ── 字段 key → 中文标签 ──
+const extraFieldLabels: Record<string, string> = {
+  first_name: 'FirstName',
+  last_name: 'LastName',
+  education: '学历',
+  exam_date: '考试日期',
+  email: '邮箱',
+  exam_direction: '考试方向',
+  school: '学校',
+  province: '省份',
+  branch: '分院',
+}
+
+function renderExtraSummary(record: Order): string {
+  const d = record.extra_data as Record<string, unknown> | null
+  if (!d) return '-'
+  const keys = certSummaryKeys[record.cert_type]
+  if (!keys?.length) return '-'
+  const parts = keys
+    .map((k) => d[k])
+    .filter(Boolean)
+    .map((v) => String(v))
+  return parts.length > 0 ? parts.join(' · ') : '-'
+}
+
 export default function OrderList() {
   const [filters, setFilters] = useState<OrderFilter>({})
   const [activeTab, setActiveTab] = useState('')
   const [searchPhone, setSearchPhone] = useState('')
   const [refundOrder, setRefundOrder] = useState<Order | null>(null)
+  const [detailOrder, setDetailOrder] = useState<OrderDetail | null>(null)
+  const [drawerOpen, setDrawerOpen] = useState(false)
   const { exporting, startExport, finishExport } = useExport()
 
   const { data, loading, pagination, refresh } = usePagination(
@@ -78,6 +116,12 @@ export default function OrderList() {
     refresh()
   }
 
+  const handleViewDetail = async (record: Order) => {
+    const detail = await orderService.detail(record.id)
+    setDetailOrder(detail)
+    setDrawerOpen(true)
+  }
+
   const columns: ColumnsType<Order> = [
     {
       title: '订单号',
@@ -103,6 +147,14 @@ export default function OrderList() {
       width: 120,
     },
     {
+      title: '报名信息',
+      width: 200,
+      ellipsis: true,
+      render: (_, record) => (
+        <span style={{ color: '#666', fontSize: 13 }}>{renderExtraSummary(record)}</span>
+      ),
+    },
+    {
       title: '金额',
       dataIndex: 'price',
       width: 100,
@@ -122,13 +174,19 @@ export default function OrderList() {
     },
     {
       title: '操作',
-      width: 80,
-      render: (_, record) =>
-        (record.status === 'paid' || record.status === 'completed') ? (
-          <Button size="small" danger onClick={() => setRefundOrder(record)}>
-            退款
+      width: 130,
+      render: (_, record) => (
+        <Space size={0}>
+          <Button type="link" size="small" icon={<EyeOutlined />} onClick={() => handleViewDetail(record)}>
+            查看
           </Button>
-        ) : null,
+          {(record.status === 'paid' || record.status === 'completed') && (
+            <Button type="link" size="small" danger onClick={() => setRefundOrder(record)}>
+              退款
+            </Button>
+          )}
+        </Space>
+      ),
     },
   ]
 
@@ -182,6 +240,12 @@ export default function OrderList() {
         order={refundOrder}
         onSuccess={handleRefundSuccess}
         onCancel={() => setRefundOrder(null)}
+      />
+
+      <OrderDetailDrawer
+        order={detailOrder}
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
       />
     </PageContainer>
   )
