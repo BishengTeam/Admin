@@ -33,7 +33,7 @@ export function ImageUpload({ value, onChange, maxSize = 5 }: ImageUploadProps) 
     try {
       const formData = new FormData()
       formData.append('file', file)
-      const res = await http.post<{ url: string }>('/api/upload', formData, {
+      const res = await http.post<{ url: string }>('/admin/upload', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       })
       onSuccess({ url: res.url })
