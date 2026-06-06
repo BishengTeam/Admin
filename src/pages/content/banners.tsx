@@ -25,6 +25,7 @@ export default function BannerConfig() {
 
   const handleAdd = () => {
     setEditingBanner(null)
+    form.resetFields()
     setModalOpen(true)
   }
 
@@ -158,7 +159,7 @@ export default function BannerConfig() {
         width={520}
         destroyOnClose
       >
-        <Form form={form} layout="vertical" initialValues={{ sort: 0, is_active: true }}>
+        <Form form={form} layout="vertical" initialValues={{ sort: 0, is_active: true, time_range: null }}>
           <Form.Item name="image_url" label="Banner图片" rules={[requiredRule('Banner图片')]} getValueFromEvent={(url: string) => url}>
             <ImageUpload />
           </Form.Item>
