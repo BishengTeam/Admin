@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Table, Button, Modal, Form, Input, InputNumber, DatePicker, Switch, Space, Image, message } from 'antd'
+import dayjs from 'dayjs'
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import type { TableRowSelection } from 'antd/es/table/interface'
@@ -30,7 +31,10 @@ export default function BannerConfig() {
     setEditingBanner(banner)
     form.setFieldsValue({
       ...banner,
-      time_range: [banner.start_time, banner.end_time],
+      time_range: [
+        banner.start_time ? dayjs(banner.start_time) : null,
+        banner.end_time ? dayjs(banner.end_time) : null,
+      ],
     })
     setModalOpen(true)
   }
@@ -56,13 +60,13 @@ export default function BannerConfig() {
 
   const handleSubmit = async () => {
     const values = await form.validateFields()
-    const [start_time, end_time] = values.time_range || []
+    const [start, end] = values.time_range || []
     const data = {
       image_url: values.image_url,
       jump_link: values.jump_link,
       sort: values.sort || 0,
-      start_time,
-      end_time,
+      start_time: start ? start.toISOString() : null,
+      end_time: end ? end.toISOString() : null,
       is_active: values.is_active === true,
     }
 
