@@ -7,6 +7,9 @@ export interface ContentItem {
   link_url: string
   sort_order: number
   is_active: boolean
+  is_banner: boolean
+  start_time: string | null
+  end_time: string | null
   created_at: string
 }
 

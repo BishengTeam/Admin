@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
-import { Drawer, Form, Input, Select, InputNumber, Button, Switch, message } from 'antd'
+import { Drawer, Form, Input, Select, InputNumber, Button, Switch, DatePicker, message } from 'antd'
+import dayjs from 'dayjs'
 import { contentService } from '@/services/content'
 import { ImageUpload } from '@/components/ImageUpload'
 import { ZONE_OPTIONS } from '@/core/constants'
@@ -20,21 +21,35 @@ export default function ContentEditDrawer({ open, item, onClose, onSuccess }: Co
   useEffect(() => {
     if (open) {
       if (item) {
-        form.setFieldsValue({ ...item })
+        form.setFieldsValue({
+          ...item,
+          time_range: [
+            item.start_time ? dayjs(item.start_time) : null,
+            item.end_time ? dayjs(item.end_time) : null,
+          ],
+        })
       } else {
         form.resetFields()
-        form.setFieldsValue({ is_active: true, sort_order: 0 })
+        form.setFieldsValue({ is_active: true, sort_order: 0, is_banner: false })
       }
     }
   }, [open, item, form])
 
   const handleSubmit = async () => {
     const values = await form.validateFields()
+    const [start, end] = values.time_range || []
+    const payload = {
+      ...values,
+      start_time: start ? start.toISOString() : null,
+      end_time: end ? end.toISOString() : null,
+      time_range: undefined,
+    }
+    delete payload.time_range
     if (isEdit) {
-      await contentService.update(item!.id, values)
+      await contentService.update(item!.id, payload)
       message.success('更新成功')
     } else {
-      await contentService.create(values)
+      await contentService.create(payload)
       message.success('添加成功')
     }
     onSuccess()
@@ -76,6 +91,20 @@ export default function ContentEditDrawer({ open, item, onClose, onSuccess }: Co
 
         <Form.Item name="sort_order" label="排序权重">
           <InputNumber min={0} style={{ width: '100%' }} placeholder="数字越大越靠前" />
+        </Form.Item>
+
+        <Form.Item name="is_banner" label="启用为Banner" valuePropName="checked" tooltip="启用后将在首页顶部 Banner 轮播展示">
+          <Switch />
+        </Form.Item>
+
+        <Form.Item noStyle shouldUpdate={(prev, cur) => prev.is_banner !== cur.is_banner}>
+          {({ getFieldValue }) =>
+            getFieldValue('is_banner') ? (
+              <Form.Item name="time_range" label="Banner有效期">
+                <DatePicker.RangePicker showTime style={{ width: '100%' }} />
+              </Form.Item>
+            ) : null
+          }
         </Form.Item>
 
         <Form.Item name="is_active" label="状态" valuePropName="checked">

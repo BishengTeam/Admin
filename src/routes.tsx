@@ -23,7 +23,6 @@ const OrderList = lazy(() => import('@/pages/orders'))
 const QuizManagement = lazy(() => import('@/pages/quiz'))
 const QuizImport = lazy(() => import('@/pages/quiz/import'))
 const ContentManagement = lazy(() => import('@/pages/content'))
-const BannerConfig = lazy(() => import('@/pages/content/banners'))
 const CourseList = lazy(() => import('@/pages/content/courses'))
 
 import AuthGuard from '@/components/AuthGuard'
@@ -59,11 +58,6 @@ export const adminRoutes: AppRoute[] = [
     path: 'content',
     element: <ContentManagement />,
     meta: { title: '内容管理', icon: 'FileTextOutlined', permission: 'content:list' },
-  },
-  {
-    path: 'content/banners',
-    element: <BannerConfig />,
-    meta: { title: 'Banner配置', icon: 'PictureOutlined', permission: 'content:banner' },
   },
   {
     path: 'content/courses',
