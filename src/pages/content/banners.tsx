@@ -7,6 +7,7 @@ import type { TableRowSelection } from 'antd/es/table/interface'
 import { PageContainer } from '@/components/PageContainer'
 import { ConfirmButton } from '@/components/ConfirmButton'
 import { StatusTag } from '@/components/StatusTag'
+import { ImageUpload } from '@/components/ImageUpload'
 import { contentService } from '@/services/content'
 import { CONTENT_STATUS_MAP } from '@/core/constants'
 import { requiredRule, urlRule } from '@/utils/validator'
@@ -158,8 +159,8 @@ export default function BannerConfig() {
         destroyOnClose
       >
         <Form form={form} layout="vertical" initialValues={{ sort: 0, is_active: true }}>
-          <Form.Item name="image_url" label="图片URL" rules={[requiredRule('图片URL'), urlRule]}>
-            <Input placeholder="请输入图片URL" />
+          <Form.Item name="image_url" label="Banner图片" rules={[requiredRule('Banner图片')]} getValueFromEvent={(url: string) => url}>
+            <ImageUpload />
           </Form.Item>
           <Form.Item name="jump_link" label="跳转链接" rules={[urlRule]}>
             <Input placeholder="请输入跳转链接" />
