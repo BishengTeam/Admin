@@ -70,8 +70,8 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
     }
 
-    # 小程序 API
-    location /api/ {
+    # 小程序 API（^~ 优先于正则，防止 .png 等被静态文件 location 拦截）
+    location ^~ /api/ {
         proxy_pass http://${BACKEND_HOST}:${BACKEND_PORT};
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
