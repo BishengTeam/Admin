@@ -8,7 +8,7 @@ import { PageContainer } from '@/components/PageContainer'
 import { ConfirmButton } from '@/components/ConfirmButton'
 import { ImageUpload } from '@/components/ImageUpload'
 import { usePagination } from '@/hooks/usePagination'
-import { trainingService } from '@/services/training'
+import { activityService } from '@/services/activity'
 import { formatDate } from '@/utils/format'
 import { requiredRule } from '@/utils/validator'
 import type { Training } from '@/types/training'
@@ -24,7 +24,7 @@ export default function ActivityManagement() {
   const [form] = Form.useForm()
 
   const { data, loading, pagination, refresh } = usePagination(
-    (page) => trainingService.list({ keyword: searchText || undefined, ...page }),
+    (page) => activityService.list({ keyword: searchText || undefined, ...page }),
     [searchText],
   )
 
@@ -53,14 +53,14 @@ export default function ActivityManagement() {
   }
 
   const handleDelete = async (id: number) => {
-    await trainingService.delete(id)
+    await activityService.delete(id)
     message.success('已下架')
     setSelectedRowKeys((prev) => prev.filter((k) => k !== id))
     refresh()
   }
 
   const handleBatchDelete = async () => {
-    await Promise.all(selectedRowKeys.map((id) => trainingService.delete(id)))
+    await Promise.all(selectedRowKeys.map((id) => activityService.delete(id)))
     message.success(`已下架 ${selectedRowKeys.length} 个活动`)
     setSelectedRowKeys([])
     refresh()
@@ -86,10 +86,10 @@ export default function ActivityManagement() {
     }
 
     if (editingItem) {
-      await trainingService.update(editingItem.id, payload)
+      await activityService.update(editingItem.id, payload)
       message.success('更新成功')
     } else {
-      await trainingService.create(payload)
+      await activityService.create(payload)
       message.success('添加成功')
     }
     setModalOpen(false)
@@ -97,7 +97,7 @@ export default function ActivityManagement() {
   }
 
   const handleToggleStatus = async (id: number, checked: boolean) => {
-    await trainingService.update(id, { is_active: checked })
+    await activityService.update(id, { is_active: checked })
     message.success(checked ? '已上架' : '已下架')
     refresh()
   }
