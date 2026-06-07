@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react'
 import { Table, Tabs, Input, Select, DatePicker, Button, Avatar, Space, message } from 'antd'
+import dayjs from 'dayjs'
 import { DownloadOutlined, EyeOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import { PageContainer } from '@/components/PageContainer'
@@ -94,10 +95,8 @@ export default function OrderList() {
 
   const handleReset = useCallback(() => {
     setSearchPhone('')
-    setFilters((f) => {
-      const { phone, ...rest } = f
-      return rest
-    })
+    setFilters({})
+    setActiveTab('')
   }, [])
 
   const handleExport = async () => {
@@ -214,9 +213,11 @@ export default function OrderList() {
           allowClear
           style={{ width: 150 }}
           options={certOptions}
+          value={filters.cert_type}
           onChange={(val) => setFilters((f) => ({ ...f, cert_type: val || undefined }))}
         />
         <RangePicker
+          value={filters.date_range?.length === 2 ? [dayjs(filters.date_range[0]), dayjs(filters.date_range[1])] : undefined}
           onChange={(_, dateStrings) =>
             setFilters((f) => ({
               ...f,

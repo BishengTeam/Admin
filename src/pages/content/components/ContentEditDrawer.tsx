@@ -10,11 +10,12 @@ import type { ContentItem } from '@/types/content'
 interface ContentEditDrawerProps {
   open: boolean
   item: ContentItem | null
+  defaultValues?: Partial<ContentItem>
   onClose: () => void
   onSuccess: () => void
 }
 
-export default function ContentEditDrawer({ open, item, onClose, onSuccess }: ContentEditDrawerProps) {
+export default function ContentEditDrawer({ open, item, defaultValues, onClose, onSuccess }: ContentEditDrawerProps) {
   const [form] = Form.useForm()
   const isEdit = !!item
 
@@ -30,7 +31,7 @@ export default function ContentEditDrawer({ open, item, onClose, onSuccess }: Co
         })
       } else {
         form.resetFields()
-        form.setFieldsValue({ is_active: true, sort_order: 0, is_banner: false })
+        form.setFieldsValue({ is_active: true, sort_order: 0, is_banner: false, ...defaultValues })
       }
     }
   }, [open, item, form])

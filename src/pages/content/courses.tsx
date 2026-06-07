@@ -1,13 +1,12 @@
 import { useState, useCallback } from 'react'
-import { Table, Button, Input, Select, Space, Tag, Image, message } from 'antd'
+import { Table, Button, Input, Select, Space, Tag, Switch, Image, message } from 'antd'
 import { PlusOutlined, SearchOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import { PageContainer } from '@/components/PageContainer'
 import { ConfirmButton } from '@/components/ConfirmButton'
-import { StatusTag } from '@/components/StatusTag'
 import { usePagination } from '@/hooks/usePagination'
 import { contentService } from '@/services/content'
-import { CONTENT_STATUS_MAP, COURSE_CATEGORIES, COURSE_CATEGORY_COLOR_MAP } from '@/core/constants'
+import { COURSE_CATEGORIES, COURSE_CATEGORY_COLOR_MAP } from '@/core/constants'
 import { formatDate, formatPrice } from '@/utils/format'
 import type { Course } from '@/types/content'
 import CourseModal from './components/CourseModal'
@@ -37,6 +36,12 @@ export default function CourseList() {
   const handleDelete = async (id: number) => {
     await contentService.deleteCourse(id)
     message.success('删除成功')
+    refresh()
+  }
+
+  const handleToggleStatus = async (id: number, checked: boolean) => {
+    await contentService.updateCourse(id, { is_active: checked })
+    message.success(checked ? '已上架' : '已下架')
     refresh()
   }
 
@@ -71,8 +76,15 @@ export default function CourseList() {
     {
       title: '状态',
       dataIndex: 'is_active',
-      width: 80,
-      render: (v: boolean) => <StatusTag status={v} map={CONTENT_STATUS_MAP} />,
+      width: 100,
+      render: (is_active: boolean, record) => (
+        <Switch
+          checked={is_active}
+          onChange={(checked) => handleToggleStatus(record.id, checked)}
+          checkedChildren="上架"
+          unCheckedChildren="下架"
+        />
+      ),
     },
     {
       title: '创建时间',

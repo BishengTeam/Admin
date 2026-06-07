@@ -10,7 +10,7 @@ import { contentService } from '@/services/content'
 import { formatDate } from '@/utils/format'
 import { ZONE_OPTIONS } from '@/core/constants'
 import type { ContentItem } from '@/types/content'
-import ContentEditDrawer from './components/ContentEditDrawer'
+import ContentEditDrawer from '@/pages/content/components/ContentEditDrawer'
 
 export default function ActivityManagement() {
   const [keyword, setKeyword] = useState('')
@@ -160,6 +160,7 @@ export default function ActivityManagement() {
       <ContentEditDrawer
         open={drawerOpen}
         item={editingItem}
+        defaultValues={{ zone_type: 'activity' }}
         onClose={() => { setDrawerOpen(false); setEditingItem(null); }}
         onSuccess={() => { setDrawerOpen(false); setEditingItem(null); refresh(); }}
       />

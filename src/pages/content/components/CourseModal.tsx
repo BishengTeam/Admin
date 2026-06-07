@@ -33,9 +33,9 @@ export default function CourseModal({ open, course, onClose, onSuccess }: Course
         form.setFieldsValue({
           title: course.title,
           category: course.category,
-          cover_url: (course as any).cover_url || '',
-          description: (course as any).description || '',
-          video_url: (course as any).video_url || '',
+          cover_url: course.cover_url || '',
+          description: course.description || '',
+          video_url: course.video_url || '',
           price: course.price,
           teacher_name: course.teacher_name,
           teacher_contact: course.teacher_contact,

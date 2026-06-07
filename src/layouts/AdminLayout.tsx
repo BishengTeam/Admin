@@ -7,6 +7,7 @@ import {
   MenuUnfoldOutlined,
   UserOutlined,
   LogoutOutlined,
+  CalendarOutlined,
   DashboardOutlined,
   TeamOutlined,
   ShoppingOutlined,
@@ -30,6 +31,7 @@ const { Header, Sider, Content } = Layout
 // 路由 meta.icon 存的是字符串名称（lazy 组件无法序列化 ReactNode），
 // AdminLayout 通过此映射在运行时解析为实际图标组件。
 const iconMap: Record<string, ReactNode> = {
+  CalendarOutlined: <CalendarOutlined />,
   DashboardOutlined: <DashboardOutlined />,
   TeamOutlined: <TeamOutlined />,
   ShoppingOutlined: <ShoppingOutlined />,
