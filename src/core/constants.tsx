@@ -36,10 +36,8 @@ export const STATUS_OPTIONS = [
 ]
 
 export const COURSE_CATEGORIES = [
-  { label: '基础知识', value: 'basic' },
-  { label: '初级认证', value: 'primary' },
-  { label: '中级认证', value: 'intermediate' },
-  { label: '华三', value: 'h3c' },
+  { label: '基础', value: 'basic' },
+  { label: 'H3C', value: 'h3c' },
   { label: '深信服', value: 'sangfor' },
   { label: 'NISP', value: 'nisp' },
   { label: '人社', value: 'renshe' },

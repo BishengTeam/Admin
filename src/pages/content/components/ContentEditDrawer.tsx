@@ -11,11 +11,12 @@ interface ContentEditDrawerProps {
   open: boolean
   item: ContentItem | null
   defaultValues?: Partial<ContentItem>
+  hideZoneType?: boolean
   onClose: () => void
   onSuccess: () => void
 }
 
-export default function ContentEditDrawer({ open, item, defaultValues, onClose, onSuccess }: ContentEditDrawerProps) {
+export default function ContentEditDrawer({ open, item, defaultValues, hideZoneType, onClose, onSuccess }: ContentEditDrawerProps) {
   const [form] = Form.useForm()
   const isEdit = !!item
 
@@ -78,9 +79,11 @@ export default function ContentEditDrawer({ open, item, defaultValues, onClose, 
           <ImageUpload />
         </Form.Item>
 
-        <Form.Item name="zone_type" label="所属专区" rules={[requiredRule('专区')]}>
-          <Select options={ZONE_OPTIONS} placeholder="选择专区" />
-        </Form.Item>
+        {!hideZoneType && (
+          <Form.Item name="zone_type" label="所属专区" rules={[requiredRule('专区')]}>
+            <Select options={ZONE_OPTIONS} placeholder="选择专区" />
+          </Form.Item>
+        )}
 
         <Form.Item name="description" label="描述">
           <Input.TextArea rows={3} placeholder="请输入描述" />

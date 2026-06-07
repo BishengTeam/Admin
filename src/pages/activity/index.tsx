@@ -20,7 +20,7 @@ export default function ActivityManagement() {
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
 
   const { data, loading, pagination, refresh } = usePagination(
-    (page) => contentService.list({ keyword: searchText || undefined, zone_type: 'activity', ...page }),
+    (page) => contentService.list({ keyword: searchText || undefined, ...page }),
     [searchText],
   )
 
@@ -160,6 +160,7 @@ export default function ActivityManagement() {
       <ContentEditDrawer
         open={drawerOpen}
         item={editingItem}
+        hideZoneType
         defaultValues={{ zone_type: 'activity' }}
         onClose={() => { setDrawerOpen(false); setEditingItem(null); }}
         onSuccess={() => { setDrawerOpen(false); setEditingItem(null); refresh(); }}
