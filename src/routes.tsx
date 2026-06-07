@@ -25,6 +25,7 @@ const QuizImport = lazy(() => import('@/pages/quiz/import'))
 const CourseList = lazy(() => import('@/pages/content/courses'))
 const CertificationManagement = lazy(() => import('@/pages/certification'))
 const JobManagement = lazy(() => import('@/pages/job'))
+const TrainingManagement = lazy(() => import('@/pages/training'))
 const ActivityManagement = lazy(() => import('@/pages/activity'))
 
 import AuthGuard from '@/components/AuthGuard'
@@ -70,6 +71,11 @@ export const adminRoutes: AppRoute[] = [
     path: 'job',
     element: <JobManagement />,
     meta: { title: '就业管理', icon: 'IdcardOutlined', permission: 'content:list' },
+  },
+  {
+    path: 'training',
+    element: <TrainingManagement />,
+    meta: { title: '培训管理', icon: 'ScheduleOutlined', permission: 'content:list' },
   },
   {
     path: 'activity',
