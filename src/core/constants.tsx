@@ -36,13 +36,23 @@ export const STATUS_OPTIONS = [
 ]
 
 export const COURSE_CATEGORIES = [
+  { label: '基础知识', value: 'basic' },
+  { label: '初级认证', value: 'primary' },
+  { label: '中级认证', value: 'intermediate' },
   { label: '华三', value: 'h3c' },
   { label: '深信服', value: 'sangfor' },
+  { label: 'NISP', value: 'nisp' },
+  { label: '人社', value: 'renshe' },
 ]
 
 export const COURSE_CATEGORY_COLOR_MAP: Record<string, string> = {
-  h3c: 'blue',
+  basic: 'cyan',
+  primary: 'blue',
+  intermediate: 'geekblue',
+  h3c: 'purple',
   sangfor: 'green',
+  nisp: 'orange',
+  renshe: 'magenta',
 }
 
 export const ZONE_OPTIONS = [

@@ -105,18 +105,18 @@ export default function CourseModal({ open, course, onClose, onSuccess }: Course
           <Input.TextArea rows={3} placeholder="课程简介" />
         </Form.Item>
 
-        <Space size={16}>
+        <Space size={16} wrap>
           <Form.Item name="video_url" label="视频链接">
-            <Input placeholder="视频URL" style={{ width: 300 }} />
+            <Input placeholder="视频URL" style={{ width: 260 }} />
           </Form.Item>
           <Form.Item name="price" label="价格（分）" rules={[requiredRule('价格')]}>
-            <InputNumber min={0} placeholder="价格（单位：分）" style={{ width: 200 }} />
+            <InputNumber min={0} placeholder="价格（单位：分）" style={{ width: 180 }} />
           </Form.Item>
           <Form.Item name="teacher_name" label="讲师姓名" rules={[requiredRule('讲师姓名')]}>
-            <Input placeholder="讲师姓名" style={{ width: 200 }} />
+            <Input placeholder="讲师姓名" style={{ width: 180 }} />
           </Form.Item>
           <Form.Item name="teacher_contact" label="联系方式">
-            <Input placeholder="手机号" style={{ width: 200 }} />
+            <Input placeholder="手机号" style={{ width: 180 }} />
           </Form.Item>
           <Form.Item name="is_active" label="状态">
             <Select options={STATUS_OPTIONS} style={{ width: 100 }} />
