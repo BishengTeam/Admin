@@ -1,5 +1,5 @@
-import { useState, useCallback } from 'react'
-import { Table, Button, Input, Select, Switch, Space, Image, message } from 'antd'
+import { useState } from 'react'
+import { Table, Button, Input, Switch, Space, Image, message, Select } from 'antd'
 import { PlusOutlined, SearchOutlined, DeleteOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import type { TableRowSelection } from 'antd/es/table/interface'
@@ -12,22 +12,17 @@ import { ZONE_OPTIONS } from '@/core/constants'
 import type { ContentItem } from '@/types/content'
 import ContentEditDrawer from './components/ContentEditDrawer'
 
-export default function ContentManagement() {
+export default function ActivityManagement() {
   const [keyword, setKeyword] = useState('')
   const [searchText, setSearchText] = useState('')
-  const [zoneType, setZoneType] = useState<string>('study')
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<ContentItem | null>(null)
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
 
   const { data, loading, pagination, refresh } = usePagination(
-    (page) => contentService.list({ keyword: searchText || undefined, zone_type: zoneType, ...page }),
-    [searchText, zoneType],
+    (page) => contentService.list({ keyword: searchText || undefined, zone_type: 'activity', ...page }),
+    [searchText],
   )
-
-  const handleSearch = () => {
-    setSearchText(keyword)
-  }
 
   const handleAdd = () => {
     setEditingItem(null)
@@ -47,7 +42,7 @@ export default function ContentManagement() {
 
   const handleBatchDelete = async () => {
     await contentService.deleteZones(selectedRowKeys as number[])
-    message.success(`成功删除 ${selectedRowKeys.length} 条内容`)
+    message.success(`成功删除 ${selectedRowKeys.length} 条活动`)
     setSelectedRowKeys([])
     refresh()
   }
@@ -63,33 +58,20 @@ export default function ContentManagement() {
     refresh()
   }
 
-  const handleDrawerClose = () => {
-    setDrawerOpen(false)
-    setEditingItem(null)
-  }
-
-  const handleDrawerSuccess = () => {
-    handleDrawerClose()
-    refresh()
-  }
-
   const columns: ColumnsType<ContentItem> = [
-    {
-      title: '序号',
-      width: 60,
-      render: (_, __, idx) => idx + 1,
-    },
     {
       title: '封面',
       dataIndex: 'cover_url',
       width: 80,
-      render: (url: string) => url ? <Image src={url} width={48} height={48} style={{ objectFit: 'cover', borderRadius: 4 }} /> : <div style={{ width: 48, height: 48, background: '#f0f0f0', borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#999' }}>无</div>,
+      render: (url: string) => url ? <Image src={url} width={48} height={48} style={{ objectFit: 'cover', borderRadius: 4 }} /> : <div style={{ width: 48, height: 48, background: '#f0f0f0', borderRadius: 4 }} />,
     },
     { title: '标题', dataIndex: 'title', ellipsis: true },
     {
-      title: '所属专区',
-      dataIndex: 'zone_type',
-      width: 120,
+      title: '外链',
+      dataIndex: 'link_url',
+      width: 200,
+      ellipsis: true,
+      render: (url: string) => url || '-',
     },
     {
       title: '状态',
@@ -122,8 +104,8 @@ export default function ContentManagement() {
         <Space>
           <Button type="link" size="small" onClick={() => handleEdit(record)}>编辑</Button>
           <ConfirmButton
-            title="删除内容"
-            description="此操作不可撤销，确认删除此内容？"
+            title="删除活动"
+            description="此操作不可撤销，确认删除？"
             danger
             type="link"
             size="small"
@@ -138,8 +120,8 @@ export default function ContentManagement() {
 
   return (
     <PageContainer
-      title="内容管理"
-      extra={<Button type="primary" icon={<PlusOutlined />} onClick={handleAdd}>新增内容</Button>}
+      title="活动管理"
+      extra={<Button type="primary" icon={<PlusOutlined />} onClick={handleAdd}>新增活动</Button>}
     >
       <Space style={{ marginBottom: 16 }}>
         <Input
@@ -147,23 +129,16 @@ export default function ContentManagement() {
           prefix={<SearchOutlined />}
           value={keyword}
           onChange={(e) => setKeyword(e.target.value)}
-          style={{ width: 200 }}
-          onPressEnter={handleSearch}
+          style={{ width: 240 }}
+          onPressEnter={() => setSearchText(keyword)}
           allowClear
         />
-        <Select
-          value={zoneType}
-          onChange={(val) => setZoneType(val || 'study')}
-          style={{ width: 140 }}
-          options={ZONE_OPTIONS}
-          allowClear
-        />
-        <Button type="primary" onClick={handleSearch}>查询</Button>
+        <Button type="primary" onClick={() => setSearchText(keyword)}>查询</Button>
         <Button onClick={() => { setKeyword(''); setSearchText(''); }}>重置</Button>
         {selectedRowKeys.length > 0 && (
           <ConfirmButton
             title="批量删除"
-            description={`确认删除选中的 ${selectedRowKeys.length} 条内容？此操作不可撤销。`}
+            description={`确认删除选中的 ${selectedRowKeys.length} 条活动？`}
             danger
             icon={<DeleteOutlined />}
             onConfirm={handleBatchDelete}
@@ -185,8 +160,8 @@ export default function ContentManagement() {
       <ContentEditDrawer
         open={drawerOpen}
         item={editingItem}
-        onClose={handleDrawerClose}
-        onSuccess={handleDrawerSuccess}
+        onClose={() => { setDrawerOpen(false); setEditingItem(null); }}
+        onSuccess={() => { setDrawerOpen(false); setEditingItem(null); refresh(); }}
       />
     </PageContainer>
   )

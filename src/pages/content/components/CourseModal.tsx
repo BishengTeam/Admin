@@ -3,6 +3,7 @@ import { Modal, Form, Input, Select, InputNumber, Button, DatePicker, TimePicker
 import { PlusOutlined, MinusCircleOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import { contentService } from '@/services/content'
+import { ImageUpload } from '@/components/ImageUpload'
 import { COURSE_CATEGORIES, STATUS_OPTIONS } from '@/core/constants'
 import { requiredRule } from '@/utils/validator'
 import type { Course } from '@/types/content'
@@ -32,6 +33,9 @@ export default function CourseModal({ open, course, onClose, onSuccess }: Course
         form.setFieldsValue({
           title: course.title,
           category: course.category,
+          cover_url: (course as any).cover_url || '',
+          description: (course as any).description || '',
+          video_url: (course as any).video_url || '',
           price: course.price,
           teacher_name: course.teacher_name,
           teacher_contact: course.teacher_contact,
@@ -93,7 +97,18 @@ export default function CourseModal({ open, course, onClose, onSuccess }: Course
           </Form.Item>
         </Space>
 
+        <Form.Item name="cover_url" label="封面图">
+          <ImageUpload />
+        </Form.Item>
+
+        <Form.Item name="description" label="课程描述">
+          <Input.TextArea rows={3} placeholder="课程简介" />
+        </Form.Item>
+
         <Space size={16}>
+          <Form.Item name="video_url" label="视频链接">
+            <Input placeholder="视频URL" style={{ width: 300 }} />
+          </Form.Item>
           <Form.Item name="price" label="价格（分）" rules={[requiredRule('价格')]}>
             <InputNumber min={0} placeholder="价格（单位：分）" style={{ width: 200 }} />
           </Form.Item>

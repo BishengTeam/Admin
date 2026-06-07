@@ -4,7 +4,7 @@ import type { PageData, PageParams } from '@/types/api'
 
 export const contentService = {
   // Zones
-  async list(params: { keyword?: string } & PageParams): Promise<PageData<ContentItem>> {
+  async list(params: { keyword?: string; zone_type?: string } & PageParams): Promise<PageData<ContentItem>> {
     return http.get<PageData<ContentItem>>('/admin/zones', { params })
   },
 

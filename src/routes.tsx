@@ -22,8 +22,9 @@ const UserList = lazy(() => import('@/pages/users'))
 const OrderList = lazy(() => import('@/pages/orders'))
 const QuizManagement = lazy(() => import('@/pages/quiz'))
 const QuizImport = lazy(() => import('@/pages/quiz/import'))
-const ContentManagement = lazy(() => import('@/pages/content'))
 const CourseList = lazy(() => import('@/pages/content/courses'))
+const ActivityManagement = lazy(() => import('@/pages/activity'))
+const ContentManagement = lazy(() => import('@/pages/content'))
 
 import AuthGuard from '@/components/AuthGuard'
 import LoginLayout from '@/layouts/LoginLayout'
@@ -55,14 +56,19 @@ export const adminRoutes: AppRoute[] = [
     meta: { title: '批量导入', hidden: true, permission: 'quiz:import' },
   },
   {
+    path: 'courses',
+    element: <CourseList />,
+    meta: { title: '课程管理', icon: 'ReadOutlined', permission: 'course:list' },
+  },
+  {
+    path: 'activity',
+    element: <ActivityManagement />,
+    meta: { title: '活动管理', icon: 'CalendarOutlined', permission: 'content:list' },
+  },
+  {
     path: 'content',
     element: <ContentManagement />,
     meta: { title: '内容管理', icon: 'FileTextOutlined', permission: 'content:list' },
-  },
-  {
-    path: 'content/courses',
-    element: <CourseList />,
-    meta: { title: '课程管理', icon: 'ReadOutlined', permission: 'course:list' },
   },
 ]
 

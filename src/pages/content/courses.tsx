@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react'
-import { Table, Button, Input, Select, Space, Tag, message } from 'antd'
+import { Table, Button, Input, Select, Space, Tag, Image, message } from 'antd'
 import { PlusOutlined, SearchOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import { PageContainer } from '@/components/PageContainer'
@@ -46,6 +46,12 @@ export default function CourseList() {
   }
 
   const columns: ColumnsType<Course> = [
+    {
+      title: '封面',
+      dataIndex: 'cover_url',
+      width: 80,
+      render: (url: string) => url ? <Image src={url} width={48} height={48} style={{ objectFit: 'cover', borderRadius: 4 }} /> : <div style={{ width: 48, height: 48, background: '#f0f0f0', borderRadius: 4 }} />,
+    },
     { title: '课程名称', dataIndex: 'title', width: 200 },
     {
       title: '类目',

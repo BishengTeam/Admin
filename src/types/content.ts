@@ -30,6 +30,9 @@ export interface Course {
   id: number
   title: string
   category: string
+  cover_url: string | null
+  description: string | null
+  video_url: string | null
   price: number
   is_active: boolean
   teacher_name: string
