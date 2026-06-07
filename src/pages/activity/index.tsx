@@ -1,77 +1,118 @@
 import { useState } from 'react'
-import { Table, Button, Input, Switch, Space, Image, message, Select } from 'antd'
+import { Table, Button, Input, Switch, Space, Modal, Form, DatePicker, message } from 'antd'
 import { PlusOutlined, SearchOutlined, DeleteOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import type { TableRowSelection } from 'antd/es/table/interface'
+import dayjs from 'dayjs'
 import { PageContainer } from '@/components/PageContainer'
 import { ConfirmButton } from '@/components/ConfirmButton'
+import { ImageUpload } from '@/components/ImageUpload'
 import { usePagination } from '@/hooks/usePagination'
-import { contentService } from '@/services/content'
+import { trainingService } from '@/services/training'
 import { formatDate } from '@/utils/format'
-import { ZONE_OPTIONS } from '@/core/constants'
-import type { ContentItem } from '@/types/content'
-import ContentEditDrawer from '@/pages/content/components/ContentEditDrawer'
+import { requiredRule } from '@/utils/validator'
+import type { Training } from '@/types/training'
+
+const { RangePicker } = DatePicker
 
 export default function ActivityManagement() {
   const [keyword, setKeyword] = useState('')
   const [searchText, setSearchText] = useState('')
-  const [drawerOpen, setDrawerOpen] = useState(false)
-  const [editingItem, setEditingItem] = useState<ContentItem | null>(null)
-  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
+  const [modalOpen, setModalOpen] = useState(false)
+  const [editingItem, setEditingItem] = useState<Training | null>(null)
+  const [selectedRowKeys, setSelectedRowKeys] = useState<number[]>([])
+  const [form] = Form.useForm()
 
   const { data, loading, pagination, refresh } = usePagination(
-    (page) => contentService.list({ keyword: searchText || undefined, ...page }),
+    (page) => trainingService.list({ keyword: searchText || undefined, ...page }),
     [searchText],
   )
 
   const handleAdd = () => {
     setEditingItem(null)
-    setDrawerOpen(true)
+    form.resetFields()
+    form.setFieldsValue({ is_active: true, max_participants: 0 })
+    setModalOpen(true)
   }
 
-  const handleEdit = (item: ContentItem) => {
+  const handleEdit = (item: Training) => {
     setEditingItem(item)
-    setDrawerOpen(true)
+    form.setFieldsValue({
+      title: item.title,
+      cover_url: item.cover_url || '',
+      description: item.description || '',
+      location: item.location || '',
+      max_participants: item.max_participants,
+      is_active: item.is_active,
+      time_range: [
+        item.start_time ? dayjs(item.start_time) : null,
+        item.end_time ? dayjs(item.end_time) : null,
+      ],
+    })
+    setModalOpen(true)
   }
 
   const handleDelete = async (id: number) => {
-    await contentService.delete(id)
-    message.success('删除成功')
+    await trainingService.delete(id)
+    message.success('已下架')
+    setSelectedRowKeys((prev) => prev.filter((k) => k !== id))
     refresh()
   }
 
   const handleBatchDelete = async () => {
-    await contentService.deleteZones(selectedRowKeys as number[])
-    message.success(`成功删除 ${selectedRowKeys.length} 条活动`)
+    await Promise.all(selectedRowKeys.map((id) => trainingService.delete(id)))
+    message.success(`已下架 ${selectedRowKeys.length} 个活动`)
     setSelectedRowKeys([])
     refresh()
   }
 
-  const rowSelection: TableRowSelection<ContentItem> = {
+  const rowSelection: TableRowSelection<Training> = {
     selectedRowKeys,
-    onChange: (keys) => setSelectedRowKeys(keys),
+    onChange: (keys) => setSelectedRowKeys(keys as number[]),
+  }
+
+  const handleSubmit = async () => {
+    const values = await form.validateFields()
+    const [start, end] = values.time_range || []
+    const payload = {
+      title: values.title,
+      description: values.description,
+      cover_url: values.cover_url || null,
+      location: values.location || null,
+      start_time: start ? start.toISOString() : null,
+      end_time: end ? end.toISOString() : null,
+      max_participants: values.max_participants ?? 0,
+      is_active: values.is_active,
+    }
+
+    if (editingItem) {
+      await trainingService.update(editingItem.id, payload)
+      message.success('更新成功')
+    } else {
+      await trainingService.create(payload)
+      message.success('添加成功')
+    }
+    setModalOpen(false)
+    refresh()
   }
 
   const handleToggleStatus = async (id: number, checked: boolean) => {
-    await contentService.update(id, { is_active: checked })
+    await trainingService.update(id, { is_active: checked })
     message.success(checked ? '已上架' : '已下架')
     refresh()
   }
 
-  const columns: ColumnsType<ContentItem> = [
+  const columns: ColumnsType<Training> = [
+    { title: '活动名称', dataIndex: 'title', width: 200, ellipsis: true },
+    { title: '地点', dataIndex: 'location', width: 140 },
     {
-      title: '封面',
-      dataIndex: 'cover_url',
-      width: 80,
-      render: (url: string) => url ? <Image src={url} width={48} height={48} style={{ objectFit: 'cover', borderRadius: 4 }} /> : <div style={{ width: 48, height: 48, background: '#f0f0f0', borderRadius: 4 }} />,
-    },
-    { title: '标题', dataIndex: 'title', ellipsis: true },
-    {
-      title: '外链',
-      dataIndex: 'link_url',
-      width: 200,
-      ellipsis: true,
-      render: (url: string) => url || '-',
+      title: '时间',
+      width: 220,
+      render: (_, r) => {
+        const s = r.start_time?.slice(0, 16) || '-'
+        const e = r.end_time?.slice(0, 16) || '-'
+        return `${s} ~ ${e}`
+      },
     },
     {
       title: '状态',
@@ -86,17 +127,7 @@ export default function ActivityManagement() {
         />
       ),
     },
-    {
-      title: '排序',
-      dataIndex: 'sort_order',
-      width: 80,
-    },
-    {
-      title: '创建时间',
-      dataIndex: 'created_at',
-      width: 170,
-      render: (t: string) => formatDate(t),
-    },
+    { title: '创建时间', dataIndex: 'created_at', width: 170, render: (t: string) => formatDate(t) },
     {
       title: '操作',
       width: 120,
@@ -104,14 +135,14 @@ export default function ActivityManagement() {
         <Space>
           <Button type="link" size="small" onClick={() => handleEdit(record)}>编辑</Button>
           <ConfirmButton
-            title="删除活动"
-            description="此操作不可撤销，确认删除？"
+            title="下架活动"
+            description="确认下架？"
             danger
             type="link"
             size="small"
             onConfirm={() => handleDelete(record.id)}
           >
-            删除
+            下架
           </ConfirmButton>
         </Space>
       ),
@@ -125,7 +156,7 @@ export default function ActivityManagement() {
     >
       <Space style={{ marginBottom: 16 }}>
         <Input
-          placeholder="搜索标题..."
+          placeholder="搜索活动..."
           prefix={<SearchOutlined />}
           value={keyword}
           onChange={(e) => setKeyword(e.target.value)}
@@ -137,13 +168,13 @@ export default function ActivityManagement() {
         <Button onClick={() => { setKeyword(''); setSearchText(''); }}>重置</Button>
         {selectedRowKeys.length > 0 && (
           <ConfirmButton
-            title="批量删除"
-            description={`确认删除选中的 ${selectedRowKeys.length} 条活动？`}
+            title="批量下架"
+            description={`确认下架选中的 ${selectedRowKeys.length} 个活动？`}
             danger
             icon={<DeleteOutlined />}
             onConfirm={handleBatchDelete}
           >
-            删除 ({selectedRowKeys.length})
+            下架 ({selectedRowKeys.length})
           </ConfirmButton>
         )}
       </Space>
@@ -157,14 +188,35 @@ export default function ActivityManagement() {
         rowSelection={rowSelection}
       />
 
-      <ContentEditDrawer
-        open={drawerOpen}
-        item={editingItem}
-        hideZoneType
-        defaultValues={{ zone_type: 'activity' }}
-        onClose={() => { setDrawerOpen(false); setEditingItem(null); }}
-        onSuccess={() => { setDrawerOpen(false); setEditingItem(null); refresh(); }}
-      />
+      <Modal
+        title={editingItem ? '编辑活动' : '新增活动'}
+        open={modalOpen}
+        onOk={handleSubmit}
+        onCancel={() => setModalOpen(false)}
+        width={600}
+        destroyOnClose
+      >
+        <Form form={form} layout="vertical">
+          <Form.Item name="title" label="活动名称" rules={[requiredRule('名称')]}>
+            <Input placeholder="请输入活动名称" />
+          </Form.Item>
+          <Form.Item name="cover_url" label="封面图">
+            <ImageUpload />
+          </Form.Item>
+          <Form.Item name="description" label="活动描述">
+            <Input.TextArea rows={3} placeholder="活动简介" />
+          </Form.Item>
+          <Form.Item name="location" label="地点">
+            <Input placeholder="活动地点" />
+          </Form.Item>
+          <Form.Item name="time_range" label="活动时间">
+            <RangePicker showTime style={{ width: '100%' }} />
+          </Form.Item>
+          <Form.Item name="is_active" label="状态" valuePropName="checked">
+            <Switch checkedChildren="上架" unCheckedChildren="下架" />
+          </Form.Item>
+        </Form>
+      </Modal>
     </PageContainer>
   )
 }
