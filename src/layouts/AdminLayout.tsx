@@ -17,6 +17,7 @@ import {
   BookOutlined,
   SafetyCertificateOutlined,
   IdcardOutlined,
+  SolutionOutlined,
 } from '@ant-design/icons'
 import { useAppStore } from '@/stores/appStore'
 import { useAuthStore } from '@/stores/authStore'
@@ -43,6 +44,7 @@ const iconMap: Record<string, ReactNode> = {
   BookOutlined: <BookOutlined />,
   SafetyCertificateOutlined: <SafetyCertificateOutlined />,
   IdcardOutlined: <IdcardOutlined />,
+  SolutionOutlined: <SolutionOutlined />,
 }
 
 function buildMenuItems(routes: AppRoute[]): MenuProps['items'] {
