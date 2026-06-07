@@ -54,14 +54,14 @@ export default function ActivityManagement() {
 
   const handleDelete = async (id: number) => {
     await activityService.delete(id)
-    message.success('已下架')
+    message.success('已删除')
     setSelectedRowKeys((prev) => prev.filter((k) => k !== id))
     refresh()
   }
 
   const handleBatchDelete = async () => {
     await Promise.all(selectedRowKeys.map((id) => activityService.delete(id)))
-    message.success(`已下架 ${selectedRowKeys.length} 个活动`)
+    message.success(`已删除 ${selectedRowKeys.length} 个活动`)
     setSelectedRowKeys([])
     refresh()
   }
@@ -135,14 +135,14 @@ export default function ActivityManagement() {
         <Space>
           <Button type="link" size="small" onClick={() => handleEdit(record)}>编辑</Button>
           <ConfirmButton
-            title="下架活动"
-            description="确认下架？"
+            title="删除活动"
+            description="确认删除此活动？"
             danger
             type="link"
             size="small"
             onConfirm={() => handleDelete(record.id)}
           >
-            下架
+            删除
           </ConfirmButton>
         </Space>
       ),
@@ -168,13 +168,13 @@ export default function ActivityManagement() {
         <Button onClick={() => { setKeyword(''); setSearchText(''); }}>重置</Button>
         {selectedRowKeys.length > 0 && (
           <ConfirmButton
-            title="批量下架"
-            description={`确认下架选中的 ${selectedRowKeys.length} 个活动？`}
+            title="批量删除"
+            description={`确认删除选中的 ${selectedRowKeys.length} 个活动？`}
             danger
             icon={<DeleteOutlined />}
             onConfirm={handleBatchDelete}
           >
-            下架 ({selectedRowKeys.length})
+            删除 ({selectedRowKeys.length})
           </ConfirmButton>
         )}
       </Space>

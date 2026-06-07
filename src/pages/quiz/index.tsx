@@ -3,7 +3,7 @@ import { Row, Col, Modal, Form, Input, TreeSelect, message } from 'antd'
 import { PageContainer } from '@/components/PageContainer'
 import { quizService } from '@/services/quiz'
 import type { Category, QuestionFilter } from '@/types/quiz'
-import { buildTreeSelectData } from '@/utils/tree'
+import { arrayToTree, buildTreeSelectData } from '@/utils/tree'
 import CategoryTree from './components/CategoryTree'
 import QuestionTable from './components/QuestionTable'
 
@@ -17,7 +17,10 @@ export default function QuizManagement() {
   const [form] = Form.useForm()
 
   const loadCategories = useCallback(() => {
-    quizService.listCategories().then(setCategories)
+    quizService.listCategories().then((data) => {
+      // 后端返回平级数组，需转为嵌套树结构供 CategoryTree 渲染
+      setCategories(arrayToTree(data as any) as unknown as Category[])
+    })
   }, [])
 
   useEffect(() => {

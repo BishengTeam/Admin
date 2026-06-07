@@ -67,7 +67,7 @@ export default function QuestionModal({ open, question, categories, onClose, onS
     if (open) {
       if (question) {
         // Convert Record<string,string> options to Form.List format [{label, content}]
-        const optionsList = Object.entries(question.options).map(([label, content]) => ({
+        const optionsList = Object.entries(question.options ?? {}).map(([label, content]) => ({
           label,
           content,
         }))

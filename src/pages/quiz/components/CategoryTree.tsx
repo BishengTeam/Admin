@@ -100,7 +100,7 @@ export default function CategoryTree({
         selectedKeys={selectedKey ? [selectedKey] : ['all']}
         onSelect={handleSelect}
         titleRender={titleRender}
-        style={{ maxHeight: 'calc(100vh - 280px)', overflow: 'auto' }}
+        style={{ maxHeight: 'calc(100vh - 280px)', overflow: 'auto', whiteSpace: 'nowrap' }}
       />
     </Card>
   )

@@ -49,14 +49,14 @@ export default function TrainingManagement() {
 
   const handleDelete = async (id: number) => {
     await trainingService.delete(id)
-    message.success('已下架')
+    message.success('已删除')
     setSelectedRowKeys((prev) => prev.filter((k) => k !== id))
     refresh()
   }
 
   const handleBatchDelete = async () => {
     await Promise.all(selectedRowKeys.map((id) => trainingService.delete(id)))
-    message.success(`已下架 ${selectedRowKeys.length} 个培训`)
+    message.success(`已删除 ${selectedRowKeys.length} 个培训`)
     setSelectedRowKeys([])
     refresh()
   }
@@ -133,14 +133,14 @@ export default function TrainingManagement() {
         <Space>
           <Button type="link" size="small" onClick={() => handleEdit(record)}>编辑</Button>
           <ConfirmButton
-            title="下架培训"
-            description="确认下架此培训？"
+            title="删除培训"
+            description="确认删除此培训？"
             danger
             type="link"
             size="small"
             onConfirm={() => handleDelete(record.id)}
           >
-            下架
+            删除
           </ConfirmButton>
         </Space>
       ),
@@ -166,13 +166,13 @@ export default function TrainingManagement() {
         <Button onClick={() => { setKeyword(''); setSearchText(''); }}>重置</Button>
         {selectedRowKeys.length > 0 && (
           <ConfirmButton
-            title="批量下架"
-            description={`确认下架选中的 ${selectedRowKeys.length} 个培训？`}
+            title="批量删除"
+            description={`确认删除选中的 ${selectedRowKeys.length} 个培训？`}
             danger
             icon={<DeleteOutlined />}
             onConfirm={handleBatchDelete}
           >
-            下架 ({selectedRowKeys.length})
+            删除 ({selectedRowKeys.length})
           </ConfirmButton>
         )}
       </Space>
