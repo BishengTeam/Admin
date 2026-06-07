@@ -75,7 +75,7 @@ export const adminRoutes: AppRoute[] = [
   {
     path: 'training',
     element: <TrainingManagement />,
-    meta: { title: '培训管理', icon: 'ScheduleOutlined', permission: 'content:list' },
+    meta: { title: '培训管理', icon: 'SolutionOutlined', permission: 'content:list' },
   },
   {
     path: 'activity',
