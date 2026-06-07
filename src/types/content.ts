@@ -13,16 +13,6 @@ export interface ContentItem {
   created_at: string
 }
 
-export interface Banner {
-  id: number
-  image_url: string
-  jump_link: string
-  sort: number
-  start_time: string
-  end_time: string
-  is_active: boolean
-}
-
 export interface CourseBatch {
   /** 上课日期 YYYY-MM-DD */
   class_date: string

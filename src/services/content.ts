@@ -1,5 +1,5 @@
 import { http } from '@/core/request'
-import type { ContentItem, Banner, Course } from '@/types/content'
+import type { ContentItem, Course } from '@/types/content'
 import type { PageData, PageParams } from '@/types/api'
 
 export const contentService = {
@@ -25,28 +25,7 @@ export const contentService = {
   },
 
   async updateSort(updates: { id: number; sort_order: number }[]): Promise<void> {
-    return http.put<void>('/admin/zones/sort', { updates })
-  },
-
-  // Banners
-  async listBanners(): Promise<Banner[]> {
-    return http.get<Banner[]>('/admin/banners')
-  },
-
-  async createBanner(data: Partial<Banner>): Promise<Banner> {
-    return http.post<Banner>('/admin/banners', data)
-  },
-
-  async updateBanner(id: number, data: Partial<Banner>): Promise<void> {
-    return http.put<void>(`/admin/banners/${id}`, data)
-  },
-
-  async deleteBanner(id: number): Promise<void> {
-    return http.delete<void>(`/admin/banners/${id}`)
-  },
-
-  async deleteBanners(ids: number[]): Promise<void> {
-    return http.post<void>('/admin/banners/batch-delete', { ids })
+    return http.put<void>('/admin/zones/sort', updates)
   },
 
   // Courses
