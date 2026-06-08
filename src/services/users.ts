@@ -1,5 +1,5 @@
 import { http } from '@/core/request'
-import type { User, UserFilter, UserDetail, UserOrderSummary, UserConversationSummary } from '@/types/user'
+import type { User, UserFilter, UserDetail, UserProfileDetail, UserIdentityInfo, UserOrderSummary, UserConversationSummary } from '@/types/user'
 import type { PageData, PageParams } from '@/types/api'
 
 export const userService = {
@@ -15,12 +15,24 @@ export const userService = {
     return http.get<UserOrderSummary[]>(`/admin/users/${id}/orders`)
   },
 
+  async getProfile(id: number): Promise<UserProfileDetail> {
+    return http.get<UserProfileDetail>(`/admin/users/${id}/profile`)
+  },
+
+  async getIdentity(id: number): Promise<UserIdentityInfo> {
+    return http.get<UserIdentityInfo>(`/admin/users/${id}/identity`)
+  },
+
   async getConversations(id: number): Promise<UserConversationSummary[]> {
     return http.get<UserConversationSummary[]>(`/admin/users/${id}/conversations`)
   },
 
   async updateStatus(id: number, is_active: boolean): Promise<void> {
-    return http.put<void>(`/admin/users/${id}`, { is_active })
+    return http.patch<void>(`/admin/users/${id}/status`, { is_active })
+  },
+
+  async reviewIdentity(id: number, data: { status: string; comment?: string }): Promise<void> {
+    return http.put<void>(`/admin/users/${id}/identity/review`, data)
   },
 
   async deleteUsers(ids: number[]): Promise<void> {

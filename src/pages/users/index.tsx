@@ -52,9 +52,16 @@ export default function UserList() {
   }, [])
 
   const handleRowClick = async (record: User) => {
-    const detail = await userService.detail(record.id)
-    setSelectedUser(detail)
     setDrawerOpen(true)
+    setSelectedUser(null) // 先清空旧数据，避免展示脏数据
+    const [detail, profile, identity, orders, conversations] = await Promise.all([
+      userService.detail(record.id),
+      userService.getProfile(record.id),
+      userService.getIdentity(record.id),
+      userService.getOrders(record.id),
+      userService.getConversations(record.id),
+    ])
+    setSelectedUser({ ...detail, profile, identity, orders, conversations })
   }
 
   const handleToggleStatus = async (record: User) => {

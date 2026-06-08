@@ -27,6 +27,7 @@ const CertificationManagement = lazy(() => import('@/pages/certification'))
 const JobManagement = lazy(() => import('@/pages/job'))
 const TrainingManagement = lazy(() => import('@/pages/training'))
 const ActivityManagement = lazy(() => import('@/pages/activity'))
+const BannerManagement = lazy(() => import('@/pages/banner'))
 
 import AuthGuard from '@/components/AuthGuard'
 import LoginLayout from '@/layouts/LoginLayout'
@@ -81,6 +82,11 @@ export const adminRoutes: AppRoute[] = [
     path: 'activity',
     element: <ActivityManagement />,
     meta: { title: '活动管理', icon: 'CalendarOutlined', permission: 'content:write' },
+  },
+  {
+    path: 'banner',
+    element: <BannerManagement />,
+    meta: { title: 'Banner 管理', icon: 'PictureOutlined', permission: 'content:write' },
   },
 ]
 
