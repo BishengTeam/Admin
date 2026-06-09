@@ -3,6 +3,7 @@ export interface User {
   openid: string
   phone: string
   is_active: boolean
+  identity_status?: string | null
   created_at: string
 }
 
@@ -57,12 +58,13 @@ export interface UserIdentityInfo {
   id_card_front_oss: string | null
   id_card_back_oss: string | null
   student_card_oss: string | null
-  status: 'pending' | 'verified' | 'rejected'
+  status: 'unsubmitted' | 'pending' | 'verified' | 'rejected'
   verified_at: string | null
   created_at: string
 }
 
 export const IDENTITY_STATUS_MAP: Record<string, { text: string; color: string }> = {
+  unsubmitted: { text: '未提交', color: 'default' },
   pending: { text: '待审核', color: 'orange' },
   verified: { text: '已通过', color: 'green' },
   rejected: { text: '已驳回', color: 'red' },

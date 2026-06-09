@@ -1,5 +1,5 @@
-import { useState, useCallback } from 'react'
-import { Table, Input, DatePicker, Button, Space, message } from 'antd'
+import { useState, useCallback, useRef } from 'react'
+import { Table, Input, DatePicker, Button, Space, Tag, message } from 'antd'
 import { DownloadOutlined, DeleteOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import type { TableRowSelection } from 'antd/es/table/interface'
@@ -14,6 +14,7 @@ import { USER_STATUS_MAP } from '@/core/constants'
 import { formatDate, formatPhone } from '@/utils/format'
 import { downloadBlob } from '@/utils/download'
 import type { User, UserFilter, UserDetail } from '@/types/user'
+import { IDENTITY_STATUS_MAP } from '@/types/user'
 import UserDetailDrawer from './components/UserDetailDrawer'
 
 const { RangePicker } = DatePicker
@@ -29,6 +30,7 @@ export default function UserList() {
   const [selectedUser, setSelectedUser] = useState<UserDetail | null>(null)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [selectedRowKeys, setSelectedRowKeys] = useState<number[]>([])
+  const viewingUserId = useRef<number | null>(null)
   const { exporting, startExport, finishExport } = useExport()
 
   const { data, loading, pagination, refresh } = usePagination(
@@ -52,6 +54,7 @@ export default function UserList() {
   }, [])
 
   const handleRowClick = async (record: User) => {
+    viewingUserId.current = record.id
     setDrawerOpen(true)
     setSelectedUser(null) // 先清空旧数据，避免展示脏数据
     const [detail, profile, identity, orders, conversations] = await Promise.all([
@@ -63,6 +66,19 @@ export default function UserList() {
     ])
     setSelectedUser({ ...detail, profile, identity, orders, conversations })
   }
+
+  const handleRefreshDetail = useCallback(async () => {
+    const id = viewingUserId.current
+    if (!id) return
+    const [detail, profile, identity, orders, conversations] = await Promise.all([
+      userService.detail(id),
+      userService.getProfile(id),
+      userService.getIdentity(id),
+      userService.getOrders(id),
+      userService.getConversations(id),
+    ])
+    setSelectedUser({ ...detail, profile, identity, orders, conversations })
+  }, [])
 
   const handleToggleStatus = async (record: User) => {
     const newStatus = !record.is_active
@@ -118,6 +134,16 @@ export default function UserList() {
       dataIndex: 'is_active',
       width: 80,
       render: (v: boolean) => <StatusTag status={v} map={USER_STATUS_MAP} />,
+    },
+    {
+      title: '审核',
+      dataIndex: 'identity_status',
+      width: 80,
+      render: (s: string | null) => {
+        const k = s || 'unsubmitted'
+        const cfg = IDENTITY_STATUS_MAP[k]
+        return <Tag color={cfg?.color}>{cfg?.text ?? k}</Tag>
+      },
     },
     {
       title: '操作',
@@ -186,6 +212,7 @@ export default function UserList() {
         user={selectedUser}
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
+        onSaved={handleRefreshDetail}
       />
     </PageContainer>
   )

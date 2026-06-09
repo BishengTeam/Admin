@@ -27,6 +27,18 @@ export const userService = {
     return http.get<UserConversationSummary[]>(`/admin/users/${id}/conversations`)
   },
 
+  async updateProfile(id: number, data: {
+    phone?: string | null
+    email?: string | null
+    gender?: string | null
+    education?: string | null
+    school?: string | null
+    major?: string | null
+    organization?: string | null
+  }): Promise<void> {
+    return http.put<void>(`/admin/users/${id}`, data)
+  },
+
   async updateStatus(id: number, is_active: boolean): Promise<void> {
     return http.patch<void>(`/admin/users/${id}/status`, { is_active })
   },

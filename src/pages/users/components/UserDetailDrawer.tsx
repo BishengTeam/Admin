@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { Descriptions, Drawer, Table, Tag, Avatar, Button, Space, message, Input, Modal } from 'antd'
+import { Descriptions, Drawer, Table, Tag, Button, Space, message, Input, Modal, Form, Select } from 'antd'
+import { EditOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import { StatusTag } from '@/components/StatusTag'
 import { ORDER_STATUS_MAP, USER_STATUS_MAP } from '@/core/constants'
@@ -12,6 +13,7 @@ interface UserDetailDrawerProps {
   user: UserDetail | null
   open: boolean
   onClose: () => void
+  onSaved?: () => void
 }
 
 const orderColumns: ColumnsType<UserOrderSummary> = [
@@ -54,9 +56,16 @@ const convColumns: ColumnsType<UserConversationSummary> = [
 
 const GENDER_LABELS: Record<string, string> = { male: '男', female: '女' }
 const USER_TYPE_LABELS: Record<string, string> = { student: '学生', enterprise: '企业' }
+const GENDER_OPTIONS = [
+  { label: '男', value: 'male' },
+  { label: '女', value: 'female' },
+]
 
-export default function UserDetailDrawer({ user, open, onClose }: UserDetailDrawerProps) {
+export default function UserDetailDrawer({ user, open, onClose, onSaved }: UserDetailDrawerProps) {
   const [reviewing, setReviewing] = useState(false)
+  const [editModalOpen, setEditModalOpen] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [editForm] = Form.useForm()
 
   if (!user) return null
 
@@ -97,6 +106,41 @@ export default function UserDetailDrawer({ user, open, onClose }: UserDetailDraw
     }
   }
 
+  const handleOpenEdit = () => {
+    if (!profile) return
+    editForm.setFieldsValue({
+      phone: profile.phone || '',
+      email: profile.email || '',
+      gender: profile.gender || undefined,
+      education: profile.education || '',
+      school: profile.school || '',
+      major: profile.major || '',
+      organization: profile.organization || '',
+    })
+    setEditModalOpen(true)
+  }
+
+  const handleSaveProfile = async () => {
+    const values = await editForm.validateFields()
+    setSaving(true)
+    try {
+      await userService.updateProfile(user.id, {
+        phone: values.phone || null,
+        email: values.email || null,
+        gender: values.gender || null,
+        education: values.education || null,
+        school: values.school || null,
+        major: values.major || null,
+        organization: values.organization || null,
+      })
+      message.success('资料已更新')
+      setEditModalOpen(false)
+      onSaved?.()
+    } finally {
+      setSaving(false)
+    }
+  }
+
   return (
     <Drawer
       title="用户详情"
@@ -118,7 +162,12 @@ export default function UserDetailDrawer({ user, open, onClose }: UserDetailDraw
       {/* 个人资料 */}
       {profile && (
         <>
-          <h4 style={{ marginBottom: 12 }}>个人资料</h4>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+            <h4 style={{ margin: 0 }}>个人资料</h4>
+            <Button size="small" icon={<EditOutlined />} onClick={handleOpenEdit}>
+              编辑资料
+            </Button>
+          </div>
           <Descriptions column={2} bordered size="small" style={{ marginBottom: 16 }}>
             <Descriptions.Item label="姓名">
               {profile.last_name}{profile.first_name}
@@ -212,6 +261,40 @@ export default function UserDetailDrawer({ user, open, onClose }: UserDetailDraw
         pagination={false}
         size="small"
       />
+
+      {/* 编辑资料弹窗 */}
+      <Modal
+        title="编辑用户资料"
+        open={editModalOpen}
+        onOk={handleSaveProfile}
+        onCancel={() => setEditModalOpen(false)}
+        confirmLoading={saving}
+        destroyOnClose
+      >
+        <Form form={editForm} layout="vertical">
+          <Form.Item name="phone" label="手机号">
+            <Input placeholder="11 位手机号" maxLength={11} />
+          </Form.Item>
+          <Form.Item name="email" label="邮箱">
+            <Input placeholder="请输入邮箱" />
+          </Form.Item>
+          <Form.Item name="gender" label="性别">
+            <Select placeholder="选择性别" options={GENDER_OPTIONS} allowClear />
+          </Form.Item>
+          <Form.Item name="education" label="学历">
+            <Input placeholder="如：本科、硕士" />
+          </Form.Item>
+          <Form.Item name="school" label="学校">
+            <Input placeholder="请输入学校" />
+          </Form.Item>
+          <Form.Item name="major" label="专业">
+            <Input placeholder="请输入专业" />
+          </Form.Item>
+          <Form.Item name="organization" label="单位">
+            <Input placeholder="请输入单位" />
+          </Form.Item>
+        </Form>
+      </Modal>
     </Drawer>
   )
 }
