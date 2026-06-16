@@ -1,5 +1,5 @@
 import { http } from '@/core/request'
-import type { User, UserFilter, UserDetail, UserProfileDetail, UserIdentityInfo, UserOrderSummary, UserConversationSummary } from '@/types/user'
+import type { User, UserFilter, UserDetail, UserProfileDetail, UserOrderSummary, UserConversationSummary } from '@/types/user'
 import type { PageData, PageParams } from '@/types/api'
 
 export const userService = {
@@ -19,32 +19,30 @@ export const userService = {
     return http.get<UserProfileDetail>(`/admin/users/${id}/profile`)
   },
 
-  async getIdentity(id: number): Promise<UserIdentityInfo> {
-    return http.get<UserIdentityInfo>(`/admin/users/${id}/identity`)
-  },
-
   async getConversations(id: number): Promise<UserConversationSummary[]> {
     return http.get<UserConversationSummary[]>(`/admin/users/${id}/conversations`)
-  },
-
-  async updateProfile(id: number, data: {
-    phone?: string | null
-    email?: string | null
-    gender?: string | null
-    education?: string | null
-    school?: string | null
-    major?: string | null
-    organization?: string | null
-  }): Promise<void> {
-    return http.put<void>(`/admin/users/${id}`, data)
   },
 
   async updateStatus(id: number, is_active: boolean): Promise<void> {
     return http.patch<void>(`/admin/users/${id}/status`, { is_active })
   },
 
-  async reviewIdentity(id: number, data: { status: string; comment?: string }): Promise<void> {
+  // ===== Level-2 审核 =====
+
+  async reviewRealname(id: number, data: { status: string; comment?: string }): Promise<void> {
     return http.put<void>(`/admin/users/${id}/identity/review`, data)
+  },
+
+  /** @deprecated 使用 reviewRealname */
+  reviewIdentity: (id: number, data: { status: string; comment?: string }) =>
+    http.put<void>(`/admin/users/${id}/identity/review`, data),
+
+  async reviewStudent(id: number, data: { status: string; comment?: string }): Promise<void> {
+    return http.put<void>(`/admin/users/${id}/student/review`, data)
+  },
+
+  async reviewEnterprise(id: number, data: { status: string; comment?: string }): Promise<void> {
+    return http.put<void>(`/admin/users/${id}/enterprise/review`, data)
   },
 
   async deleteUsers(ids: number[]): Promise<void> {

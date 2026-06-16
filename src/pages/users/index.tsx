@@ -13,9 +13,73 @@ import { userService } from '@/services/users'
 import { USER_STATUS_MAP } from '@/core/constants'
 import { formatDate, formatPhone } from '@/utils/format'
 import { downloadBlob } from '@/utils/download'
-import type { User, UserFilter, UserDetail } from '@/types/user'
-import { IDENTITY_STATUS_MAP } from '@/types/user'
+import type { User, UserFilter, UserDetail, UserProfileDetail, UserOrderSummary, UserConversationSummary } from '@/types/user'
+import { LEVEL2_STATUS_MAP } from '@/types/user'
 import UserDetailDrawer from './components/UserDetailDrawer'
+
+/** 将平铺的 profile 响应映射为嵌套结构供抽屉使用 */
+function mapProfileToDetail(
+  flat: UserProfileDetail,
+  base: User,
+  orders: UserOrderSummary[],
+  conversations: UserConversationSummary[],
+): UserDetail {
+  const detail: UserDetail = {
+    ...base,
+    phone: flat.phone || base.phone,
+    orders,
+    conversations,
+    profile: {
+      nickname: flat.nickname,
+      email: flat.email,
+      phone: flat.phone,
+    },
+  }
+  // 实名字段存在则构建 realname 对象
+  if (flat.user_type || flat.real_name) {
+    detail.realname = {
+      user_id: flat.id,
+      user_type: (flat.user_type as 'student' | 'enterprise') || 'student',
+      real_name: flat.real_name || '',
+      id_card_number: flat.id_card_raw || flat.id_card || '',
+      id_card_front_oss: flat.id_card_front_oss,
+      id_card_back_oss: flat.id_card_back_oss,
+      gender: flat.gender,
+      age: flat.age,
+      census_register: flat.census_register,
+      status: (flat.identity_status as 'unsubmitted' | 'pending' | 'verified' | 'rejected') || 'unsubmitted',
+      verified_at: null,
+      created_at: flat.created_at,
+      updated_at: flat.created_at,
+    }
+  }
+  // 学生字段存在则构建 student 对象
+  if (flat.student_status || flat.education || flat.school) {
+    detail.student = {
+      user_id: flat.id,
+      education: flat.education,
+      school: flat.school,
+      major: flat.major,
+      student_card_oss: flat.student_card_oss,
+      status: (flat.student_status as 'unsubmitted' | 'pending' | 'verified' | 'rejected') || 'unsubmitted',
+      verified_at: null,
+      created_at: flat.created_at,
+      updated_at: flat.created_at,
+    }
+  }
+  // 企业字段存在则构建 enterprise 对象
+  if (flat.enterprise_status || flat.organization) {
+    detail.enterprise = {
+      user_id: flat.id,
+      organization: flat.organization,
+      status: (flat.enterprise_status as 'unsubmitted' | 'pending' | 'verified' | 'rejected') || 'unsubmitted',
+      verified_at: null,
+      created_at: flat.created_at,
+      updated_at: flat.created_at,
+    }
+  }
+  return detail
+}
 
 const { RangePicker } = DatePicker
 
@@ -38,6 +102,8 @@ export default function UserList() {
     [filters],
   )
 
+  // 审核状态由列表接口直接返回（realname_status / student_status / enterprise_status）
+
   const handleSearch = useCallback((values: Record<string, unknown>) => {
     const { openid, phone, created_at_range } = values
     const rangeArr = created_at_range as [string, string] | undefined
@@ -56,29 +122,27 @@ export default function UserList() {
   const handleRowClick = async (record: User) => {
     viewingUserId.current = record.id
     setDrawerOpen(true)
-    setSelectedUser(null) // 先清空旧数据，避免展示脏数据
-    const [detail, profile, identity, orders, conversations] = await Promise.all([
-      userService.detail(record.id),
+    setSelectedUser(null)
+    const [flat, orders, conversations] = await Promise.all([
       userService.getProfile(record.id),
-      userService.getIdentity(record.id),
       userService.getOrders(record.id),
       userService.getConversations(record.id),
     ])
-    setSelectedUser({ ...detail, profile, identity, orders, conversations })
+    setSelectedUser(mapProfileToDetail(flat, record, orders, conversations))
   }
 
   const handleRefreshDetail = useCallback(async () => {
     const id = viewingUserId.current
     if (!id) return
-    const [detail, profile, identity, orders, conversations] = await Promise.all([
-      userService.detail(id),
+    const [flat, orders, conversations] = await Promise.all([
       userService.getProfile(id),
-      userService.getIdentity(id),
       userService.getOrders(id),
       userService.getConversations(id),
     ])
-    setSelectedUser({ ...detail, profile, identity, orders, conversations })
-  }, [])
+    // 复用列表中的基本信息
+    const base = data?.items?.find((u) => u.id === id)
+    setSelectedUser(mapProfileToDetail(flat, base || { id, openid: '', phone: '', is_active: false, created_at: '' }, orders, conversations))
+  }, [data?.items])
 
   const handleToggleStatus = async (record: User) => {
     const newStatus = !record.is_active
@@ -136,13 +200,23 @@ export default function UserList() {
       render: (v: boolean) => <StatusTag status={v} map={USER_STATUS_MAP} />,
     },
     {
-      title: '审核',
+      title: '实名审核',
       dataIndex: 'identity_status',
-      width: 80,
+      width: 90,
       render: (s: string | null) => {
         const k = s || 'unsubmitted'
-        const cfg = IDENTITY_STATUS_MAP[k]
+        const cfg = LEVEL2_STATUS_MAP[k]
         return <Tag color={cfg?.color}>{cfg?.text ?? k}</Tag>
+      },
+    },
+    {
+      title: '学生/企业审核',
+      dataIndex: 'student_status',
+      width: 110,
+      render: (_: unknown, record: User) => {
+        const s = record.student_status || record.enterprise_status || 'unsubmitted'
+        const cfg = LEVEL2_STATUS_MAP[s]
+        return <Tag color={cfg?.color}>{cfg?.text ?? s}</Tag>
       },
     },
     {
@@ -202,7 +276,7 @@ export default function UserList() {
       <Table
         rowKey="id"
         columns={columns}
-        dataSource={data?.items}
+        dataSource={data?.items ?? []}
         loading={loading}
         pagination={pagination}
         rowSelection={rowSelection}
