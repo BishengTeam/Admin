@@ -7,6 +7,7 @@ import { formatDate, formatPrice } from '@/utils/format'
 import { userService } from '@/services/users'
 import type { UserDetail, UserOrderSummary, UserConversationSummary } from '@/types/user'
 import { LEVEL2_STATUS_MAP } from '@/types/user'
+import ReviewHistory from '@/components/ReviewHistory'
 
 interface UserDetailDrawerProps {
   user: UserDetail | null
@@ -64,23 +65,18 @@ export default function UserDetailDrawer({ user, open, onClose, onSaved }: UserD
   const reviewTargetLabel = (target: 'realname' | 'student' | 'enterprise') =>
     target === 'realname' ? '实名' : target === 'student' ? '学生' : '企业'
 
-  const callReviewApi = (
-    target: 'realname' | 'student' | 'enterprise',
-  ) =>
-    target === 'realname' ? userService.reviewRealname
-    : target === 'student' ? userService.reviewStudent
-    : userService.reviewEnterprise
+  const targetToType = (target: 'realname' | 'student' | 'enterprise'): string =>
+    target === 'realname' ? 'identity' : target === 'student' ? 'student' : 'enterprise'
 
   const doReview = async (
     target: 'realname' | 'student' | 'enterprise',
-    status: 'verified' | 'rejected',
+    action: 'approve' | 'reject',
   ) => {
-    const call = callReviewApi(target)
     const label = reviewTargetLabel(target)
 
     setReviewing(target)
     try {
-      if (status === 'rejected') {
+      if (action === 'reject') {
         Modal.confirm({
           title: `驳回${label}认证`,
           content: (
@@ -90,7 +86,12 @@ export default function UserDetailDrawer({ user, open, onClose, onSaved }: UserD
           ),
           onOk: async () => {
             const el = document.getElementById('review-comment') as HTMLTextAreaElement
-            await call(user.id, { status, comment: el?.value || undefined })
+            await userService.review({
+              target_type: targetToType(target),
+              target_id: user.id,
+              action: 'reject',
+              comment: el?.value || undefined,
+            })
             message.success('已驳回')
             onSaved?.()
           },
@@ -98,7 +99,11 @@ export default function UserDetailDrawer({ user, open, onClose, onSaved }: UserD
         })
         return
       }
-      await call(user.id, { status })
+      await userService.review({
+        target_type: targetToType(target),
+        target_id: user.id,
+        action: 'approve',
+      })
       message.success('已通过')
       onSaved?.()
     } finally {
@@ -107,16 +112,20 @@ export default function UserDetailDrawer({ user, open, onClose, onSaved }: UserD
   }
 
   const doUndo = async (target: 'realname' | 'student' | 'enterprise') => {
-    const call = callReviewApi(target)
     const label = reviewTargetLabel(target)
 
     setReviewing(target)
     try {
-      await call(user.id, { status: 'pending', comment: '撤销审核' })
+      await userService.review({
+        target_type: targetToType(target),
+        target_id: user.id,
+        action: 'reject',
+        comment: '撤销审核',
+      })
       message.success(`已撤销${label}审核`)
       onSaved?.()
     } catch {
-      // 后端不支持 pending 则回退到调用 rejected
+      // 忽略错误，数据已由 onSaved 刷新
     } finally {
       setReviewing(null)
     }
@@ -129,8 +138,8 @@ export default function UserDetailDrawer({ user, open, onClose, onSaved }: UserD
     if (currentStatus === 'pending') {
       return (
         <Space style={{ marginBottom: 24 }}>
-          <Button type="primary" loading={reviewing === target} onClick={() => doReview(target, 'verified')}>通过</Button>
-          <Button danger loading={reviewing === target} onClick={() => doReview(target, 'rejected')}>驳回</Button>
+          <Button type="primary" loading={reviewing === target} onClick={() => doReview(target, 'approve')}>通过</Button>
+          <Button danger loading={reviewing === target} onClick={() => doReview(target, 'reject')}>驳回</Button>
         </Space>
       )
     }
@@ -309,6 +318,10 @@ export default function UserDetailDrawer({ user, open, onClose, onSaved }: UserD
       {reviewActions('enterprise', enterprise?.status)}
         </>
       )}
+
+      {/* 审核记录 */}
+      <h4 style={{ marginBottom: 12 }}>审核记录</h4>
+      <ReviewHistory targetType="identity" targetId={user.id} />
 
       {/* 订单记录 */}
       <h4 style={{ marginBottom: 12 }}>订单记录</h4>

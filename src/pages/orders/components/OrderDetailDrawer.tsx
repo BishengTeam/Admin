@@ -64,7 +64,7 @@ export default function OrderDetailDrawer({ order, open, onClose }: OrderDetailD
   if (!order) return null
 
   const extra = order.extra_data as Record<string, unknown> | null
-  const fieldKeys = certFieldOrder[order.cert_type] ?? []
+  const fieldKeys = certFieldOrder[order.product_type] ?? []
   const attachments = order.attachments ?? []
 
   return (
@@ -74,9 +74,12 @@ export default function OrderDetailDrawer({ order, open, onClose }: OrderDetailD
         <Descriptions.Item label="订单号" span={2}>
           <Text code>{order.out_trade_no}</Text>
         </Descriptions.Item>
-        <Descriptions.Item label="用户">{order.candidate_name}</Descriptions.Item>
-        <Descriptions.Item label="手机号">{order.candidate_phone}</Descriptions.Item>
-        <Descriptions.Item label="认证类型">{order.cert_type}</Descriptions.Item>
+        <Descriptions.Item label="用户">{order.candidate_name || '-'}</Descriptions.Item>
+        <Descriptions.Item label="手机号">{order.candidate_phone || '-'}</Descriptions.Item>
+        <Descriptions.Item label="订单类型">
+          {order.order_kind === 'course' ? '课程' : '认证报名'}
+        </Descriptions.Item>
+        <Descriptions.Item label="商品类型">{order.product_type}</Descriptions.Item>
         <Descriptions.Item label="金额">
           <Text strong>{formatPrice(order.price)}</Text>
         </Descriptions.Item>
@@ -86,21 +89,18 @@ export default function OrderDetailDrawer({ order, open, onClose }: OrderDetailD
         <Descriptions.Item label="下单时间" span={2}>
           {formatDate(order.created_at)}
         </Descriptions.Item>
-        {order.pay_time && (
+        {order.paid_at && (
           <Descriptions.Item label="支付时间" span={2}>
-            {formatDate(order.pay_time)}
+            {formatDate(order.paid_at)}
           </Descriptions.Item>
         )}
-        {order.refund_time && (
+        {order.closed_at && (
           <>
-            <Descriptions.Item label="退款时间" span={2}>
-              {formatDate(order.refund_time)}
+            <Descriptions.Item label="关闭时间" span={2}>
+              {formatDate(order.closed_at)}
             </Descriptions.Item>
-            <Descriptions.Item label="退款金额">
-              <Text type="danger">{order.refund_amount != null ? formatPrice(order.refund_amount) : '-'}</Text>
-            </Descriptions.Item>
-            <Descriptions.Item label="退款原因">
-              <Text type="secondary">{order.refund_reason || '-'}</Text>
+            <Descriptions.Item label="关闭原因">
+              <Text type="secondary">{order.close_reason || '-'}</Text>
             </Descriptions.Item>
           </>
         )}

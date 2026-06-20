@@ -30,4 +30,14 @@ export const orderService = {
   async reconciliation(date: string): Promise<ReconciliationData> {
     return http.get<ReconciliationData>('/admin/orders/reconciliation', { params: { date } })
   },
+
+  /** 审核订单（通过→completed, 驳回→退款） */
+  async review(orderId: number, action: 'approve' | 'reject', comment?: string): Promise<void> {
+    return http.post<void>('/admin/reviews', {
+      target_type: 'order',
+      target_id: orderId,
+      action,
+      comment,
+    })
+  },
 }

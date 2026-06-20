@@ -59,11 +59,13 @@ export type CertExtraData =
 export interface Order {
   id: number
   out_trade_no: string
-  candidate_name: string
-  cert_type: string
+  order_kind?: string
+  product_type: string
+  candidate_name: string | null
+  candidate_phone: string | null
+  candidate_idcard: string | null
   price: number
   status: OrderStatus
-  candidate_phone: string
   created_at: string
   extra_data: CertExtraData | null
   attachments: string[] | null
@@ -73,16 +75,18 @@ export interface OrderFilter {
   status?: OrderStatus
   start_time?: string
   end_time?: string
-  cert_type?: string
+  product_type?: string
   phone?: string
   date_range?: [string, string]
 }
 
 export interface OrderDetail extends Order {
-  pay_time?: string
-  refund_time?: string
-  refund_reason?: string
-  refund_amount?: number
+  transaction_id?: string
+  inventory_id?: number
+  paid_at?: string
+  expires_at?: string
+  closed_at?: string
+  close_reason?: string
 }
 
 export interface ReconciliationData {

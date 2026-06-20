@@ -14,6 +14,9 @@ export interface UserFilter {
   phone?: string
   created_at_start?: string
   created_at_end?: string
+  identity_status?: string
+  student_status?: string
+  enterprise_status?: string
 }
 
 export interface UserDetail extends User {
@@ -133,5 +136,16 @@ export interface UserConversationSummary {
   id: number
   message: string
   intent: string
+  created_at: string
+}
+
+/** GET /admin/reviews 审核记录 */
+export interface ReviewRecord {
+  id: number
+  target_type: string
+  target_id: number
+  reviewer_id: number
+  action: string
+  comment: string | null
   created_at: string
 }

@@ -26,7 +26,7 @@ const statusTabs: { key: string; label: string }[] = [
   { key: 'closed', label: '已关闭' },
 ]
 
-const certOptions = [
+const productOptions = [
   { label: 'H3CNE-RS+', value: 'H3CNE-RS+' },
   { label: 'H3CSE-RS+', value: 'H3CSE-RS+' },
   { label: 'H3CIE-RS+', value: 'H3CIE-RS+' },
@@ -35,9 +35,9 @@ const certOptions = [
   { label: '人社认证', value: '人社认证' },
 ]
 
-// ── 认证类型 → 列表摘要字段 ──
-// 每个 cert_type 取 2-3 个最关键的 extra_data 字段在列表中展示
-const certSummaryKeys: Record<string, string[]> = {
+// ── 商品类型 → 列表摘要字段 ──
+// 每个 product_type 取 2-3 个最关键的 extra_data 字段在列表中展示
+const productSummaryKeys: Record<string, string[]> = {
   h3c: ['first_name', 'last_name', 'education'],
   sangfor: ['email', 'exam_direction'],
   nisp1: ['school', 'province'],
@@ -61,7 +61,7 @@ const extraFieldLabels: Record<string, string> = {
 function renderExtraSummary(record: Order): string {
   const d = record.extra_data as Record<string, unknown> | null
   if (!d) return '-'
-  const keys = certSummaryKeys[record.cert_type]
+  const keys = productSummaryKeys[record.product_type]
   if (!keys?.length) return '-'
   const parts = keys
     .map((k) => d[k])
@@ -132,17 +132,26 @@ export default function OrderList() {
       title: '用户',
       dataIndex: 'candidate_name',
       width: 100,
-      render: (name: string) => (
-        <Space>
-          <Avatar size="small">{name?.[0]}</Avatar>
-          <span>{name}</span>
-        </Space>
-      ),
+      render: (name: string | null) => {
+        const display = name || '-'
+        return (
+          <Space>
+            <Avatar size="small">{display[0]}</Avatar>
+            <span>{display}</span>
+          </Space>
+        )
+      },
     },
     { title: '手机号', dataIndex: 'candidate_phone', width: 140 },
     {
-      title: '认证类型',
-      dataIndex: 'cert_type',
+      title: '类型',
+      dataIndex: 'order_kind',
+      width: 100,
+      render: (k: string) => (k === 'course' ? '课程' : '认证报名'),
+    },
+    {
+      title: '商品类型',
+      dataIndex: 'product_type',
       width: 120,
     },
     {
@@ -173,12 +182,25 @@ export default function OrderList() {
     },
     {
       title: '操作',
-      width: 130,
+      width: 200,
       render: (_, record) => (
         <Space size={0}>
           <Button type="link" size="small" icon={<EyeOutlined />} onClick={() => handleViewDetail(record)}>
             查看
           </Button>
+          {record.status === 'paid' && (
+            <Button
+              type="link"
+              size="small"
+              onClick={async () => {
+                await orderService.review(record.id, 'approve')
+                message.success('审核通过')
+                refresh()
+              }}
+            >
+              通过
+            </Button>
+          )}
           {(record.status === 'paid' || record.status === 'completed') && (
             <Button type="link" size="small" danger onClick={() => setRefundOrder(record)}>
               退款
@@ -209,12 +231,12 @@ export default function OrderList() {
           onPressEnter={handleSearch}
         />
         <Select
-          placeholder="认证类型"
+          placeholder="商品类型"
           allowClear
           style={{ width: 150 }}
-          options={certOptions}
-          value={filters.cert_type}
-          onChange={(val) => setFilters((f) => ({ ...f, cert_type: val || undefined }))}
+          options={productOptions}
+          value={filters.product_type}
+          onChange={(val) => setFilters((f) => ({ ...f, product_type: val || undefined }))}
         />
         <RangePicker
           value={filters.date_range?.length === 2 ? [dayjs(filters.date_range[0]), dayjs(filters.date_range[1])] : undefined}

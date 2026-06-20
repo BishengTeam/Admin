@@ -28,6 +28,7 @@ const JobManagement = lazy(() => import('@/pages/job'))
 const TrainingManagement = lazy(() => import('@/pages/training'))
 const ActivityManagement = lazy(() => import('@/pages/activity'))
 const BannerManagement = lazy(() => import('@/pages/banner'))
+const ReviewManagement = lazy(() => import('@/pages/review'))
 
 import AuthGuard from '@/components/AuthGuard'
 import LoginLayout from '@/layouts/LoginLayout'
@@ -47,6 +48,11 @@ export const adminRoutes: AppRoute[] = [
     path: 'orders',
     element: <OrderList />,
     meta: { title: '订单管理', icon: 'ShoppingOutlined', permission: 'order:list' },
+  },
+  {
+    path: 'reviews',
+    element: <ReviewManagement />,
+    meta: { title: '审核管理', icon: 'AuditOutlined', permission: 'review:list' },
   },
   {
     path: 'quiz',

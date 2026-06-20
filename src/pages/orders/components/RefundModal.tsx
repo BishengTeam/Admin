@@ -18,24 +18,25 @@ export default function RefundModal({ order, onSuccess, onCancel }: RefundModalP
   if (!order) return null
 
   const handleSubmit = async () => {
-    const { reason } = await form.validateFields()
-    await orderService.refund(order.id, reason)
+    const { comment } = await form.validateFields()
+    // 使用统一审核接口：驳回 → 退款 + 释放库存
+    await orderService.review(order.id, 'reject', comment)
     onSuccess()
   }
 
   return (
     <Modal
-      title="确认退款"
+      title="驳回订单"
       open={!!order}
       onOk={handleSubmit}
       onCancel={onCancel}
-      okText="确认退款"
+      okText="驳回并退款"
       cancelText="取消"
       okButtonProps={{ danger: true }}
     >
       <Descriptions column={1} size="small" bordered style={{ marginBottom: 16 }}>
         <Descriptions.Item label="订单号">{order.out_trade_no}</Descriptions.Item>
-        <Descriptions.Item label="用户">{order.candidate_name}</Descriptions.Item>
+        <Descriptions.Item label="用户">{order.candidate_name || '-'}</Descriptions.Item>
         <Descriptions.Item label="金额">{formatPrice(order.price)}</Descriptions.Item>
         <Descriptions.Item label="状态">
           <StatusTag status={order.status} map={ORDER_STATUS_MAP} />
@@ -44,8 +45,8 @@ export default function RefundModal({ order, onSuccess, onCancel }: RefundModalP
       </Descriptions>
 
       <Form form={form} layout="vertical">
-        <Form.Item name="reason" label="退款原因" rules={[requiredRule('退款原因')]}>
-          <Input.TextArea rows={3} placeholder="请输入退款原因" />
+        <Form.Item name="comment" label="驳回原因" rules={[requiredRule('驳回原因')]}>
+          <Input.TextArea rows={3} placeholder="请输入驳回原因" />
         </Form.Item>
       </Form>
     </Modal>

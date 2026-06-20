@@ -1,5 +1,5 @@
 import { http } from '@/core/request'
-import type { User, UserFilter, UserDetail, UserProfileDetail, UserOrderSummary, UserConversationSummary } from '@/types/user'
+import type { User, UserFilter, UserDetail, UserProfileDetail, UserRealnameInfo, UserStudentInfo, UserEnterpriseInfo, UserOrderSummary, UserConversationSummary, ReviewRecord } from '@/types/user'
 import type { PageData, PageParams } from '@/types/api'
 
 export const userService = {
@@ -51,5 +51,34 @@ export const userService = {
 
   async exportUsers(params: UserFilter): Promise<Blob> {
     return http.get<Blob>('/admin/users/export', { params, responseType: 'blob' })
+  },
+
+  /** 统一审核接口 POST /admin/reviews */
+  async review(data: { target_type: string; target_id: number; action: string; comment?: string }): Promise<void> {
+    return http.post<void>('/admin/reviews', data)
+  },
+
+  // ===== 详情接口（审核页使用） =====
+
+  async getIdentity(id: number): Promise<UserRealnameInfo> {
+    return http.get<UserRealnameInfo>(`/admin/users/${id}/identity`)
+  },
+
+  async getStudent(id: number): Promise<UserStudentInfo> {
+    return http.get<UserStudentInfo>(`/admin/users/${id}/student`)
+  },
+
+  async getEnterprise(id: number): Promise<UserEnterpriseInfo> {
+    return http.get<UserEnterpriseInfo>(`/admin/users/${id}/enterprise`)
+  },
+
+  /** 审核记录 GET /admin/reviews */
+  async reviewHistory(params: {
+    target_type?: string
+    target_id?: number
+    page?: number
+    page_size?: number
+  }): Promise<PageData<ReviewRecord>> {
+    return http.get<PageData<ReviewRecord>>('/admin/reviews', { params })
   },
 }

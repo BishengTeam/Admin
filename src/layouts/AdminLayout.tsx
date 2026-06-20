@@ -18,6 +18,7 @@ import {
   SafetyCertificateOutlined,
   IdcardOutlined,
   SolutionOutlined,
+  AuditOutlined,
 } from '@ant-design/icons'
 import { useAppStore } from '@/stores/appStore'
 import { useAuthStore } from '@/stores/authStore'
@@ -45,6 +46,7 @@ const iconMap: Record<string, ReactNode> = {
   SafetyCertificateOutlined: <SafetyCertificateOutlined />,
   IdcardOutlined: <IdcardOutlined />,
   SolutionOutlined: <SolutionOutlined />,
+  AuditOutlined: <AuditOutlined />,
 }
 
 function buildMenuItems(routes: AppRoute[]): MenuProps['items'] {
