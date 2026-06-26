@@ -212,18 +212,42 @@ export default function UserDetailDrawer({ user, open, onClose, onSaved }: UserD
                 <td style={DESC_VALUE}>{realname.real_name}</td>
               </tr>
               <tr>
+                <td style={DESC_LABEL}>拼音(姓)</td>
+                <td style={DESC_VALUE}>{realname.last_name_zh || '-'}</td>
+                <td style={DESC_LABEL}>拼音(名)</td>
+                <td style={DESC_VALUE}>{realname.first_name_zh || '-'}</td>
+              </tr>
+              <tr>
+                <td style={DESC_LABEL}>英文(姓)</td>
+                <td style={DESC_VALUE}>{realname.last_name_en || '-'}</td>
+                <td style={DESC_LABEL}>英文(名)</td>
+                <td style={DESC_VALUE}>{realname.first_name_en || '-'}</td>
+              </tr>
+              <tr>
                 <td style={DESC_LABEL}>身份证号</td>
                 <td style={DESC_VALUE} colSpan={3}>{realname.id_card_number}</td>
               </tr>
               <tr>
                 <td style={DESC_LABEL}>性别</td>
                 <td style={DESC_VALUE}>{realname.gender || '-'}</td>
+                <td style={DESC_LABEL}>出生日期</td>
+                <td style={DESC_VALUE}>{realname.birth_date || '-'}</td>
+              </tr>
+              <tr>
                 <td style={DESC_LABEL}>年龄</td>
                 <td style={DESC_VALUE}>{realname.age ?? '-'}</td>
+                <td style={DESC_LABEL}>民族</td>
+                <td style={DESC_VALUE}>{realname.ethnicity || '-'}</td>
               </tr>
               <tr>
                 <td style={DESC_LABEL}>户籍地</td>
                 <td style={DESC_VALUE}>{realname.census_register || '-'}</td>
+                <td style={DESC_LABEL}>政治面貌</td>
+                <td style={DESC_VALUE}>{realname.political_status || '-'}</td>
+              </tr>
+              <tr>
+                <td style={DESC_LABEL}>邮编</td>
+                <td style={DESC_VALUE}>{realname.zip_code || '-'}</td>
                 <td style={DESC_LABEL}>审核状态</td>
                 <td style={DESC_VALUE}><ReviewTag status={realname.status} /></td>
               </tr>

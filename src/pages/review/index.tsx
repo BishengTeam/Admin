@@ -101,24 +101,33 @@ function DetailModal({ item, onClose, onDone }: DetailModalProps) {
       setReviewing(false)
     }
   }
-
   const renderIdentity = (d: UserRealnameInfo) => (
-    <Descriptions column={2} bordered size="small" style={{ marginBottom: 12 }}>
-      <Descriptions.Item label="用户类型">{d.user_type === 'student' ? '学生' : '企业'}</Descriptions.Item>
-      <Descriptions.Item label="真实姓名">{d.real_name}</Descriptions.Item>
-      <Descriptions.Item label="身份证号" span={2}>{d.id_card_number}</Descriptions.Item>
-      <Descriptions.Item label="性别">{d.gender || '-'}</Descriptions.Item>
-      <Descriptions.Item label="年龄">{d.age ?? '-'}</Descriptions.Item>
-      <Descriptions.Item label="户籍地" span={2}>{d.census_register || '-'}</Descriptions.Item>
-      <Descriptions.Item label="身份证正面" span={2}>
-        {d.id_card_front_oss ? <Image src={d.id_card_front_oss} style={{ maxHeight: 200 }} /> : '—'}
-      </Descriptions.Item>
-      <Descriptions.Item label="身份证背面" span={2}>
-        {d.id_card_back_oss ? <Image src={d.id_card_back_oss} style={{ maxHeight: 200 }} /> : '—'}
-      </Descriptions.Item>
-    </Descriptions>
+    <>
+      <Descriptions column={2} bordered size="small" style={{ marginBottom: 12 }}>
+        <Descriptions.Item label="用户类型">{d.user_type === 'student' ? '学生' : '企业'}</Descriptions.Item>
+        <Descriptions.Item label="真实姓名">{d.real_name}</Descriptions.Item>
+        <Descriptions.Item label="拼音(姓)">{d.last_name_zh || '-'}</Descriptions.Item>
+        <Descriptions.Item label="拼音(名)">{d.first_name_zh || '-'}</Descriptions.Item>
+        <Descriptions.Item label="英文(姓)">{d.last_name_en || '-'}</Descriptions.Item>
+        <Descriptions.Item label="英文(名)">{d.first_name_en || '-'}</Descriptions.Item>
+        <Descriptions.Item label="身份证号" span={2}>{d.id_card_number}</Descriptions.Item>
+        <Descriptions.Item label="性别">{d.gender || '-'}</Descriptions.Item>
+        <Descriptions.Item label="出生日期">{d.birth_date || '-'}</Descriptions.Item>
+        <Descriptions.Item label="年龄">{d.age ?? '-'}</Descriptions.Item>
+        <Descriptions.Item label="民族">{d.ethnicity || '-'}</Descriptions.Item>
+        <Descriptions.Item label="户籍地">{d.census_register || '-'}</Descriptions.Item>
+        <Descriptions.Item label="政治面貌">{d.political_status || '-'}</Descriptions.Item>
+        <Descriptions.Item label="邮编">{d.zip_code || '-'}</Descriptions.Item>
+        <Descriptions.Item label="审核状态">{d.status}</Descriptions.Item>
+        <Descriptions.Item label="身份证正面" span={2}>
+          {d.id_card_front_oss ? <Image src={d.id_card_front_oss} style={{ maxHeight: 200 }} /> : '—'}
+        </Descriptions.Item>
+        <Descriptions.Item label="身份证背面" span={2}>
+          {d.id_card_back_oss ? <Image src={d.id_card_back_oss} style={{ maxHeight: 200 }} /> : '—'}
+        </Descriptions.Item>
+      </Descriptions>
+    </>
   )
-
   const renderStudent = (d: UserStudentInfo) => (
     <Descriptions column={2} bordered size="small" style={{ marginBottom: 12 }}>
       <Descriptions.Item label="学历">{d.education || '-'}</Descriptions.Item>

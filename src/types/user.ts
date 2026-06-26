@@ -37,26 +37,47 @@ export interface UserProfileDetail {
   nickname: string | null
   email: string | null
   phone: string | null
+  province: string | null
+  city: string | null
+  address: string | null
   // level-2: user_realname
   user_type: string | null
+  last_name_zh: string | null
+  first_name_zh: string | null
+  last_name_en: string | null
+  first_name_en: string | null
   real_name: string | null
   id_card: string | null
   id_card_raw: string | null
   id_card_front_oss: string | null
   id_card_back_oss: string | null
+  avatar_oss: string | null
+  birth_date: string | null
   gender: string | null
   age: number | null
   census_register: string | null
+  zip_code: string | null
+  political_status: string | null
+  ethnicity: string | null
   identity_status: string | null
+  identity_reject_reason: string | null
   // level-2: user_student
   education: string | null
   school: string | null
   major: string | null
   student_card_oss: string | null
+  enrollment_pdf_oss: string | null
+  degree_cert_oss: string | null
   student_status: string | null
+  student_reject_reason: string | null
   // level-2: user_enterprise
   organization: string | null
   enterprise_status: string | null
+  enterprise_reject_reason: string | null
+  // 编辑次数
+  edit_count: number | null
+  edit_count_limit: number | null
+  edit_count_reset_hours: number | null
   created_at: string
 }
 
@@ -75,15 +96,25 @@ export interface UserProfile {
 export interface UserRealnameInfo {
   user_id: number
   user_type: 'student' | 'enterprise'
+  last_name_zh: string | null
+  first_name_zh: string | null
+  last_name_en: string | null
+  first_name_en: string | null
   real_name: string
   id_card_number: string
   id_card_front_oss: string | null
   id_card_back_oss: string | null
+  avatar_oss: string | null
+  birth_date: string | null
   gender: string | null
   age: number | null
   census_register: string | null
+  zip_code: string | null
+  political_status: string | null
+  ethnicity: string | null
   status: 'unsubmitted' | 'pending' | 'verified' | 'rejected'
   verified_at: string | null
+  reject_reason: string | null
   created_at: string
   updated_at: string
 }
@@ -95,8 +126,11 @@ export interface UserStudentInfo {
   school: string | null
   major: string | null
   student_card_oss: string | null
+  enrollment_pdf_oss: string | null
+  degree_cert_oss: string | null
   status: 'unsubmitted' | 'pending' | 'verified' | 'rejected'
   verified_at: string | null
+  reject_reason: string | null
   created_at: string
   updated_at: string
 }
@@ -107,6 +141,7 @@ export interface UserEnterpriseInfo {
   organization: string | null
   status: 'unsubmitted' | 'pending' | 'verified' | 'rejected'
   verified_at: string | null
+  reject_reason: string | null
   created_at: string
   updated_at: string
 }
