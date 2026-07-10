@@ -97,6 +97,15 @@ function DetailModal({ item, onClose, onDone }: DetailModalProps) {
     try {
       await userService.review({ target_type: type, target_id: item.target_id, action, comment })
       message.success(action === 'approve' ? '已通过' : '已驳回')
+      onDone() // 刷新列表
+      // 移除当前类型；若已无待审类型则关闭弹窗
+      const remaining = item.types.filter((t) => t !== type)
+      if (remaining.length === 0) {
+        onClose()
+        return
+      }
+      item.types = remaining
+      setActiveType(remaining[0])
     } finally {
       setReviewing(false)
     }
@@ -136,6 +145,12 @@ function DetailModal({ item, onClose, onDone }: DetailModalProps) {
       <Descriptions.Item label="审核状态">{d.status}</Descriptions.Item>
       <Descriptions.Item label="学生证照片" span={2}>
         {d.student_card_oss ? <Image src={d.student_card_oss} style={{ maxHeight: 200 }} /> : '—'}
+      </Descriptions.Item>
+      <Descriptions.Item label="学信网电子注册表" span={2}>
+        {d.enrollment_pdf_oss ? <Image src={d.enrollment_pdf_oss} style={{ maxHeight: 200 }} /> : '—'}
+      </Descriptions.Item>
+      <Descriptions.Item label="学信网学历证明" span={2}>
+        {d.degree_cert_oss ? <Image src={d.degree_cert_oss} style={{ maxHeight: 200 }} /> : '—'}
       </Descriptions.Item>
     </Descriptions>
   )
@@ -181,20 +196,18 @@ function DetailModal({ item, onClose, onDone }: DetailModalProps) {
       onCancel={onClose}
       loading={loading}
       footer={
-        item.types.length === 1 ? (
-          <Space>
-            <Button onClick={onClose}>取消</Button>
-            <Button danger loading={reviewing} onClick={() => {
-              let comment = ''
-              Modal.confirm({
-                title: '驳回原因',
-                content: <Input.TextArea rows={3} placeholder="驳回原因（选填）" maxLength={256} onChange={(e) => (comment = e.target.value)} />,
-                onOk: () => doAction(activeType, 'reject', comment || undefined),
-              })
-            }}>驳回</Button>
-            <Button type="primary" loading={reviewing} onClick={() => doAction(activeType, 'approve')}>通过</Button>
-          </Space>
-        ) : null
+        <Space>
+          <Button onClick={onClose}>取消</Button>
+          <Button danger loading={reviewing} onClick={() => {
+            let comment = ''
+            Modal.confirm({
+              title: '驳回原因',
+              content: <Input.TextArea rows={3} placeholder="驳回原因（选填）" maxLength={256} onChange={(e) => (comment = e.target.value)} />,
+              onOk: () => doAction(activeType, 'reject', comment || undefined),
+            })
+          }}>驳回</Button>
+          <Button type="primary" loading={reviewing} onClick={() => doAction(activeType, 'approve')}>通过</Button>
+        </Space>
       }
     >
       {item.types.length > 1 && (
@@ -202,19 +215,6 @@ function DetailModal({ item, onClose, onDone }: DetailModalProps) {
           activeKey={activeType}
           onChange={setActiveType}
           items={item.types.map((t) => ({ key: t, label: TARGET_LABELS[t] ?? t }))}
-          tabBarExtraContent={
-            <Space size={4}>
-              <Button size="small" danger onClick={() => {
-                let comment = ''
-                Modal.confirm({
-                  title: `驳回${TARGET_LABELS[activeType] ?? activeType}`,
-                  content: <Input.TextArea rows={3} placeholder="驳回原因（选填）" maxLength={256} onChange={(e) => (comment = e.target.value)} />,
-                  onOk: () => doAction(activeType, 'reject', comment || undefined).then(onDone),
-                })
-              }}>驳回</Button>
-              <Button size="small" type="primary" onClick={() => doAction(activeType, 'approve').then(onDone)}>通过</Button>
-            </Space>
-          }
           style={{ marginBottom: 8 }}
         />
       )}

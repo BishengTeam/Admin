@@ -303,6 +303,22 @@ export default function UserDetailDrawer({ user, open, onClose, onSaved }: UserD
                   ) : '-'}
                 </td>
               </tr>
+              <tr>
+                <td style={DESC_LABEL}>学信网电子注册表</td>
+                <td style={DESC_VALUE} colSpan={3}>
+                  {student.enrollment_pdf_oss ? (
+                    <img src={student.enrollment_pdf_oss} alt="学信网电子注册表" style={{ maxHeight: 120, maxWidth: '100%' }} />
+                  ) : '-'}
+                </td>
+              </tr>
+              <tr>
+                <td style={DESC_LABEL}>学信网学历证明</td>
+                <td style={DESC_VALUE} colSpan={3}>
+                  {student.degree_cert_oss ? (
+                    <img src={student.degree_cert_oss} alt="学历证明" style={{ maxHeight: 120, maxWidth: '100%' }} />
+                  ) : '-'}
+                </td>
+              </tr>
             </>
           ) : (
             <tr>
