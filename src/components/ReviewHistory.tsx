@@ -3,7 +3,8 @@ import { Table, Tag, Spin } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { userService } from '@/services/users'
 import { formatDate } from '@/utils/format'
-import type { ReviewRecord } from '@/types/user'
+import type { ReviewRecord, ReviewTargetType } from '@/types/user'
+import { fetchAllPages } from '@/utils/pagination'
 
 const ACTION_MAP: Record<string, { text: string; color: string }> = {
   approve: { text: '通过', color: 'green' },
@@ -48,7 +49,7 @@ const columns: ColumnsType<ReviewRecord> = [
 ]
 
 interface ReviewHistoryProps {
-  targetType: string
+  targetType: ReviewTargetType | ReviewTargetType[]
   targetId: number
 }
 
@@ -56,19 +57,42 @@ export default function ReviewHistory({ targetType, targetId }: ReviewHistoryPro
   const [records, setRecords] = useState<ReviewRecord[]>([])
   const [loading, setLoading] = useState(false)
 
+  const targetTypeKey = Array.isArray(targetType) ? targetType.join(',') : targetType
+
   useEffect(() => {
     let cancelled = false
     setLoading(true)
-    userService
-      .reviewHistory({ target_type: targetType, target_id: targetId, page_size: 20 })
-      .then((data) => {
-        if (!cancelled) setRecords(data.items)
+    const targetTypes = targetTypeKey.split(',') as ReviewTargetType[]
+
+    Promise.all(
+      targetTypes.map((type) =>
+        fetchAllPages((page, pageSize) =>
+          userService.reviewHistory({
+            target_type: type,
+            target_id: targetId,
+            page,
+            page_size: pageSize,
+          }),
+        ),
+      ),
+    )
+      .then((groups) => {
+        if (!cancelled) {
+          setRecords(
+            groups
+              .flat()
+              .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
+          )
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setRecords([])
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
       })
     return () => { cancelled = true }
-  }, [targetType, targetId])
+  }, [targetTypeKey, targetId])
 
   if (loading) return <Spin size="small" style={{ marginBottom: 24, display: 'block' }} />
 

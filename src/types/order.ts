@@ -1,4 +1,5 @@
 export type OrderStatus = 'pending' | 'paid' | 'completed' | 'refunded' | 'closed'
+export type OrderKind = 'certification' | 'course'
 
 // ── 各认证类型差异化报名数据 ──
 
@@ -59,7 +60,7 @@ export type CertExtraData =
 export interface Order {
   id: number
   out_trade_no: string
-  order_kind?: string
+  order_kind: OrderKind
   product_type: string
   candidate_name: string | null
   candidate_phone: string | null

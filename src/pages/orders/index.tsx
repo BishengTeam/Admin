@@ -1,5 +1,6 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { Table, Tabs, Input, Select, DatePicker, Button, Avatar, Space, message } from 'antd'
+import { useLocation, useNavigate } from 'react-router-dom'
 import dayjs from 'dayjs'
 import { DownloadOutlined, EyeOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
@@ -7,6 +8,7 @@ import { PageContainer } from '@/components/PageContainer'
 import { StatusTag } from '@/components/StatusTag'
 import { usePagination } from '@/hooks/usePagination'
 import { useExport } from '@/hooks/useExport'
+import { usePermission } from '@/hooks/usePermission'
 import { orderService } from '@/services/orders'
 import { ORDER_STATUS_MAP } from '@/core/constants'
 import { formatDate, formatPrice } from '@/utils/format'
@@ -78,6 +80,10 @@ export default function OrderList() {
   const [detailOrder, setDetailOrder] = useState<OrderDetail | null>(null)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const { exporting, startExport, finishExport } = useExport()
+  const canReview = usePermission('user:write')
+  const canRefund = usePermission('order:write')
+  const location = useLocation()
+  const navigate = useNavigate()
 
   const { data, loading, pagination, refresh } = usePagination(
     (page) => orderService.list({ ...filters, ...page }),
@@ -112,6 +118,8 @@ export default function OrderList() {
 
   const handleRefundSuccess = () => {
     setRefundOrder(null)
+    setDetailOrder(null)
+    setDrawerOpen(false)
     refresh()
   }
 
@@ -120,6 +128,27 @@ export default function OrderList() {
     setDetailOrder(detail)
     setDrawerOpen(true)
   }
+
+  const handleApprove = async (record: Order) => {
+    await orderService.review(record.id, 'approve')
+    message.success('审核通过')
+    if (detailOrder?.id === record.id) {
+      setDetailOrder(null)
+      setDrawerOpen(false)
+    }
+    refresh()
+  }
+
+  useEffect(() => {
+    const orderId = (location.state as { orderId?: number } | null)?.orderId
+    if (!orderId) return
+
+    orderService.detail(orderId).then((detail) => {
+      setDetailOrder(detail)
+      setDrawerOpen(true)
+    })
+    navigate(location.pathname, { replace: true, state: null })
+  }, [location.pathname, location.state, navigate])
 
   const columns: ColumnsType<Order> = [
     {
@@ -142,7 +171,12 @@ export default function OrderList() {
         )
       },
     },
-    { title: '手机号', dataIndex: 'candidate_phone', width: 140 },
+    {
+      title: '手机号',
+      dataIndex: 'candidate_phone',
+      width: 140,
+      render: (phone: string | null) => phone || '-',
+    },
     {
       title: '类型',
       dataIndex: 'order_kind',
@@ -188,20 +222,21 @@ export default function OrderList() {
           <Button type="link" size="small" icon={<EyeOutlined />} onClick={() => handleViewDetail(record)}>
             查看
           </Button>
-          {record.status === 'paid' && (
+          {record.status === 'paid' && canReview && (
             <Button
               type="link"
               size="small"
-              onClick={async () => {
-                await orderService.review(record.id, 'approve')
-                message.success('审核通过')
-                refresh()
-              }}
+              onClick={() => handleApprove(record)}
             >
               通过
             </Button>
           )}
-          {(record.status === 'paid' || record.status === 'completed') && (
+          {record.status === 'paid' && canReview && (
+            <Button type="link" size="small" danger onClick={() => setRefundOrder(record)}>
+              驳回
+            </Button>
+          )}
+          {record.status === 'completed' && canRefund && (
             <Button type="link" size="small" danger onClick={() => setRefundOrder(record)}>
               退款
             </Button>
@@ -268,6 +303,11 @@ export default function OrderList() {
       <OrderDetailDrawer
         order={detailOrder}
         open={drawerOpen}
+        canReview={canReview}
+        canRefund={canRefund}
+        onApprove={handleApprove}
+        onReject={(order) => setRefundOrder(order)}
+        onRefund={(order) => setRefundOrder(order)}
         onClose={() => setDrawerOpen(false)}
       />
     </PageContainer>

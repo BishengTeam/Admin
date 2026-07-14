@@ -6,8 +6,10 @@ import { PageContainer } from '@/components/PageContainer'
 import { usePagination } from '@/hooks/usePagination'
 import { userService } from '@/services/users'
 import { orderService } from '@/services/orders'
+import { usePermission } from '@/hooks/usePermission'
+import { fetchAllPages } from '@/utils/pagination'
 import { formatDate, formatPrice } from '@/utils/format'
-import type { ReviewRecord, User, UserRealnameInfo, UserStudentInfo, UserEnterpriseInfo } from '@/types/user'
+import type { ReviewRecord, ReviewTargetType, User, UserRealnameInfo, UserStudentInfo, UserEnterpriseInfo } from '@/types/user'
 import type { Order, OrderDetail } from '@/types/order'
 
 // ─── 待审核项 ───
@@ -16,7 +18,7 @@ interface PendingItem {
   key: string
   target_type: string
   target_id: number
-  types: string[]       // 合并后的所有类型（单个时长度为1）
+  types: ReviewTargetType[]
   summary: string
   detail: string
   created_at: string
@@ -56,11 +58,12 @@ const historyColumns: ColumnsType<ReviewRecord> = [
 
 interface DetailModalProps {
   item: PendingItem
+  canReview: boolean
   onClose: () => void
-  onDone: () => void
+  onReviewed: () => Promise<void> | void
 }
 
-function DetailModal({ item, onClose, onDone }: DetailModalProps) {
+function DetailModal({ item, canReview, onClose, onReviewed }: DetailModalProps) {
   type DetailMap = {
     identity?: UserRealnameInfo
     student?: UserStudentInfo
@@ -71,8 +74,11 @@ function DetailModal({ item, onClose, onDone }: DetailModalProps) {
   const [loading, setLoading] = useState(false)
   const [reviewing, setReviewing] = useState(false)
   const [activeType, setActiveType] = useState(item.types[0])
+  const [remainingTypes, setRemainingTypes] = useState<ReviewTargetType[]>(item.types)
 
   useEffect(() => {
+    setRemainingTypes(item.types)
+    setActiveType(item.types[0])
     setLoading(true)
     ;(async () => {
       const map: DetailMap = {}
@@ -92,19 +98,18 @@ function DetailModal({ item, onClose, onDone }: DetailModalProps) {
     })()
   }, [item])
 
-  const doAction = async (type: string, action: 'approve' | 'reject', comment?: string) => {
+  const doAction = async (type: ReviewTargetType, action: 'approve' | 'reject', comment?: string) => {
     setReviewing(true)
     try {
       await userService.review({ target_type: type, target_id: item.target_id, action, comment })
       message.success(action === 'approve' ? '已通过' : '已驳回')
-      onDone() // 刷新列表
-      // 移除当前类型；若已无待审类型则关闭弹窗
-      const remaining = item.types.filter((t) => t !== type)
+      const remaining = remainingTypes.filter((t) => t !== type)
+      await onReviewed()
       if (remaining.length === 0) {
         onClose()
         return
       }
-      item.types = remaining
+      setRemainingTypes(remaining)
       setActiveType(remaining[0])
     } finally {
       setReviewing(false)
@@ -197,24 +202,28 @@ function DetailModal({ item, onClose, onDone }: DetailModalProps) {
       loading={loading}
       footer={
         <Space>
-          <Button onClick={onClose}>取消</Button>
-          <Button danger loading={reviewing} onClick={() => {
-            let comment = ''
-            Modal.confirm({
-              title: '驳回原因',
-              content: <Input.TextArea rows={3} placeholder="驳回原因（选填）" maxLength={256} onChange={(e) => (comment = e.target.value)} />,
-              onOk: () => doAction(activeType, 'reject', comment || undefined),
-            })
-          }}>驳回</Button>
-          <Button type="primary" loading={reviewing} onClick={() => doAction(activeType, 'approve')}>通过</Button>
+          <Button onClick={onClose}>{canReview ? '取消' : '关闭'}</Button>
+          {canReview && (
+            <>
+              <Button danger loading={reviewing} onClick={() => {
+                let comment = ''
+                Modal.confirm({
+                  title: '驳回原因',
+                  content: <Input.TextArea rows={3} placeholder="驳回原因（选填）" maxLength={256} onChange={(e) => (comment = e.target.value)} />,
+                  onOk: () => doAction(activeType, 'reject', comment || undefined),
+                })
+              }}>驳回</Button>
+              <Button type="primary" loading={reviewing} onClick={() => doAction(activeType, 'approve')}>通过</Button>
+            </>
+          )}
         </Space>
       }
     >
-      {item.types.length > 1 && (
+      {remainingTypes.length > 1 && (
         <Tabs
           activeKey={activeType}
-          onChange={setActiveType}
-          items={item.types.map((t) => ({ key: t, label: TARGET_LABELS[t] ?? t }))}
+          onChange={(key) => setActiveType(key as ReviewTargetType)}
+          items={remainingTypes.map((t) => ({ key: t, label: TARGET_LABELS[t] ?? t }))}
           style={{ marginBottom: 8 }}
         />
       )}
@@ -223,39 +232,9 @@ function DetailModal({ item, onClose, onDone }: DetailModalProps) {
   )
 }
 
-// ─── 待审核列 ───
-
-const pendingColumns: ColumnsType<PendingItem> = [
-  {
-    title: '摘要',
-    dataIndex: 'summary',
-    render: (s: string, record) => (
-      <Space size={4}>
-        <span>{s}</span>
-        {record.types.map((t) => (
-          <Tag key={t} color={TYPE_COLORS[t]} style={{ margin: 0, fontSize: 11 }}>{TARGET_LABELS[t]}</Tag>
-        ))}
-      </Space>
-    ),
-  },
-  { title: '详情', dataIndex: 'detail', ellipsis: true, render: (d: string) => <span style={{ color: '#666', fontSize: 13 }}>{d}</span> },
-  {
-    title: '操作',
-    width: 100,
-    render: (_, record) => (
-      <Button type="link" size="small" icon={<EyeOutlined />} onClick={() => handleView(record)}>查看</Button>
-    ),
-  },
-]
-
-// ─── 模块级引用 ───
-
-let viewHandler: ((item: PendingItem) => void) | null = null
-function handleView(item: PendingItem) { viewHandler?.(item) }
-
 // ─── 从 API 构建待审核项 ───
 
-function buildUserItems(users: User[], statusField: string, targetType: string): PendingItem[] {
+function buildUserItems(users: User[], statusField: string, targetType: ReviewTargetType): PendingItem[] {
   return users
     .filter((u) => {
       const key = statusField as keyof User
@@ -295,7 +274,7 @@ function mergeItems(items: PendingItem[]): PendingItem[] {
     }
     const existing = userMap.get(item.target_id)
     if (existing) {
-      existing.types.push(item.target_type)
+      existing.types.push(item.types[0])
       // 保留最新的时间
       if (new Date(item.created_at) > new Date(existing.created_at)) {
         existing.created_at = item.created_at
@@ -326,6 +305,7 @@ export default function ReviewList() {
   const [pendingLoading, setPendingLoading] = useState(false)
   const [pendingType, setPendingType] = useState('all')
   const [viewItem, setViewItem] = useState<PendingItem | null>(null)
+  const canReview = usePermission('user:write')
 
   const { data: historyData, loading: historyLoading, pagination: historyPagination } = usePagination(
     (page) => userService.reviewHistory(page),
@@ -335,17 +315,17 @@ export default function ReviewList() {
   const fetchPending = useCallback(async () => {
     setPendingLoading(true)
     try {
-      const [identityRes, studentRes, enterpriseRes, ordersRes] = await Promise.all([
-        userService.list({ identity_status: 'pending', page_size: 50 }),
-        userService.list({ student_status: 'pending', page_size: 50 }),
-        userService.list({ enterprise_status: 'pending', page_size: 50 }),
-        orderService.list({ status: 'paid', page_size: 50 }),
+      const [identityUsers, studentUsers, enterpriseUsers, orders] = await Promise.all([
+        fetchAllPages((page, pageSize) => userService.list({ identity_status: 'pending', page, page_size: pageSize })),
+        fetchAllPages((page, pageSize) => userService.list({ student_status: 'pending', page, page_size: pageSize })),
+        fetchAllPages((page, pageSize) => userService.list({ enterprise_status: 'pending', page, page_size: pageSize })),
+        fetchAllPages((page, pageSize) => orderService.list({ status: 'paid', page, page_size: pageSize })),
       ])
       const items: PendingItem[] = [
-        ...buildUserItems(identityRes.items, 'identity_status', 'identity'),
-        ...buildUserItems(studentRes.items, 'student_status', 'student'),
-        ...buildUserItems(enterpriseRes.items, 'enterprise_status', 'enterprise'),
-        ...buildOrderItems(ordersRes.items),
+        ...buildUserItems(identityUsers, 'identity_status', 'identity'),
+        ...buildUserItems(studentUsers, 'student_status', 'student'),
+        ...buildUserItems(enterpriseUsers, 'enterprise_status', 'enterprise'),
+        ...buildOrderItems(orders),
       ]
       setRawItems(items)
     } finally {
@@ -357,14 +337,44 @@ export default function ReviewList() {
     if (tab === 'pending') fetchPending()
   }, [tab, fetchPending])
 
-  viewHandler = useCallback((item: PendingItem) => setViewItem(item), [])
-
   // 「全部」Tab 聚合展示，「实名/学生/企业/订单」Tab 扁平展示
   const mergedItems = useMemo(() => mergeItems(rawItems), [rawItems])
 
   const displayItems = pendingType === 'all'
     ? mergedItems
     : rawItems.filter((i) => i.target_type === pendingType)
+
+  const pendingColumns = useMemo<ColumnsType<PendingItem>>(() => [
+    {
+      title: '摘要',
+      dataIndex: 'summary',
+      render: (summary: string, record) => (
+        <Space size={4}>
+          <span>{summary}</span>
+          {record.types.map((type) => (
+            <Tag key={type} color={TYPE_COLORS[type]} style={{ margin: 0, fontSize: 11 }}>
+              {TARGET_LABELS[type]}
+            </Tag>
+          ))}
+        </Space>
+      ),
+    },
+    {
+      title: '详情',
+      dataIndex: 'detail',
+      ellipsis: true,
+      render: (detail: string) => <span style={{ color: '#666', fontSize: 13 }}>{detail}</span>,
+    },
+    {
+      title: '操作',
+      width: 100,
+      render: (_, record) => (
+        <Button type="link" size="small" icon={<EyeOutlined />} onClick={() => setViewItem(record)}>
+          查看
+        </Button>
+      ),
+    },
+  ], [])
 
   const typeTabs = [
     { key: 'all', label: `全部 (${mergedItems.length})` },
@@ -396,7 +406,7 @@ export default function ReviewList() {
                   columns={pendingColumns}
                   dataSource={displayItems}
                   loading={pendingLoading}
-                  pagination={false}
+                  pagination={{ pageSize: 20, showSizeChanger: true, showTotal: (total) => `共 ${total} 条` }}
                   onRow={(record) => ({
                     style: { cursor: 'pointer' },
                     onDoubleClick: () => setViewItem(record),
@@ -424,11 +434,9 @@ export default function ReviewList() {
       {viewItem && (
         <DetailModal
           item={viewItem}
+          canReview={canReview}
           onClose={() => setViewItem(null)}
-          onDone={() => {
-            setViewItem(null)
-            fetchPending()
-          }}
+          onReviewed={fetchPending}
         />
       )}
     </PageContainer>

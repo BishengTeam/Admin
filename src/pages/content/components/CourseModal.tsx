@@ -1,5 +1,5 @@
-import { useEffect } from 'react'
-import { Modal, Form, Input, Select, InputNumber, Button, DatePicker, TimePicker, Space, message } from 'antd'
+import { useEffect, useState } from 'react'
+import { Modal, Form, Input, Select, InputNumber, Button, DatePicker, TimePicker, Space, Tabs, message } from 'antd'
 import { PlusOutlined, MinusCircleOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import { contentService } from '@/services/content'
@@ -7,6 +7,7 @@ import { ImageUpload } from '@/components/ImageUpload'
 import { COURSE_CATEGORIES, STATUS_OPTIONS } from '@/core/constants'
 import { requiredRule } from '@/utils/validator'
 import type { Course } from '@/types/content'
+import CourseAssetManagement from './CourseAssetManagement'
 
 interface CourseModalProps {
   open: boolean
@@ -25,10 +26,12 @@ interface BatchFormValues {
 
 export default function CourseModal({ open, course, onClose, onSuccess }: CourseModalProps) {
   const [form] = Form.useForm()
+  const [activeTab, setActiveTab] = useState('basic')
   const isEdit = !!course
 
   useEffect(() => {
     if (open) {
+      setActiveTab('basic')
       if (course) {
         form.setFieldsValue({
           title: course.title,
@@ -85,8 +88,18 @@ export default function CourseModal({ open, course, onClose, onSuccess }: Course
       onOk={handleSubmit}
       onCancel={onClose}
       width={800}
+      okButtonProps={activeTab === 'assets' ? { style: { display: 'none' } } : undefined}
+      cancelText={activeTab === 'assets' ? '关闭' : '取消'}
       destroyOnClose
     >
+      <Tabs
+        activeKey={activeTab}
+        onChange={setActiveTab}
+        items={[
+          {
+            key: 'basic',
+            label: '基本信息',
+            children: (
       <Form form={form} layout="vertical">
         <Space style={{ width: '100%' }} size={16}>
           <Form.Item name="title" label="课程名称" rules={[requiredRule('课程名称')]} style={{ flex: 1 }}>
@@ -156,6 +169,17 @@ export default function CourseModal({ open, course, onClose, onSuccess }: Course
           )}
         </Form.List>
       </Form>
+            ),
+          },
+          ...(isEdit && course ? [
+            {
+              key: 'assets',
+              label: '课程资源',
+              children: <CourseAssetManagement courseId={course.id} />,
+            },
+          ] : []),
+        ]}
+      />
     </Modal>
   )
 }

@@ -1,5 +1,5 @@
 import { http } from '@/core/request'
-import type { User, UserFilter, UserDetail, UserProfileDetail, UserRealnameInfo, UserStudentInfo, UserEnterpriseInfo, UserOrderSummary, UserConversationSummary, ReviewRecord } from '@/types/user'
+import type { User, UserFilter, UserDetail, UserProfileDetail, UserRealnameInfo, UserStudentInfo, UserEnterpriseInfo, UserOrderSummary, UserConversationSummary, ReviewPayload, ReviewRecord, ReviewTargetType } from '@/types/user'
 import type { PageData, PageParams } from '@/types/api'
 
 export const userService = {
@@ -54,7 +54,7 @@ export const userService = {
   },
 
   /** 统一审核接口 POST /admin/reviews */
-  async review(data: { target_type: string; target_id: number; action: string; comment?: string }): Promise<void> {
+  async review(data: ReviewPayload): Promise<void> {
     return http.post<void>('/admin/reviews', data)
   },
 
@@ -74,7 +74,7 @@ export const userService = {
 
   /** 审核记录 GET /admin/reviews */
   async reviewHistory(params: {
-    target_type?: string
+    target_type?: ReviewTargetType
     target_id?: number
     page?: number
     page_size?: number

@@ -19,8 +19,8 @@ export const orderService = {
     return http.get<OrderDetail>(`/admin/orders/${id}`)
   },
 
-  async refund(id: number, reason: string): Promise<void> {
-    return http.post<void>(`/admin/orders/${id}/refund`, { reason })
+  async refund(id: number): Promise<OrderDetail> {
+    return http.post<OrderDetail>(`/admin/orders/${id}/refund`)
   },
 
   async export(params: OrderFilter): Promise<Blob> {

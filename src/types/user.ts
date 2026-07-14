@@ -174,13 +174,23 @@ export interface UserConversationSummary {
   created_at: string
 }
 
+export type ReviewTargetType = 'identity' | 'student' | 'enterprise' | 'order'
+export type ReviewAction = 'approve' | 'reject'
+
+export interface ReviewPayload {
+  target_type: ReviewTargetType
+  target_id: number
+  action: ReviewAction
+  comment?: string
+}
+
 /** GET /admin/reviews 审核记录 */
 export interface ReviewRecord {
   id: number
-  target_type: string
+  target_type: ReviewTargetType
   target_id: number
   reviewer_id: number
-  action: string
+  action: ReviewAction
   comment: string | null
   created_at: string
 }

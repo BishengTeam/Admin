@@ -1,9 +1,11 @@
-import { Drawer, Descriptions, Space, Typography, Image } from 'antd'
+import { useState } from 'react'
+import { Button, Drawer, Descriptions, Space, Typography, Image } from 'antd'
 import { FilePdfOutlined, FileImageOutlined } from '@ant-design/icons'
 import { StatusTag } from '@/components/StatusTag'
 import { ORDER_STATUS_MAP } from '@/core/constants'
 import { formatDate, formatPrice } from '@/utils/format'
 import type { OrderDetail } from '@/types/order'
+import ReviewHistory from '@/components/ReviewHistory'
 
 const { Text, Link } = Typography
 
@@ -57,10 +59,26 @@ function fileLabel(url: string): string {
 interface OrderDetailDrawerProps {
   order: OrderDetail | null
   open: boolean
+  canReview: boolean
+  canRefund: boolean
+  onApprove: (order: OrderDetail) => Promise<void>
+  onReject: (order: OrderDetail) => void
+  onRefund: (order: OrderDetail) => void
   onClose: () => void
 }
 
-export default function OrderDetailDrawer({ order, open, onClose }: OrderDetailDrawerProps) {
+export default function OrderDetailDrawer({
+  order,
+  open,
+  canReview,
+  canRefund,
+  onApprove,
+  onReject,
+  onRefund,
+  onClose,
+}: OrderDetailDrawerProps) {
+  const [approving, setApproving] = useState(false)
+
   if (!order) return null
 
   const extra = order.extra_data as Record<string, unknown> | null
@@ -68,7 +86,38 @@ export default function OrderDetailDrawer({ order, open, onClose }: OrderDetailD
   const attachments = order.attachments ?? []
 
   return (
-    <Drawer title="订单详情" open={open} onClose={onClose} width={560}>
+    <Drawer
+      title="订单详情"
+      open={open}
+      onClose={onClose}
+      width={640}
+      extra={
+        <Space>
+          {order.status === 'paid' && canReview && (
+            <>
+              <Button danger onClick={() => onReject(order)}>驳回并退款</Button>
+              <Button
+                type="primary"
+                loading={approving}
+                onClick={async () => {
+                  setApproving(true)
+                  try {
+                    await onApprove(order)
+                  } finally {
+                    setApproving(false)
+                  }
+                }}
+              >
+                审核通过
+              </Button>
+            </>
+          )}
+          {order.status === 'completed' && canRefund && (
+            <Button danger onClick={() => onRefund(order)}>退款</Button>
+          )}
+        </Space>
+      }
+    >
       {/* 基本信息 */}
       <Descriptions column={2} size="small" bordered style={{ marginBottom: 24 }}>
         <Descriptions.Item label="订单号" span={2}>
@@ -158,6 +207,9 @@ export default function OrderDetailDrawer({ order, open, onClose }: OrderDetailD
           </Space>
         </>
       )}
+
+      <Text strong style={{ display: 'block', marginTop: 24, marginBottom: 12 }}>审核记录</Text>
+      <ReviewHistory targetType="order" targetId={order.id} />
     </Drawer>
   )
 }

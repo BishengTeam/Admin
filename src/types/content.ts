@@ -50,3 +50,44 @@ export interface ClassSchedule {
   price: number
   location: string
 }
+
+export type CourseEnrollmentStatus =
+  | 'pending_payment'
+  | 'enrolled'
+  | 'completed'
+  | 'refunded'
+  | 'cancelled'
+  | 'expired'
+
+export interface CourseEnrollment {
+  id: number
+  user_id: number
+  course_id: number
+  course_title: string
+  order_id: number | null
+  order_status: string | null
+  order_price: number | null
+  batch_selected: string | null
+  status: CourseEnrollmentStatus
+  learning_access: boolean
+  access_granted_at: string | null
+  access_revoked_at: string | null
+  created_at: string
+}
+
+export interface CourseEnrollmentFilter {
+  course_id?: number
+  user_id?: number
+  status?: CourseEnrollmentStatus
+}
+
+export interface CourseAsset {
+  id: number
+  course_id: number
+  title: string
+  storage_key: string
+  asset_type: string
+  sort_order: number
+  is_preview: boolean
+  created_at: string
+}

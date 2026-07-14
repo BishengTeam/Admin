@@ -5,9 +5,12 @@ import { StatusTag } from '@/components/StatusTag'
 import { ORDER_STATUS_MAP, USER_STATUS_MAP } from '@/core/constants'
 import { formatDate, formatPrice } from '@/utils/format'
 import { userService } from '@/services/users'
-import type { UserDetail, UserOrderSummary, UserConversationSummary } from '@/types/user'
+import type { ReviewTargetType, UserDetail, UserOrderSummary, UserConversationSummary } from '@/types/user'
 import { LEVEL2_STATUS_MAP } from '@/types/user'
 import ReviewHistory from '@/components/ReviewHistory'
+import { usePermission } from '@/hooks/usePermission'
+
+const USER_REVIEW_TYPES = ['identity', 'student', 'enterprise'] as const
 
 interface UserDetailDrawerProps {
   user: UserDetail | null
@@ -53,6 +56,7 @@ function ReviewTag({ status }: { status: string }) {
 
 export default function UserDetailDrawer({ user, open, onClose, onSaved }: UserDetailDrawerProps) {
   const [reviewing, setReviewing] = useState<string | null>(null)
+  const canReview = usePermission('user:write')
 
   if (!user) return null
 
@@ -65,7 +69,7 @@ export default function UserDetailDrawer({ user, open, onClose, onSaved }: UserD
   const reviewTargetLabel = (target: 'realname' | 'student' | 'enterprise') =>
     target === 'realname' ? '实名' : target === 'student' ? '学生' : '企业'
 
-  const targetToType = (target: 'realname' | 'student' | 'enterprise'): string =>
+  const targetToType = (target: 'realname' | 'student' | 'enterprise'): ReviewTargetType =>
     target === 'realname' ? 'identity' : target === 'student' ? 'student' : 'enterprise'
 
   const doReview = async (
@@ -111,42 +115,15 @@ export default function UserDetailDrawer({ user, open, onClose, onSaved }: UserD
     }
   }
 
-  const doUndo = async (target: 'realname' | 'student' | 'enterprise') => {
-    const label = reviewTargetLabel(target)
-
-    setReviewing(target)
-    try {
-      await userService.review({
-        target_type: targetToType(target),
-        target_id: user.id,
-        action: 'reject',
-        comment: '撤销审核',
-      })
-      message.success(`已撤销${label}审核`)
-      onSaved?.()
-    } catch {
-      // 忽略错误，数据已由 onSaved 刷新
-    } finally {
-      setReviewing(null)
-    }
-  }
-
   const reviewActions = (
     target: 'realname' | 'student' | 'enterprise',
     currentStatus: string | undefined,
   ) => {
-    if (currentStatus === 'pending') {
+    if (canReview && currentStatus === 'pending') {
       return (
         <Space style={{ marginBottom: 24 }}>
           <Button type="primary" loading={reviewing === target} onClick={() => doReview(target, 'approve')}>通过</Button>
           <Button danger loading={reviewing === target} onClick={() => doReview(target, 'reject')}>驳回</Button>
-        </Space>
-      )
-    }
-    if (currentStatus === 'verified' || currentStatus === 'rejected') {
-      return (
-        <Space style={{ marginBottom: 24 }}>
-          <Button loading={reviewing === target} onClick={() => doUndo(target)}>撤销审核</Button>
         </Space>
       )
     }
@@ -361,7 +338,7 @@ export default function UserDetailDrawer({ user, open, onClose, onSaved }: UserD
 
       {/* 审核记录 */}
       <h4 style={{ marginBottom: 12 }}>审核记录</h4>
-      <ReviewHistory targetType="identity" targetId={user.id} />
+      <ReviewHistory targetType={[...USER_REVIEW_TYPES]} targetId={user.id} />
 
       {/* 订单记录 */}
       <h4 style={{ marginBottom: 12 }}>订单记录</h4>
