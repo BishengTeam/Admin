@@ -13,18 +13,18 @@ export interface ContentItem {
   created_at: string
 }
 
-export interface CourseBatch {
+export interface CourseSchedule {
   /** 上课日期 YYYY-MM-DD */
   class_date: string
   /** 开始时间 HH:mm */
   start_time: string
   /** 结束时间 HH:mm */
   end_time: string
-  /** 价格（分） */
-  price: number
   /** 上课地点 */
-  location: string
+  location?: string | null
 }
+
+export type CourseSchedules = Record<string, CourseSchedule>
 
 export interface Course {
   id: number
@@ -38,7 +38,7 @@ export interface Course {
   teacher_name: string
   teacher_contact: string
   created_at: string
-  batches: CourseBatch[] | null
+  batches: CourseSchedules | null
 }
 
 export interface ClassSchedule {

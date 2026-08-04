@@ -6,6 +6,7 @@ import { contentService } from '@/services/content'
 import { ImageUpload } from '@/components/ImageUpload'
 import { COURSE_CATEGORIES, STATUS_OPTIONS } from '@/core/constants'
 import { requiredRule } from '@/utils/validator'
+import { courseBatchesToScheduleList, courseScheduleListToMutationBatches } from '@/utils/course'
 import type { Course } from '@/types/content'
 import CourseAssetManagement from './CourseAssetManagement'
 
@@ -16,16 +17,33 @@ interface CourseModalProps {
   onSuccess: () => void
 }
 
-interface BatchFormValues {
-  class_date?: dayjs.Dayjs
-  start_time?: dayjs.Dayjs
-  end_time?: dayjs.Dayjs
-  price?: number
+interface ScheduleFormValues {
+  id: string
+  class_date: dayjs.Dayjs
+  start_time: dayjs.Dayjs
+  end_time: dayjs.Dayjs
   location?: string
 }
 
+interface CourseFormValues {
+  title: string
+  category: string
+  cover_url?: string
+  description?: string
+  video_url?: string
+  price: number
+  teacher_name: string
+  teacher_contact?: string
+  is_active: boolean
+  batches?: ScheduleFormValues[]
+}
+
+function parseScheduleTime(value: string): dayjs.Dayjs {
+  return dayjs(`2000-01-01T${value}:00`)
+}
+
 export default function CourseModal({ open, course, onClose, onSuccess }: CourseModalProps) {
-  const [form] = Form.useForm()
+  const [form] = Form.useForm<CourseFormValues>()
   const [activeTab, setActiveTab] = useState('basic')
   const isEdit = !!course
 
@@ -43,11 +61,12 @@ export default function CourseModal({ open, course, onClose, onSuccess }: Course
           teacher_name: course.teacher_name,
           teacher_contact: course.teacher_contact,
           is_active: course.is_active,
-          batches: course.batches?.map((s) => ({
-            ...s,
-            class_date: s.class_date ? dayjs(s.class_date) : undefined,
-            start_time: s.start_time ? dayjs(s.start_time, 'HH:mm') : undefined,
-            end_time: s.end_time ? dayjs(s.end_time, 'HH:mm') : undefined,
+          batches: courseBatchesToScheduleList(course.batches).map((schedule) => ({
+            ...schedule,
+            class_date: dayjs(schedule.class_date),
+            start_time: parseScheduleTime(schedule.start_time),
+            end_time: parseScheduleTime(schedule.end_time),
+            location: schedule.location ?? undefined,
           })),
         })
       } else {
@@ -59,21 +78,20 @@ export default function CourseModal({ open, course, onClose, onSuccess }: Course
 
   const handleSubmit = async () => {
     const values = await form.validateFields()
-    const batches = (values.batches || []).map((s: BatchFormValues) => ({
-      class_date: s.class_date?.format('YYYY-MM-DD') || '',
-      start_time: s.start_time?.format('HH:mm') || '',
-      end_time: s.end_time?.format('HH:mm') || '',
-      price: s.price,
-      location: s.location,
-    }))
-    const data: Record<string, any> = {
-      ...values,
-      price: values.price,
-      batches,
-    }
-    // 没有班次时不传 batches，避免后端 JSON 字段被存成空数组 [] 导致校验失败
-    if (batches.length === 0) {
-      delete data.batches
+    const { batches: scheduleValues = [], ...courseValues } = values
+    const batches = courseScheduleListToMutationBatches(
+      scheduleValues.map((schedule) => ({
+        id: schedule.id,
+        class_date: schedule.class_date.format('YYYY-MM-DD'),
+        start_time: schedule.start_time.format('HH:mm'),
+        end_time: schedule.end_time.format('HH:mm'),
+        location: schedule.location?.trim() || undefined,
+      })),
+      isEdit,
+    )
+    const data: Partial<Course> = {
+      ...courseValues,
+      ...(batches === undefined ? {} : { batches }),
     }
 
     if (isEdit) {
@@ -141,13 +159,16 @@ export default function CourseModal({ open, course, onClose, onSuccess }: Course
           </Form.Item>
         </Space>
 
-        <h4 style={{ marginBottom: 8 }}>班次配置</h4>
+        <h4 style={{ marginBottom: 8 }}>上课安排</h4>
         <Form.List name="batches">
           {(fields, { add, remove }) => (
             <>
               {fields.map(({ key, name, ...restField }) => (
                 <div key={key} style={{ marginBottom: 8, padding: 12, background: '#fafafa', borderRadius: 6 }}>
                   <Space wrap align="start">
+                    <Form.Item {...restField} name={[name, 'id']} hidden>
+                      <Input />
+                    </Form.Item>
                     <Form.Item {...restField} name={[name, 'class_date']} label="日期" rules={[requiredRule('日期')]} style={{ marginBottom: 0 }}>
                       <DatePicker />
                     </Form.Item>
@@ -157,9 +178,6 @@ export default function CourseModal({ open, course, onClose, onSuccess }: Course
                     <Form.Item {...restField} name={[name, 'end_time']} label="结束时间" rules={[requiredRule('结束时间')]} style={{ marginBottom: 0 }}>
                       <TimePicker format="HH:mm" />
                     </Form.Item>
-                    <Form.Item {...restField} name={[name, 'price']} label="价格(分)" style={{ marginBottom: 0 }}>
-                      <InputNumber min={0} style={{ width: 130 }} />
-                    </Form.Item>
                     <Form.Item {...restField} name={[name, 'location']} label="地点" style={{ marginBottom: 0 }}>
                       <Input placeholder="教室/线上" style={{ width: 130 }} />
                     </Form.Item>
@@ -167,8 +185,8 @@ export default function CourseModal({ open, course, onClose, onSuccess }: Course
                   </Space>
                 </div>
               ))}
-              <Button type="dashed" onClick={() => add({})} icon={<PlusOutlined />} block>
-                添加班次
+              <Button type="dashed" onClick={() => add({ id: crypto.randomUUID() })} icon={<PlusOutlined />} block>
+                添加上课时间
               </Button>
             </>
           )}
