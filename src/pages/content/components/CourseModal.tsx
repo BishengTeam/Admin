@@ -59,16 +59,21 @@ export default function CourseModal({ open, course, onClose, onSuccess }: Course
 
   const handleSubmit = async () => {
     const values = await form.validateFields()
-    const data = {
+    const batches = (values.batches || []).map((s: BatchFormValues) => ({
+      class_date: s.class_date?.format('YYYY-MM-DD') || '',
+      start_time: s.start_time?.format('HH:mm') || '',
+      end_time: s.end_time?.format('HH:mm') || '',
+      price: s.price,
+      location: s.location,
+    }))
+    const data: Record<string, any> = {
       ...values,
       price: values.price,
-      batches: (values.batches || []).map((s: BatchFormValues) => ({
-        class_date: s.class_date?.format('YYYY-MM-DD') || '',
-        start_time: s.start_time?.format('HH:mm') || '',
-        end_time: s.end_time?.format('HH:mm') || '',
-        price: s.price,
-        location: s.location,
-      })),
+      batches,
+    }
+    // 没有班次时不传 batches，避免后端 JSON 字段被存成空数组 [] 导致校验失败
+    if (batches.length === 0) {
+      delete data.batches
     }
 
     if (isEdit) {

@@ -15,9 +15,7 @@
     "prepare": "husky"
   },
   "lint-staged": {
-    "*.{ts,tsx}": [
-      "tsc --noEmit --skipLibCheck"
-    ]
+    "*.{ts,tsx}": "tsc -b --noEmit"
   },
   "dependencies": {
     "@ant-design/icons": "^5.3.0",
