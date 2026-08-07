@@ -5,7 +5,6 @@ export interface User {
   is_active: boolean
   identity_status?: string | null      // 实名审核状态
   student_status?: string | null       // 学生信息审核状态
-  enterprise_status?: string | null    // 企业信息审核状态
   created_at: string
 }
 
@@ -16,7 +15,6 @@ export interface UserFilter {
   created_at_end?: string
   identity_status?: string
   student_status?: string
-  enterprise_status?: string
 }
 
 export interface UserDetail extends User {
@@ -24,7 +22,6 @@ export interface UserDetail extends User {
   profile?: UserProfile
   realname?: UserRealnameInfo
   student?: UserStudentInfo
-  enterprise?: UserEnterpriseInfo
   orders?: UserOrderSummary[]
   conversations?: UserConversationSummary[]
 }
@@ -70,10 +67,6 @@ export interface UserProfileDetail {
   degree_cert_oss: string | null
   student_status: string | null
   student_reject_reason: string | null
-  // level-2: user_enterprise
-  organization: string | null
-  enterprise_status: string | null
-  enterprise_reject_reason: string | null
   // 编辑次数
   edit_count: number | null
   edit_count_limit: number | null
@@ -95,7 +88,7 @@ export interface UserProfile {
 /** 对应 user_realname 表 */
 export interface UserRealnameInfo {
   user_id: number
-  user_type: 'student' | 'enterprise'
+  user_type: 'student'
   last_name_zh: string | null
   first_name_zh: string | null
   last_name_en: string | null
@@ -135,18 +128,7 @@ export interface UserStudentInfo {
   updated_at: string
 }
 
-/** 对应 user_enterprise 表 */
-export interface UserEnterpriseInfo {
-  user_id: number
-  organization: string | null
-  status: 'unsubmitted' | 'pending' | 'verified' | 'rejected'
-  verified_at: string | null
-  reject_reason: string | null
-  created_at: string
-  updated_at: string
-}
-
-/** 审核状态映射（realname / student / enterprise 通用） */
+/** 审核状态映射（实名 / 学生通用） */
 export const LEVEL2_STATUS_MAP: Record<string, { text: string; color: string }> = {
   unsubmitted: { text: '未提交', color: 'default' },
   pending: { text: '待审核', color: 'orange' },
@@ -156,7 +138,7 @@ export const LEVEL2_STATUS_MAP: Record<string, { text: string; color: string }> 
 
 // ============ 向后兼容 ============
 
-/** @deprecated 使用 UserRealnameInfo + UserStudentInfo + UserEnterpriseInfo */
+/** @deprecated 使用 UserRealnameInfo + UserStudentInfo */
 export { LEVEL2_STATUS_MAP as IDENTITY_STATUS_MAP }
 
 export interface UserOrderSummary {
@@ -176,13 +158,6 @@ export interface UserConversationSummary {
 
 export type ReviewTargetType = 'identity' | 'student' | 'enterprise' | 'order'
 export type ReviewAction = 'approve' | 'reject'
-
-export interface ReviewPayload {
-  target_type: ReviewTargetType
-  target_id: number
-  action: ReviewAction
-  comment?: string
-}
 
 /** GET /admin/reviews 审核记录 */
 export interface ReviewRecord {

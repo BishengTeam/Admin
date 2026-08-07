@@ -19,25 +19,11 @@ export const orderService = {
     return http.get<OrderDetail>(`/admin/orders/${id}`)
   },
 
-  async refund(id: number): Promise<OrderDetail> {
-    return http.post<OrderDetail>(`/admin/orders/${id}/refund`)
-  },
-
   async export(params: OrderFilter): Promise<Blob> {
     return http.get<Blob>('/admin/orders/export', { params: toApiParams(params as Record<string, unknown>), responseType: 'blob' })
   },
 
   async reconciliation(date: string): Promise<ReconciliationData> {
     return http.get<ReconciliationData>('/admin/orders/reconciliation', { params: { date } })
-  },
-
-  /** 审核订单（通过→completed, 驳回→退款） */
-  async review(orderId: number, action: 'approve' | 'reject', comment?: string): Promise<void> {
-    return http.post<void>('/admin/reviews', {
-      target_type: 'order',
-      target_id: orderId,
-      action,
-      comment,
-    })
   },
 }

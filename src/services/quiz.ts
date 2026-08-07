@@ -1,48 +1,185 @@
+import type { AxiosRequestConfig } from 'axios'
 import { http } from '@/core/request'
-import type { Category, Question, QuestionFilter } from '@/types/quiz'
-import type { PageData, PageParams } from '@/types/api'
+import { validateOrThrow, validateRequestOrThrow } from '@/core/validation'
+import {
+  AuditLogSchema,
+  BatchResponseSchema,
+  BatchRequestSchema,
+  CategorySchema,
+  CategoryCreateSchema,
+  CategoryStatusUpdateSchema,
+  CategoryUpdateSchema,
+  CsvImportMetadataSchema,
+  ImportJobSchema,
+  JsonImportRequestSchema,
+  QuestionSchema,
+  QuestionCreateSchema,
+  QuestionStatsSchema,
+  QuestionUpdateSchema,
+  SignedUrlSchema,
+  VersionRequestSchema,
+} from '@/core/validation'
+import type { PageData } from '@/types/api'
+import type {
+  AuditFilter,
+  AuditLog,
+  BatchRequest,
+  BatchResponse,
+  Category,
+  CategoryCreate,
+  CategoryStatusUpdate,
+  CategoryUpdate,
+  CsvImportMetadata,
+  ImportFilter,
+  ImportJob,
+  JsonImportRequest,
+  Question,
+  QuestionCreate,
+  QuestionFilter,
+  QuestionStats,
+  QuestionUpdate,
+  SignedUrl,
+  VersionRequest,
+} from '@/types/quiz'
+import { z } from 'zod'
+
+const pageSchema = <T extends z.ZodType>(item: T) => z.object({
+  items: z.array(item),
+  total: z.number(),
+  page: z.number(),
+  page_size: z.number(),
+}).strict()
+
+const CategoriesSchema = z.array(CategorySchema)
+const QuestionsPageSchema = pageSchema(QuestionSchema)
+const ImportsPageSchema = pageSchema(ImportJobSchema)
+const AuditPageSchema = pageSchema(AuditLogSchema)
+
+function parsed<T>(schema: z.ZodType<T>, value: unknown): T {
+  return validateOrThrow(schema, value)
+}
+
+function requestParsed<T>(schema: z.ZodType<T>, value: unknown): T {
+  return validateRequestOrThrow(schema, value)
+}
+
+function omitUndefined<T>(value: T): T {
+  if (Array.isArray(value)) return value.map((item) => omitUndefined(item)) as T
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.entries(value as object).filter(([, item]) => item !== undefined).map(([key, item]) => [key, omitUndefined(item)])) as T
+  }
+  return value
+}
+
+function queryConfig(params: object, signal?: AbortSignal): AxiosRequestConfig {
+  const clean = Object.fromEntries(Object.entries(params).filter(([, value]) => value !== undefined && value !== ''))
+  return { params: clean, signal }
+}
 
 export const quizService = {
-  async listCategories(): Promise<Category[]> {
-    return http.get<Category[]>('/admin/quiz/categories')
+  async listCategories(params: { status?: Category['status']; parent_id?: number } = {}, signal?: AbortSignal): Promise<Category[]> {
+    return parsed(CategoriesSchema, await http.get('/admin/quiz/categories', queryConfig(params, signal)))
   },
 
-  async createCategory(data: Partial<Category>): Promise<Category> {
-    return http.post<Category>('/admin/quiz/categories', data)
+  async createCategory(data: CategoryCreate, signal?: AbortSignal): Promise<Category> {
+    const payload = requestParsed(CategoryCreateSchema, omitUndefined(data))
+    return parsed(CategorySchema, await http.post('/admin/quiz/categories', payload, { signal }))
   },
 
-  async updateCategory(id: number, data: Partial<Category>): Promise<void> {
-    return http.put<void>(`/admin/quiz/categories/${id}`, data)
+  async updateCategory(id: number, data: CategoryUpdate, signal?: AbortSignal): Promise<Category> {
+    const payload = requestParsed(CategoryUpdateSchema, omitUndefined(data))
+    return parsed(CategorySchema, await http.put(`/admin/quiz/categories/${id}`, payload, { signal }))
   },
 
-  async deleteCategory(id: number): Promise<void> {
-    return http.delete<void>(`/admin/quiz/categories/${id}`)
+  async deleteCategory(id: number, lock_version: number, signal?: AbortSignal): Promise<null> {
+    const payload = requestParsed(VersionRequestSchema, { lock_version } satisfies VersionRequest)
+    await http.delete(`/admin/quiz/categories/${id}`, { data: payload, signal })
+    return null
   },
 
-  async listQuestions(params: QuestionFilter & PageParams): Promise<PageData<Question>> {
-    return http.get<PageData<Question>>('/admin/quiz/questions', { params })
+  async updateCategoryStatus(id: number, data: CategoryStatusUpdate, signal?: AbortSignal): Promise<Category> {
+    const payload = requestParsed(CategoryStatusUpdateSchema, omitUndefined(data))
+    return parsed(CategorySchema, await http.post(`/admin/quiz/categories/${id}/status`, payload, { signal }))
   },
 
-  async createQuestion(data: Omit<Question, 'id'>): Promise<Question> {
-    return http.post<Question>('/admin/quiz/questions', data)
+  async listQuestions(params: QuestionFilter, signal?: AbortSignal): Promise<PageData<Question>> {
+    return parsed(QuestionsPageSchema, await http.get('/admin/quiz/questions', queryConfig(params, signal)))
   },
 
-  async updateQuestion(id: number, data: Partial<Question>): Promise<void> {
-    return http.put<void>(`/admin/quiz/questions/${id}`, data)
+  async createQuestion(data: QuestionCreate, signal?: AbortSignal): Promise<Question> {
+    const payload = requestParsed(QuestionCreateSchema, omitUndefined(data))
+    return parsed(QuestionSchema, await http.post('/admin/quiz/questions', payload, { signal }))
   },
 
-  async deleteQuestion(id: number): Promise<void> {
-    return http.delete<void>(`/admin/quiz/questions/${id}`)
+  async updateQuestion(id: number, data: QuestionUpdate, signal?: AbortSignal): Promise<Question> {
+    const payload = requestParsed(QuestionUpdateSchema, omitUndefined(data))
+    return parsed(QuestionSchema, await http.put(`/admin/quiz/questions/${id}`, payload, { signal }))
   },
 
-  async deleteQuestions(ids: number[]): Promise<void> {
-    return http.post<void>('/admin/quiz/questions/batch-delete', { ids })
+  async deleteQuestion(id: number, lock_version: number, signal?: AbortSignal): Promise<null> {
+    const payload = requestParsed(VersionRequestSchema, { lock_version } satisfies VersionRequest)
+    await http.delete(`/admin/quiz/questions/${id}`, { data: payload, signal })
+    return null
   },
 
-  async importQuestions(data: {
-    category_id: number
-    questions: { question_text: string; options: Record<string, string>; answer: string; question_type: string }[]
-  }): Promise<{ count: number }> {
-    return http.post<{ count: number }>('/admin/quiz/import', data)
+  async publishQuestion(id: number, lock_version: number, signal?: AbortSignal): Promise<Question> {
+    const payload = requestParsed(VersionRequestSchema, { lock_version } satisfies VersionRequest)
+    return parsed(QuestionSchema, await http.post(`/admin/quiz/questions/${id}/publish`, payload, { signal }))
+  },
+
+  async disableQuestion(id: number, lock_version: number, signal?: AbortSignal): Promise<Question> {
+    const payload = requestParsed(VersionRequestSchema, { lock_version } satisfies VersionRequest)
+    return parsed(QuestionSchema, await http.post(`/admin/quiz/questions/${id}/disable`, payload, { signal }))
+  },
+
+  async restoreQuestion(id: number, lock_version: number, signal?: AbortSignal): Promise<Question> {
+    const payload = requestParsed(VersionRequestSchema, { lock_version } satisfies VersionRequest)
+    return parsed(QuestionSchema, await http.post(`/admin/quiz/questions/${id}/restore`, payload, { signal }))
+  },
+
+  async batchPublish(data: BatchRequest, signal?: AbortSignal): Promise<BatchResponse> {
+    const payload = requestParsed(BatchRequestSchema, omitUndefined(data))
+    return parsed(BatchResponseSchema, await http.post('/admin/quiz/questions/batch-publish', payload, { signal }))
+  },
+
+  async batchDisable(data: BatchRequest, signal?: AbortSignal): Promise<BatchResponse> {
+    const payload = requestParsed(BatchRequestSchema, omitUndefined(data))
+    return parsed(BatchResponseSchema, await http.post('/admin/quiz/questions/batch-disable', payload, { signal }))
+  },
+
+  async getQuestionStats(id: number, signal?: AbortSignal): Promise<QuestionStats> {
+    return parsed(QuestionStatsSchema, await http.get(`/admin/quiz/questions/${id}/stats`, { signal }))
+  },
+
+  async importCsv(file: File, metadata: CsvImportMetadata, signal?: AbortSignal): Promise<ImportJob> {
+    const payload = requestParsed(CsvImportMetadataSchema, metadata)
+    const body = new FormData()
+    body.append('file', file)
+    body.append('filename', payload.filename)
+    body.append('size_bytes', String(payload.size_bytes))
+    return parsed(ImportJobSchema, await http.post('/admin/quiz/imports/csv', body, { signal }))
+  },
+
+  async importJson(data: JsonImportRequest, signal?: AbortSignal): Promise<ImportJob> {
+    const payload = requestParsed(JsonImportRequestSchema, omitUndefined(data))
+    return parsed(ImportJobSchema, await http.post('/admin/quiz/imports/json', payload, { signal }))
+  },
+
+  async listImports(params: ImportFilter = {}, signal?: AbortSignal): Promise<PageData<ImportJob>> {
+    return parsed(ImportsPageSchema, await http.get('/admin/quiz/imports', queryConfig(params, signal)))
+  },
+
+  async getImport(id: number, signal?: AbortSignal): Promise<ImportJob> {
+    return parsed(ImportJobSchema, await http.get(`/admin/quiz/imports/${id}`, { signal }))
+  },
+
+  async getImportReportUrl(id: number, signal?: AbortSignal): Promise<SignedUrl> {
+    return parsed(SignedUrlSchema, await http.get(`/admin/quiz/imports/${id}/report-url`, { signal }))
+  },
+
+  async listAuditLogs(params: AuditFilter = {}, signal?: AbortSignal): Promise<PageData<AuditLog>> {
+    return parsed(AuditPageSchema, await http.get('/admin/quiz/audit-logs', queryConfig(params, signal)))
   },
 }
+
+export type QuizService = typeof quizService

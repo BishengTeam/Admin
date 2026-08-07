@@ -6,6 +6,7 @@ import { PageContainer } from '@/components/PageContainer'
 import { ConfirmButton } from '@/components/ConfirmButton'
 import { usePagination } from '@/hooks/usePagination'
 import { useExport } from '@/hooks/useExport'
+import { usePermission } from '@/hooks/usePermission'
 import { certificationService } from '@/services/certification'
 import { formatDate, formatPrice } from '@/utils/format'
 import { downloadBlob } from '@/utils/download'
@@ -30,6 +31,7 @@ export default function CertificationManagement() {
   const [detailTab, setDetailTab] = useState('basic')
   const [form] = Form.useForm<CertificationPayload>()
   const { exporting, startExport, finishExport } = useExport()
+  const canWrite = usePermission('content:write')
 
   const { data, loading, pagination, refresh } = usePagination(
     (page) => certificationService.list({ keyword: searchText || undefined, ...page }),
@@ -119,6 +121,7 @@ export default function CertificationManagement() {
       render: (is_active: boolean, record) => (
         <Switch
           checked={is_active}
+          disabled={!canWrite || record.code === 'RS-ZY'}
           onChange={(checked) => handleToggleStatus(record.id, checked)}
           checkedChildren="启用"
           unCheckedChildren="禁用"
@@ -148,17 +151,21 @@ export default function CertificationManagement() {
           <Button type="link" size="small" onClick={() => handleOpenDetail(record, 'plans')}>
             批次
           </Button>
-          <Button type="link" size="small" onClick={() => handleEdit(record)}>编辑</Button>
-          <ConfirmButton
-            title="下架认证"
-            description="确认下架此认证？下架后不能再创建订单。"
-            danger
-            type="link"
-            size="small"
-            onConfirm={() => handleDelete(record.id)}
-          >
-            下架
-          </ConfirmButton>
+          {canWrite && record.code !== 'RS-ZY' && (
+            <>
+              <Button type="link" size="small" onClick={() => handleEdit(record)}>编辑</Button>
+              <ConfirmButton
+                title="下架认证"
+                description="确认下架此认证？下架后不能再创建订单。"
+                danger
+                type="link"
+                size="small"
+                onConfirm={() => handleDelete(record.id)}
+              >
+                下架
+              </ConfirmButton>
+            </>
+          )}
         </Space>
       ),
     },
@@ -171,7 +178,7 @@ export default function CertificationManagement() {
         <Button key="export" icon={<DownloadOutlined />} loading={exporting} onClick={handleExport}>
             导出
         </Button>,
-        <Button key="create" type="primary" icon={<PlusOutlined />} onClick={handleAdd}>新增认证</Button>,
+        canWrite ? <Button key="create" type="primary" icon={<PlusOutlined />} onClick={handleAdd}>新增认证</Button> : null,
       ]}
     >
       <Space style={{ marginBottom: 16 }}>

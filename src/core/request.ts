@@ -1,14 +1,45 @@
-import axios from 'axios'
-import type { AxiosRequestConfig } from 'axios'
+import axios, { AxiosError, type AxiosRequestConfig } from 'axios'
 import { message } from 'antd'
 import { getToken, clearAuth } from './auth'
+
+export interface ApiFieldError {
+  loc?: Array<string | number>
+  field?: string
+  msg?: string
+  reason?: string
+  message?: string
+}
+
+export class ApiError extends Error {
+  readonly status?: number
+  readonly code?: number
+  readonly detail?: unknown
+  readonly fields: ApiFieldError[]
+  readonly requestId?: string
+
+  constructor(input: {
+    message: string
+    status?: number
+    code?: number
+    detail?: unknown
+    fields?: ApiFieldError[]
+    requestId?: string
+  }) {
+    super(input.message)
+    this.name = 'ApiError'
+    this.status = input.status
+    this.code = input.code
+    this.detail = input.detail
+    this.fields = input.fields ?? []
+    this.requestId = input.requestId
+  }
+}
 
 const request = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL,
   timeout: 15000,
 })
 
-// 401 防抖：避免同一时刻多个并发请求各自触发 clearAuth
 let authExpiredHandled = false
 
 request.interceptors.request.use((config) => {
@@ -19,48 +50,80 @@ request.interceptors.request.use((config) => {
   return config
 })
 
+function getFields(detail: unknown): ApiFieldError[] {
+  if (Array.isArray(detail)) return detail as ApiFieldError[]
+  if (detail && typeof detail === 'object' && Array.isArray((detail as { errors?: unknown }).errors)) {
+    return (detail as { errors: ApiFieldError[] }).errors
+  }
+  return []
+}
+
+function isQuietBusinessError(status?: number, code?: number) {
+  return status === 409 || status === 422 || code === 40200 || code === 40201
+}
+
+function toApiError(error: AxiosError): ApiError {
+  const responseData = error.response?.data as { code?: number; message?: string; detail?: unknown } | undefined
+  const status = error.response?.status
+  const code = responseData?.code
+  const detail = responseData?.detail ?? (Array.isArray(responseData) ? responseData : undefined)
+  const requestId = (error.response?.headers?.['x-request-id'] as string | undefined)
+    ?? (error.response?.headers?.['x-request-id'.toLowerCase()] as string | undefined)
+  return new ApiError({
+    message: responseData?.message || error.message || '请求失败',
+    status,
+    code,
+    detail,
+    fields: getFields(detail),
+    requestId,
+  })
+}
+
 request.interceptors.response.use(
   (response) => {
     const { data, config } = response
-    if (config.responseType === 'blob' || config.responseType === 'arraybuffer') {
-      return data
-    }
-    if (data.code !== 0) {
-      message.error(data.message || '请求失败')
-      return Promise.reject(new Error(data.message))
+    if (config.responseType === 'blob' || config.responseType === 'arraybuffer') return data
+    if (!data || data.code !== 0) {
+      const apiError = new ApiError({
+        message: data?.message || '请求失败',
+        status: response.status,
+        code: data?.code,
+        detail: data?.detail,
+        fields: getFields(data?.detail),
+        requestId: response.headers?.['x-request-id'],
+      })
+      if (!isQuietBusinessError(apiError.status, apiError.code)) message.error(apiError.message)
+      return Promise.reject(apiError)
     }
     return data.data
   },
-  (error) => {
+  (error: AxiosError) => {
+    if (error.code === 'ERR_CANCELED' || (typeof axios.isCancel === 'function' && axios.isCancel(error))) return Promise.reject(error)
     if (error.response?.status === 401) {
-      // 当前就在登录页（登录失败）→ 不跳转，错误由登录页组件自行展示
-      if (window.location.pathname.startsWith('/admin/login')) {
-        return Promise.reject(error)
-      }
-
-      // 防抖：同一批 401 只处理一次
-      if (!authExpiredHandled) {
+      if (!window.location.pathname.startsWith('/admin/login') && !authExpiredHandled) {
         authExpiredHandled = true
         clearAuth()
-        // clearAuth 会通知 Zustand store 清除 token，
-        // AuthGuard 检测到 token 为 null 后通过 <Navigate> 无刷新跳转到登录页。
-        // 重置防抖标志，为下次登录后再次过期做准备。
-        setTimeout(() => {
-          authExpiredHandled = false
-        }, 1000)
+        setTimeout(() => { authExpiredHandled = false }, 1000)
       }
-
-      return Promise.reject(error)
+      return Promise.reject(toApiError(error))
     }
-    message.error(error.message || '网络错误')
-    return Promise.reject(error)
+
+    const apiError = toApiError(error)
+    if (!isQuietBusinessError(apiError.status, apiError.code) && (apiError.status == null || apiError.status >= 500)) {
+      message.error(apiError.status == null ? '网络错误，请检查网络连接' : '服务器暂时不可用，请稍后重试')
+    }
+    return Promise.reject(apiError)
   },
 )
 
 export default request
 
-// ── 泛型包装：为服务层提供类型安全的 HTTP 方法 ──
-// 拦截器已完成 .code 校验和 .data 抽取，泛型 T 对应抽取后的业务数据类型
+function looksLikeConfig(value: unknown): value is AxiosRequestConfig {
+  if (!value || typeof value !== 'object') return false
+  const keys = ['data', 'params', 'headers', 'signal', 'timeout', 'responseType', 'onUploadProgress', 'withCredentials']
+  return keys.some((key) => key in (value as Record<string, unknown>))
+}
+
 export const http = {
   get<T>(url: string, config?: AxiosRequestConfig): Promise<T> {
     return request.get(url, config) as Promise<T>
@@ -74,7 +137,36 @@ export const http = {
   patch<T>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<T> {
     return request.patch(url, data, config) as Promise<T>
   },
-  delete<T>(url: string, config?: AxiosRequestConfig): Promise<T> {
-    return request.delete(url, config) as Promise<T>
+  delete<T>(url: string, dataOrConfig?: unknown, config?: AxiosRequestConfig): Promise<T> {
+    // Support both the service-layer form ``delete(url, body, config)`` and
+    // Axios's native ``delete(url, { data: body, signal })`` form.  Do not
+    // spread an explicit ``data: undefined`` over a caller-provided config;
+    // that would silently drop the JSON DELETE body.
+    let resolvedConfig: AxiosRequestConfig | undefined
+    let data: unknown
+    if (config) {
+      resolvedConfig = config
+      data = dataOrConfig
+    } else if (looksLikeConfig(dataOrConfig)) {
+      resolvedConfig = dataOrConfig as AxiosRequestConfig
+      data = resolvedConfig.data
+    } else {
+      data = dataOrConfig
+    }
+    const requestConfig: AxiosRequestConfig = { ...(resolvedConfig ?? {}) }
+    if (data !== undefined) requestConfig.data = data
+    return request.delete(url, requestConfig) as Promise<T>
   },
+}
+
+export function isApiError(error: unknown): error is ApiError {
+  return error instanceof ApiError
+}
+
+export function isConflictError(error: unknown): error is ApiError {
+  return isApiError(error) && (error.status === 409 || error.code === 40201)
+}
+
+export function isValidationError(error: unknown): error is ApiError {
+  return isApiError(error) && (error.status === 422 || error.code === 40001 || error.code === 40200)
 }

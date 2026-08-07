@@ -9,6 +9,7 @@ import { SearchForm, type SearchField } from '@/components/SearchForm'
 import { StatusTag } from '@/components/StatusTag'
 import { usePagination } from '@/hooks/usePagination'
 import { useExport } from '@/hooks/useExport'
+import { usePermission } from '@/hooks/usePermission'
 import { userService } from '@/services/users'
 import { USER_STATUS_MAP } from '@/core/constants'
 import { formatDate, formatPhone } from '@/utils/format'
@@ -39,7 +40,7 @@ function mapProfileToDetail(
   if (flat.user_type || flat.real_name) {
     detail.realname = {
       user_id: flat.id,
-      user_type: (flat.user_type as 'student' | 'enterprise') || 'student',
+      user_type: 'student',
       last_name_zh: flat.last_name_zh,
       first_name_zh: flat.first_name_zh,
       last_name_en: flat.last_name_en,
@@ -80,18 +81,6 @@ function mapProfileToDetail(
       updated_at: flat.created_at,
     }
   }
-  // 企业字段存在则构建 enterprise 对象
-  if (flat.enterprise_status || flat.organization) {
-    detail.enterprise = {
-      user_id: flat.id,
-      organization: flat.organization,
-      status: (flat.enterprise_status as 'unsubmitted' | 'pending' | 'verified' | 'rejected') || 'unsubmitted',
-      verified_at: null,
-      reject_reason: flat.enterprise_reject_reason,
-      created_at: flat.created_at,
-      updated_at: flat.created_at,
-    }
-  }
   return detail
 }
 
@@ -110,13 +99,15 @@ export default function UserList() {
   const [selectedRowKeys, setSelectedRowKeys] = useState<number[]>([])
   const viewingUserId = useRef<number | null>(null)
   const { exporting, startExport, finishExport } = useExport()
+  const canWrite = usePermission('user:write')
+  const canDelete = usePermission('user:delete')
 
   const { data, loading, pagination, refresh } = usePagination(
     (page) => userService.list({ ...filters, ...page }),
     [filters],
   )
 
-  // 审核状态由列表接口直接返回（realname_status / student_status / enterprise_status）
+  // 审核状态由列表接口直接返回（identity_status / student_status）
 
   const handleSearch = useCallback((values: Record<string, unknown>) => {
     const { openid, phone, created_at_range } = values
@@ -224,11 +215,11 @@ export default function UserList() {
       },
     },
     {
-      title: '学生/企业审核',
+      title: '学生审核',
       dataIndex: 'student_status',
       width: 110,
       render: (_: unknown, record: User) => {
-        const s = record.student_status || record.enterprise_status || 'unsubmitted'
+        const s = record.student_status || 'unsubmitted'
         const cfg = LEVEL2_STATUS_MAP[s]
         return <Tag color={cfg?.color}>{cfg?.text ?? s}</Tag>
       },
@@ -241,25 +232,29 @@ export default function UserList() {
           <Button type="link" size="small" onClick={(e) => { e.stopPropagation(); handleRowClick(record); }}>
             查看
           </Button>
-           <ConfirmButton
-            title={record.is_active ? '禁用用户' : '启用用户'}
-            description={`确认${record.is_active ? '禁用' : '启用'}此用户？`}
-            type="link"
-            size="small"
-            onConfirm={() => handleToggleStatus(record)}
-          >
-            {record.is_active ? '禁用' : '启用'}
-          </ConfirmButton>
-           <ConfirmButton
-            title="删除用户"
-            description="此操作不可撤销，确认删除此用户？"
-            danger
-            type="link"
-            size="small"
-            onConfirm={() => handleDelete(record.id)}
-          >
-            删除
-          </ConfirmButton>
+          {canWrite && (
+            <ConfirmButton
+              title={record.is_active ? '禁用用户' : '启用用户'}
+              description={`确认${record.is_active ? '禁用' : '启用'}此用户？`}
+              type="link"
+              size="small"
+              onConfirm={() => handleToggleStatus(record)}
+            >
+              {record.is_active ? '禁用' : '启用'}
+            </ConfirmButton>
+          )}
+          {canDelete && (
+            <ConfirmButton
+              title="删除用户"
+              description="此操作不可撤销，确认删除此用户？"
+              danger
+              type="link"
+              size="small"
+              onConfirm={() => handleDelete(record.id)}
+            >
+              删除
+            </ConfirmButton>
+          )}
         </Space>
       ),
     },
@@ -270,7 +265,7 @@ export default function UserList() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
         <SearchForm fields={searchFields} onSearch={handleSearch} onReset={handleReset} />
         <Space style={{ flexShrink: 0 }}>
-          {selectedRowKeys.length > 0 && (
+          {canDelete && selectedRowKeys.length > 0 && (
              <ConfirmButton
               title="批量删除"
               description={`确认删除选中的 ${selectedRowKeys.length} 个用户？此操作不可撤销。`}
@@ -293,7 +288,7 @@ export default function UserList() {
         dataSource={data?.items ?? []}
         loading={loading}
         pagination={pagination}
-        rowSelection={rowSelection}
+        rowSelection={canDelete ? rowSelection : undefined}
       />
 
       <UserDetailDrawer

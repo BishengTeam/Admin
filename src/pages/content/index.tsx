@@ -6,6 +6,7 @@ import type { TableRowSelection } from 'antd/es/table/interface'
 import { PageContainer } from '@/components/PageContainer'
 import { ConfirmButton } from '@/components/ConfirmButton'
 import { usePagination } from '@/hooks/usePagination'
+import { usePermission } from '@/hooks/usePermission'
 import { contentService } from '@/services/content'
 import { formatDate } from '@/utils/format'
 import { ZONE_OPTIONS } from '@/core/constants'
@@ -19,6 +20,7 @@ export default function ContentManagement() {
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<ContentItem | null>(null)
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
+  const canWrite = usePermission('content:write')
 
   const { data, loading, pagination, refresh } = usePagination(
     (page) => contentService.list({ keyword: searchText || undefined, zone_type: zoneType, ...page }),
@@ -30,22 +32,26 @@ export default function ContentManagement() {
   }
 
   const handleAdd = () => {
+    if (!canWrite) return
     setEditingItem(null)
     setDrawerOpen(true)
   }
 
   const handleEdit = (item: ContentItem) => {
+    if (!canWrite) return
     setEditingItem(item)
     setDrawerOpen(true)
   }
 
   const handleDelete = async (id: number) => {
+    if (!canWrite) return
     await contentService.delete(id)
     message.success('删除成功')
     refresh()
   }
 
   const handleBatchDelete = async () => {
+    if (!canWrite || selectedRowKeys.length === 0) return
     await contentService.deleteZones(selectedRowKeys as number[])
     message.success(`成功删除 ${selectedRowKeys.length} 条内容`)
     setSelectedRowKeys([])
@@ -58,6 +64,7 @@ export default function ContentManagement() {
   }
 
   const handleToggleStatus = async (id: number, checked: boolean) => {
+    if (!canWrite) return
     await contentService.update(id, { is_active: checked })
     message.success(checked ? '已上架' : '已下架')
     refresh()
@@ -98,6 +105,7 @@ export default function ContentManagement() {
       render: (is_active: boolean, record) => (
         <Switch
           checked={is_active}
+          disabled={!canWrite}
           onChange={(checked) => handleToggleStatus(record.id, checked)}
           checkedChildren="上架"
           unCheckedChildren="下架"
@@ -120,17 +128,19 @@ export default function ContentManagement() {
       width: 120,
       render: (_, record) => (
         <Space>
-          <Button type="link" size="small" onClick={() => handleEdit(record)}>编辑</Button>
-          <ConfirmButton
-            title="删除内容"
-            description="此操作不可撤销，确认删除此内容？"
-            danger
-            type="link"
-            size="small"
-            onConfirm={() => handleDelete(record.id)}
-          >
-            删除
-          </ConfirmButton>
+          {canWrite && <Button type="link" size="small" onClick={() => handleEdit(record)}>编辑</Button>}
+          {canWrite && (
+            <ConfirmButton
+              title="删除内容"
+              description="此操作不可撤销，确认删除此内容？"
+              danger
+              type="link"
+              size="small"
+              onConfirm={() => handleDelete(record.id)}
+            >
+              删除
+            </ConfirmButton>
+          )}
         </Space>
       ),
     },
@@ -139,7 +149,7 @@ export default function ContentManagement() {
   return (
     <PageContainer
       title="内容管理"
-      extra={<Button type="primary" icon={<PlusOutlined />} onClick={handleAdd}>新增内容</Button>}
+      extra={canWrite ? <Button type="primary" icon={<PlusOutlined />} onClick={handleAdd}>新增内容</Button> : null}
     >
       <Space style={{ marginBottom: 16 }}>
         <Input
@@ -160,7 +170,7 @@ export default function ContentManagement() {
         />
         <Button type="primary" onClick={handleSearch}>查询</Button>
         <Button onClick={() => { setKeyword(''); setSearchText(''); }}>重置</Button>
-        {selectedRowKeys.length > 0 && (
+        {canWrite && selectedRowKeys.length > 0 && (
           <ConfirmButton
             title="批量删除"
             description={`确认删除选中的 ${selectedRowKeys.length} 条内容？此操作不可撤销。`}
@@ -179,7 +189,7 @@ export default function ContentManagement() {
         dataSource={data?.items}
         loading={loading}
         pagination={pagination}
-        rowSelection={rowSelection}
+        rowSelection={canWrite ? rowSelection : undefined}
       />
 
       <ContentEditDrawer

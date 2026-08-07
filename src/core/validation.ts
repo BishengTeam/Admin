@@ -2,6 +2,216 @@
 // 逐步覆盖关键 API 响应，后端字段变更时运行时报错而非静默失败
 import { z } from 'zod'
 
+const nullableString = z.string().nullable()
+const dateString = z.string().min(1)
+const positiveInt = z.number().int().min(1)
+
+export const CategorySchema = z.object({
+  id: z.number(),
+  name: z.string(),
+  normalized_name: z.string(),
+  parent_id: z.number().nullable(),
+  depth: z.number().min(1).max(3),
+  description: nullableString,
+  status: z.enum(['active', 'disabled']),
+  sort_order: z.number(),
+  ever_had_question: z.boolean(),
+  lock_version: z.number().min(1),
+  created_by: z.number(),
+  updated_by: z.number(),
+  created_at: dateString,
+  updated_at: dateString,
+}).strict()
+
+const answerKeySchema = z.enum(['A', 'B', 'C', 'D'])
+const answerSchema = z.union([
+  answerKeySchema,
+  z.array(answerKeySchema).min(1).max(4).refine((value) => new Set(value).size === value.length, { message: '答案不能重复' }),
+])
+const optionSchema = z.record(z.string(), z.string()).superRefine((value, ctx) => {
+  const keys = Object.keys(value)
+  if (keys.length > 4 || keys.some((key) => !['A', 'B', 'C', 'D'].includes(key))) {
+    ctx.addIssue({ code: 'custom', message: '选项键只能为 A-D，最多 4 个' })
+  }
+  const expected = ['A', 'B', 'C', 'D'].slice(0, keys.length)
+  if (keys.some((key, index) => key !== expected[index])) {
+    ctx.addIssue({ code: 'custom', message: '选项键必须从 A 开始连续排列' })
+  }
+  if (keys.some((key) => !value[key].trim())) {
+    ctx.addIssue({ code: 'custom', message: '选项内容不能为空' })
+  }
+})
+
+function questionShapeRules(value: {
+  question_type?: 'single_choice' | 'multiple_choice' | 'judge'
+  options?: Record<string, string> | null
+  correct_answer?: string | string[] | null
+}, ctx: z.RefinementCtx) {
+  if (value.question_type === 'multiple_choice' && typeof value.correct_answer === 'string') {
+    ctx.addIssue({ code: 'custom', path: ['correct_answer'], message: '多选题答案必须使用数组' })
+  }
+  // `question_type` is optional on partial update requests.  When it is
+  // omitted, leave the answer shape check to the server, which can apply the
+  // existing question's type; otherwise a multiple-choice answer-only edit
+  // would be rejected as if it were a single-choice question.
+  if (value.question_type && value.question_type !== 'multiple_choice' && Array.isArray(value.correct_answer)) {
+    ctx.addIssue({ code: 'custom', path: ['correct_answer'], message: '单选题和判断题答案必须使用单个选项键' })
+  }
+  if (value.question_type === 'judge' && value.options && (value.options.A !== '正确' || value.options.B !== '错误' || Object.keys(value.options).length !== 2)) {
+    ctx.addIssue({ code: 'custom', path: ['options'], message: '判断题固定为 A=正确、B=错误' })
+  }
+  if (value.question_type === 'judge' && typeof value.correct_answer === 'string' && !['A', 'B'].includes(value.correct_answer)) {
+    ctx.addIssue({ code: 'custom', path: ['correct_answer'], message: '判断题答案只能为 A 或 B' })
+  }
+  if (value.options && value.correct_answer) {
+    const optionKeys = new Set(Object.keys(value.options))
+    const answers = Array.isArray(value.correct_answer) ? value.correct_answer : [value.correct_answer]
+    if (answers.some((answer) => !optionKeys.has(answer))) {
+      ctx.addIssue({ code: 'custom', path: ['correct_answer'], message: '正确答案必须对应已有选项' })
+    }
+  }
+}
+
+export const CategoryCreateSchema = z.object({
+  name: z.string().min(1).max(128),
+  parent_id: positiveInt.nullable().optional(),
+  description: z.string().max(256).nullable().optional(),
+  sort_order: z.number().int().optional(),
+}).strict()
+
+export const CategoryUpdateSchema = z.object({
+  lock_version: positiveInt,
+  name: z.string().min(1).max(128).optional(),
+  parent_id: positiveInt.nullable().optional(),
+  description: z.string().max(256).nullable().optional(),
+  sort_order: z.number().int().optional(),
+}).strict().refine((value) => Object.keys(value).some((key) => key !== 'lock_version'), { message: '至少需要一个分类变更字段' })
+
+export const CategoryStatusUpdateSchema = z.object({
+  status: z.enum(['active', 'disabled']),
+  lock_version: positiveInt,
+}).strict()
+
+export const QuestionCreateSchema = z.object({
+  category_id: positiveInt,
+  question_type: z.enum(['single_choice', 'multiple_choice', 'judge']),
+  question_text: z.string().min(1).max(1024),
+  options: optionSchema.nullable().optional(),
+  correct_answer: answerSchema.nullable().optional(),
+  explanation: z.string().max(1024).nullable().optional(),
+}).strict().superRefine(questionShapeRules)
+
+export const QuestionUpdateSchema = z.object({
+  lock_version: positiveInt,
+  category_id: positiveInt.optional(),
+  question_type: z.enum(['single_choice', 'multiple_choice', 'judge']).optional(),
+  question_text: z.string().min(1).max(1024).optional(),
+  options: optionSchema.nullable().optional(),
+  correct_answer: answerSchema.nullable().optional(),
+  explanation: z.string().max(1024).nullable().optional(),
+}).strict().refine((value) => Object.keys(value).some((key) => key !== 'lock_version'), { message: '至少需要一个题目变更字段' }).superRefine(questionShapeRules)
+
+export const VersionRequestSchema = z.object({ lock_version: positiveInt }).strict()
+
+export const BatchRequestSchema = z.object({
+  items: z.array(z.object({ question_id: positiveInt, lock_version: positiveInt }).strict()).min(1).max(5000),
+}).strict().refine((value) => new Set(value.items.map((item) => item.question_id)).size === value.items.length, { message: 'question_id 不能重复' })
+
+export const CsvImportMetadataSchema = z.object({ filename: z.string().min(1).max(255).regex(/\.csv$/i, '文件名必须以 .csv 结尾'), size_bytes: z.number().int().min(1).max(10 * 1024 * 1024) }).strict()
+
+export const JsonImportQuestionSchema = z.object({
+  category_path: z.array(z.string().min(1)).min(1).max(3),
+  question_type: z.enum(['single_choice', 'multiple_choice', 'judge']),
+  question_text: z.string().min(1).max(1024),
+  options: optionSchema.nullable().optional(),
+  correct_answer: answerSchema.nullable().optional(),
+  explanation: z.string().max(1024).nullable().optional(),
+}).strict().superRefine(questionShapeRules)
+
+export const JsonImportRequestSchema = z.object({ questions: z.array(JsonImportQuestionSchema).min(1).max(5000) }).strict()
+
+export const QuestionSchema = z.object({
+  id: z.number(),
+  category_id: z.number(),
+  question_type: z.enum(['single_choice', 'multiple_choice', 'judge']),
+  status: z.enum(['draft', 'published', 'disabled']),
+  question_text: z.string(),
+  normalized_question_text: z.string(),
+  options: optionSchema.nullable(),
+  correct_answer: answerSchema.nullable(),
+  explanation: nullableString,
+  ever_published: z.boolean(),
+  published_at: nullableString,
+  disabled_at: nullableString,
+  lock_version: z.number().min(1),
+  created_by: z.number(),
+  updated_by: z.number(),
+  created_at: dateString,
+  updated_at: dateString,
+}).strict().superRefine(questionShapeRules)
+
+export const QuestionStatsSchema = z.object({
+  question_id: z.number(),
+  practice_first_attempts: z.number().min(0),
+  practice_first_correct: z.number().min(0),
+  practice_first_accuracy: z.coerce.number().min(0).max(100),
+  exam_answers: z.number().min(0),
+  exam_correct: z.number().min(0),
+  exam_accuracy: z.coerce.number().min(0).max(100),
+  aggregated_through: nullableString,
+}).strict()
+
+export const BatchItemErrorSchema = z.object({
+  question_id: z.number(),
+  code: z.number(),
+  field: nullableString,
+  message: z.string(),
+}).strict()
+
+export const BatchResponseSchema = z.object({
+  succeeded: z.boolean(),
+  updated_count: z.number().min(0),
+  errors: z.array(BatchItemErrorSchema),
+}).strict()
+
+export const ImportJobSchema = z.object({
+  id: z.number(),
+  admin_id: z.number().nullable(),
+  source_type: z.enum(['csv', 'json']),
+  status: z.enum(['queued', 'validating', 'importing', 'succeeded', 'validation_failed', 'failed']),
+  source_size_bytes: z.number().min(1).max(10 * 1024 * 1024),
+  total_rows: z.number().min(0).max(5000),
+  validated_rows: z.number().min(0).max(5000),
+  created_count: z.number().min(0).max(5000),
+  error_count: z.number().min(0),
+  heartbeat_at: nullableString,
+  retry_count: z.number().min(0),
+  error_message: nullableString,
+  report_available: z.boolean(),
+  expires_at: dateString,
+  created_at: dateString,
+  updated_at: dateString,
+}).strict()
+
+export const SignedUrlSchema = z.object({ url: z.string().min(1), expires_at: dateString }).strict()
+
+export const AuditLogSchema = z.object({
+  id: z.number(),
+  actor_type: z.enum(['admin', 'system']),
+  admin_id: z.number().nullable(),
+  permission: nullableString,
+  request_id: nullableString,
+  ip_address: nullableString,
+  action: z.string(),
+  object_type: z.string(),
+  object_id: z.number().nullable(),
+  result: z.enum(['succeeded', 'failed']),
+  changed_fields: z.record(z.string(), z.object({ before: z.unknown().nullable(), after: z.unknown().nullable() }).strict()).nullable(),
+  target_ids: z.array(z.number()).nullable(),
+  error_summary: nullableString,
+  created_at: dateString,
+}).strict()
+
 // 基础分页结构
 export const PageDataSchema = <T extends z.ZodType>(itemSchema: T) =>
   z.object({
@@ -26,8 +236,13 @@ export function validateOrThrow<T>(schema: z.ZodType<T>, data: unknown): T {
   const result = schema.safeParse(data)
   if (!result.success) {
     console.error('[Zod validation error]', result.error.format())
-    if (import.meta.env.PROD) return data as T // 生产环境降级
     throw new Error(`API response validation failed: ${result.error.message}`)
   }
+  return result.data
+}
+
+export function validateRequestOrThrow<T>(schema: z.ZodType<T>, data: unknown): T {
+  const result = schema.safeParse(data)
+  if (!result.success) throw new Error(`请求模型校验失败: ${result.error.message}`)
   return result.data
 }

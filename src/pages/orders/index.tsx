@@ -2,20 +2,19 @@ import { useState, useCallback, useEffect } from 'react'
 import { Table, Tabs, Input, Select, DatePicker, Button, Avatar, Space, message } from 'antd'
 import { useLocation, useNavigate } from 'react-router-dom'
 import dayjs from 'dayjs'
-import { DownloadOutlined, EyeOutlined } from '@ant-design/icons'
+import { AccountBookOutlined, DownloadOutlined, EyeOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import { PageContainer } from '@/components/PageContainer'
 import { StatusTag } from '@/components/StatusTag'
 import { usePagination } from '@/hooks/usePagination'
 import { useExport } from '@/hooks/useExport'
-import { usePermission } from '@/hooks/usePermission'
 import { orderService } from '@/services/orders'
 import { ORDER_STATUS_MAP } from '@/core/constants'
 import { formatDate, formatPrice } from '@/utils/format'
 import { downloadBlob } from '@/utils/download'
 import type { Order, OrderFilter, OrderStatus, OrderDetail } from '@/types/order'
-import RefundModal from './components/RefundModal'
 import OrderDetailDrawer from './components/OrderDetailDrawer'
+import ReconciliationModal from './components/ReconciliationModal'
 
 const { RangePicker } = DatePicker
 
@@ -34,7 +33,7 @@ const productOptions = [
   { label: 'H3CIE-RS+', value: 'H3CIE-RS+' },
   { label: '深信服安全', value: '深信服安全' },
   { label: 'NISP一级', value: 'NISP一级' },
-  { label: '人社认证', value: '人社认证' },
+  { label: '人社 RS-ZY', value: 'RS-ZY' },
 ]
 
 // ── 商品类型 → 列表摘要字段 ──
@@ -76,16 +75,14 @@ export default function OrderList() {
   const [filters, setFilters] = useState<OrderFilter>({})
   const [activeTab, setActiveTab] = useState('')
   const [searchPhone, setSearchPhone] = useState('')
-  const [refundOrder, setRefundOrder] = useState<Order | null>(null)
   const [detailOrder, setDetailOrder] = useState<OrderDetail | null>(null)
   const [drawerOpen, setDrawerOpen] = useState(false)
+  const [reconciliationOpen, setReconciliationOpen] = useState(false)
   const { exporting, startExport, finishExport } = useExport()
-  const canReview = usePermission('user:write')
-  const canRefund = usePermission('order:write')
   const location = useLocation()
   const navigate = useNavigate()
 
-  const { data, loading, pagination, refresh } = usePagination(
+  const { data, loading, pagination } = usePagination(
     (page) => orderService.list({ ...filters, ...page }),
     [filters],
   )
@@ -116,27 +113,10 @@ export default function OrderList() {
     }
   }
 
-  const handleRefundSuccess = () => {
-    setRefundOrder(null)
-    setDetailOrder(null)
-    setDrawerOpen(false)
-    refresh()
-  }
-
   const handleViewDetail = async (record: Order) => {
     const detail = await orderService.detail(record.id)
     setDetailOrder(detail)
     setDrawerOpen(true)
-  }
-
-  const handleApprove = async (record: Order) => {
-    await orderService.review(record.id, 'approve')
-    message.success('审核通过')
-    if (detailOrder?.id === record.id) {
-      setDetailOrder(null)
-      setDrawerOpen(false)
-    }
-    refresh()
   }
 
   useEffect(() => {
@@ -190,7 +170,7 @@ export default function OrderList() {
     },
     {
       title: '报名信息',
-      width: 200,
+      width: 100,
       ellipsis: true,
       render: (_, record) => (
         <span style={{ color: '#666', fontSize: 13 }}>{renderExtraSummary(record)}</span>
@@ -222,25 +202,6 @@ export default function OrderList() {
           <Button type="link" size="small" icon={<EyeOutlined />} onClick={() => handleViewDetail(record)}>
             查看
           </Button>
-          {record.status === 'paid' && canReview && (
-            <Button
-              type="link"
-              size="small"
-              onClick={() => handleApprove(record)}
-            >
-              通过
-            </Button>
-          )}
-          {record.status === 'paid' && canReview && (
-            <Button type="link" size="small" danger onClick={() => setRefundOrder(record)}>
-              驳回
-            </Button>
-          )}
-          {record.status === 'completed' && canRefund && (
-            <Button type="link" size="small" danger onClick={() => setRefundOrder(record)}>
-              退款
-            </Button>
-          )}
         </Space>
       ),
     },
@@ -250,9 +211,14 @@ export default function OrderList() {
     <PageContainer
       title="订单管理"
       extra={
-        <Button icon={<DownloadOutlined />} loading={exporting} onClick={handleExport}>
-          导出
-        </Button>
+        <Space>
+          <Button icon={<AccountBookOutlined />} onClick={() => setReconciliationOpen(true)}>
+            对账
+          </Button>
+          <Button icon={<DownloadOutlined />} loading={exporting} onClick={handleExport}>
+            导出
+          </Button>
+        </Space>
       }
     >
       <Tabs activeKey={activeTab} onChange={handleTabChange} items={statusTabs} style={{ marginBottom: 16 }} />
@@ -294,21 +260,15 @@ export default function OrderList() {
         pagination={pagination}
       />
 
-      <RefundModal
-        order={refundOrder}
-        onSuccess={handleRefundSuccess}
-        onCancel={() => setRefundOrder(null)}
-      />
-
       <OrderDetailDrawer
         order={detailOrder}
         open={drawerOpen}
-        canReview={canReview}
-        canRefund={canRefund}
-        onApprove={handleApprove}
-        onReject={(order) => setRefundOrder(order)}
-        onRefund={(order) => setRefundOrder(order)}
         onClose={() => setDrawerOpen(false)}
+      />
+
+      <ReconciliationModal
+        open={reconciliationOpen}
+        onClose={() => setReconciliationOpen(false)}
       />
     </PageContainer>
   )

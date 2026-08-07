@@ -1,5 +1,8 @@
-import { Descriptions, Drawer, Tabs, Tag, Typography } from 'antd'
+import { Button, Descriptions, Drawer, Tabs, Tag, Typography } from 'antd'
+import { ArrowRightOutlined } from '@ant-design/icons'
 import type { TabsProps } from 'antd'
+import { useNavigate } from 'react-router-dom'
+import { usePermission } from '@/hooks/usePermission'
 import { formatDate, formatPrice } from '@/utils/format'
 import type { Certification } from '@/types/certification'
 import PlanManagement from './PlanManagement'
@@ -25,6 +28,9 @@ export default function CertificationDetailDrawer({
   onTabChange,
   onClose,
 }: CertificationDetailDrawerProps) {
+  const navigate = useNavigate()
+  const canViewRenshe = usePermission('user:list')
+  const isRenshe = certification?.code === 'RS-ZY'
   const items: TabsProps['items'] = certification
     ? [
         {
@@ -45,9 +51,13 @@ export default function CertificationDetailDrawer({
         {
           key: 'plans',
           label: '批次管理',
-          children: <PlanManagement certification={certification} />,
+          children: isRenshe && canViewRenshe ? (
+            <Button type="primary" icon={<ArrowRightOutlined />} onClick={() => navigate('/admin/renshe/batches')}>
+              打开人社批次工作台
+            </Button>
+          ) : isRenshe ? <Text type="secondary">当前账号无权访问人社批次</Text> : <PlanManagement certification={certification} />,
         },
-        {
+        ...(!isRenshe ? [{
           key: 'prices',
           label: '价格配置',
           children: (
@@ -61,7 +71,7 @@ export default function CertificationDetailDrawer({
               </Paragraph>
             </div>
           ),
-        },
+        }] : []),
       ]
     : []
 

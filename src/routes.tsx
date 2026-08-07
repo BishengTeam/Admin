@@ -4,6 +4,7 @@ import { Navigate, type RouteObject } from 'react-router-dom'
 export interface RouteMeta {
   title: string
   permission?: string
+  permissions?: string[]
   icon?: string
   hidden?: boolean
 }
@@ -20,8 +21,14 @@ const LoginPage = lazy(() => import('@/pages/login'))
 const Dashboard = lazy(() => import('@/pages/dashboard'))
 const UserList = lazy(() => import('@/pages/users'))
 const OrderList = lazy(() => import('@/pages/orders'))
+const RensheBatches = lazy(() => import('@/pages/renshe/batches'))
+const RensheApplications = lazy(() => import('@/pages/renshe/applications'))
+const RensheExports = lazy(() => import('@/pages/renshe/exports'))
+const RensheRefunds = lazy(() => import('@/pages/renshe/refunds'))
 const QuizManagement = lazy(() => import('@/pages/quiz'))
-const QuizImport = lazy(() => import('@/pages/quiz/import'))
+const QuizImports = lazy(() => import('@/pages/quiz/imports'))
+const QuizAuditLogs = lazy(() => import('@/pages/quiz/audit-logs'))
+const ContentManagement = lazy(() => import('@/pages/content'))
 const CourseList = lazy(() => import('@/pages/content/courses'))
 const CertificationManagement = lazy(() => import('@/pages/certification'))
 const JobManagement = lazy(() => import('@/pages/job'))
@@ -50,6 +57,33 @@ export const adminRoutes: AppRoute[] = [
     meta: { title: '订单管理', icon: 'ShoppingOutlined', permission: 'order:list' },
   },
   {
+    path: 'renshe',
+    meta: { title: '人社报名', icon: 'SolutionOutlined' },
+    children: [
+      { index: true, element: <Navigate to="batches" replace /> },
+      {
+        path: 'batches',
+        element: <RensheBatches />,
+        meta: { title: '批次管理', icon: 'ClusterOutlined', permission: 'user:list' },
+      },
+      {
+        path: 'applications',
+        element: <RensheApplications />,
+        meta: { title: '报名审核', icon: 'FormOutlined', permission: 'user:list' },
+      },
+      {
+        path: 'exports',
+        element: <RensheExports />,
+        meta: { title: '导出中心', icon: 'FileZipOutlined', permission: 'user:list' },
+      },
+      {
+        path: 'refunds',
+        element: <RensheRefunds />,
+        meta: { title: '退款工作台', icon: 'RollbackOutlined', permission: 'order:list' },
+      },
+    ],
+  },
+  {
     path: 'reviews',
     element: <ReviewManagement />,
     meta: { title: '审核管理', icon: 'AuditOutlined', permission: 'review:list' },
@@ -60,9 +94,19 @@ export const adminRoutes: AppRoute[] = [
     meta: { title: '题库管理', icon: 'BookOutlined', permission: 'quiz:list' },
   },
   {
-    path: 'quiz/import',
-    element: <QuizImport />,
-    meta: { title: '批量导入', hidden: true, permission: 'quiz:import' },
+    path: 'quiz/imports',
+    element: <QuizImports />,
+    meta: { title: '导入任务', icon: 'ImportOutlined', permissions: ['quiz:list', 'quiz:import'] },
+  },
+  {
+    path: 'quiz/audit-logs',
+    element: <QuizAuditLogs />,
+    meta: { title: '审计日志', icon: 'FileSearchOutlined', permission: 'quiz:list' },
+  },
+  {
+    path: 'content',
+    element: <ContentManagement />,
+    meta: { title: '内容配置', icon: 'FileTextOutlined', permission: 'content:list' },
   },
   {
     path: 'courses',

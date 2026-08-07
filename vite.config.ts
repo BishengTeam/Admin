@@ -15,6 +15,7 @@ export default defineConfig({
   <meta http-equiv="Content-Security-Policy"
         content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline';
                  img-src 'self' data: https:; connect-src 'self';
+                 frame-src 'self' https:;
                  font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'" />`,
         )
       },

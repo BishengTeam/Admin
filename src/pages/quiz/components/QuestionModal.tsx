@@ -1,127 +1,156 @@
-import React, { useEffect } from 'react'
-import { Modal, Form, Input, TreeSelect, Radio, Checkbox, Button, Space, message } from 'antd'
-import { PlusOutlined, MinusCircleOutlined } from '@ant-design/icons'
+import { useEffect } from 'react'
+import { Button, Checkbox, Form, Input, message, Modal, Radio, Space, TreeSelect } from 'antd'
+import { MinusCircleOutlined, PlusOutlined } from '@ant-design/icons'
+import type { Category, Question, QuestionCreate, QuestionType, QuestionUpdate } from '@/types/quiz'
+import { answerToArray, answerToPayload, QUESTION_OPTION_KEYS } from '@/types/quiz'
+import { buildCategoryTree, isCategoryEffectivelyDisabled } from './CategoryTree'
 import { quizService } from '@/services/quiz'
-import { requiredRule, requiredSelectRule } from '@/utils/validator'
-import type { Question, Category, QuestionType } from '@/types/quiz'
+import { ApiError, isConflictError, isValidationError } from '@/core/request'
 
 interface QuestionModalProps {
   open: boolean
   question: Question | null
   categories: Category[]
+  canWrite: boolean
   onClose: () => void
-  onSuccess: () => void
+  onSaved: (question: Question) => void
+  onConflict: () => void
 }
 
-interface TreeSelectNode {
-  title: string
-  value: number
-  children?: TreeSelectNode[]
+interface OptionValue { content?: string }
+
+function categoryNodes(categories: Category[], all: Category[]): Array<{ title: string; value: number; disabled?: boolean; children?: ReturnType<typeof categoryNodes> }> {
+  return categories.map((category) => ({
+    title: `${category.name}${category.status === 'disabled' ? '（停用）' : ''}${isCategoryEffectivelyDisabled(all, category.id) && category.status === 'active' ? '（继承停用）' : ''}`,
+    value: category.id,
+    disabled: isCategoryEffectivelyDisabled(all, category.id),
+    children: category.children?.length ? categoryNodes(category.children, all) : undefined,
+  }))
 }
 
-function categoryToTreeSelect(categories: Category[]): TreeSelectNode[] {
-  return categories.map((cat) => {
-    const node: TreeSelectNode = { title: cat.name, value: cat.id }
-    if (cat.children && cat.children.length > 0) {
-      node.children = categoryToTreeSelect(cat.children)
-    }
-    return node
-  })
+function stableOptions(value: Record<string, string> | null | undefined) {
+  return QUESTION_OPTION_KEYS.reduce<Record<string, string>>((result, key) => {
+    if (value?.[key] !== undefined) result[key] = value[key]
+    return result
+  }, {})
 }
 
-const LABELS = ['A', 'B', 'C', 'D', 'E', 'F']
-
-interface CheckboxChildProps {
-  value?: string
-  checked?: boolean
-  onChange?: () => void
-  children?: React.ReactNode
+function sameValue(a: unknown, b: unknown) {
+  return JSON.stringify(a) === JSON.stringify(b)
 }
 
-function CheckboxGroup({ value, onChange, children }: { value?: string[]; onChange?: (v: string[]) => void; children: React.ReactNode }) {
-  return (
-    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-      {React.Children.map(children, (child) => {
-        if (!React.isValidElement(child)) return child
-        const val = (child.props as CheckboxChildProps).value
-        if (val === undefined) return child
-        const checked = value?.includes(val) ?? false
-        return React.cloneElement(child as React.ReactElement<CheckboxChildProps>, {
-          checked,
-          onChange: () => {
-            const next = checked ? value?.filter((v) => v !== val) : [...(value || []), val]
-            onChange?.(next || [])
-          },
-        })
-      })}
-    </div>
-  )
-}
-
-export default function QuestionModal({ open, question, categories, onClose, onSuccess }: QuestionModalProps) {
+export default function QuestionModal({ open, question, categories, canWrite, onClose, onSaved, onConflict }: QuestionModalProps) {
   const [form] = Form.useForm()
-  const isEdit = !!question
-  const questionType = Form.useWatch('question_type', form) as QuestionType | undefined
+  const type = Form.useWatch('question_type', form) as QuestionType | undefined
+  const options = Form.useWatch('options', form) as OptionValue[] | undefined
+  const isEdit = Boolean(question)
 
   useEffect(() => {
-    if (open) {
-      if (question) {
-        // Convert Record<string,string> options to Form.List format [{label, content}]
-        const optionsList = Object.entries(question.options ?? {}).map(([label, content]) => ({
-          label,
-          content,
-        }))
-        form.setFieldsValue({
-          category_id: question.category_id,
-          question_type: question.question_type,
-          question_text: question.question_text,
-          options: optionsList,
-          correct_answer: question.question_type === 'multiple_choice'
-            ? question.correct_answer.split('')
-            : question.correct_answer,
-          explanation: question.explanation,
-        })
-      } else {
-        form.resetFields()
-      }
+    if (!open) return
+    if (!question) {
+      form.resetFields()
+      form.setFieldsValue({ question_type: 'single_choice', options: [{ content: '' }, { content: '' }, { content: '' }] })
+      return
     }
-  }, [open, question, form])
+    form.setFieldsValue({
+      category_id: question.category_id,
+      question_type: question.question_type,
+      question_text: question.question_text,
+      options: question.question_type === 'judge'
+        ? [{ content: '正确' }, { content: '错误' }]
+        : Object.entries(stableOptions(question.options)).map(([, content]) => ({ content })),
+      correct_answer: question.question_type === 'multiple_choice' ? answerToArray(question.correct_answer) : question.correct_answer,
+      explanation: question.explanation ?? undefined,
+    })
+  }, [form, open, question])
+
+  const handleTypeChange = (next: QuestionType) => {
+    if (next === 'judge') {
+      form.setFieldsValue({ options: [{ content: '正确' }, { content: '错误' }], correct_answer: undefined })
+    } else if (type === 'judge') {
+      form.setFieldsValue({ options: [{ content: '' }, { content: '' }, { content: '' }], correct_answer: undefined })
+    } else if (next !== type) {
+      // Single- and multiple-choice answers use different wire shapes.  Do
+      // not retain a string in Checkbox.Group or an array in Radio.Group when
+      // the administrator changes the question type.
+      form.setFieldValue('correct_answer', undefined)
+    }
+  }
 
   const handleSubmit = async () => {
-    const values = await form.validateFields()
+    try {
+      const values = await form.validateFields()
+      const questionType = values.question_type as QuestionType
+      const questionText = String(values.question_text).trim()
+      if (!questionText) { form.setFields([{ name: 'question_text', errors: ['请输入题干'] }]); return }
+      const optionValues = (values.options ?? []) as OptionValue[]
+      const optionRecord: Record<string, string> = {}
+      optionValues.slice(0, 4).forEach((item, index) => {
+        const content = String(item?.content ?? '').trim()
+        if (content) optionRecord[QUESTION_OPTION_KEYS[index]] = content
+      })
+      if (questionType === 'judge') {
+        optionRecord.A = '正确'
+        optionRecord.B = '错误'
+      }
+      const answer = answerToPayload(values.correct_answer, questionType)
+      if (!isEdit) {
+        const payload: QuestionCreate = {
+          category_id: values.category_id,
+          question_type: questionType,
+          question_text: questionText,
+          ...(Object.keys(optionRecord).length ? { options: optionRecord } : {}),
+          ...(answer ? { correct_answer: answer } : {}),
+          ...(values.explanation?.trim() ? { explanation: values.explanation.trim() } : {}),
+        }
+        const created = await quizService.createQuestion(payload)
+        onSaved(created)
+        return
+      }
 
-    // Convert options list to Record<string,string>
-    const options: Record<string, string> = {}
-    const optionsList = values.options as { label?: string; content: string }[]
-    optionsList.forEach((item, idx) => {
-      const label = item.label || LABELS[idx]
-      options[label] = item.content
-    })
-
-    // correct_answer: string (single: "A", multi: "AC")
-    const correct_answer = Array.isArray(values.correct_answer)
-      ? values.correct_answer.sort().join('')
-      : values.correct_answer
-
-    const data = {
-      category_id: values.category_id,
-      category_name: '',
-      question_type: values.question_type,
-      question_text: values.question_text,
-      options,
-      correct_answer,
-      explanation: values.explanation || '',
+      const update: QuestionUpdate = { lock_version: question!.lock_version }
+      if (values.category_id !== question!.category_id) update.category_id = values.category_id
+      if (questionType !== question!.question_type) update.question_type = questionType
+      if (questionText !== question!.question_text) update.question_text = questionText
+      const normalizedOptions = Object.keys(optionRecord).length ? optionRecord : null
+      if (!sameValue(stableOptions(question!.options), stableOptions(normalizedOptions))) update.options = normalizedOptions
+      if (!sameValue(answer, question!.correct_answer)) update.correct_answer = answer
+      const explanation = values.explanation?.trim() || null
+      if (explanation !== question!.explanation) update.explanation = explanation
+      if (Object.keys(update).length === 1) {
+        onClose()
+        return
+      }
+      const updated = await quizService.updateQuestion(question!.id, update)
+      onSaved(updated)
+    } catch (error) {
+      if (error && typeof error === 'object' && 'errorFields' in error) return
+      if (error instanceof ApiError && isConflictError(error)) {
+        onConflict()
+        return
+      }
+      if (error instanceof ApiError && isValidationError(error)) {
+        const fieldErrors = error.fields
+          .filter((field) => field.loc?.length || field.field)
+          .map((field) => {
+            const rawPath = field.field?.split('.')
+              ?? (field.loc?.map(String) ?? ['question_text'])
+            const name = rawPath.map((part) => /^\d+$/.test(part) ? Number(part) : part)
+            return { name, errors: [field.msg || field.reason || field.message || error.message] }
+          })
+        if (fieldErrors.length) form.setFields(fieldErrors)
+        else message.warning(error.message)
+        return
+      }
+      if (!(error instanceof ApiError && (error.status == null || error.status >= 500))) message.error(error instanceof Error ? error.message : '请求失败')
     }
-
-    if (isEdit) {
-      await quizService.updateQuestion(question!.id, data)
-      message.success('更新成功')
-    } else {
-      await quizService.createQuestion(data)
-      message.success('添加成功')
-    }
-    onSuccess()
   }
+
+  const currentOptionsCount = options?.length ?? 0
+  const selectableOptionKeys = type === 'judge'
+    ? ['A', 'B']
+    : QUESTION_OPTION_KEYS.slice(0, Math.min(currentOptionsCount, QUESTION_OPTION_KEYS.length))
+  const tree = buildCategoryTree(categories)
 
   return (
     <Modal
@@ -129,77 +158,49 @@ export default function QuestionModal({ open, question, categories, onClose, onS
       open={open}
       onOk={handleSubmit}
       onCancel={onClose}
-      width={720}
+      okButtonProps={{ disabled: !canWrite }}
+      width={760}
       destroyOnClose
     >
-      <Form form={form} layout="vertical" initialValues={{ question_type: 'single_choice' }}>
-        <Form.Item name="category_id" label="所属分类" rules={[requiredSelectRule('分类')]}>
-          <TreeSelect
-            treeData={categoryToTreeSelect(categories)}
-            placeholder="选择分类"
-            treeDefaultExpandAll
-          />
+      <Form form={form} layout="vertical">
+        <Form.Item name="category_id" label="所属分类" rules={[{ required: true, message: '请选择分类' }]}>
+          <TreeSelect treeData={categoryNodes(tree, tree)} treeDefaultExpandAll showSearch placeholder="选择有效分类" />
         </Form.Item>
-
-        <Form.Item name="question_type" label="题型" rules={[requiredSelectRule('题型')]}>
-          <Radio.Group>
+        <Form.Item name="question_type" label="题型" rules={[{ required: true, message: '请选择题型' }]}>
+          <Radio.Group onChange={(event) => handleTypeChange(event.target.value)}>
             <Radio value="single_choice">单选题</Radio>
             <Radio value="multiple_choice">多选题</Radio>
             <Radio value="judge">判断题</Radio>
           </Radio.Group>
         </Form.Item>
-
-        <Form.Item name="question_text" label="题目内容" rules={[requiredRule('题目内容')]}>
-          <Input.TextArea rows={3} placeholder="请输入题目内容" />
+        <Form.Item name="question_text" label="题干" rules={[{ required: true, message: '请输入题干' }, { max: 1024, message: '题干不能超过 1024 个字符' }]}>
+          <Input.TextArea rows={4} placeholder="草稿允许暂不填写选项，发布时会执行完整校验" />
         </Form.Item>
-
-        <Form.List name="options" rules={[{ validator: async (_, value) => {
-          if (!value || value.length < 2) {
-            return Promise.reject(new Error('至少需要2个选项'))
-          }
-        }}]}>
-          {(fields, { add, remove }, { errors }) => (
-            <>
-              {fields.map(({ key, name, ...restField }) => (
+        <Form.List name="options">
+          {(fields, { add, remove }) => (
+            <div>
+              <div style={{ marginBottom: 8 }}>选项（仅 A-D）</div>
+              {fields.slice(0, 4).map(({ key, name, ...rest }) => (
                 <Space key={key} align="baseline" style={{ display: 'flex', marginBottom: 8 }}>
-                  <span style={{ width: 24, fontWeight: 600 }}>{LABELS[name]}</span>
-                  <Form.Item {...restField} name={[name, 'content']} style={{ marginBottom: 0 }} rules={[requiredRule('选项内容')]}>
-                    <Input placeholder={`选项${LABELS[name]}内容`} style={{ width: 480 }} />
+                  <strong style={{ width: 22 }}>{QUESTION_OPTION_KEYS[name]}</strong>
+                  <Form.Item {...rest} name={[name, 'content']} style={{ marginBottom: 0 }} rules={[{ max: 1024, message: '选项不能超过 1024 个字符' }]}>
+                    <Input disabled={type === 'judge'} placeholder={`选项 ${QUESTION_OPTION_KEYS[name]}`} style={{ width: 560 }} />
                   </Form.Item>
-                  {fields.length > 2 && (
-                    <MinusCircleOutlined onClick={() => remove(name)} style={{ color: '#ff4d4f' }} />
-                  )}
+                  {type !== 'judge' && fields.length > 2 && <MinusCircleOutlined onClick={() => remove(name)} />}
                 </Space>
               ))}
-              {fields.length < 6 && (
-                <Button type="dashed" onClick={() => add({ content: '' })} icon={<PlusOutlined />} block>
-                  添加选项
-                </Button>
-              )}
-              <span style={{ color: '#ff4d4f', fontSize: 12 }}>{errors}</span>
-            </>
+              {type !== 'judge' && currentOptionsCount < 4 && <Button type="dashed" onClick={() => add({ content: '' })} icon={<PlusOutlined />}>添加选项</Button>}
+            </div>
           )}
         </Form.List>
-
-        <Form.Item name="correct_answer" label="正确选项" rules={[requiredSelectRule('正确选项')]}>
-          {questionType === 'multiple_choice' ? (
-            <CheckboxGroup>
-              {LABELS.slice(0, 6).map((l) => (
-                <Checkbox key={l} value={l}>{l}</Checkbox>
-              ))}
-            </CheckboxGroup>
+        <Form.Item name="correct_answer" label="正确答案">
+          {type === 'multiple_choice' ? (
+            <Checkbox.Group options={selectableOptionKeys.map((value) => ({ label: value, value }))} />
           ) : (
-            <Radio.Group>
-              {LABELS.slice(0, 6).map((l) => (
-                <Radio key={l} value={l}>{l}</Radio>
-              ))}
-            </Radio.Group>
+            <Radio.Group options={type === 'judge' ? [{ label: 'A（正确）', value: 'A' }, { label: 'B（错误）', value: 'B' }] : selectableOptionKeys.map((value) => ({ label: value, value }))} />
           )}
         </Form.Item>
-
-        <Form.Item name="explanation" label="答案解析">
-          <Input.TextArea rows={2} placeholder="请输入答案解析（可选）" />
-        </Form.Item>
+        <Form.Item name="explanation" label="答案解析"><Input.TextArea rows={3} maxLength={1024} showCount /></Form.Item>
       </Form>
     </Modal>
   )

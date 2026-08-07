@@ -30,6 +30,12 @@ export const certificationService = {
   async publishPlan(code: string, planId: number): Promise<CertificationPlan> {
     return http.put<CertificationPlan>(`/admin/certifications/${code}/plans/${planId}/publish`)
   },
+  async closeRegistration(code: string, planId: number): Promise<CertificationPlan> {
+    return http.put<CertificationPlan>(`/admin/certifications/${code}/plans/${planId}/close-registration`)
+  },
+  async finalizePlan(code: string, planId: number): Promise<CertificationPlan> {
+    return http.put<CertificationPlan>(`/admin/certifications/${code}/plans/${planId}/finalize`)
+  },
   async archivePlan(code: string, planId: number): Promise<CertificationPlan> {
     return http.put<CertificationPlan>(`/admin/certifications/${code}/plans/${planId}/archive`)
   },

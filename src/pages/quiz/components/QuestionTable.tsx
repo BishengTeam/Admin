@@ -1,164 +1,380 @@
-import { useState, useCallback } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { Table, Button, Space, Tag, Input, message } from 'antd'
-import { ConfirmButton } from '@/components/ConfirmButton'
-import { PlusOutlined, SearchOutlined, UploadOutlined, DeleteOutlined } from '@ant-design/icons'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Button, Descriptions, Drawer, Input, message, Modal, Progress, Select, Space, Spin, Table, Tag } from 'antd'
+import { BarChartOutlined, DeleteOutlined, EditOutlined, PlusOutlined, ReloadOutlined, SearchOutlined, StopOutlined, UndoOutlined, UploadOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import type { TableRowSelection } from 'antd/es/table/interface'
-import { usePagination } from '@/hooks/usePagination'
+import { useNavigate } from 'react-router-dom'
 import { quizService } from '@/services/quiz'
-import type { Question, QuestionFilter, Category } from '@/types/quiz'
+import { ApiError, isConflictError, isValidationError } from '@/core/request'
+import type { Category, Question, QuestionFilter, QuestionStats, QuestionStatus, QuestionType } from '@/types/quiz'
+import { formatQuestionPublishErrors, validateQuestionForPublish } from '@/utils/quiz'
+import { QUIZ_IMPORT_SUCCEEDED_EVENT } from '@/utils/quizEvents'
+import { isCategoryEffectivelyDisabled } from './CategoryTree'
 import QuestionModal from './QuestionModal'
 
 interface QuestionTableProps {
   filters: QuestionFilter
   categories: Category[]
-  keyword: string
-  onKeywordChange: (kw: string) => void
+  canWrite: boolean
+  canImport: boolean
+  onKeywordChange: (value: string) => void
+  onFilterChange: (value: Partial<QuestionFilter>) => void
+  onRefreshCategories: () => void
 }
 
-export default function QuestionTable({
-  filters,
-  categories,
-  keyword,
-  onKeywordChange,
-}: QuestionTableProps) {
+interface SelectedQuestion {
+  question_id: number
+  lock_version: number
+  status: QuestionStatus
+  category_id: number
+  ever_published: boolean
+  // Keep the row snapshot for deterministic client-side publish validation.
+  // The version sent to the API is always this selection's numeric snapshot;
+  // a 409 causes a refresh and never an automatic retry.
+  question: Question
+}
+
+const typeLabels: Record<QuestionType, string> = { single_choice: '单选', multiple_choice: '多选', judge: '判断' }
+const statusLabels: Record<QuestionStatus, string> = { draft: '草稿', published: '已发布', disabled: '已停用' }
+const statusColors: Record<QuestionStatus, string> = { draft: 'default', published: 'success', disabled: 'warning' }
+
+function formatDate(value: string | null) {
+  if (!value) return '-'
+  return new Date(value).toLocaleString('zh-CN', { hour12: false })
+}
+
+function errorText(error: unknown) {
+  if (error instanceof ApiError) return error.message
+  return error instanceof Error ? error.message : '请求失败'
+}
+
+function showActionErrors(title: string, errors: Array<{ questionId: number; messages: string[] }>) {
+  Modal.warning({
+    title,
+    content: (
+      <div>
+        {errors.flatMap((item) => item.messages.map((messageText, index) => (
+          <div key={`${item.questionId}-${index}`}>题目 #{item.questionId}：{messageText}</div>
+        )))}
+      </div>
+    ),
+  })
+}
+
+export default function QuestionTable({ filters, categories, canWrite, canImport, onKeywordChange, onFilterChange, onRefreshCategories }: QuestionTableProps) {
   const navigate = useNavigate()
+  const [data, setData] = useState<{ items: Question[]; total: number; page: number; page_size: number } | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(20)
+  const [selected, setSelected] = useState<Record<number, SelectedQuestion>>({})
   const [modalOpen, setModalOpen] = useState(false)
-  const [editingQuestion, setEditingQuestion] = useState<Question | null>(null)
-  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
+  const [editing, setEditing] = useState<Question | null>(null)
+  const [stats, setStats] = useState<QuestionStats | null>(null)
+  const [statsQuestion, setStatsQuestion] = useState<Question | null>(null)
+  const [statsLoading, setStatsLoading] = useState(false)
+  const seq = useRef(0)
+  const controller = useRef<AbortController | null>(null)
+  const statsSeq = useRef(0)
+  const filterKey = JSON.stringify(filters)
 
-  const { data, loading, pagination, refresh } = usePagination(
-    (page) => quizService.listQuestions({ ...filters, ...page }),
-    [filters],
-  )
+  const load = useCallback(async (targetPage = page, targetPageSize = pageSize) => {
+    const requestSeq = ++seq.current
+    controller.current?.abort()
+    const nextController = new AbortController()
+    controller.current = nextController
+    setLoading(true)
+    try {
+      const result = await quizService.listQuestions({ ...filters, page: targetPage, page_size: targetPageSize }, nextController.signal)
+      if (requestSeq === seq.current) {
+        setData(result)
+        // A selected row can reappear after paging or a refresh.  Replace its
+        // snapshot with the newest list response so a later batch operation
+        // never sends a lock_version from an obsolete row cache.
+        setSelected((current) => {
+          let changed = false
+          const next = { ...current }
+          result.items.forEach((item) => {
+            const previous = next[item.id]
+            if (!previous) return
+            next[item.id] = {
+              ...previous,
+              lock_version: item.lock_version,
+              status: item.status,
+              category_id: item.category_id,
+              ever_published: item.ever_published,
+              question: item,
+            }
+            changed = changed || previous.lock_version !== item.lock_version || previous.question !== item
+          })
+          return changed ? next : current
+        })
+      }
+    } catch (error) {
+      if (!nextController.signal.aborted && requestSeq === seq.current) message.error(errorText(error))
+    } finally {
+      if (requestSeq === seq.current) setLoading(false)
+    }
+  }, [filterKey, page, pageSize])
 
-  const handleAdd = () => {
-    setEditingQuestion(null)
-    setModalOpen(true)
+  useEffect(() => {
+    setPage(1)
+    setSelected({})
+  }, [filterKey])
+
+  useEffect(() => {
+    load(page, pageSize)
+    return () => controller.current?.abort()
+  }, [load, page, pageSize])
+
+  useEffect(() => {
+    const refreshAfterImport = () => {
+      setSelected({})
+      void load(page, pageSize)
+    }
+    window.addEventListener(QUIZ_IMPORT_SUCCEEDED_EVENT, refreshAfterImport)
+    return () => window.removeEventListener(QUIZ_IMPORT_SUCCEEDED_EVENT, refreshAfterImport)
+  }, [load, page, pageSize])
+
+  const categoryMap = useMemo(() => new Map(categories.map((category) => [category.id, category])), [categories])
+  const currentSelectedKeys = useMemo(() => data?.items.filter((item) => selected[item.id]).map((item) => item.id) ?? [], [data, selected])
+  const selectedItems = Object.values(selected)
+
+  const refreshAfterConflict = () => {
+    setSelected({})
+    load(page, pageSize)
+    onRefreshCategories()
+    message.warning('数据已被其他管理员修改，列表已刷新；当前输入仍保留，请关闭后重新打开并对比，再提交')
   }
 
-  const handleEdit = (question: Question) => {
-    setEditingQuestion(question)
-    setModalOpen(true)
+  const runSingle = async (action: () => Promise<Question>, success: string) => {
+    try {
+      const updated = await action()
+      setData((current) => current ? { ...current, items: current.items.map((item) => item.id === updated.id ? updated : item) } : current)
+      setSelected({})
+      onRefreshCategories()
+      message.success(success)
+    } catch (error) {
+      if (isConflictError(error)) refreshAfterConflict()
+      else if (isValidationError(error)) message.warning(errorText(error))
+      else message.error(errorText(error))
+    }
   }
 
-  const handleDelete = useCallback(async (id: number) => {
-    await quizService.deleteQuestion(id)
-    message.success('删除成功')
-    refresh()
-  }, [refresh])
-
-  const handleBatchDelete = async () => {
-    await quizService.deleteQuestions(selectedRowKeys as number[])
-    message.success(`成功删除 ${selectedRowKeys.length} 道题目`)
-    setSelectedRowKeys([])
-    refresh()
+  const deleteDraft = async (question: Question) => {
+    if (question.status !== 'draft' || question.ever_published) return
+    try {
+      await quizService.deleteQuestion(question.id, question.lock_version)
+      setSelected({})
+      message.success('草稿已删除')
+      load(page, pageSize)
+    } catch (error) {
+      if (isConflictError(error)) refreshAfterConflict()
+      else message.error(errorText(error))
+    }
   }
 
-  const rowSelection: TableRowSelection<Question> = {
-    selectedRowKeys,
-    onChange: (keys) => setSelectedRowKeys(keys),
+  const handleBatch = async (kind: 'publish' | 'disable') => {
+    if (!selectedItems.length) return
+    const invalid: Array<{ questionId: number; messages: string[] }> = []
+    selectedItems.forEach((item) => {
+      const errors: string[] = []
+      if (kind === 'publish') {
+        if (item.status !== 'draft') errors.push('只有草稿题目可以发布')
+        if (isCategoryEffectivelyDisabled(categories, item.category_id)) errors.push('分类自身或祖先分类已停用，不能发布')
+        if (item.status === 'draft') errors.push(...formatQuestionPublishErrors(validateQuestionForPublish(item.question)))
+      } else if (item.status !== 'published') {
+        errors.push('只有已发布题目可以批量停用')
+      }
+      if (errors.length) invalid.push({ questionId: item.question_id, messages: errors })
+    })
+    if (invalid.length) {
+      showActionErrors(kind === 'publish' ? '批量发布前校验未通过' : '批量停用前校验未通过', invalid)
+      return
+    }
+    try {
+      const payload = { items: selectedItems.map(({ question_id, lock_version }) => ({ question_id, lock_version })) }
+      const result = kind === 'publish'
+        ? await quizService.batchPublish(payload)
+        : await quizService.batchDisable(payload)
+      if (result.succeeded) message.success(`已${kind === 'publish' ? '发布' : '停用'} ${result.updated_count} 道题目`)
+      else {
+        showActionErrors('批量操作未完成（整批未提交）', result.errors.map((item) => ({ questionId: item.question_id, messages: [`${item.field ? `${item.field}：` : ''}${item.message}（错误码 ${item.code}）`] })))
+      }
+      setSelected({})
+      await load(page, pageSize)
+      onRefreshCategories()
+    } catch (error) {
+      if (isConflictError(error)) refreshAfterConflict()
+      else message.error(errorText(error))
+    }
   }
 
-  const handleModalClose = () => {
-    setModalOpen(false)
-    setEditingQuestion(null)
+  const handleDeleteSelectedDrafts = async () => {
+    if (!selectedItems.length) return
+    const invalid = selectedItems
+      .filter((item) => item.status !== 'draft' || item.ever_published)
+      .map((item) => ({ questionId: item.question_id, messages: ['仅允许删除从未发布过的草稿；已发布或曾发布题目不可物理删除'] }))
+    if (invalid.length) {
+      showActionErrors('删除草稿前请只选择可删除草稿', invalid)
+      return
+    }
+    const candidates = selectedItems
+    const successes: number[] = []
+    const failures: string[] = []
+    let hadConflict = false
+    for (const item of candidates) {
+      try {
+        await quizService.deleteQuestion(item.question_id, item.lock_version)
+        successes.push(item.question_id)
+      } catch (error) {
+        if (isConflictError(error)) hadConflict = true
+        failures.push(`题目 #${item.question_id}：${errorText(error)}`)
+      }
+    }
+    setSelected({})
+    await load(page, pageSize)
+    if (hadConflict) {
+      onRefreshCategories()
+      message.warning('部分草稿版本已变化，数据已刷新；未自动重试')
+    }
+    if (failures.length) Modal.warning({ title: `删除草稿完成：成功 ${successes.length}，失败 ${failures.length}`, content: <div>{failures.map((item) => <div key={item}>{item}</div>)}</div> })
+    else message.success(`成功处理 ${successes.length} 道题目`)
+  }
+
+  const selectedDraftCount = selectedItems.filter((item) => item.status === 'draft' && !item.ever_published).length
+  const selectedPublishedCount = selectedItems.filter((item) => item.status === 'published').length
+
+  const publishSingle = (record: Question) => {
+    const errors = formatQuestionPublishErrors(validateQuestionForPublish(record))
+    if (isCategoryEffectivelyDisabled(categories, record.category_id)) errors.unshift('分类自身或祖先分类已停用，不能发布')
+    if (errors.length) {
+      showActionErrors('发布前校验未通过', [{ questionId: record.id, messages: errors }])
+      return
+    }
+    void runSingle(() => quizService.publishQuestion(record.id, record.lock_version), '题目已发布')
+  }
+
+  const openStats = async (question: Question) => {
+    const requestSeq = ++statsSeq.current
+    setStatsQuestion(question)
+    setStats(null)
+    setStatsLoading(true)
+    try {
+      const result = await quizService.getQuestionStats(question.id)
+      if (requestSeq === statsSeq.current) setStats(result)
+    } catch (error) {
+      if (requestSeq === statsSeq.current) message.error(errorText(error))
+    } finally {
+      if (requestSeq === statsSeq.current) setStatsLoading(false)
+    }
   }
 
   const columns: ColumnsType<Question> = [
+    { title: '题目', dataIndex: 'question_text', ellipsis: true, width: 320 },
+    { title: '题型', dataIndex: 'question_type', width: 80, render: (value: QuestionType) => <Tag color="blue">{typeLabels[value]}</Tag> },
+    { title: '分类', dataIndex: 'category_id', width: 150, render: (id: number) => <Tag>{categoryMap.get(id)?.name ?? `分类 #${id}`}</Tag> },
+    { title: '状态', dataIndex: 'status', width: 100, render: (value: QuestionStatus, record) => <Space size={4}><Tag color={statusColors[value]}>{statusLabels[value]}</Tag>{isCategoryEffectivelyDisabled(categories, record.category_id) && <Tag color="warning">分类停用</Tag>}</Space> },
+    { title: '更新时间', dataIndex: 'updated_at', width: 170, render: formatDate },
+    { title: '版本', dataIndex: 'lock_version', width: 70 },
     {
-      title: '题目内容',
-      dataIndex: 'question_text',
-      ellipsis: true,
-    },
-    {
-      title: '题型',
-      dataIndex: 'question_type',
-      width: 80,
-      render: (t: string) => <Tag color={t === 'single' ? 'blue' : 'orange'}>{t === 'single' ? '单选' : '多选'}</Tag>,
-    },
-    {
-      title: '分类',
-      dataIndex: 'category_name',
-      width: 130,
-      render: (n: string) => <Tag>{n}</Tag>,
-    },
-    {
-      title: '操作',
-      width: 120,
-      render: (_, record) => (
-        <Space>
-          <Button type="link" size="small" onClick={() => handleEdit(record)}>
-            编辑
-          </Button>
-          <ConfirmButton
-            title="删除题目"
-            description="此操作不可撤销，确认删除此题目？"
-            danger
-            type="link"
-            size="small"
-            onConfirm={() => handleDelete(record.id)}
-          >
-            删除
-          </ConfirmButton>
+      title: '操作', width: 300, fixed: 'right', render: (_, record) => (
+        <Space size={0}>
+          {canWrite && <Button type="link" size="small" icon={<EditOutlined />} onClick={() => { setEditing(record); setModalOpen(true) }}>编辑</Button>}
+          {record.status === 'draft' && canWrite && <Button type="link" size="small" disabled={record.ever_published || isCategoryEffectivelyDisabled(categories, record.category_id)} onClick={() => publishSingle(record)}>发布</Button>}
+          {record.status === 'published' && canWrite && <Button type="link" size="small" icon={<StopOutlined />} onClick={() => runSingle(() => quizService.disableQuestion(record.id, record.lock_version), '题目已停用')}>停用</Button>}
+          {record.status === 'disabled' && canWrite && <Button type="link" size="small" icon={<UndoOutlined />} disabled={isCategoryEffectivelyDisabled(categories, record.category_id)} onClick={() => runSingle(() => quizService.restoreQuestion(record.id, record.lock_version), '题目已恢复')}>恢复</Button>}
+          <Button type="link" size="small" icon={<BarChartOutlined />} onClick={() => openStats(record)}>统计</Button>
+          {record.status === 'draft' && !record.ever_published && canWrite && <Button type="link" danger size="small" icon={<DeleteOutlined />} onClick={() => Modal.confirm({ title: '删除草稿', content: '仅删除该草稿，不会影响其他题目。', onOk: () => deleteDraft(record) })}>删除草稿</Button>}
         </Space>
       ),
     },
   ]
 
+  const rowSelection: TableRowSelection<Question> = {
+    selectedRowKeys: currentSelectedKeys,
+    onSelect: (record, checked) => {
+      setSelected((current) => {
+        const next = { ...current }
+        if (checked) {
+          if (Object.keys(next).length >= 5000) { message.warning('最多选择 5,000 道题目'); return current }
+          next[record.id] = { question_id: record.id, lock_version: record.lock_version, status: record.status, category_id: record.category_id, ever_published: record.ever_published, question: record }
+        }
+        else delete next[record.id]
+        return next
+      })
+    },
+    onSelectAll: (checked, _rows, changeRows) => {
+      setSelected((current) => {
+        const next = { ...current }
+        changeRows.forEach((record) => {
+          if (checked) {
+            if (Object.keys(next).length >= 5000) return
+            next[record.id] = { question_id: record.id, lock_version: record.lock_version, status: record.status, category_id: record.category_id, ever_published: record.ever_published, question: record }
+          }
+          else delete next[record.id]
+        })
+        return next
+      })
+    },
+  }
+
+  const closeModal = () => { setModalOpen(false); setEditing(null) }
+  const updateFilters = (next: Partial<QuestionFilter>) => {
+    // Filter changes intentionally reset to the first page and selection effect clears stale versions.
+    onFilterChange(next)
+  }
+
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
-        <Input
-          placeholder="搜索题目..."
-          prefix={<SearchOutlined />}
-          value={keyword}
-          onChange={(e) => onKeywordChange(e.target.value)}
-          style={{ width: 260 }}
-          allowClear
-        />
-        <Space>
-          {selectedRowKeys.length > 0 && (
-            <ConfirmButton
-              title="批量删除"
-              description={`确认删除选中的 ${selectedRowKeys.length} 道题目？此操作不可撤销。`}
-              danger
-              icon={<DeleteOutlined />}
-              onConfirm={handleBatchDelete}
-            >
-              删除 ({selectedRowKeys.length})
-            </ConfirmButton>
-          )}
-          <Button icon={<UploadOutlined />} onClick={() => navigate('/admin/quiz/import')}>
-            批量导入
-          </Button>
-          <Button type="primary" icon={<PlusOutlined />} onClick={handleAdd}>
-            新增题目
-          </Button>
+      <Space wrap style={{ width: '100%', justifyContent: 'space-between', marginBottom: 16 }}>
+        <Space wrap>
+          <Input prefix={<SearchOutlined />} allowClear placeholder="搜索题干" onChange={(event) => onKeywordChange(event.target.value)} style={{ width: 240 }} />
+          <Select allowClear placeholder="题型" style={{ width: 130 }} value={filters.question_type} onChange={(value) => updateFilters({ question_type: value })} options={Object.entries(typeLabels).map(([value, label]) => ({ value, label }))} />
+          <Select allowClear placeholder="状态" style={{ width: 120 }} value={filters.status} onChange={(value) => updateFilters({ status: value })} options={Object.entries(statusLabels).map(([value, label]) => ({ value, label }))} />
         </Space>
-      </div>
-
-      <Table
+        <Space>
+          {Object.keys(selected).length > 0 && <>
+            <Button onClick={() => handleBatch('publish')} disabled={!canWrite}>批量发布 ({Object.keys(selected).length})</Button>
+            <Button onClick={() => handleBatch('disable')} disabled={!canWrite}>批量停用已发布题目 ({selectedPublishedCount})</Button>
+            <Button danger icon={<DeleteOutlined />} onClick={() => Modal.confirm({ title: '删除选中草稿？', content: '仅允许删除从未发布过的草稿，选中其他状态将被拒绝。', onOk: handleDeleteSelectedDrafts })} disabled={!canWrite || selectedDraftCount === 0}>删除草稿 ({selectedDraftCount})</Button>
+          </>}
+          {canImport && <Button icon={<UploadOutlined />} onClick={() => navigate('/admin/quiz/imports')}>导入任务</Button>}
+          <Button icon={<ReloadOutlined />} onClick={() => { setSelected({}); load(page, pageSize) }}>刷新</Button>
+          {canWrite && <Button type="primary" icon={<PlusOutlined />} onClick={() => { setEditing(null); setModalOpen(true) }}>新增题目</Button>}
+        </Space>
+      </Space>
+      <Table<Question>
         rowKey="id"
-        columns={columns}
-        dataSource={data?.items}
-        loading={loading}
-        pagination={pagination}
         size="middle"
-        rowSelection={rowSelection}
+        scroll={{ x: 1220 }}
+        columns={columns}
+        dataSource={data?.items ?? []}
+        loading={loading}
+        rowSelection={canWrite ? rowSelection : undefined}
+        pagination={{ current: data?.page ?? page, pageSize: data?.page_size ?? pageSize, total: data?.total ?? 0, showSizeChanger: true, pageSizeOptions: [10, 20, 50, 100], showTotal: (total) => `共 ${total} 条`, onChange: (nextPage, nextSize) => { setPage(nextSize !== pageSize ? 1 : nextPage); setPageSize(nextSize) } }}
       />
-
-      <QuestionModal
-        open={modalOpen}
-        question={editingQuestion}
-        categories={categories}
-        onClose={handleModalClose}
-        onSuccess={() => {
-          handleModalClose()
-          refresh()
-        }}
-      />
+      <QuestionModal open={modalOpen} question={editing} categories={categories} canWrite={canWrite} onClose={closeModal} onSaved={(saved) => { closeModal(); setSelected({}); if (editing) setData((current) => current ? { ...current, items: current.items.map((item) => item.id === saved.id ? saved : item) } : current); else void load(page, pageSize); onRefreshCategories(); message.success(editing ? '题目已更新' : '题目已创建') }} onConflict={refreshAfterConflict} />
+      <Drawer title={`题目统计${statsQuestion ? ` #${statsQuestion.id}` : ''}`} open={Boolean(statsQuestion)} onClose={() => { statsSeq.current += 1; setStatsQuestion(null); setStats(null); setStatsLoading(false) }} width={420}>
+        {statsLoading ? <Spin /> : stats && <Space direction="vertical" style={{ width: '100%' }}>
+          {statsQuestion && <Descriptions column={1} size="small" bordered>
+            <Descriptions.Item label="题目状态">{statusLabels[statsQuestion.status]}</Descriptions.Item>
+            <Descriptions.Item label="首次发布">{formatDate(statsQuestion.published_at)}</Descriptions.Item>
+            <Descriptions.Item label="停用时间">{formatDate(statsQuestion.disabled_at)}</Descriptions.Item>
+          </Descriptions>}
+          <Descriptions column={1} size="small" bordered>
+            <Descriptions.Item label="练习首答次数">{stats.practice_first_attempts}</Descriptions.Item>
+            <Descriptions.Item label="练习首答正确数">{stats.practice_first_correct}</Descriptions.Item>
+            <Descriptions.Item label="练习首答正确率">{stats.practice_first_accuracy.toFixed(1)}%</Descriptions.Item>
+            <Descriptions.Item label="考试作答次数">{stats.exam_answers}</Descriptions.Item>
+            <Descriptions.Item label="考试正确数">{stats.exam_correct}</Descriptions.Item>
+            <Descriptions.Item label="考试正确率">{stats.exam_accuracy.toFixed(1)}%</Descriptions.Item>
+            <Descriptions.Item label="统计截止时间">{formatDate(stats.aggregated_through)}</Descriptions.Item>
+          </Descriptions>
+          <Progress percent={Number(stats.practice_first_accuracy.toFixed(1))} format={(value) => `${value?.toFixed(1)}%`} />
+          <Progress percent={Number(stats.exam_accuracy.toFixed(1))} format={(value) => `${value?.toFixed(1)}%`} />
+        </Space>}
+      </Drawer>
     </div>
   )
 }

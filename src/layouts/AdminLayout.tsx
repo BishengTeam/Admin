@@ -1,6 +1,6 @@
 import { Suspense, useMemo, type ReactNode } from 'react'
 import { useNavigate, useLocation, Outlet } from 'react-router-dom'
-import { Layout, Menu, Button, Breadcrumb, Dropdown, Avatar, Spin, theme } from 'antd'
+import { Layout, Menu, Button, Breadcrumb, Dropdown, Avatar, Spin, Result, theme } from 'antd'
 import type { MenuProps } from 'antd'
 import {
   MenuFoldOutlined,
@@ -19,6 +19,12 @@ import {
   IdcardOutlined,
   SolutionOutlined,
   AuditOutlined,
+  FileSearchOutlined,
+  ImportOutlined,
+  ClusterOutlined,
+  FormOutlined,
+  FileZipOutlined,
+  RollbackOutlined,
 } from '@ant-design/icons'
 import { useAppStore } from '@/stores/appStore'
 import { useAuthStore } from '@/stores/authStore'
@@ -47,16 +53,29 @@ const iconMap: Record<string, ReactNode> = {
   IdcardOutlined: <IdcardOutlined />,
   SolutionOutlined: <SolutionOutlined />,
   AuditOutlined: <AuditOutlined />,
+  FileSearchOutlined: <FileSearchOutlined />,
+  ImportOutlined: <ImportOutlined />,
+  ClusterOutlined: <ClusterOutlined />,
+  FormOutlined: <FormOutlined />,
+  FileZipOutlined: <FileZipOutlined />,
+  RollbackOutlined: <RollbackOutlined />,
 }
 
-function buildMenuItems(routes: AppRoute[]): MenuProps['items'] {
-  return routes
-    .filter((r) => r.meta && !r.meta.hidden)
-    .map((r) => {
+function hasRoutePermission(route: AppRoute, permissions: string[], initialized: boolean) {
+  if (!initialized) return true
+  if (permissions.includes('*')) return true
+  const required = route.meta?.permissions ?? (route.meta?.permission ? [route.meta.permission] : [])
+  return required.every((permission) => permissions.includes(permission))
+}
+
+function buildMenuItems(routes: AppRoute[], permissions: string[], initialized: boolean): MenuProps['items'] {
+  return routes.flatMap((r) => {
+      if (!r.meta || r.meta.hidden || !hasRoutePermission(r, permissions, initialized)) return []
       const icon = r.meta?.icon ? iconMap[r.meta.icon] : undefined
       if (r.children) {
-        const visibleChildren = r.children.filter((c) => c.meta && !c.meta.hidden)
-        return {
+        const visibleChildren = r.children.filter((c) => c.meta && !c.meta.hidden && hasRoutePermission(c, permissions, initialized))
+        if (visibleChildren.length === 0) return []
+        return [{
           key: r.path!,
           icon,
           label: r.meta?.title,
@@ -65,21 +84,21 @@ function buildMenuItems(routes: AppRoute[]): MenuProps['items'] {
             icon: c.meta?.icon ? iconMap[c.meta.icon] : undefined,
             label: c.meta?.title,
           })),
-        }
+        }]
       }
-      return {
+      return [{
         key: r.path!,
         icon,
         label: r.meta?.title,
-      }
+      }]
     })
 }
 
-function findBreadcrumb(pathname: string, routes: AppRoute[], parentPath = ''): { title: string }[] {
+function findBreadcrumb(relativePath: string, routes: AppRoute[], parentPath = ''): { title: string }[] {
   for (const r of routes) {
-    const fullPath = r.index ? parentPath : `${parentPath}/${r.path}`.replace(/\/+/g, '/')
+    const fullPath = r.index ? parentPath : [parentPath, r.path].filter(Boolean).join('/')
     if (r.children) {
-      const found = findBreadcrumb(pathname, r.children, r.path ? fullPath : parentPath)
+      const found = findBreadcrumb(relativePath, r.children, r.path ? fullPath : parentPath)
       if (found.length) {
         if (r.meta?.title) {
           return [{ title: r.meta.title }, ...found]
@@ -87,11 +106,23 @@ function findBreadcrumb(pathname: string, routes: AppRoute[], parentPath = ''): 
         return found
       }
     }
-    if (pathname === `/admin/${r.path}` || pathname === fullPath) {
+    if (relativePath === fullPath) {
       return r.meta?.title ? [{ title: r.meta.title }] : []
     }
   }
   return []
+}
+
+function findActiveRoute(relativePath: string, routes: AppRoute[], parentPath = ''): AppRoute | undefined {
+  for (const route of routes) {
+    const fullPath = route.index ? parentPath : [parentPath, route.path].filter(Boolean).join('/')
+    if (route.children) {
+      const child = findActiveRoute(relativePath, route.children, fullPath)
+      if (child) return child
+    }
+    if (relativePath === fullPath) return route
+  }
+  return undefined
 }
 
 export default function AdminLayout({ children }: { children?: ReactNode }) {
@@ -104,18 +135,19 @@ export default function AdminLayout({ children }: { children?: ReactNode }) {
   const { token: { colorBgContainer, borderRadiusLG } } = theme.useToken()
 
   const menuItems = useMemo(() => {
-    // 权限未加载时显示全部菜单（降级模式）
-    const hasPermissions = initialized && permissions.length > 0
-    // permissions 包含 "*" 表示超级管理员，拥有全部权限
-    const isSuperAdmin = permissions.includes('*')
-    const filtered = adminRoutes.filter(
-      (r) => !r.meta?.permission || !hasPermissions || isSuperAdmin || permissions.includes(r.meta.permission),
-    )
-    return buildMenuItems(filtered)
+    return buildMenuItems(adminRoutes, permissions, initialized)
   }, [permissions, initialized])
 
+  const currentRoute = useMemo(() => {
+    const pathname = location.pathname.replace(/^\/admin\/?/, '')
+    return findActiveRoute(pathname, adminRoutes)
+  }, [location.pathname])
+
+  const routeAllowed = !currentRoute || hasRoutePermission(currentRoute, permissions, initialized)
+
   const breadcrumbItems = useMemo(() => {
-    const items = findBreadcrumb(location.pathname, adminRoutes)
+    const relativePath = location.pathname.replace(/^\/admin\/?/, '')
+    const items = findBreadcrumb(relativePath, adminRoutes)
     return [{ title: '首页' }, ...items]
   }, [location.pathname])
 
@@ -237,7 +269,7 @@ export default function AdminLayout({ children }: { children?: ReactNode }) {
                 </div>
               }
             >
-              {children || <Outlet />}
+              {routeAllowed ? (children || <Outlet />) : <Result status="403" title="无权访问" subTitle="当前管理员没有该页面所需权限" />}
             </Suspense>
           </ErrorBoundary>
         </Content>

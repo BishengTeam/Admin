@@ -1,5 +1,5 @@
 import axios from 'axios'
-import { http } from '@/core/request'
+import { http, isApiError } from '@/core/request'
 import type { AdminInfo } from '@/types/admin'
 
 export const authService = {
@@ -26,6 +26,18 @@ export interface LoginError {
  * Page 层只消费 LoginError，不感知 HTTP 状态码。
  */
 export function normalizeLoginError(error: unknown): LoginError {
+  if (isApiError(error)) {
+    switch (error.status) {
+      case 401:
+        return { type: 'unauthorized', message: error.message || '用户名或密码错误' }
+      case 403:
+        return { type: 'forbidden', message: error.message || '账号已被禁用，请联系管理员' }
+      case 429:
+        return { type: 'rate_limited', message: error.message || '操作过于频繁，请稍后再试' }
+      default:
+        return { type: error.status == null ? 'network' : 'unknown', message: error.message || '登录失败' }
+    }
+  }
   if (!axios.isAxiosError(error) || !error.response) {
     return { type: 'network', message: '网络连接失败，请检查网络' }
   }
