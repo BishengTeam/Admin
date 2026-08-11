@@ -28,6 +28,7 @@ const RensheRefunds = lazy(() => import('@/pages/renshe/refunds'))
 const QuizManagement = lazy(() => import('@/pages/quiz'))
 const QuizImports = lazy(() => import('@/pages/quiz/imports'))
 const QuizAuditLogs = lazy(() => import('@/pages/quiz/audit-logs'))
+const QuizTaskMonitor = lazy(() => import('@/pages/quiz/tasks'))
 const ContentManagement = lazy(() => import('@/pages/content'))
 const CourseList = lazy(() => import('@/pages/content/courses'))
 const CertificationManagement = lazy(() => import('@/pages/certification'))
@@ -102,6 +103,11 @@ export const adminRoutes: AppRoute[] = [
     path: 'quiz/audit-logs',
     element: <QuizAuditLogs />,
     meta: { title: '审计日志', icon: 'FileSearchOutlined', permission: 'quiz:list' },
+  },
+  {
+    path: 'quiz/tasks',
+    element: <QuizTaskMonitor />,
+    meta: { title: '任务监控', icon: 'MonitorOutlined', permission: 'quiz:list' },
   },
   {
     path: 'content',

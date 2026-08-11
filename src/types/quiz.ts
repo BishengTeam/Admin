@@ -165,6 +165,8 @@ export interface ImportJob {
   created_count: number
   error_count: number
   heartbeat_at: string | null
+  started_at: string | null
+  finished_at: string | null
   retry_count: number
   error_message: string | null
   report_available: boolean
@@ -208,6 +210,40 @@ export interface AuditLog {
   target_ids: number[] | null
   error_summary: string | null
   created_at: string
+}
+
+export interface QuizTaskMetric {
+  name: string
+  runs: number
+  successes: number
+  failures: number
+  failure_count: number
+  retries: number
+  retry_count: number
+  total_runtime_seconds: number
+  runtime_seconds: number
+  last_runtime_seconds: number | null
+  last_started_at: string | null
+  last_finished_at: string | null
+  last_heartbeat_at: string | null
+  last_error: string | null
+  last_error_type: string | null
+  queue_depth: number
+  did_work: boolean
+}
+
+export interface QuizTaskSnapshot {
+  heartbeat_at: string | null
+  processors: Record<string, QuizTaskMetric>
+}
+
+export interface QuizTaskProbe {
+  endpoint: 'health' | 'ready'
+  http_status: number
+  code: number
+  status: string
+  checks: Record<string, string>
+  quiz_tasks: QuizTaskSnapshot
 }
 
 export const QUESTION_OPTION_KEYS = ['A', 'B', 'C', 'D'] as const
