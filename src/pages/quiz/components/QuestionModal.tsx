@@ -5,7 +5,7 @@ import type { Category, Question, QuestionCreate, QuestionType, QuestionUpdate }
 import { answerToArray, answerToPayload, QUESTION_OPTION_KEYS } from '@/types/quiz'
 import { buildCategoryTree, isCategoryEffectivelyDisabled } from './CategoryTree'
 import { quizService } from '@/services/quiz'
-import { ApiError, isConflictError, isNotFoundError, isValidationError } from '@/core/request'
+import { ApiError, isConflictError, isValidationError } from '@/core/request'
 
 interface QuestionModalProps {
   open: boolean
@@ -15,7 +15,6 @@ interface QuestionModalProps {
   onClose: () => void
   onSaved: (question: Question) => void
   onConflict: () => void
-  onNotFound: () => void
 }
 
 interface OptionValue { content?: string }
@@ -40,7 +39,7 @@ function sameValue(a: unknown, b: unknown) {
   return JSON.stringify(a) === JSON.stringify(b)
 }
 
-export default function QuestionModal({ open, question, categories, canWrite, onClose, onSaved, onConflict, onNotFound }: QuestionModalProps) {
+export default function QuestionModal({ open, question, categories, canWrite, onClose, onSaved, onConflict }: QuestionModalProps) {
   const [form] = Form.useForm()
   const type = Form.useWatch('question_type', form) as QuestionType | undefined
   const options = Form.useWatch('options', form) as OptionValue[] | undefined
@@ -128,10 +127,6 @@ export default function QuestionModal({ open, question, categories, canWrite, on
       if (error && typeof error === 'object' && 'errorFields' in error) return
       if (error instanceof ApiError && isConflictError(error)) {
         onConflict()
-        return
-      }
-      if (error instanceof ApiError && isNotFoundError(error)) {
-        onNotFound()
         return
       }
       if (error instanceof ApiError && isValidationError(error)) {

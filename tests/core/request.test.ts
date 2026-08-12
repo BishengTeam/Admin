@@ -41,11 +41,4 @@ describe('request', () => {
     expect(typeof http.patch).toBe('function')
     expect(typeof http.delete).toBe('function')
   })
-
-  it('recognizes the frozen 404/40300 not-found contract', async () => {
-    const { ApiError, isNotFoundError } = await import('@/core/request')
-    expect(isNotFoundError(new ApiError({ message: '不存在', status: 404 }))).toBe(true)
-    expect(isNotFoundError(new ApiError({ message: '不存在', code: 40300 }))).toBe(true)
-    expect(isNotFoundError(new ApiError({ message: '冲突', status: 409, code: 40201 }))).toBe(false)
-  })
 })

@@ -1,15 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Button, Descriptions, Drawer, Input, message, Modal, Progress, Select, Space, Spin, Table, Tag } from 'antd'
-import { BarChartOutlined, DeleteOutlined, EditOutlined, EyeOutlined, PlusOutlined, ReloadOutlined, SearchOutlined, StopOutlined, UndoOutlined, UploadOutlined } from '@ant-design/icons'
+import { BarChartOutlined, DeleteOutlined, EditOutlined, PlusOutlined, ReloadOutlined, SearchOutlined, StopOutlined, UndoOutlined, UploadOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import type { TableRowSelection } from 'antd/es/table/interface'
 import { useNavigate } from 'react-router-dom'
 import { quizService } from '@/services/quiz'
-import { ApiError, isConflictError, isNotFoundError, isValidationError } from '@/core/request'
+import { ApiError, isConflictError, isValidationError } from '@/core/request'
 import type { Category, Question, QuestionFilter, QuestionStats, QuestionStatus, QuestionType } from '@/types/quiz'
 import { formatQuestionPublishErrors, validateQuestionForPublish } from '@/utils/quiz'
 import { QUIZ_IMPORT_SUCCEEDED_EVENT } from '@/utils/quizEvents'
-import { getCategoryPath, isCategoryEffectivelyDisabled } from './CategoryTree'
+import { isCategoryEffectivelyDisabled } from './CategoryTree'
 import QuestionModal from './QuestionModal'
 
 interface QuestionTableProps {
@@ -19,7 +19,7 @@ interface QuestionTableProps {
   canImport: boolean
   onKeywordChange: (value: string) => void
   onFilterChange: (value: Partial<QuestionFilter>) => void
-  onRefreshCategories: () => void | Promise<void>
+  onRefreshCategories: () => void
 }
 
 interface SelectedQuestion {
@@ -70,7 +70,6 @@ export default function QuestionTable({ filters, categories, canWrite, canImport
   const [selected, setSelected] = useState<Record<number, SelectedQuestion>>({})
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<Question | null>(null)
-  const [viewing, setViewing] = useState<Question | null>(null)
   const [stats, setStats] = useState<QuestionStats | null>(null)
   const [statsQuestion, setStatsQuestion] = useState<Question | null>(null)
   const [statsLoading, setStatsLoading] = useState(false)
@@ -148,20 +147,6 @@ export default function QuestionTable({ filters, categories, canWrite, canImport
     message.warning('数据已被其他管理员修改，列表已刷新；当前输入仍保留，请关闭后重新打开并对比，再提交')
   }
 
-  const refreshAfterMissing = async (text = '题目不存在，列表已刷新') => {
-    setSelected({})
-    setModalOpen(false)
-    setEditing(null)
-    setViewing(null)
-    statsSeq.current += 1
-    setStatsQuestion(null)
-    setStats(null)
-    setStatsLoading(false)
-    await load(page, pageSize)
-    await onRefreshCategories()
-    message.warning(text)
-  }
-
   const runSingle = async (action: () => Promise<Question>, success: string) => {
     try {
       const updated = await action()
@@ -171,7 +156,6 @@ export default function QuestionTable({ filters, categories, canWrite, canImport
       message.success(success)
     } catch (error) {
       if (isConflictError(error)) refreshAfterConflict()
-      else if (isNotFoundError(error)) await refreshAfterMissing()
       else if (isValidationError(error)) message.warning(errorText(error))
       else message.error(errorText(error))
     }
@@ -186,7 +170,6 @@ export default function QuestionTable({ filters, categories, canWrite, canImport
       load(page, pageSize)
     } catch (error) {
       if (isConflictError(error)) refreshAfterConflict()
-      else if (isNotFoundError(error)) await refreshAfterMissing()
       else message.error(errorText(error))
     }
   }
@@ -223,7 +206,6 @@ export default function QuestionTable({ filters, categories, canWrite, canImport
       onRefreshCategories()
     } catch (error) {
       if (isConflictError(error)) refreshAfterConflict()
-      else if (isNotFoundError(error)) await refreshAfterMissing()
       else message.error(errorText(error))
     }
   }
@@ -241,14 +223,12 @@ export default function QuestionTable({ filters, categories, canWrite, canImport
     const successes: number[] = []
     const failures: string[] = []
     let hadConflict = false
-    let hadMissing = false
     for (const item of candidates) {
       try {
         await quizService.deleteQuestion(item.question_id, item.lock_version)
         successes.push(item.question_id)
       } catch (error) {
         if (isConflictError(error)) hadConflict = true
-        if (isNotFoundError(error)) hadMissing = true
         failures.push(`题目 #${item.question_id}：${errorText(error)}`)
       }
     }
@@ -257,10 +237,6 @@ export default function QuestionTable({ filters, categories, canWrite, canImport
     if (hadConflict) {
       onRefreshCategories()
       message.warning('部分草稿版本已变化，数据已刷新；未自动重试')
-    }
-    if (hadMissing) {
-      onRefreshCategories()
-      message.warning('部分题目已不存在，列表已刷新')
     }
     if (failures.length) Modal.warning({ title: `删除草稿完成：成功 ${successes.length}，失败 ${failures.length}`, content: <div>{failures.map((item) => <div key={item}>{item}</div>)}</div> })
     else message.success(`成功处理 ${successes.length} 道题目`)
@@ -288,10 +264,7 @@ export default function QuestionTable({ filters, categories, canWrite, canImport
       const result = await quizService.getQuestionStats(question.id)
       if (requestSeq === statsSeq.current) setStats(result)
     } catch (error) {
-      if (requestSeq === statsSeq.current) {
-        if (isNotFoundError(error)) await refreshAfterMissing()
-        else message.error(errorText(error))
-      }
+      if (requestSeq === statsSeq.current) message.error(errorText(error))
     } finally {
       if (requestSeq === statsSeq.current) setStatsLoading(false)
     }
@@ -305,9 +278,8 @@ export default function QuestionTable({ filters, categories, canWrite, canImport
     { title: '更新时间', dataIndex: 'updated_at', width: 170, render: formatDate },
     { title: '版本', dataIndex: 'lock_version', width: 70 },
     {
-      title: '操作', width: 350, fixed: 'right', render: (_, record) => (
+      title: '操作', width: 300, fixed: 'right', render: (_, record) => (
         <Space size={0}>
-          <Button type="link" size="small" icon={<EyeOutlined />} onClick={() => setViewing(record)}>查看</Button>
           {canWrite && <Button type="link" size="small" icon={<EditOutlined />} onClick={() => { setEditing(record); setModalOpen(true) }}>编辑</Button>}
           {record.status === 'draft' && canWrite && <Button type="link" size="small" disabled={record.ever_published || isCategoryEffectivelyDisabled(categories, record.category_id)} onClick={() => publishSingle(record)}>发布</Button>}
           {record.status === 'published' && canWrite && <Button type="link" size="small" icon={<StopOutlined />} onClick={() => runSingle(() => quizService.disableQuestion(record.id, record.lock_version), '题目已停用')}>停用</Button>}
@@ -382,26 +354,7 @@ export default function QuestionTable({ filters, categories, canWrite, canImport
         rowSelection={canWrite ? rowSelection : undefined}
         pagination={{ current: data?.page ?? page, pageSize: data?.page_size ?? pageSize, total: data?.total ?? 0, showSizeChanger: true, pageSizeOptions: [10, 20, 50, 100], showTotal: (total) => `共 ${total} 条`, onChange: (nextPage, nextSize) => { setPage(nextSize !== pageSize ? 1 : nextPage); setPageSize(nextSize) } }}
       />
-      <QuestionModal open={modalOpen} question={editing} categories={categories} canWrite={canWrite} onClose={closeModal} onSaved={(saved) => { closeModal(); setSelected({}); if (editing) setData((current) => current ? { ...current, items: current.items.map((item) => item.id === saved.id ? saved : item) } : current); else void load(page, pageSize); onRefreshCategories(); message.success(editing ? '题目已更新' : '题目已创建') }} onConflict={refreshAfterConflict} onNotFound={() => { void refreshAfterMissing(editing ? '题目不存在，列表已刷新' : '所属分类不存在，分类和题目列表已刷新') }} />
-      <Drawer title={`题目详情${viewing ? ` #${viewing.id}` : ''}`} open={Boolean(viewing)} onClose={() => setViewing(null)} width={600}>
-        {viewing && <Descriptions column={2} size="small" bordered>
-          <Descriptions.Item label="题型">{typeLabels[viewing.question_type]}</Descriptions.Item>
-          <Descriptions.Item label="状态"><Tag color={statusColors[viewing.status]}>{statusLabels[viewing.status]}</Tag></Descriptions.Item>
-          <Descriptions.Item label="分类" span={2}>{getCategoryPath(categories, viewing.category_id).map((item) => item.name).join(' / ') || `分类 #${viewing.category_id}`}</Descriptions.Item>
-          <Descriptions.Item label="题干" span={2}>{viewing.question_text}</Descriptions.Item>
-          <Descriptions.Item label="选项" span={2}>
-            {viewing.options ? Object.entries(viewing.options).map(([key, value]) => <div key={key}><strong>{key}.</strong> {value}</div>) : '-'}
-          </Descriptions.Item>
-          <Descriptions.Item label="正确答案" span={2}>{Array.isArray(viewing.correct_answer) ? viewing.correct_answer.join(', ') : viewing.correct_answer || '-'}</Descriptions.Item>
-          <Descriptions.Item label="答案解析" span={2}>{viewing.explanation || '-'}</Descriptions.Item>
-          <Descriptions.Item label="曾发布">{viewing.ever_published ? '是' : '否'}</Descriptions.Item>
-          <Descriptions.Item label="版本">{viewing.lock_version}</Descriptions.Item>
-          <Descriptions.Item label="首次发布">{formatDate(viewing.published_at)}</Descriptions.Item>
-          <Descriptions.Item label="停用时间">{formatDate(viewing.disabled_at)}</Descriptions.Item>
-          <Descriptions.Item label="创建时间">{formatDate(viewing.created_at)}</Descriptions.Item>
-          <Descriptions.Item label="更新时间">{formatDate(viewing.updated_at)}</Descriptions.Item>
-        </Descriptions>}
-      </Drawer>
+      <QuestionModal open={modalOpen} question={editing} categories={categories} canWrite={canWrite} onClose={closeModal} onSaved={(saved) => { closeModal(); setSelected({}); if (editing) setData((current) => current ? { ...current, items: current.items.map((item) => item.id === saved.id ? saved : item) } : current); else void load(page, pageSize); onRefreshCategories(); message.success(editing ? '题目已更新' : '题目已创建') }} onConflict={refreshAfterConflict} />
       <Drawer title={`题目统计${statsQuestion ? ` #${statsQuestion.id}` : ''}`} open={Boolean(statsQuestion)} onClose={() => { statsSeq.current += 1; setStatsQuestion(null); setStats(null); setStatsLoading(false) }} width={420}>
         {statsLoading ? <Spin /> : stats && <Space direction="vertical" style={{ width: '100%' }}>
           {statsQuestion && <Descriptions column={1} size="small" bordered>

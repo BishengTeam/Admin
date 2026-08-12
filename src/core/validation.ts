@@ -185,8 +185,6 @@ export const ImportJobSchema = z.object({
   created_count: z.number().min(0).max(5000),
   error_count: z.number().min(0),
   heartbeat_at: nullableString,
-  started_at: nullableString,
-  finished_at: nullableString,
   retry_count: z.number().min(0),
   error_message: nullableString,
   report_available: z.boolean(),
@@ -212,31 +210,6 @@ export const AuditLogSchema = z.object({
   target_ids: z.array(z.number()).nullable(),
   error_summary: nullableString,
   created_at: dateString,
-}).strict()
-
-export const QuizTaskMetricSchema = z.object({
-  name: z.string(),
-  runs: z.number().int().min(0),
-  successes: z.number().int().min(0),
-  failures: z.number().int().min(0),
-  failure_count: z.number().int().min(0),
-  retries: z.number().int().min(0),
-  retry_count: z.number().int().min(0),
-  total_runtime_seconds: z.number().min(0),
-  runtime_seconds: z.number().min(0),
-  last_runtime_seconds: z.number().min(0).nullable(),
-  last_started_at: nullableString,
-  last_finished_at: nullableString,
-  last_heartbeat_at: nullableString,
-  last_error: nullableString,
-  last_error_type: nullableString,
-  queue_depth: z.number().int().min(0),
-  did_work: z.boolean(),
-}).strict()
-
-export const QuizTaskSnapshotSchema = z.object({
-  heartbeat_at: nullableString,
-  processors: z.record(z.string(), QuizTaskMetricSchema),
 }).strict()
 
 // 基础分页结构
