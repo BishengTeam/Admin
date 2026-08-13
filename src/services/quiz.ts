@@ -16,6 +16,7 @@ import {
   QuestionCreateSchema,
   QuestionStatsSchema,
   QuestionUpdateSchema,
+  QuizTaskSnapshotSchema,
   SignedUrlSchema,
   VersionRequestSchema,
 } from '@/core/validation'
@@ -38,6 +39,7 @@ import type {
   QuestionFilter,
   QuestionStats,
   QuestionUpdate,
+  QuizTaskProbe,
   SignedUrl,
   VersionRequest,
 } from '@/types/quiz'
@@ -54,6 +56,11 @@ const CategoriesSchema = z.array(CategorySchema)
 const QuestionsPageSchema = pageSchema(QuestionSchema)
 const ImportsPageSchema = pageSchema(ImportJobSchema)
 const AuditPageSchema = pageSchema(AuditLogSchema)
+const QuizProbeCoreSchema = z.object({
+  status: z.string(),
+  checks: z.record(z.string(), z.string()),
+  details: z.object({ quiz_tasks: QuizTaskSnapshotSchema }).passthrough(),
+}).passthrough()
 
 function parsed<T>(schema: z.ZodType<T>, value: unknown): T {
   return validateOrThrow(schema, value)
@@ -74,6 +81,11 @@ function omitUndefined<T>(value: T): T {
 function queryConfig(params: object, signal?: AbortSignal): AxiosRequestConfig {
   const clean = Object.fromEntries(Object.entries(params).filter(([, value]) => value !== undefined && value !== ''))
   return { params: clean, signal }
+}
+
+function probeUrl(endpoint: 'health' | 'ready') {
+  const base = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '')
+  return `${base}/${endpoint}`
 }
 
 export const quizService = {
@@ -179,6 +191,30 @@ export const quizService = {
 
   async listAuditLogs(params: AuditFilter = {}, signal?: AbortSignal): Promise<PageData<AuditLog>> {
     return parsed(AuditPageSchema, await http.get('/admin/quiz/audit-logs', queryConfig(params, signal)))
+  },
+
+  async getTaskProbe(endpoint: 'health' | 'ready', signal?: AbortSignal): Promise<QuizTaskProbe> {
+    const response = await fetch(probeUrl(endpoint), {
+      headers: { Accept: 'application/json' },
+      signal,
+    })
+    let envelope: unknown
+    try {
+      envelope = await response.json()
+    } catch {
+      throw new Error(`${endpoint === 'health' ? '健康' : '就绪'}检查返回了无效 JSON`)
+    }
+    if (!envelope || typeof envelope !== 'object') throw new Error('任务监控响应格式错误')
+    const raw = envelope as { code?: unknown; data?: unknown }
+    const core = parsed(QuizProbeCoreSchema, raw.data ?? envelope)
+    return {
+      endpoint,
+      http_status: response.status,
+      code: typeof raw.code === 'number' ? raw.code : response.ok ? 0 : 50000,
+      status: core.status,
+      checks: core.checks,
+      quiz_tasks: core.details.quiz_tasks,
+    }
   },
 }
 

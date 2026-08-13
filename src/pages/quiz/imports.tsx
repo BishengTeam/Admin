@@ -5,7 +5,7 @@ import type { ColumnsType } from 'antd/es/table'
 import type { UploadFile } from 'antd/es/upload/interface'
 import { PageContainer } from '@/components/PageContainer'
 import { quizService } from '@/services/quiz'
-import { ApiError } from '@/core/request'
+import { ApiError, isNotFoundError } from '@/core/request'
 import { usePermission } from '@/hooks/usePermission'
 import type { ImportFilter, ImportJob, ImportSourceType, ImportStatus, JsonImportRequest } from '@/types/quiz'
 import { notifyQuizImportSucceeded } from '@/utils/quizEvents'
@@ -228,7 +228,14 @@ export default function QuizImports() {
     if (!job.report_available || isExpired(job.expires_at) || reported.current.has(job.id)) return
     reported.current.add(job.id); setReportLoading(job.id)
     try { const result = await quizService.getImportReportUrl(job.id); window.open(result.url, '_blank', 'noopener,noreferrer') }
-    catch (error) { reported.current.delete(job.id); message.error(errorText(error)) }
+    catch (error) {
+      reported.current.delete(job.id)
+      if (isNotFoundError(error)) {
+        setDetail(null)
+        await load(filter)
+        message.warning('导入任务或错误报告不存在，列表已刷新')
+      } else message.error(errorText(error))
+    }
     finally { reported.current.delete(job.id); setReportLoading(null) }
   }
 
@@ -275,6 +282,8 @@ export default function QuizImports() {
           <Descriptions.Item label="错误数">{detail.error_count}</Descriptions.Item>
           <Descriptions.Item label="错误摘要">{detail.error_message || '-'}</Descriptions.Item>
           <Descriptions.Item label="心跳">{formatDate(detail.heartbeat_at)}</Descriptions.Item>
+          <Descriptions.Item label="开始时间">{formatDate(detail.started_at)}</Descriptions.Item>
+          <Descriptions.Item label="完成时间">{formatDate(detail.finished_at)}</Descriptions.Item>
           <Descriptions.Item label="过期时间">{formatDate(detail.expires_at)}</Descriptions.Item>
         </Descriptions>}
       </Drawer>

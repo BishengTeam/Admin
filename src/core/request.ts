@@ -1,6 +1,7 @@
 import axios, { AxiosError, type AxiosRequestConfig } from 'axios'
 import { message } from 'antd'
 import { getToken, clearAuth } from './auth'
+import { captureError } from './sentry'
 
 export interface ApiFieldError {
   loc?: Array<string | number>
@@ -79,6 +80,16 @@ function toApiError(error: AxiosError): ApiError {
   })
 }
 
+function recordServerFailure(error: ApiError, url?: string) {
+  if (error.status != null && error.status < 500 && error.code !== 50000) return
+  captureError(error, {
+    request_id: error.requestId,
+    status: error.status,
+    code: error.code,
+    url,
+  })
+}
+
 request.interceptors.response.use(
   (response) => {
     const { data, config } = response
@@ -92,6 +103,7 @@ request.interceptors.response.use(
         fields: getFields(data?.detail),
         requestId: response.headers?.['x-request-id'],
       })
+      recordServerFailure(apiError, config.url)
       if (!isQuietBusinessError(apiError.status, apiError.code)) message.error(apiError.message)
       return Promise.reject(apiError)
     }
@@ -109,6 +121,7 @@ request.interceptors.response.use(
     }
 
     const apiError = toApiError(error)
+    recordServerFailure(apiError, error.config?.url)
     if (!isQuietBusinessError(apiError.status, apiError.code) && (apiError.status == null || apiError.status >= 500)) {
       message.error(apiError.status == null ? '网络错误，请检查网络连接' : '服务器暂时不可用，请稍后重试')
     }
@@ -169,4 +182,8 @@ export function isConflictError(error: unknown): error is ApiError {
 
 export function isValidationError(error: unknown): error is ApiError {
   return isApiError(error) && (error.status === 422 || error.code === 40001 || error.code === 40200)
+}
+
+export function isNotFoundError(error: unknown): error is ApiError {
+  return isApiError(error) && (error.status === 404 || error.code === 40300)
 }

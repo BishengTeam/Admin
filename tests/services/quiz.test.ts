@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 
 const http = {
   get: vi.fn(),
@@ -29,6 +31,23 @@ const question = {
   updated_at: '2026-08-06T00:00:00+08:00',
 }
 
+const category = {
+  id: 12,
+  name: '网络基础',
+  normalized_name: '网络基础',
+  parent_id: 3,
+  depth: 2,
+  description: null,
+  status: 'active',
+  sort_order: 20,
+  ever_had_question: false,
+  lock_version: 4,
+  created_by: 7,
+  updated_by: 7,
+  created_at: '2026-08-06T00:00:00+08:00',
+  updated_at: '2026-08-08T00:00:00+08:00',
+}
+
 describe('quizService frozen admin contract', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -38,6 +57,12 @@ describe('quizService frozen admin contract', () => {
       : question)
     http.put.mockResolvedValue(question)
     http.delete.mockResolvedValue(null)
+  })
+
+  it('keeps all 21 management calls on /admin/quiz without a duplicated /api prefix', () => {
+    const source = readFileSync(resolve(process.cwd(), 'src/services/quiz.ts'), 'utf8')
+    expect(source).not.toContain('/api/admin/quiz')
+    expect(source.match(/\/admin\/quiz/g)).toHaveLength(21)
   })
 
   it('uses the new question paths and array-shaped multiple answers', async () => {
@@ -59,6 +84,49 @@ describe('quizService frozen admin contract', () => {
     // accepted for an existing multiple-choice question.
     await quizService.updateQuestion(101, { lock_version: 2, correct_answer: ['B', 'D'] })
     expect(http.put).toHaveBeenCalledWith('/admin/quiz/questions/101', { lock_version: 2, correct_answer: ['B', 'D'] }, { signal: undefined })
+  })
+
+  it('moves and sorts a category through PUT with the current lock version', async () => {
+    const { quizService } = await import('@/services/quiz')
+    http.put.mockResolvedValueOnce(category)
+
+    await quizService.updateCategory(12, { parent_id: 3, sort_order: 20, lock_version: 3 })
+
+    expect(http.put).toHaveBeenCalledWith('/admin/quiz/categories/12', {
+      parent_id: 3,
+      sort_order: 20,
+      lock_version: 3,
+    }, { signal: undefined })
+  })
+
+  it('reads task metrics from health and keeps a 503 ready payload usable', async () => {
+    const { quizService } = await import('@/services/quiz')
+    const snapshot = {
+      heartbeat_at: null,
+      processors: {
+        'quiz-import': {
+          name: 'quiz-import', runs: 1, successes: 1, failures: 0, failure_count: 0,
+          retries: 0, retry_count: 0, total_runtime_seconds: 0.1, runtime_seconds: 0.1,
+          last_runtime_seconds: 0.1, last_started_at: null, last_finished_at: null,
+          last_heartbeat_at: null, last_error: null, last_error_type: null,
+          queue_depth: 0, did_work: false,
+        },
+      },
+    }
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({ status: 200, ok: true, json: async () => ({ code: 0, data: { status: 'ok', checks: {}, details: { quiz_tasks: snapshot } } }) })
+      .mockResolvedValueOnce({ status: 503, ok: false, json: async () => ({ code: 50000, status: 'not_ready', checks: {}, details: { quiz_tasks: snapshot } }) })
+    vi.stubGlobal('fetch', fetchMock)
+    try {
+      const health = await quizService.getTaskProbe('health')
+      const ready = await quizService.getTaskProbe('ready')
+      expect(health.quiz_tasks.processors['quiz-import'].successes).toBe(1)
+      expect(ready.http_status).toBe(503)
+      expect(fetchMock).toHaveBeenNthCalledWith(1, '/health', expect.objectContaining({ headers: { Accept: 'application/json' } }))
+      expect(fetchMock).toHaveBeenNthCalledWith(2, '/ready', expect.objectContaining({ headers: { Accept: 'application/json' } }))
+    } finally {
+      vi.unstubAllGlobals()
+    }
   })
 
   it('sends lock_version in DELETE body and uses batch-disable', async () => {
@@ -84,6 +152,8 @@ describe('quizService frozen admin contract', () => {
       created_count: 0,
       error_count: 0,
       heartbeat_at: null,
+      started_at: null,
+      finished_at: null,
       retry_count: 0,
       error_message: null,
       report_available: false,
