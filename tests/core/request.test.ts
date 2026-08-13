@@ -43,9 +43,11 @@ describe('request', () => {
   })
 
   it('recognizes the frozen 404/40300 not-found contract', async () => {
-    const { ApiError, isNotFoundError } = await import('@/core/request')
+    const { ApiError, isNotFoundError, isPermissionError, isRateLimitError } = await import('@/core/request')
     expect(isNotFoundError(new ApiError({ message: '不存在', status: 404 }))).toBe(true)
     expect(isNotFoundError(new ApiError({ message: '不存在', code: 40300 }))).toBe(true)
     expect(isNotFoundError(new ApiError({ message: '冲突', status: 409, code: 40201 }))).toBe(false)
+    expect(isPermissionError(new ApiError({ message: '无权限', status: 403, code: 40101 }))).toBe(true)
+    expect(isRateLimitError(new ApiError({ message: '限流', status: 429, code: 40202 }))).toBe(true)
   })
 })

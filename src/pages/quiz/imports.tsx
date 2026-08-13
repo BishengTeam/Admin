@@ -1,44 +1,63 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Alert, Button, Card, Descriptions, Drawer, Progress, Segmented, Select, Space, Table, Tag, Upload, message } from 'antd'
-import { DownloadOutlined, ReloadOutlined, UploadOutlined } from '@ant-design/icons'
+import { Alert, Button, Card, Descriptions, Drawer, Empty, Modal, Progress, Segmented, Select, Space, Table, Tag, Tooltip, Tree, Upload, message } from 'antd'
+import { CloseCircleOutlined, DownloadOutlined, FileOutlined, FolderOpenOutlined, ReloadOutlined, SafetyCertificateOutlined, SyncOutlined, UploadOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
+import type { DataNode } from 'antd/es/tree'
 import type { UploadFile } from 'antd/es/upload/interface'
 import { PageContainer } from '@/components/PageContainer'
 import { quizService } from '@/services/quiz'
-import { ApiError, isNotFoundError } from '@/core/request'
+import { ApiError, isConflictError, isNotFoundError } from '@/core/request'
 import { usePermission } from '@/hooks/usePermission'
-import type { ImportFilter, ImportJob, ImportSourceType, ImportStatus, JsonImportRequest } from '@/types/quiz'
+import type { ImportCategoryImpact, ImportCategoryImpactNode, ImportErrorFilter, ImportErrorItem, ImportErrorPage, ImportFilter, ImportJob, ImportSourceType, ImportStatus, JsonImportRequest } from '@/types/quiz'
 import { notifyQuizImportSucceeded } from '@/utils/quizEvents'
 
 const MAX_SIZE = 10 * 1024 * 1024
-const TERMINAL: ImportStatus[] = ['succeeded', 'validation_failed', 'failed']
-const statusLabels: Record<ImportStatus, string> = { queued: '排队中', validating: '校验中', importing: '写入中', succeeded: '成功', validation_failed: '校验失败', failed: '失败' }
-const statusColors: Record<ImportStatus, string> = { queued: 'default', validating: 'processing', importing: 'processing', succeeded: 'success', validation_failed: 'warning', failed: 'error' }
+const PROCESSING: ImportStatus[] = ['queued', 'validating', 'importing']
+const statusLabels: Record<ImportStatus, string> = {
+  queued: '排队中',
+  validating: '校验中',
+  importing: '写入中',
+  awaiting_category_confirmation: '等待分类确认',
+  succeeded: '成功',
+  validation_failed: '校验失败',
+  failed: '失败',
+  cancelled: '已取消',
+  expired: '已过期',
+}
+const statusColors: Record<ImportStatus, string> = {
+  queued: 'default',
+  validating: 'processing',
+  importing: 'processing',
+  awaiting_category_confirmation: 'gold',
+  succeeded: 'success',
+  validation_failed: 'warning',
+  failed: 'error',
+  cancelled: 'default',
+  expired: 'default',
+}
+const impactStatusLabels: Record<ImportCategoryImpactNode['status'], string> = {
+  existing: '复用现有分类',
+  will_create: '将新建',
+  blocked: '已阻断',
+}
+const impactStatusColors: Record<ImportCategoryImpactNode['status'], string> = {
+  existing: 'blue',
+  will_create: 'green',
+  blocked: 'red',
+}
 
 function errorText(error: unknown) { return error instanceof Error ? error.message : '请求失败' }
 function formatDate(value: string | null) { return value ? new Date(value).toLocaleString('zh-CN', { hour12: false }) : '-' }
 function isExpired(value: string) { return new Date(value).getTime() <= Date.now() }
-function downloadText(filename: string, content: string, type: string) {
-  const blob = new Blob([content], { type })
-  const url = URL.createObjectURL(blob)
-  const anchor = document.createElement('a')
-  anchor.href = url; anchor.download = filename; anchor.click(); URL.revokeObjectURL(url)
+function downloadSignedFile(url: string, filename: string) {
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  link.rel = 'noopener noreferrer'
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
 }
-
-function csvEscape(value: string) { return `"${value.replace(/"/g, '""')}"` }
-function csvTemplate() {
-  const header = 'category_path,question_type,question_text,options,correct_answer,explanation'
-  const row = [
-    '["网络","基础"]',
-    'single_choice',
-    '示例题',
-    '{"A":"选项 A","B":"选项 B","C":"选项 C"}',
-    'A',
-    '解析',
-  ].map(csvEscape).join(',')
-  return `${header}\n${row}\n`
-}
-
 function countCsvRecords(text: string) {
   let quoted = false
   let records = 0
@@ -93,8 +112,30 @@ function rowProgress(job: ImportJob) {
   return Math.min(100, Math.round((Math.max(job.validated_rows, job.created_count) / job.total_rows) * 100))
 }
 
+function impactTreeData(nodes: ImportCategoryImpactNode[]): DataNode[] {
+  return nodes.map((node) => ({
+    key: node.path.join('/'),
+    title: (
+      <Space size={6} wrap>
+        <span>{node.name}</span>
+        <Tag color={impactStatusColors[node.status]}>{impactStatusLabels[node.status]}</Tag>
+        <span style={{ color: '#666' }}>直接 {node.direct_question_count} 题 / 子树 {node.subtree_question_count} 题</span>
+        {node.blocking_reasons.map((reason) => <Tag color="red" key={reason}>{reason}</Tag>)}
+      </Space>
+    ),
+    children: impactTreeData(node.children),
+  }))
+}
+
+function errorLocation(item: ImportErrorItem) {
+  if (item.row != null) return `第 ${item.row} 行`
+  if (item.question_index != null) return `第 ${item.question_index} 题`
+  return '-'
+}
+
 export default function QuizImports() {
   const canImport = usePermission('quiz:import')
+  const canWrite = usePermission('quiz:write')
   const [source, setSource] = useState<ImportSourceType>('csv')
   const [fileList, setFileList] = useState<UploadFile[]>([])
   const [uploading, setUploading] = useState(false)
@@ -102,7 +143,16 @@ export default function QuizImports() {
   const [data, setData] = useState<{ items: ImportJob[]; total: number; page: number; page_size: number } | null>(null)
   const [loading, setLoading] = useState(false)
   const [detail, setDetail] = useState<ImportJob | null>(null)
-  const [reportLoading, setReportLoading] = useState<number | null>(null)
+  const [errorJob, setErrorJob] = useState<ImportJob | null>(null)
+  const [errorData, setErrorData] = useState<ImportErrorPage | null>(null)
+  const [errorFilter, setErrorFilter] = useState<ImportErrorFilter>({ page: 1 })
+  const [errorLoading, setErrorLoading] = useState(false)
+  const [impactJob, setImpactJob] = useState<ImportJob | null>(null)
+  const [impact, setImpact] = useState<ImportCategoryImpact | null>(null)
+  const [impactLoading, setImpactLoading] = useState(false)
+  const [impactAction, setImpactAction] = useState<'confirm' | 'cancel' | null>(null)
+  const [signedLoading, setSignedLoading] = useState<string | null>(null)
+  const [retryLoading, setRetryLoading] = useState<number | null>(null)
   const reported = useRef(new Set<number>())
   const submitted = useRef(new Set<number>())
   const heartbeatWarned = useRef(new Set<number>())
@@ -112,6 +162,18 @@ export default function QuizImports() {
   const visible = useRef(true)
   const controller = useRef<AbortController | null>(null)
   const taskController = useRef<AbortController | null>(null)
+  const errorController = useRef<AbortController | null>(null)
+  const impactController = useRef<AbortController | null>(null)
+
+  const applyJobUpdate = useCallback((job: ImportJob) => {
+    setData((current) => current ? {
+      ...current,
+      items: current.items.map((item) => item.id === job.id ? job : item),
+    } : current)
+    setDetail((current) => current?.id === job.id ? job : current)
+    setErrorJob((current) => current?.id === job.id ? job : current)
+    setImpactJob((current) => current?.id === job.id ? job : current)
+  }, [])
 
   const load = useCallback(async (params = filter, options: { quiet?: boolean } = {}) => {
     controller.current?.abort()
@@ -134,13 +196,18 @@ export default function QuizImports() {
 
   useEffect(() => {
     load()
-    return () => { controller.current?.abort(); taskController.current?.abort() }
+    return () => {
+      controller.current?.abort()
+      taskController.current?.abort()
+      errorController.current?.abort()
+      impactController.current?.abort()
+    }
   }, [load])
 
   const pollTaskDetails = useCallback(async () => {
     if (!visible.current) return
     const ids = new Set<number>([
-      ...(data?.items ?? []).filter((job) => !TERMINAL.includes(job.status)).map((job) => job.id),
+      ...(data?.items ?? []).filter((job) => PROCESSING.includes(job.status)).map((job) => job.id),
       ...submitted.current,
     ])
     if (!ids.size) return
@@ -161,7 +228,7 @@ export default function QuizImports() {
         notifiedSucceeded.current.add(job.id)
         notifyQuizImportSucceeded(job.id)
       }
-      if (TERMINAL.includes(job.status)) {
+      if (!PROCESSING.includes(job.status)) {
         submitted.current.delete(job.id)
         heartbeatWarned.current.delete(job.id)
       }
@@ -181,7 +248,7 @@ export default function QuizImports() {
     let timer: number | undefined
     const poll = async () => {
       if (visible.current) {
-        const active = (data?.items ?? []).some((job) => !TERMINAL.includes(job.status)) || submitted.current.size > 0
+        const active = (data?.items ?? []).some((job) => PROCESSING.includes(job.status)) || submitted.current.size > 0
         if (active) {
           await pollTaskDetails()
           if (Date.now() - pollStarted.current > 60_000) {
@@ -224,31 +291,211 @@ export default function QuizImports() {
     finally { setUploading(false) }
   }
 
-  const getReport = async (job: ImportJob) => {
-    if (!job.report_available || isExpired(job.expires_at) || reported.current.has(job.id)) return
-    reported.current.add(job.id); setReportLoading(job.id)
-    try { const result = await quizService.getImportReportUrl(job.id); window.open(result.url, '_blank', 'noopener,noreferrer') }
+  const openSignedFile = async (job: ImportJob, kind: 'source' | 'report') => {
+    if (isExpired(job.expires_at) || (kind === 'report' && !job.report_available) || reported.current.has(job.id)) return
+    const loadingKey = `${kind}:${job.id}`
+    reported.current.add(job.id); setSignedLoading(loadingKey)
+    try {
+      const result = kind === 'source'
+        ? await quizService.getImportSourceUrl(job.id)
+        : await quizService.getImportReportUrl(job.id)
+      downloadSignedFile(
+        result.url,
+        kind === 'source' ? `quiz-import-${job.id}.${job.source_type}` : `quiz-import-${job.id}-errors.json`,
+      )
+      message.success(`${kind === 'source' ? '源文件' : '错误报告'}下载已开始，地址最长 300 秒有效`)
+    }
     catch (error) {
       reported.current.delete(job.id)
       if (isNotFoundError(error)) {
         setDetail(null)
         await load(filter)
-        message.warning('导入任务或错误报告不存在，列表已刷新')
+        message.warning(`导入任务或${kind === 'source' ? '源文件' : '错误报告'}不存在，列表已刷新`)
       } else message.error(errorText(error))
     }
-    finally { reported.current.delete(job.id); setReportLoading(null) }
+    finally { reported.current.delete(job.id); setSignedLoading(null) }
   }
+
+  const retryJob = async (job: ImportJob) => {
+    if (!canImport || job.status !== 'failed' || isExpired(job.expires_at)) return
+    setRetryLoading(job.id)
+    try {
+      const updated = await quizService.retryImport(job.id)
+      submitted.current.add(updated.id)
+      pollStarted.current = Date.now()
+      setData((current) => current ? { ...current, items: current.items.map((item) => item.id === updated.id ? updated : item) } : current)
+      if (detail?.id === updated.id) setDetail(updated)
+      message.success(`导入任务 #${updated.id} 已重新排队`)
+    } catch (error) {
+      if (isNotFoundError(error)) {
+        setDetail(null)
+        await load(filter)
+        message.warning('导入任务不存在，列表已刷新')
+      } else message.error(errorText(error))
+    } finally { setRetryLoading(null) }
+  }
+
+  const loadErrors = useCallback(async (job: ImportJob, nextFilter: ImportErrorFilter = errorFilter) => {
+    errorController.current?.abort()
+    const next = new AbortController()
+    errorController.current = next
+    setErrorLoading(true)
+    try {
+      const result = await quizService.listImportErrors(job.id, nextFilter, next.signal)
+      if (!next.signal.aborted) setErrorData(result)
+      return result
+    } catch (error) {
+      if (!next.signal.aborted) {
+        if (isNotFoundError(error)) {
+          setErrorJob(null)
+          setErrorData(null)
+          await load(filter)
+          message.warning('导入任务或错误明细不存在，列表已刷新')
+        } else message.error(errorText(error))
+      }
+      return null
+    } finally {
+      if (!next.signal.aborted) setErrorLoading(false)
+    }
+  }, [JSON.stringify(errorFilter), filter, load])
+
+  const openErrors = async (job: ImportJob) => {
+    if (isExpired(job.expires_at) || job.error_count < 1) return
+    const nextFilter: ImportErrorFilter = { page: 1 }
+    setErrorJob(job)
+    setErrorFilter(nextFilter)
+    setErrorData(null)
+    await loadErrors(job, nextFilter)
+  }
+
+  const changeErrorFilter = (next: ImportErrorFilter) => {
+    if (!errorJob) return
+    setErrorFilter(next)
+    void loadErrors(errorJob, next)
+  }
+
+  const loadImpact = useCallback(async (job: ImportJob) => {
+    impactController.current?.abort()
+    const next = new AbortController()
+    impactController.current = next
+    setImpactLoading(true)
+    try {
+      const latestJob = await quizService.getImport(job.id, next.signal)
+      if (next.signal.aborted) return null
+      applyJobUpdate(latestJob)
+      if (latestJob.status !== 'awaiting_category_confirmation') {
+        setImpactJob(null)
+        setImpact(null)
+        message.warning('该任务已不再等待分类确认，列表已刷新')
+        return null
+      }
+      const result = await quizService.getImportCategoryImpact(job.id, next.signal)
+      if (!next.signal.aborted) {
+        setImpactJob(latestJob)
+        setImpact(result)
+      }
+      return result
+    } catch (error) {
+      if (!next.signal.aborted) {
+        if (isNotFoundError(error)) {
+          setImpactJob(null)
+          setImpact(null)
+          await load(filter)
+          message.warning('导入任务不存在，列表已刷新')
+        } else message.error(errorText(error))
+      }
+      return null
+    } finally {
+      if (!next.signal.aborted) setImpactLoading(false)
+    }
+  }, [applyJobUpdate, filter, load])
+
+  const openImpact = async (job: ImportJob) => {
+    setImpactJob(job)
+    setImpact(null)
+    await loadImpact(job)
+  }
+
+  const confirmCategories = async () => {
+    if (!impactJob || !impact || !canImport || !canWrite || impact.blocking_reasons.length) return
+    setImpactAction('confirm')
+    try {
+      const updated = await quizService.confirmImportCategories(impactJob.id, {
+        lock_version: impact.lock_version,
+        impact_version: impact.impact_version,
+      })
+      applyJobUpdate(updated)
+      submitted.current.add(updated.id)
+      pollStarted.current = Date.now()
+      setImpactJob(null)
+      setImpact(null)
+      message.success(`任务 #${updated.id} 已确认，分类和全部草稿题目将由 Worker 在同一事务创建`)
+    } catch (error) {
+      if (isConflictError(error)) {
+        message.warning('任务版本或分类影响已变化，已加载最新影响，请重新确认')
+        await loadImpact(impactJob)
+      } else if (isNotFoundError(error)) {
+        setImpactJob(null)
+        setImpact(null)
+        await load(filter)
+        message.warning('导入任务不存在，列表已刷新')
+      } else message.error(errorText(error))
+    } finally { setImpactAction(null) }
+  }
+
+  const cancelAwaitingJob = async () => {
+    if (!impactJob || !impact || !canImport) return
+    setImpactAction('cancel')
+    try {
+      const updated = await quizService.cancelImport(impactJob.id, { lock_version: impact.lock_version })
+      applyJobUpdate(updated)
+      setImpactJob(null)
+      setImpact(null)
+      message.success(`导入任务 #${updated.id} 已取消，未创建任何分类或题目`)
+    } catch (error) {
+      if (isConflictError(error)) {
+        message.warning('任务版本已变化，已加载最新状态')
+        await loadImpact(impactJob)
+      } else if (isNotFoundError(error)) {
+        setImpactJob(null)
+        setImpact(null)
+        await load(filter)
+        message.warning('导入任务不存在，列表已刷新')
+      } else message.error(errorText(error))
+    } finally { setImpactAction(null) }
+  }
+
+  const errorColumns: ColumnsType<ImportErrorItem> = [
+    { title: '位置', key: 'location', width: 110, render: (_, item) => errorLocation(item) },
+    { title: '字段', dataIndex: 'field', width: 160, render: (value: string | null) => value || '-' },
+    { title: '错误码', dataIndex: 'error_code', width: 150, render: (value: string | null) => value || '-' },
+    { title: '原因', dataIndex: 'message' },
+  ]
 
   const columns: ColumnsType<ImportJob> = [
     { title: '任务 ID', dataIndex: 'id', width: 100 },
     { title: '来源', dataIndex: 'source_type', width: 80, render: (value: ImportSourceType) => value.toUpperCase() },
     { title: '大小', dataIndex: 'source_size_bytes', width: 110, render: (value: number) => `${(value / 1024 / 1024).toFixed(2)} MiB` },
-    { title: '状态', dataIndex: 'status', width: 110, render: (value: ImportStatus) => <Tag color={statusColors[value]}>{statusLabels[value]}</Tag> },
+    { title: '状态', dataIndex: 'status', width: 150, render: (value: ImportStatus) => <Tag color={statusColors[value]}>{statusLabels[value]}</Tag> },
     { title: '进度', key: 'progress', width: 180, render: (_, job) => <Progress percent={rowProgress(job)} size="small" status={job.status === 'failed' ? 'exception' : undefined} /> },
     { title: '错误数', dataIndex: 'error_count', width: 80 },
     { title: '创建时间', dataIndex: 'created_at', width: 170, render: formatDate },
     { title: '过期时间', dataIndex: 'expires_at', width: 170, render: formatDate },
-    { title: '操作', key: 'actions', width: 170, render: (_, job) => <Space size={0}><Button type="link" size="small" onClick={() => setDetail(job)}>详情</Button>{job.report_available && !isExpired(job.expires_at) && <Button type="link" size="small" loading={reportLoading === job.id} onClick={() => getReport(job)}>错误报告</Button>}</Space> },
+    {
+      title: '操作', key: 'actions', width: 380, fixed: 'right', render: (_, job) => (
+        <Space size={0}>
+          <Button type="link" size="small" onClick={() => setDetail(job)}>详情</Button>
+          {!isExpired(job.expires_at) && <Button type="link" size="small" icon={<FileOutlined />} loading={signedLoading === `source:${job.id}`} onClick={() => void openSignedFile(job, 'source')}>源文件</Button>}
+          {job.error_count > 0 && !isExpired(job.expires_at) && <Button type="link" size="small" onClick={() => void openErrors(job)}>错误明细</Button>}
+          {job.status === 'awaiting_category_confirmation' && <Button type="link" size="small" icon={<FolderOpenOutlined />} onClick={() => void openImpact(job)}>分类影响</Button>}
+          {job.status === 'failed' && canImport && (
+            <Tooltip title={isExpired(job.expires_at) ? '源文件已超过 7 天，不能重试' : '沿用同一任务和批次键重新排队'}>
+              <Button type="link" size="small" icon={<SyncOutlined />} disabled={isExpired(job.expires_at)} loading={retryLoading === job.id} onClick={() => Modal.confirm({ title: `重试导入任务 #${job.id}？`, content: '仅系统执行失败的任务可以重试；服务端会再次校验状态、有效期和重试预算。', onOk: () => retryJob(job) })}>重试</Button>
+            </Tooltip>
+          )}
+        </Space>
+      ),
+    },
   ]
 
   return (
@@ -261,9 +508,9 @@ export default function QuizImports() {
           </Upload>
           <Space wrap>
             <Button type="primary" icon={<UploadOutlined />} loading={uploading} disabled={!currentFile} onClick={handleUpload}>提交任务</Button>
-            <Button icon={<DownloadOutlined />} onClick={() => source === 'csv' ? downloadText('quiz-import-template.csv', csvTemplate(), 'text/csv;charset=utf-8') : downloadText('quiz-import-template.json', JSON.stringify({ questions: [{ category_path: ['网络', '基础'], question_type: 'single_choice', question_text: '示例题', options: { A: '选项 A', B: '选项 B', C: '选项 C' }, correct_answer: 'A', explanation: '解析' }] }, null, 2), 'application/json;charset=utf-8')}>下载模板</Button>
+            <Button icon={<DownloadOutlined />} href={`/templates/quiz-import-v1.${source}`} download={`quiz-import-v1.${source}`}>下载 v1 模板</Button>
           </Space>
-          <Alert type="info" showIcon message="UTF-8 文件，最大 10 MiB，最多 5,000 行；导入只创建草稿，分类必须预先存在。CSV 表头固定为 category_path、question_type、question_text、options、correct_answer、explanation。" />
+          <Alert type="info" showIcon message="UTF-8 文件，最大 10 MiB，最多 5,000 行；导入只创建草稿。若文件包含不存在的分类，任务会等待确认；确认后分类和全部草稿题目在同一事务创建，任一错误全部回滚。CSV 表头固定为 category_path、question_type、question_text、options、correct_answer、explanation。" />
         </Space>
       </Card>}
       <Space style={{ marginBottom: 16 }} wrap>
@@ -271,7 +518,7 @@ export default function QuizImports() {
         <Select allowClear placeholder="来源" value={filter.source_type} onChange={(value) => setFilter((current) => ({ ...current, source_type: value, page: 1 }))} options={[{ value: 'csv', label: 'CSV' }, { value: 'json', label: 'JSON' }]} style={{ width: 120 }} />
         <Button icon={<ReloadOutlined />} onClick={() => load(filter)}>刷新</Button>
       </Space>
-      <Table<ImportJob> rowKey="id" scroll={{ x: 1250 }} columns={columns} dataSource={data?.items ?? []} loading={loading} pagination={{ current: data?.page ?? 1, pageSize: data?.page_size ?? 20, total: data?.total ?? 0, showSizeChanger: true, onChange: (page, pageSize) => setFilter((current) => ({ ...current, page, page_size: pageSize })) }} />
+      <Table<ImportJob> rowKey="id" scroll={{ x: 1450 }} columns={columns} dataSource={data?.items ?? []} loading={loading} pagination={{ current: data?.page ?? 1, pageSize: data?.page_size ?? 20, total: data?.total ?? 0, showSizeChanger: true, onChange: (page, pageSize) => setFilter((current) => ({ ...current, page, page_size: pageSize })) }} />
       <Drawer title={`导入任务 #${detail?.id ?? ''}`} open={Boolean(detail)} onClose={() => setDetail(null)} width={460}>
         {detail && <Descriptions column={1} bordered size="small">
           <Descriptions.Item label="状态"><Tag color={statusColors[detail.status]}>{statusLabels[detail.status]}</Tag></Descriptions.Item>
@@ -281,11 +528,135 @@ export default function QuizImports() {
           <Descriptions.Item label="已创建草稿">{detail.created_count}</Descriptions.Item>
           <Descriptions.Item label="错误数">{detail.error_count}</Descriptions.Item>
           <Descriptions.Item label="错误摘要">{detail.error_message || '-'}</Descriptions.Item>
+          <Descriptions.Item label="缺失分类">{detail.missing_category_count}</Descriptions.Item>
+          <Descriptions.Item label="受影响题目">{detail.affected_question_count}</Descriptions.Item>
+          <Descriptions.Item label="任务版本">{detail.lock_version}</Descriptions.Item>
+          <Descriptions.Item label="校验版本">{detail.validation_version}</Descriptions.Item>
+          <Descriptions.Item label="确认管理员">{detail.confirmed_by ?? '-'}</Descriptions.Item>
+          <Descriptions.Item label="确认时间">{formatDate(detail.confirmed_at)}</Descriptions.Item>
+          <Descriptions.Item label="重试次数">{detail.retry_count}</Descriptions.Item>
           <Descriptions.Item label="心跳">{formatDate(detail.heartbeat_at)}</Descriptions.Item>
           <Descriptions.Item label="开始时间">{formatDate(detail.started_at)}</Descriptions.Item>
           <Descriptions.Item label="完成时间">{formatDate(detail.finished_at)}</Descriptions.Item>
           <Descriptions.Item label="过期时间">{formatDate(detail.expires_at)}</Descriptions.Item>
         </Descriptions>}
+        {detail?.error_count ? <Alert style={{ marginTop: 16 }} type="warning" showIcon message={`共 ${detail.error_count} 条逐行错误`} description="点击列表中的“错误明细”，可在当前页面按字段筛选并查看行号、字段和原因；需要留档时再下载 JSON。" /> : null}
+        {detail?.status === 'awaiting_category_confirmation' ? <Button block type="primary" style={{ marginTop: 16 }} icon={<FolderOpenOutlined />} onClick={() => void openImpact(detail)}>查看分类影响并确认</Button> : null}
+      </Drawer>
+      <Drawer
+        title={`导入错误明细 #${errorJob?.id ?? ''}`}
+        open={Boolean(errorJob)}
+        onClose={() => { errorController.current?.abort(); setErrorJob(null); setErrorData(null) }}
+        width={860}
+        extra={errorJob?.report_available && !isExpired(errorJob.expires_at) ? (
+          <Button
+            icon={<DownloadOutlined />}
+            loading={signedLoading === `report:${errorJob.id}`}
+            onClick={() => void openSignedFile(errorJob, 'report')}
+          >
+            下载 JSON
+          </Button>
+        ) : undefined}
+      >
+        <Alert
+          type="info"
+          showIcon
+          style={{ marginBottom: 16 }}
+          message="错误详情已永久脱敏"
+          description="仅展示位置、字段、错误码和原因，不展示题干、选项、答案或原始值。每页固定 50 条。"
+        />
+        <Space style={{ marginBottom: 16 }} wrap>
+          <Select
+            allowClear
+            placeholder="全部字段"
+            value={errorFilter.field}
+            options={(errorData?.available_fields ?? []).map((field) => ({ label: field, value: field }))}
+            onChange={(field) => changeErrorFilter({ field, page: 1 })}
+            style={{ width: 220 }}
+          />
+          <Button icon={<ReloadOutlined />} onClick={() => errorJob && void loadErrors(errorJob, errorFilter)}>刷新</Button>
+          <span style={{ color: '#666' }}>校验版本：{errorData?.validation_version ?? errorJob?.validation_version ?? '-'}</span>
+        </Space>
+        <Table<ImportErrorItem>
+          rowKey={(item) => [
+            item.row ?? 'q',
+            item.question_index ?? 'row',
+            item.field ?? 'global',
+            item.error_code,
+            item.message,
+          ].join(':')}
+          columns={errorColumns}
+          dataSource={errorData?.items ?? []}
+          loading={errorLoading}
+          locale={{ emptyText: <Empty description="没有匹配的错误" /> }}
+          pagination={{
+            current: errorData?.page ?? errorFilter.page ?? 1,
+            pageSize: 50,
+            total: errorData?.total ?? 0,
+            showSizeChanger: false,
+            showTotal: (total) => `共 ${total} 条`,
+            onChange: (page) => changeErrorFilter({ ...errorFilter, page }),
+          }}
+        />
+      </Drawer>
+      <Drawer
+        title={`缺失分类影响 #${impactJob?.id ?? ''}`}
+        open={Boolean(impactJob)}
+        onClose={() => { impactController.current?.abort(); setImpactJob(null); setImpact(null) }}
+        width={760}
+        extra={<Button icon={<ReloadOutlined />} loading={impactLoading} onClick={() => impactJob && void loadImpact(impactJob)}>重新计算</Button>}
+        footer={impactJob && impact ? (
+          <Space style={{ width: '100%', justifyContent: 'flex-end' }}>
+            <Button
+              danger
+              icon={<CloseCircleOutlined />}
+              disabled={!canImport}
+              loading={impactAction === 'cancel'}
+              onClick={() => Modal.confirm({
+                title: `取消导入任务 #${impactJob.id}？`,
+                content: '取消后不会创建任何分类或题目，该任务不能继续确认。',
+                okText: '确认取消',
+                okButtonProps: { danger: true },
+                onOk: cancelAwaitingJob,
+              })}
+            >
+              取消任务
+            </Button>
+            <Tooltip title={!canWrite ? '确认创建分类还需要 quiz:write 权限' : impact.blocking_reasons.length ? '存在阻断原因，不能确认' : undefined}>
+              <Button
+                type="primary"
+                icon={<SafetyCertificateOutlined />}
+                disabled={!canImport || !canWrite || impact.blocking_reasons.length > 0}
+                loading={impactAction === 'confirm'}
+                onClick={() => Modal.confirm({
+                  title: `确认创建 ${impact.new_category_count} 个分类并导入 ${impact.affected_question_count} 道题？`,
+                  content: '执行前服务端会重新计算分类影响。分类和全部草稿题目在同一 PostgreSQL 事务创建，任一错误全部回滚；影响变化时必须重新确认。',
+                  okText: '确认创建并导入',
+                  onOk: confirmCategories,
+                })}
+              >
+                确认创建并导入
+              </Button>
+            </Tooltip>
+          </Space>
+        ) : undefined}
+      >
+        {impactLoading && !impact ? <Progress percent={50} status="active" showInfo={false} /> : impact && <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+          <Alert
+            type={impact.blocking_reasons.length ? 'error' : 'warning'}
+            showIcon
+            message={impact.blocking_reasons.length ? '当前影响存在阻断，不能确认' : '请核对将复用和新建的分类'}
+            description={impact.blocking_reasons.length ? impact.blocking_reasons.join('；') : '确认时仍会重新计算；影响版本变化后不会静默执行。'}
+          />
+          <Descriptions bordered size="small" column={2}>
+            <Descriptions.Item label="将新建分类">{impact.new_category_count}</Descriptions.Item>
+            <Descriptions.Item label="复用分类">{impact.reused_category_count}</Descriptions.Item>
+            <Descriptions.Item label="受影响草稿题">{impact.affected_question_count}</Descriptions.Item>
+            <Descriptions.Item label="计算时间">{formatDate(impact.calculated_at)}</Descriptions.Item>
+            <Descriptions.Item label="影响版本" span={2}><span style={{ wordBreak: 'break-all' }}>{impact.impact_version}</span></Descriptions.Item>
+          </Descriptions>
+          <Tree showLine defaultExpandAll treeData={impactTreeData(impact.tree)} />
+        </Space>}
       </Drawer>
     </PageContainer>
   )

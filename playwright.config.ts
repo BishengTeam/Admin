@@ -11,7 +11,10 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
+      // Use the installed system Chrome in CI/development. This avoids tying
+      // the suite to Playwright's cache revision while preserving Chromium
+      // behavior and makes a clean checkout runnable without a browser download.
+      use: { ...devices['Desktop Chrome'], channel: 'chrome' },
     },
   ],
   webServer: {

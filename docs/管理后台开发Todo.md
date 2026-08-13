@@ -1,8 +1,8 @@
 # 管理后台开发 Todo
 
-> 进度快照：2026-08-09
-> 历史基线：已删除的 `管理后台开发计划.md` 最后提交版本（F-30 至 F-40，共 11 个页面模块）。
-> 题库依据：`Backend/docs/quiz/题库模块开发Todo.md` 及其冻结契约。
+> 进度快照：2026-08-13
+> 历史基线：归档的 [`archive/管理后台开发计划.md`](archive/管理后台开发计划.md)（F-30 至 F-40，共 11 个页面模块）。
+> 题库唯一上游清单：`Backend/docs/quiz/题库模块全链路开发Todo.md`（2026-08-12 基线）；旧 `题库模块开发Todo.md` 仅作 Backend 历史来源索引。
 > 勾选口径：`[x]` 只表示 Admin 侧当前约定范围已实现；是否可发布以模块状态和发布门禁为准。
 
 状态含义：
@@ -15,11 +15,11 @@
 
 当前证据：
 
-- Admin：`npm test` 为 `39 passed`；`npm run build` 通过，存在 Ant Design vendor chunk 大于 500 kB 的非阻断警告。
-- Backend：默认测试为 `370 passed, 116 skipped`；跳过项均要求显式 PostgreSQL 集成库。题库 Todo 中的 `368 passed` 已过期，需在 Backend 文档内另行修正。
-- 题库 OpenAPI：管理端 21 个 operation，题库总计 43 个 operation；Admin service 路径已切换到 `/admin/quiz/*` 冻结契约。
+- Admin 基线：`npm test -- --no-cache` 为 `12` 个测试文件、`48 passed`；`npm run build` 通过。2026-08-13 在宿主机实际执行新版题库 Playwright 契约冒烟，`12 passed (15.3s)`。该套 E2E 使用契约 Mock，不等同真实 Backend/OSS 联调。
+- Backend 基线：单测 `434 passed`；隔离 PostgreSQL 回归为 `130 passed`。独立 `quiz-worker` 入口、Redis 共享指标和就绪门禁已实现；真实 Redis/OSS、Worker 部署重启/扩容、三端 E2E 和容量验收仍未完成。
+- 题库契约：共 52 个 operation（用户端 22、管理端 30）；Admin 服务已接入全部 30 个管理 operation，三端 manifest、页面和严格类型已同步，`joint_release_gate.sh check` 通过；真实 Backend 联调仍未完成。
 
-主清单当前共 21 项：Admin 侧已实现 10 项（47.6%）；未勾选项中 `DOING` 2 项、`BLOCKED` 1 项、`TODO` 8 项。专项工作台属于计划外增量，不用于计算历史 11 模块完成率。
+主勾选清单当前共 21 项：已勾选 9 项（42.9%）、未勾选 12 项。勾选只描述既有子范围，跨端发布完成度必须以 QF 状态表和发布门禁为准；专项工作台不用于计算历史 11 模块完成率。
 
 ## 历史 11 模块同步状态
 
@@ -31,27 +31,44 @@
 | F-33 | 订单与支付管理 | 🧪 | 订单列表、详情、筛选、对账和导出已实现；真实微信支付/退款与异常链路未完成联调 |
 | F-34 | 用户管理 | 🧪 | 列表、筛选、详情、封禁/启用、批量删除、导出及资料审核已实现；缺真实 Backend E2E 验收 |
 | F-35 | 内容配置管理 | DOING | 专区、课程、Banner 页面已存在；价格矩阵与优惠配置尚未实现 |
-| F-36 | 题库管理 | 🧪 | 分类/题目、状态流转、批量操作、CSV/JSON 导入、统计、审计和任务监控已实现；Backend QB-06 至 QB-12 与真实 DB/OSS 验收未完成 |
+| F-36 | 题库管理 | 🧪 | 30 个管理 operation、统一分类/题目页、导入/聚合统计/审计页、任务监控和 12 项宿主浏览器契约 E2E 已通过；仍缺真实 Backend E2E、Redis/OSS/独立 Worker、容量和发布门禁 |
 | F-37 | 积分与优惠券管理 | TODO | 无独立页面、service 或路由 |
 | F-38 | 电子协议管理 | TODO | 无模板、签名审核或盖章页面 |
 | F-39 | 竞赛报名统计 | TODO | 无统计页和 Excel 导出入口 |
 | F-40 | 系统设置 | TODO | 无管理员账户、RBAC 配置或系统通知页面 |
 
-历史 11 模块汇总：`🧪 3`、`DOING 2`、`TODO 6`、`DONE 0`。旧计划中的 Excel 导入和 `/admin/quiz/import` 路径已被冻结契约中的 CSV/JSON 后台任务与 `/admin/quiz/imports/*` 替代。
+历史 11 模块汇总：`🧪 2`、`DOING 3`、`TODO 6`、`DONE 0`。旧计划中的 Excel 导入和 `/admin/quiz/import` 路径已被冻结契约中的 CSV/JSON 后台任务与 `/admin/quiz/imports/*` 替代。
 
-## Backend 题库依赖快照
+## 题库全链路依赖快照
 
-Backend 题库 Todo 共 44 项：`DONE 24`、`🧪 4`、`DOING 11`、`TODO 4`、`BLOCKED 1`。
+上游唯一清单为 `Backend/docs/quiz/题库模块全链路开发Todo.md`。Admin 阶段五任务是 QF-28 至 QF-35；旧 QB 编号只保留在“来源映射”中，不能再作为当前完成度判断依据。
 
-| 范围 | Backend 状态 | 对 Admin 的影响 |
+| 范围 | 上游状态 | 对 Admin 的影响 |
 |---|---|---|
-| QB-00 至 QB-05 | DONE | 契约、迁移、模型和基础设施已建立 |
-| QB-06 至 QB-12 | DOING | 直接阻塞管理端分类、题目、导入、审计、统计的真实联调验收 |
-| QB-13 至 QB-29 | DONE | 用户练习与模拟考试链路已实现，不代表 Admin 已联合发布 |
-| QB-30 至 QB-33 | 🧪 | 限流、旧接口清理、OpenAPI、任务监控仍待生产 Redis/DB/OSS 联调 |
-| QB-34 | DONE | 后端完成度文档口径已修正 |
-| QB-35 至 QB-42 | TODO/DOING | PostgreSQL、HTTP、并发与容量门禁尚未全部通过 |
-| QB-43 | BLOCKED | 缺真实私有 OSS Bucket、Endpoint 和最小权限凭据 |
+| QF-02 | 🧪 | 52 个 operation 已冻结；三端 manifest 与 Admin 严格类型同步，联合契约 check 通过，待真实联合 E2E |
+| QF-06 至 QF-16 | 🧪 | Backend 管理内容、导入、统计、审计和限流已有数据库证据；Admin 页面与生产 Redis/OSS/Worker 仍未验收 |
+| QF-28 至 QF-33、QF-35 | 🧪 | Admin 代码、类型、页面和本地质量门禁已有证据；真实 Backend/OSS/部署联调未完成 |
+| QF-34 | 🧪 | 任务页已展示并严格识别 Redis 共享指标来源；真实独立 Worker/Redis 部署和告警尚未验证 |
+| QF-48、QF-52 | 🧪/DOING | 独立 Worker、共享指标和就绪门禁代码已闭合；服务端积压/失败/卡死/滞后信号已接入，真实部署、API 指标和告警渠道仍未完成 |
+| QF-50、QF-51 | BLOCKED | 缺测试 Redis，以及隔离私有 OSS Bucket、Endpoint 和最小权限 RAM 凭据 |
+| QF-57 | TODO | 当前只有契约 Mock E2E；真实 Backend Playwright E2E 尚未完成 |
+
+## 题库阶段五：Admin 管理后台
+
+本表镜像上游 2026-08-12 基线；状态变更必须先有与验收标准对应的可复查证据，并同步回全链路 Todo。
+
+| ID | 状态 | 优先级 | 负责人 | 任务 | 依赖 | 估算 | 来源映射 | 验收标准 |
+|---|---|---|---|---|---|---:|---|---|
+| QF-28 | 🧪 | P0 | Admin | 对齐 52 个目标 operation、严格类型和权限路由 | QF-02 | 1.25 人日 | QB-32、新增 | 30 个管理调用已接入；严格边界校验；401/403/409/429 统一处理；三端 manifest 和联合契约 check 已通过，待真实联合 E2E |
+| QF-29 | 🧪 | P0 | Admin | 完成分类管理逻辑页和影响预览 | QF-07、QF-28 | 1.25 人日 | QB-06、新增 | 分类管理已合并到题目页左树；子分类、移动/启停/删除影响预览、确认执行和 409 刷新已实现；旧分类路由重定向和 URL 筛选已有宿主浏览器契约 E2E，待真实 Backend 验证 |
+| QF-30 | 🧪 | P0 | Admin | 完成题目管理逻辑页和最多 100 条批量操作 | QF-09、QF-28 | 1.5 人日 | QB-07、QB-08、新增 | 当前页明确勾选 1～100 条、二次确认、逐题错误、原子失败和 409/429 已有 E2E；真实联调仍待验证 |
+| QF-31 | 🧪 | P0 | Admin | 完成导入任务页、页内错误、缺失分类确认、源文件和重试 | QF-11、QF-12、QF-28 | 1.5 人日 | QB-10、QB-11、新增 | CSV/JSON 模板、上传校验、轮询、源文件、页内脱敏错误表、次要 JSON 下载、失败重试、分类影响树、双版本确认/取消和 409 刷新已实现；真实 OSS 仍待验证 |
+| QF-32 | 🧪 | P1 | Admin | 新增题库聚合统计页 | QF-14、QF-28 | 1.25 人日 | QB-12、新增 | 独立路由、总览、单题分页、筛选和 `calculated_at` 已实现并有 E2E；一分钟最终一致需真实 Worker 验证 |
+| QF-33 | 🧪 | P0 | Admin | 完善永久只读审计日志页 | QF-15、QF-28 | 1.25 人日 | QB-09、新增 | 管理员/动作/对象/结果/request ID/时间筛选、脱敏详情和只读约束已有 E2E；真实审计数据仍待联调 |
+| QF-34 | 🧪 | P1 | Admin、OPS | 对齐独立 Worker 任务监控页 | QF-48、QF-52 | 0.75 人日 | QB-33、新增 | 显示四类处理器队列、心跳、耗时、失败、重试、卡死、统计滞后和指标来源；只把 Redis 共享指标标为独立 Worker，待真实部署与告警验证 |
+| QF-35 | 🧪 | P0 | Admin | 补齐组件、服务、权限和 Playwright E2E | QF-28 至 QF-34 | 2.5 人日 | QB-39、QB-40、新增 | 48 条单测和生产构建通过；2026-08-13 宿主机实际执行题库契约 Mock Playwright 为 `12 passed (15.3s)`；真实 Backend E2E、OSS 和部署环境仍未完成 |
+
+当前阶段五汇总：`🧪 8`、`DOING 0`、`TODO 0`、`DONE 0`。Admin 代码级范围和本地质量门禁已完成，但 P0 仍未达到可发布 `DONE`，不得宣称题库 Admin 全链路完成。
 
 ## Phase 1：脚手架 + 核心 CRUD 页面（Admin 侧约定范围已实现）
 
@@ -60,13 +77,13 @@ Backend 题库 Todo 共 44 项：`DONE 24`、`🧪 4`、`DOING 11`、`TODO 4`、
 - [x] 用户管理页（列表 + 筛选 + 详情抽屉 + 封禁/启用 + 批量删除 + CSV 导出）
 - [x] 订单管理页（列表 + Tab 状态筛选 + 详情 + 按日对账查询 + 导出；RS-ZY 退款迁移至人社退款工作台）
 - [x] 题库管理（分类树/题目工作台、状态流转、批量发布/停用、统计抽屉）
-- [x] 题库导入任务（CSV/JSON 任务提交、轮询、错误报告临时地址；分类不自动创建）
+- [x] 题库导入任务（CSV/JSON 任务提交、轮询、页内错误表及 JSON 下载；缺失分类需显式确认后与草稿题同事务创建）
 - [x] 内容配置管理（专区内容 CRUD + 上下线开关 + 批量删除；已注册 `/admin/content`，按 `content:list/content:write` 控制读写）
 - [x] 课程管理（课程列表 + 筛选 + 新增/编辑 + 班次配置）
 
 ### 已接入专项工作台
 
-- [x] 题库新版管理端（Admin 实现完成；发布状态为 `🧪`，等待 QB-06 至 QB-12、PostgreSQL 与 OSS 联调）
+- [ ] 题库新版管理端（状态：`🧪`；30 个管理 operation、统一分类/题目工作台和 12 条宿主浏览器契约 E2E 已完成，等待真实 Backend/OSS/Worker/发布门禁）
 - [x] 人社报名管理端（Admin 实现完成；支付 V3、真实 OSS、数据库和端到端退款链路仍未完成）
 
 ## Phase 2：数据看板 + 业务页面
@@ -83,17 +100,17 @@ Backend 题库 Todo 共 44 项：`DONE 24`、`🧪 4`、`DOING 11`、`TODO 4`、
 
 - [ ] 电子协议管理（状态：`TODO`；模板 CRUD、富文本、签名审核和盖章操作）
 - [ ] 系统设置（状态：`TODO`；管理员 CRUD、RBAC 和系统通知）
-- [ ] 全量前后端联调（状态：`BLOCKED`；题库等待 QB-06 至 QB-12 与真实 PostgreSQL/OSS，人社等待支付 V3、数据库、OSS 和退款闭环）
-- [ ] Bug 修复 + UI 细节打磨（状态：`DOING`；当前题库页面仍有未提交调整，新页面缺组件/E2E 覆盖）
+- [ ] 全量前后端联调（状态：`BLOCKED`；题库依赖 QF-28 至 QF-35、测试 Redis、真实私有 OSS、独立 Worker 和 QF-57 E2E；人社等待支付 V3、数据库、OSS 和退款闭环）
+- [ ] Bug 修复 + UI 细节打磨（状态：`DOING`；题库核心交互已有覆盖，仍需真实联调反馈和部署环境验证）
 
 ## 发布门禁
 
-以下条件全部满足后，F-33、F-34、F-36 和专项工作台才能从 `🧪` 标为 `DONE`：
+以下条件全部满足后，F-33、F-34、F-36 和专项工作台才能标为 `DONE`（当前状态可能是 `DOING`、`🧪` 或 `BLOCKED`）：
 
 1. Admin `npm test` 与 `npm run build` 持续通过，并补齐关键页面组件测试和真实登录 E2E。
-2. Backend QB-06 至 QB-12 满足验收标准，不再仅以接口存在作为完成证据。
-3. QB-36 至 QB-40 在显式隔离 PostgreSQL 测试库执行通过，不能用 `collect-only` 或 skipped 代替。
-4. QB-43 完成真实私有 OSS 上传、短签、错误报告和清理联调。
-5. QB-42 形成容量与 P95 性能报告。
+2. QF-28 至 QF-35 全部达到各自行验收标准，且四个业务路由（分类管理合并到题目页左树）和 30 个管理 operation 对齐。
+3. QF-50、QF-56 的 PostgreSQL、Redis、HTTP、并发和 Worker 竞态门禁通过，不能用 `collect-only` 或 skipped 代替。
+4. QF-51 完成真实私有 OSS 上传、短签、源文件、错误报告和清理联调。
+5. QF-57 完成五页面真实 Backend Playwright E2E；QF-59 形成容量与 P95 性能报告。
 6. Admin、Backend 与小程序按同一 OpenAPI 联合发布，不再调用旧题库路径。
 7. 微信支付 V3、支付通知、查单和全额退款完成真实闭环后，人社退款工作台方可标为 `DONE`。

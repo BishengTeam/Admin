@@ -59,10 +59,17 @@ describe('quizService frozen admin contract', () => {
     http.delete.mockResolvedValue(null)
   })
 
-  it('keeps all 21 management calls on /admin/quiz without a duplicated /api prefix', () => {
+  it('keeps all 30 management calls on /admin/quiz without a duplicated /api prefix', () => {
     const source = readFileSync(resolve(process.cwd(), 'src/services/quiz.ts'), 'utf8')
     expect(source).not.toContain('/api/admin/quiz')
-    expect(source.match(/\/admin\/quiz/g)).toHaveLength(21)
+    expect(source.match(/\/admin\/quiz/g)).toHaveLength(30)
+    for (const path of [
+      '/admin/quiz/categories/${id}/impact',
+      '/admin/quiz/imports/${id}/source-url',
+      '/admin/quiz/imports/${id}/retry',
+      '/admin/quiz/stats/overview',
+      '/admin/quiz/stats/questions',
+    ]) expect(source).toContain(path)
   })
 
   it('uses the new question paths and array-shaped multiple answers', async () => {
@@ -102,7 +109,20 @@ describe('quizService frozen admin contract', () => {
   it('reads task metrics from health and keeps a 503 ready payload usable', async () => {
     const { quizService } = await import('@/services/quiz')
     const snapshot = {
+      source: 'redis',
       heartbeat_at: null,
+      signals: {
+        ready: true,
+        stale: false,
+        heartbeat_age_seconds: null,
+        total_queue_depth: 0,
+        total_failures: 0,
+        stuck_processors: [],
+        stats_lag_seconds: null,
+        stats_lagging: false,
+        exam_timeout_queue_depth: 0,
+        oss_cleanup_queue_depth: 0,
+      },
       processors: {
         'quiz-import': {
           name: 'quiz-import', runs: 1, successes: 1, failures: 0, failure_count: 0,
@@ -138,6 +158,68 @@ describe('quizService frozen admin contract', () => {
     expect(http.post).toHaveBeenCalledWith('/admin/quiz/questions/batch-disable', { items: [{ question_id: 101, lock_version: 2 }] }, { signal: undefined })
   })
 
+  it('calls category impact, source/retry and aggregate statistics endpoints', async () => {
+    const { quizService } = await import('@/services/quiz')
+    const impact = {
+      category_id: 12, action: 'disable', target_parent_id: null,
+      descendant_category_count: 1, draft_question_count: 2,
+      published_question_count: 3, disabled_question_count: 0,
+      affected_new_pool_question_count: 3, history_snapshot_affected: false,
+      can_execute: true, blocking_reasons: [], calculated_at: '2026-08-06T00:00:00+08:00',
+    }
+    const signed = { url: 'https://oss.example/signed', expires_at: '2026-08-06T00:05:00+08:00' }
+    const job = {
+      id: 5, admin_id: 7, source_type: 'csv', status: 'failed', source_size_bytes: 10,
+      total_rows: 1, validated_rows: 1, created_count: 0, error_count: 1,
+      heartbeat_at: null, started_at: null, finished_at: '2026-08-06T00:00:00+08:00',
+      retry_count: 1, error_message: 'worker failed', report_available: true,
+      lock_version: 2, validation_version: 1, impact_version: null,
+      missing_category_count: 0, affected_question_count: 0,
+      confirmed_by: null, confirmed_at: null, execution_protected_until: null,
+      expires_at: '2026-08-07T00:00:00+08:00', created_at: '2026-08-06T00:00:00+08:00',
+      updated_at: '2026-08-06T00:00:00+08:00',
+    }
+    const overview = {
+      calculated_at: '2026-08-06T00:00:00+08:00', aggregated_through: null,
+      category_count: 1, active_category_count: 1, disabled_category_count: 0,
+      question_count: 1, draft_question_count: 1, published_question_count: 0,
+      disabled_question_count: 0, practice_session_count: 0, practice_first_attempts: 0,
+      practice_first_correct: 0, practice_first_accuracy: 0, completed_exam_count: 0,
+      timed_out_exam_count: 0, exam_answers: 0, exam_correct: 0, exam_accuracy: 0,
+    }
+    const statsItem = {
+      question_id: 101, question_text: '选择协议', category_id: 1, category_name: '网络基础',
+      question_type: 'multiple_choice', status: 'draft', practice_first_attempts: 0,
+      practice_first_correct: 0, practice_first_accuracy: 0, exam_answers: 0,
+      exam_correct: 0, exam_accuracy: 0, aggregated_through: null,
+    }
+    http.get
+      .mockResolvedValueOnce(impact)
+      .mockResolvedValueOnce(signed)
+      .mockResolvedValueOnce(overview)
+      .mockResolvedValueOnce({ items: [statsItem], total: 1, page: 1, page_size: 20 })
+    http.post
+      .mockResolvedValueOnce(job)
+
+    await expect(quizService.previewCategoryImpact(12, { action: 'disable' })).resolves.toEqual(impact)
+    expect(http.get).toHaveBeenNthCalledWith(1, '/admin/quiz/categories/12/impact', { params: { action: 'disable' }, signal: undefined })
+    await expect(quizService.getImportSourceUrl(5)).resolves.toEqual(signed)
+    expect(http.get).toHaveBeenNthCalledWith(2, '/admin/quiz/imports/5/source-url', { signal: undefined })
+    await expect(quizService.getStatsOverview()).resolves.toEqual(overview)
+    expect(http.get).toHaveBeenNthCalledWith(3, '/admin/quiz/stats/overview', { signal: undefined })
+    await expect(quizService.listQuestionStats({ status: 'draft', page: 1, page_size: 20 })).resolves.toEqual({ items: [statsItem], total: 1, page: 1, page_size: 20 })
+    expect(http.get).toHaveBeenNthCalledWith(4, '/admin/quiz/stats/questions', { params: { status: 'draft', page: 1, page_size: 20 }, signal: undefined })
+    await expect(quizService.retryImport(5)).resolves.toEqual(job)
+    expect(http.post).toHaveBeenNthCalledWith(1, '/admin/quiz/imports/5/retry', undefined, { signal: undefined })
+  })
+
+  it('rejects batches larger than the server limit of 100 before making a request', async () => {
+    const { quizService } = await import('@/services/quiz')
+    const items = Array.from({ length: 101 }, (_, index) => ({ question_id: index + 1, lock_version: 1 }))
+    await expect(quizService.batchPublish({ items })).rejects.toThrow('请求模型校验失败')
+    expect(http.post).not.toHaveBeenCalled()
+  })
+
   it('uses fixed multipart field names for CSV imports', async () => {
     const { quizService } = await import('@/services/quiz')
     const file = new File(['category_path,question_type,question_text,options,correct_answer,explanation\n'], 'questions.csv', { type: 'text/csv' })
@@ -157,6 +239,14 @@ describe('quizService frozen admin contract', () => {
       retry_count: 0,
       error_message: null,
       report_available: false,
+      lock_version: 1,
+      validation_version: 0,
+      impact_version: null,
+      missing_category_count: 0,
+      affected_question_count: 0,
+      confirmed_by: null,
+      confirmed_at: null,
+      execution_protected_until: null,
       expires_at: '2026-08-07T00:00:00+08:00',
       created_at: '2026-08-06T00:00:00+08:00',
       updated_at: '2026-08-06T00:00:00+08:00',
@@ -167,5 +257,56 @@ describe('quizService frozen admin contract', () => {
     expect(body.get('file')).toBe(file)
     expect(body.get('filename')).toBe('questions.csv')
     expect(body.get('size_bytes')).toBe(String(file.size))
+  })
+
+  it('uses paged errors and optimistic category confirmation endpoints', async () => {
+    const { quizService } = await import('@/services/quiz')
+    const impactVersion = 'a'.repeat(64)
+    const errorPage = {
+      items: [{ row: 2, question_index: 1, field: 'category_path', error_code: 'missing_category', message: '分类不存在' }],
+      total: 1,
+      page: 1,
+      page_size: 50 as const,
+      available_fields: ['category_path'],
+      validation_version: 1,
+    }
+    const impact = {
+      job_id: 5,
+      status: 'awaiting_category_confirmation',
+      tree: [{
+        name: '新分类', path: ['新分类'], depth: 1, status: 'will_create', category_id: null,
+        direct_question_count: 1, subtree_question_count: 1, blocking_reasons: [], children: [],
+      }],
+      new_category_count: 1,
+      reused_category_count: 0,
+      affected_question_count: 1,
+      blocking_reasons: [],
+      lock_version: 2,
+      impact_version: impactVersion,
+      calculated_at: '2026-08-13T00:00:00+08:00',
+    }
+    const queued = {
+      id: 5, admin_id: 7, source_type: 'json', status: 'queued', source_size_bytes: 10,
+      total_rows: 1, validated_rows: 1, created_count: 0, error_count: 0,
+      heartbeat_at: null, started_at: null, finished_at: null, retry_count: 0,
+      error_message: null, report_available: false, lock_version: 3, validation_version: 1,
+      impact_version: impactVersion, missing_category_count: 1, affected_question_count: 1,
+      confirmed_by: 7, confirmed_at: '2026-08-13T00:01:00+08:00',
+      execution_protected_until: '2026-08-13T00:31:00+08:00',
+      expires_at: '2026-08-20T00:00:00+08:00', created_at: '2026-08-13T00:00:00+08:00',
+      updated_at: '2026-08-13T00:01:00+08:00',
+    }
+    const cancelled = { ...queued, status: 'cancelled', confirmed_by: null, confirmed_at: null, execution_protected_until: null }
+    http.get.mockResolvedValueOnce(errorPage).mockResolvedValueOnce(impact)
+    http.post.mockResolvedValueOnce(queued).mockResolvedValueOnce(cancelled)
+
+    await expect(quizService.listImportErrors(5, { field: 'category_path', page: 1 })).resolves.toEqual(errorPage)
+    expect(http.get).toHaveBeenNthCalledWith(1, '/admin/quiz/imports/5/errors', { params: { field: 'category_path', page: 1 }, signal: undefined })
+    await expect(quizService.getImportCategoryImpact(5)).resolves.toEqual(impact)
+    expect(http.get).toHaveBeenNthCalledWith(2, '/admin/quiz/imports/5/category-impact', { signal: undefined })
+    await expect(quizService.confirmImportCategories(5, { lock_version: 2, impact_version: impactVersion })).resolves.toEqual(queued)
+    expect(http.post).toHaveBeenNthCalledWith(1, '/admin/quiz/imports/5/confirm-categories', { lock_version: 2, impact_version: impactVersion }, { signal: undefined })
+    await expect(quizService.cancelImport(5, { lock_version: 2 })).resolves.toEqual(cancelled)
+    expect(http.post).toHaveBeenNthCalledWith(2, '/admin/quiz/imports/5/cancel', { lock_version: 2 }, { signal: undefined })
   })
 })

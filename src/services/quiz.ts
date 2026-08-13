@@ -5,19 +5,27 @@ import {
   AuditLogSchema,
   BatchResponseSchema,
   BatchRequestSchema,
+  CategoryImpactQuerySchema,
+  CategoryImpactSchema,
   CategorySchema,
   CategoryCreateSchema,
   CategoryStatusUpdateSchema,
   CategoryUpdateSchema,
   CsvImportMetadataSchema,
+  ImportCancelRequestSchema,
+  ImportCategoryImpactSchema,
+  ImportConfirmCategoriesRequestSchema,
+  ImportErrorPageSchema,
   ImportJobSchema,
   JsonImportRequestSchema,
   QuestionSchema,
   QuestionCreateSchema,
   QuestionStatsSchema,
+  QuestionStatsListItemSchema,
   QuestionUpdateSchema,
   QuizTaskSnapshotSchema,
   SignedUrlSchema,
+  StatsOverviewSchema,
   VersionRequestSchema,
 } from '@/core/validation'
 import type { PageData } from '@/types/api'
@@ -28,19 +36,29 @@ import type {
   BatchResponse,
   Category,
   CategoryCreate,
+  CategoryImpact,
+  CategoryImpactQuery,
   CategoryStatusUpdate,
   CategoryUpdate,
   CsvImportMetadata,
   ImportFilter,
+  ImportCancelRequest,
+  ImportCategoryImpact,
+  ImportConfirmCategoriesRequest,
+  ImportErrorFilter,
+  ImportErrorPage,
   ImportJob,
   JsonImportRequest,
   Question,
   QuestionCreate,
   QuestionFilter,
   QuestionStats,
+  QuestionStatsListItem,
   QuestionUpdate,
   QuizTaskProbe,
   SignedUrl,
+  StatsOverview,
+  StatsQuestionFilter,
   VersionRequest,
 } from '@/types/quiz'
 import { z } from 'zod'
@@ -56,6 +74,7 @@ const CategoriesSchema = z.array(CategorySchema)
 const QuestionsPageSchema = pageSchema(QuestionSchema)
 const ImportsPageSchema = pageSchema(ImportJobSchema)
 const AuditPageSchema = pageSchema(AuditLogSchema)
+const QuestionStatsPageSchema = pageSchema(QuestionStatsListItemSchema)
 const QuizProbeCoreSchema = z.object({
   status: z.string(),
   checks: z.record(z.string(), z.string()),
@@ -112,6 +131,11 @@ export const quizService = {
   async updateCategoryStatus(id: number, data: CategoryStatusUpdate, signal?: AbortSignal): Promise<Category> {
     const payload = requestParsed(CategoryStatusUpdateSchema, omitUndefined(data))
     return parsed(CategorySchema, await http.post(`/admin/quiz/categories/${id}/status`, payload, { signal }))
+  },
+
+  async previewCategoryImpact(id: number, data: CategoryImpactQuery, signal?: AbortSignal): Promise<CategoryImpact> {
+    const query = requestParsed(CategoryImpactQuerySchema, omitUndefined(data))
+    return parsed(CategoryImpactSchema, await http.get(`/admin/quiz/categories/${id}/impact`, queryConfig(query, signal)))
   },
 
   async listQuestions(params: QuestionFilter, signal?: AbortSignal): Promise<PageData<Question>> {
@@ -185,8 +209,42 @@ export const quizService = {
     return parsed(ImportJobSchema, await http.get(`/admin/quiz/imports/${id}`, { signal }))
   },
 
+  async listImportErrors(id: number, params: ImportErrorFilter = {}, signal?: AbortSignal): Promise<ImportErrorPage> {
+    return parsed(ImportErrorPageSchema, await http.get(`/admin/quiz/imports/${id}/errors`, queryConfig(params, signal)))
+  },
+
+  async getImportCategoryImpact(id: number, signal?: AbortSignal): Promise<ImportCategoryImpact> {
+    return parsed(ImportCategoryImpactSchema, await http.get(`/admin/quiz/imports/${id}/category-impact`, { signal }))
+  },
+
+  async confirmImportCategories(id: number, data: ImportConfirmCategoriesRequest, signal?: AbortSignal): Promise<ImportJob> {
+    const payload = requestParsed(ImportConfirmCategoriesRequestSchema, data)
+    return parsed(ImportJobSchema, await http.post(`/admin/quiz/imports/${id}/confirm-categories`, payload, { signal }))
+  },
+
+  async cancelImport(id: number, data: ImportCancelRequest, signal?: AbortSignal): Promise<ImportJob> {
+    const payload = requestParsed(ImportCancelRequestSchema, data)
+    return parsed(ImportJobSchema, await http.post(`/admin/quiz/imports/${id}/cancel`, payload, { signal }))
+  },
+
   async getImportReportUrl(id: number, signal?: AbortSignal): Promise<SignedUrl> {
     return parsed(SignedUrlSchema, await http.get(`/admin/quiz/imports/${id}/report-url`, { signal }))
+  },
+
+  async getImportSourceUrl(id: number, signal?: AbortSignal): Promise<SignedUrl> {
+    return parsed(SignedUrlSchema, await http.get(`/admin/quiz/imports/${id}/source-url`, { signal }))
+  },
+
+  async retryImport(id: number, signal?: AbortSignal): Promise<ImportJob> {
+    return parsed(ImportJobSchema, await http.post(`/admin/quiz/imports/${id}/retry`, undefined, { signal }))
+  },
+
+  async getStatsOverview(signal?: AbortSignal): Promise<StatsOverview> {
+    return parsed(StatsOverviewSchema, await http.get('/admin/quiz/stats/overview', { signal }))
+  },
+
+  async listQuestionStats(params: StatsQuestionFilter = {}, signal?: AbortSignal): Promise<PageData<QuestionStatsListItem>> {
+    return parsed(QuestionStatsPageSchema, await http.get('/admin/quiz/stats/questions', queryConfig(params, signal)))
   },
 
   async listAuditLogs(params: AuditFilter = {}, signal?: AbortSignal): Promise<PageData<AuditLog>> {

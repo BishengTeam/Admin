@@ -2,9 +2,21 @@ export type QuestionType = 'single_choice' | 'multiple_choice' | 'judge'
 export type QuestionStatus = 'draft' | 'published' | 'disabled'
 export type CategoryStatus = 'active' | 'disabled'
 export type ImportSourceType = 'csv' | 'json'
-export type ImportStatus = 'queued' | 'validating' | 'importing' | 'succeeded' | 'validation_failed' | 'failed'
+export type ImportStatus =
+  | 'queued'
+  | 'validating'
+  | 'importing'
+  | 'awaiting_category_confirmation'
+  | 'succeeded'
+  | 'validation_failed'
+  | 'failed'
+  | 'cancelled'
+  | 'expired'
 export type AnswerKey = 'A' | 'B' | 'C' | 'D'
 export type Answer = AnswerKey | AnswerKey[]
+export type CategoryImpactAction = 'disable' | 'move' | 'delete'
+export type JsonPrimitive = string | number | boolean | null
+export type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue }
 
 export interface Category {
   id: number
@@ -42,6 +54,26 @@ export interface CategoryUpdate {
 export interface CategoryStatusUpdate {
   status: CategoryStatus
   lock_version: number
+}
+
+export interface CategoryImpactQuery {
+  action: CategoryImpactAction
+  target_parent_id?: number | null
+}
+
+export interface CategoryImpact {
+  category_id: number
+  action: CategoryImpactAction
+  target_parent_id: number | null
+  descendant_category_count: number
+  draft_question_count: number
+  published_question_count: number
+  disabled_question_count: number
+  affected_new_pool_question_count: number
+  history_snapshot_affected: false
+  can_execute: boolean
+  blocking_reasons: string[]
+  calculated_at: string
 }
 
 export interface Question {
@@ -120,8 +152,40 @@ export interface QuestionStats {
   aggregated_through: string | null
 }
 
+export interface StatsOverview {
+  calculated_at: string
+  aggregated_through: string | null
+  category_count: number
+  active_category_count: number
+  disabled_category_count: number
+  question_count: number
+  draft_question_count: number
+  published_question_count: number
+  disabled_question_count: number
+  practice_session_count: number
+  practice_first_attempts: number
+  practice_first_correct: number
+  practice_first_accuracy: number
+  completed_exam_count: number
+  timed_out_exam_count: number
+  exam_answers: number
+  exam_correct: number
+  exam_accuracy: number
+}
+
+export interface QuestionStatsListItem extends QuestionStats {
+  question_text: string
+  category_id: number
+  category_name: string
+  question_type: QuestionType
+  status: QuestionStatus
+}
+
+export interface StatsQuestionFilter extends QuestionFilter {}
+
 export interface QuestionFilter {
   category_id?: number
+  include_descendants?: boolean
   question_type?: QuestionType
   status?: QuestionStatus
   keyword?: string
@@ -170,9 +234,75 @@ export interface ImportJob {
   retry_count: number
   error_message: string | null
   report_available: boolean
+  lock_version: number
+  validation_version: number
+  impact_version: string | null
+  missing_category_count: number
+  affected_question_count: number
+  confirmed_by: number | null
+  confirmed_at: string | null
+  execution_protected_until: string | null
   expires_at: string
   created_at: string
   updated_at: string
+}
+
+export interface ImportErrorItem {
+  row: number | null
+  question_index: number | null
+  field: string | null
+  error_code: string | null
+  message: string
+}
+
+export interface ImportErrorFilter {
+  field?: string
+  page?: number
+}
+
+export interface ImportErrorPage {
+  items: ImportErrorItem[]
+  total: number
+  page: number
+  page_size: 50
+  available_fields: string[]
+  validation_version: number
+}
+
+export type ImportCategoryImpactNodeStatus = 'existing' | 'will_create' | 'blocked'
+
+export interface ImportCategoryImpactNode {
+  name: string
+  path: string[]
+  depth: number
+  status: ImportCategoryImpactNodeStatus
+  category_id: number | null
+  direct_question_count: number
+  subtree_question_count: number
+  blocking_reasons: string[]
+  children: ImportCategoryImpactNode[]
+}
+
+export interface ImportCategoryImpact {
+  job_id: number
+  status: ImportStatus
+  tree: ImportCategoryImpactNode[]
+  new_category_count: number
+  reused_category_count: number
+  affected_question_count: number
+  blocking_reasons: string[]
+  lock_version: number
+  impact_version: string
+  calculated_at: string
+}
+
+export interface ImportConfirmCategoriesRequest {
+  lock_version: number
+  impact_version: string
+}
+
+export interface ImportCancelRequest {
+  lock_version: number
 }
 
 export interface SignedUrl {
@@ -186,13 +316,16 @@ export interface AuditFilter {
   object_type?: string
   object_id?: number
   result?: 'succeeded' | 'failed'
+  request_id?: string
+  start_at?: string
+  end_at?: string
   page?: number
   page_size?: number
 }
 
 export interface AuditFieldChange {
-  before: unknown
-  after: unknown
+  before: JsonValue
+  after: JsonValue
 }
 
 export interface AuditLog {
@@ -233,8 +366,21 @@ export interface QuizTaskMetric {
 }
 
 export interface QuizTaskSnapshot {
+  source: 'process' | 'redis' | 'disabled' | 'unavailable'
   heartbeat_at: string | null
   processors: Record<string, QuizTaskMetric>
+  signals: {
+    ready: boolean
+    stale: boolean
+    heartbeat_age_seconds: number | null
+    total_queue_depth: number
+    total_failures: number
+    stuck_processors: string[]
+    stats_lag_seconds: number | null
+    stats_lagging: boolean
+    exam_timeout_queue_depth: number
+    oss_cleanup_queue_depth: number
+  }
 }
 
 export interface QuizTaskProbe {

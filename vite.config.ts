@@ -3,12 +3,12 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { resolve } from 'path'
 
-export default defineConfig({
+export default defineConfig(({ command }) => ({
   plugins: [
     react(),
-    {
+    ...(command === 'build' ? [{
       name: 'html-inject-csp',
-      transformIndexHtml(html) {
+      transformIndexHtml(html: string) {
         return html.replace(
           '<head>',
           `<head>
@@ -19,7 +19,7 @@ export default defineConfig({
                  font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'" />`,
         )
       },
-    },
+    }] : []),
   ],
   resolve: {
     alias: {
@@ -46,4 +46,4 @@ export default defineConfig({
     setupFiles: './tests/setup.ts',
     include: ['tests/**/*.test.{ts,tsx}'],
   },
-})
+}))

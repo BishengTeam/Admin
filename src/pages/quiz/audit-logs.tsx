@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Button, Descriptions, Drawer, Input, InputNumber, Select, Space, Table, Tag, message } from 'antd'
+import { Button, DatePicker, Descriptions, Drawer, Input, InputNumber, Select, Space, Table, Tag, message } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { ReloadOutlined } from '@ant-design/icons'
 import { PageContainer } from '@/components/PageContainer'
 import { quizService } from '@/services/quiz'
 import { ApiError } from '@/core/request'
 import type { AuditFilter, AuditLog } from '@/types/quiz'
+
+const { RangePicker } = DatePicker
 
 function errorText(error: unknown) { return error instanceof Error ? error.message : '请求失败' }
 function formatDate(value: string) { return new Date(value).toLocaleString('zh-CN', { hour12: false }) }
@@ -35,6 +37,7 @@ export default function QuizAuditLogs() {
   useEffect(() => { load(); return () => controller.current?.abort() }, [load])
 
   const update = (next: Partial<AuditFilter>) => setFilters((current) => ({ ...current, ...next, page: 1 }))
+  const invalidRange = Boolean(filters.start_at && filters.end_at && new Date(filters.start_at).getTime() > new Date(filters.end_at).getTime())
   const columns: ColumnsType<AuditLog> = [
     { title: '时间', dataIndex: 'created_at', width: 175, render: formatDate },
     { title: '操作者', key: 'actor', width: 120, render: (_, row) => row.actor_type === 'system' ? 'system' : `管理员 #${row.admin_id ?? '-'}` },
@@ -53,8 +56,18 @@ export default function QuizAuditLogs() {
         <Input placeholder="对象类型" value={filters.object_type} onChange={(event) => update({ object_type: event.target.value || undefined })} />
         <InputNumber min={1} placeholder="对象 ID" value={filters.object_id} onChange={(value) => update({ object_id: value ?? undefined })} />
         <Select allowClear placeholder="结果" value={filters.result} onChange={(value) => update({ result: value })} options={[{ value: 'succeeded', label: '成功' }, { value: 'failed', label: '失败' }]} style={{ width: 110 }} />
-        <Button icon={<ReloadOutlined />} onClick={() => load(filters)}>刷新</Button>
+        <Input allowClear placeholder="请求 ID" value={filters.request_id} onChange={(event) => update({ request_id: event.target.value || undefined })} style={{ width: 220 }} />
+        <RangePicker
+          showTime
+          allowClear
+          onChange={(values) => update({
+            start_at: values?.[0]?.toISOString(),
+            end_at: values?.[1]?.toISOString(),
+          })}
+        />
+        <Button icon={<ReloadOutlined />} disabled={invalidRange} onClick={() => load(filters)}>刷新</Button>
       </Space>
+      {invalidRange && <div style={{ color: '#ff4d4f', marginBottom: 12 }}>开始时间不能晚于结束时间</div>}
       <Table<AuditLog> rowKey="id" scroll={{ x: 1000 }} columns={columns} dataSource={data?.items ?? []} loading={loading} pagination={{ current: data?.page ?? 1, pageSize: data?.page_size ?? 20, total: data?.total ?? 0, showSizeChanger: true, onChange: (page, pageSize) => setFilters((current) => ({ ...current, page, page_size: pageSize })) }} />
       <Drawer title={`审计详情 #${selected?.id ?? ''}`} open={Boolean(selected)} onClose={() => setSelected(null)} width={560}>
         {selected && <Descriptions column={1} bordered size="small">

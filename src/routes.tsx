@@ -28,6 +28,7 @@ const RensheRefunds = lazy(() => import('@/pages/renshe/refunds'))
 const QuizManagement = lazy(() => import('@/pages/quiz'))
 const QuizImports = lazy(() => import('@/pages/quiz/imports'))
 const QuizAuditLogs = lazy(() => import('@/pages/quiz/audit-logs'))
+const QuizStats = lazy(() => import('@/pages/quiz/stats'))
 const QuizTaskMonitor = lazy(() => import('@/pages/quiz/tasks'))
 const ContentManagement = lazy(() => import('@/pages/content'))
 const CourseList = lazy(() => import('@/pages/content/courses'))
@@ -91,23 +92,40 @@ export const adminRoutes: AppRoute[] = [
   },
   {
     path: 'quiz',
-    element: <QuizManagement />,
-    meta: { title: '题库管理', icon: 'BookOutlined', permission: 'quiz:list' },
-  },
-  {
-    path: 'quiz/imports',
-    element: <QuizImports />,
-    meta: { title: '导入任务', icon: 'ImportOutlined', permissions: ['quiz:list', 'quiz:import'] },
-  },
-  {
-    path: 'quiz/audit-logs',
-    element: <QuizAuditLogs />,
-    meta: { title: '审计日志', icon: 'FileSearchOutlined', permission: 'quiz:list' },
-  },
-  {
-    path: 'quiz/tasks',
-    element: <QuizTaskMonitor />,
-    meta: { title: '任务监控', icon: 'MonitorOutlined', permission: 'quiz:list' },
+    meta: { title: '题库管理', icon: 'BookOutlined' },
+    children: [
+      { index: true, element: <Navigate to="questions" replace /> },
+      {
+        path: 'categories',
+        element: <Navigate to="../questions" replace />,
+        meta: { title: '分类管理（已合并）', permission: 'quiz:list', hidden: true },
+      },
+      {
+        path: 'questions',
+        element: <QuizManagement />,
+        meta: { title: '分类与题目', icon: 'BookOutlined', permission: 'quiz:list' },
+      },
+      {
+        path: 'imports',
+        element: <QuizImports />,
+        meta: { title: '导入任务', icon: 'ImportOutlined', permissions: ['quiz:list', 'quiz:import'] },
+      },
+      {
+        path: 'stats',
+        element: <QuizStats />,
+        meta: { title: '聚合统计', icon: 'BarChartOutlined', permission: 'quiz:list' },
+      },
+      {
+        path: 'audit-logs',
+        element: <QuizAuditLogs />,
+        meta: { title: '审计日志', icon: 'FileSearchOutlined', permission: 'quiz:list' },
+      },
+      {
+        path: 'tasks',
+        element: <QuizTaskMonitor />,
+        meta: { title: '任务监控', icon: 'MonitorOutlined', permission: 'quiz:list' },
+      },
+    ],
   },
   {
     path: 'content',

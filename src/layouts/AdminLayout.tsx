@@ -26,6 +26,7 @@ import {
   FileZipOutlined,
   RollbackOutlined,
   MonitorOutlined,
+  BarChartOutlined,
 } from '@ant-design/icons'
 import { useAppStore } from '@/stores/appStore'
 import { useAuthStore } from '@/stores/authStore'
@@ -61,6 +62,7 @@ const iconMap: Record<string, ReactNode> = {
   FileZipOutlined: <FileZipOutlined />,
   RollbackOutlined: <RollbackOutlined />,
   MonitorOutlined: <MonitorOutlined />,
+  BarChartOutlined: <BarChartOutlined />,
 }
 
 function hasRoutePermission(route: AppRoute, permissions: string[], initialized: boolean) {

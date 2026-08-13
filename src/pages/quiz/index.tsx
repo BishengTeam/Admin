@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Button, Col, Form, Input, InputNumber, message, Modal, Row, TreeSelect } from 'antd'
+import { Alert, Button, Col, Descriptions, Form, Input, InputNumber, message, Modal, Row, Space, Tag, TreeSelect } from 'antd'
 import { PlusOutlined } from '@ant-design/icons'
+import { useSearchParams } from 'react-router-dom'
 import { PageContainer } from '@/components/PageContainer'
 import { quizService } from '@/services/quiz'
 import { ApiError, isConflictError, isNotFoundError, isValidationError } from '@/core/request'
 import { usePermission } from '@/hooks/usePermission'
-import type { Category, CategoryCreate, CategoryUpdate, QuestionFilter } from '@/types/quiz'
+import type { Category, CategoryCreate, CategoryImpact, CategoryImpactQuery, CategoryUpdate, QuestionFilter } from '@/types/quiz'
 import { QUIZ_IMPORT_SUCCEEDED_EVENT } from '@/utils/quizEvents'
 import CategoryTree, { buildCategoryTree, flattenCategories, getCategoryPath } from './components/CategoryTree'
 import QuestionTable from './components/QuestionTable'
@@ -31,13 +32,45 @@ function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : '请求失败'
 }
 
+function impactContent(impact: CategoryImpact) {
+  return (
+    <Space direction="vertical" style={{ width: '100%' }}>
+      <Alert
+        showIcon
+        type={impact.can_execute ? 'warning' : 'error'}
+        message={impact.can_execute ? '可以执行；确认时服务端仍会重新校验。' : '当前操作不可执行。'}
+        description={impact.blocking_reasons.length ? impact.blocking_reasons.join('；') : undefined}
+      />
+      <Descriptions column={2} bordered size="small">
+        <Descriptions.Item label="后代分类">{impact.descendant_category_count}</Descriptions.Item>
+        <Descriptions.Item label="新题池影响">{impact.affected_new_pool_question_count} 题</Descriptions.Item>
+        <Descriptions.Item label="草稿题">{impact.draft_question_count}</Descriptions.Item>
+        <Descriptions.Item label="已发布题">{impact.published_question_count}</Descriptions.Item>
+        <Descriptions.Item label="已停用题">{impact.disabled_question_count}</Descriptions.Item>
+        <Descriptions.Item label="历史快照"><Tag color="success">不受影响</Tag></Descriptions.Item>
+        <Descriptions.Item label="计算时间" span={2}>{new Date(impact.calculated_at).toLocaleString('zh-CN', { hour12: false })}</Descriptions.Item>
+      </Descriptions>
+    </Space>
+  )
+}
+
+const questionTypes = new Set(['single_choice', 'multiple_choice', 'judge'])
+const questionStatuses = new Set(['draft', 'published', 'disabled'])
+
+function positiveInteger(value: string | null) {
+  if (!value || !/^\d+$/.test(value)) return undefined
+  const parsed = Number(value)
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : undefined
+}
+
 export default function QuizManagement() {
   const canWrite = usePermission('quiz:write')
   const canImport = usePermission('quiz:import')
+  const [searchParams, setSearchParams] = useSearchParams()
   const [categories, setCategories] = useState<Category[]>([])
-  const [selectedCategory, setSelectedCategory] = useState<number>()
-  const [keywordInput, setKeywordInput] = useState('')
-  const [filters, setFilters] = useState<QuestionFilter>({})
+  const selectedCategory = positiveInteger(searchParams.get('category_id'))
+  const keywordParam = searchParams.get('keyword') ?? ''
+  const [keywordInput, setKeywordInput] = useState(keywordParam)
   const [categoryModalOpen, setCategoryModalOpen] = useState(false)
   const [editingCategory, setEditingCategory] = useState<Category | null>(null)
   const [moveModalOpen, setMoveModalOpen] = useState(false)
@@ -45,6 +78,27 @@ export default function QuizManagement() {
   const [categoryForm] = Form.useForm()
   const [moveForm] = Form.useForm()
   const categoryController = useRef<AbortController | null>(null)
+
+  const updateSearch = useCallback((changes: Record<string, string | number | undefined>) => {
+    const next = new URLSearchParams(searchParams)
+    Object.entries(changes).forEach(([key, value]) => {
+      if (value == null || value === '') next.delete(key)
+      else next.set(key, String(value))
+    })
+    setSearchParams(next, { replace: true })
+  }, [searchParams, setSearchParams])
+
+  const filters = useMemo<QuestionFilter>(() => {
+    const rawType = searchParams.get('question_type')
+    const rawStatus = searchParams.get('status')
+    return {
+      category_id: selectedCategory,
+      include_descendants: selectedCategory == null ? undefined : true,
+      question_type: rawType && questionTypes.has(rawType) ? rawType as QuestionFilter['question_type'] : undefined,
+      status: rawStatus && questionStatuses.has(rawStatus) ? rawStatus as QuestionFilter['status'] : undefined,
+      keyword: keywordParam.trim() || undefined,
+    }
+  }, [keywordParam, searchParams, selectedCategory])
 
   const loadCategories = useCallback(async () => {
     categoryController.current?.abort()
@@ -71,16 +125,20 @@ export default function QuizManagement() {
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      setFilters((current) => ({ ...current, keyword: keywordInput.trim() || undefined }))
+      if (keywordInput.trim() !== keywordParam) updateSearch({ keyword: keywordInput.trim() || undefined })
     }, 300)
     return () => window.clearTimeout(timer)
-  }, [keywordInput])
+  }, [keywordInput, keywordParam, updateSearch])
+
+  useEffect(() => {
+    setKeywordInput(keywordParam)
+  }, [keywordParam])
 
   const tree = useMemo(() => buildCategoryTree(categories), [categories])
-  const openCreateCategory = () => {
+  const openCreateCategory = (parent?: Category) => {
     setEditingCategory(null)
     categoryForm.resetFields()
-    categoryForm.setFieldsValue({ parent_id: selectedCategory ?? undefined, sort_order: 0 })
+    categoryForm.setFieldsValue({ parent_id: parent?.id ?? selectedCategory ?? undefined, sort_order: 0 })
     setCategoryModalOpen(true)
   }
   const openEditCategory = (category: Category) => {
@@ -103,34 +161,71 @@ export default function QuizManagement() {
     message.warning('分类不存在，列表已刷新')
   }
 
-  const handleCategoryStatus = (category: Category) => {
-    const next = category.status === 'active' ? 'disabled' : 'active'
-    Modal.confirm({
-      title: `${next === 'disabled' ? '停用' : '启用'}分类「${category.name}」？`,
-      content: next === 'disabled' ? '子分类不会改变自身状态，但题目和树节点会显示继承停用。' : '确认恢复该分类的可用状态？',
-      onOk: async () => {
-        try { await quizService.updateCategoryStatus(category.id, { status: next, lock_version: category.lock_version }); await loadCategories(); message.success('分类状态已更新') }
-        catch (error) {
-          if (isConflictError(error)) { await loadCategories(); message.warning('分类版本已变化，数据已刷新') }
-          else if (isNotFoundError(error)) await refreshMissingCategory()
-          else message.error(errorMessage(error))
-        }
-      },
-    })
+  const previewAndConfirm = async (
+    category: Category,
+    query: CategoryImpactQuery,
+    title: string,
+    execute: () => Promise<void>,
+  ) => {
+    try {
+      const impact = await quizService.previewCategoryImpact(category.id, query)
+      Modal.confirm({
+        title,
+        width: 620,
+        content: impactContent(impact),
+        okText: '确认执行',
+        okButtonProps: { disabled: !impact.can_execute },
+        onOk: execute,
+      })
+    } catch (error) {
+      if (isNotFoundError(error)) await refreshMissingCategory()
+      else message.error(errorMessage(error))
+    }
   }
 
-  const handleCategoryDelete = async (category: Category) => {
-    if (category.ever_had_question || category.children?.length) { message.warning('仅允许删除从未包含题目且没有子分类的空分类'); return }
+  const executeCategoryStatus = async (category: Category, status: Category['status']) => {
     try {
-      await quizService.deleteCategory(category.id, category.lock_version)
-      if (selectedCategory === category.id) { setSelectedCategory(undefined); setFilters((current) => ({ ...current, category_id: undefined })) }
+      await quizService.updateCategoryStatus(category.id, { status, lock_version: category.lock_version })
       await loadCategories()
-      message.success('分类已删除')
+      message.success('分类状态已更新')
     } catch (error) {
       if (isConflictError(error)) { await loadCategories(); message.warning('分类版本已变化，数据已刷新') }
       else if (isNotFoundError(error)) await refreshMissingCategory()
       else message.error(errorMessage(error))
     }
+  }
+
+  const handleCategoryStatus = (category: Category) => {
+    const next = category.status === 'active' ? 'disabled' : 'active'
+    if (next === 'disabled') {
+      void previewAndConfirm(
+        category,
+        { action: 'disable' },
+        `停用分类「${category.name}」？`,
+        () => executeCategoryStatus(category, next),
+      )
+      return
+    }
+    Modal.confirm({
+      title: `启用分类「${category.name}」？`,
+      content: '恢复自身状态后，若祖先分类仍停用，该分类仍不会进入新题池。',
+      onOk: () => executeCategoryStatus(category, next),
+    })
+  }
+
+  const handleCategoryDelete = async (category: Category) => {
+    await previewAndConfirm(category, { action: 'delete' }, `删除分类「${category.name}」？`, async () => {
+      try {
+        await quizService.deleteCategory(category.id, category.lock_version)
+        if (selectedCategory === category.id) updateSearch({ category_id: undefined })
+        await loadCategories()
+        message.success('分类已删除')
+      } catch (error) {
+        if (isConflictError(error)) { await loadCategories(); message.warning('分类版本已变化，数据已刷新') }
+        else if (isNotFoundError(error)) await refreshMissingCategory()
+        else message.error(errorMessage(error))
+      }
+    })
   }
 
   const saveCategory = async () => {
@@ -177,15 +272,33 @@ export default function QuizManagement() {
         setMovingCategory(null)
         return
       }
-      await quizService.updateCategory(movingCategory.id, {
-        lock_version: movingCategory.lock_version,
-        parent_id: parentId,
-        sort_order: sortOrder,
-      })
-      setMoveModalOpen(false)
-      setMovingCategory(null)
-      await loadCategories()
-      message.success('分类位置已更新')
+      await previewAndConfirm(
+        movingCategory,
+        { action: 'move', ...(parentId == null ? {} : { target_parent_id: parentId }) },
+        `移动分类「${movingCategory.name}」？`,
+        async () => {
+          try {
+            await quizService.updateCategory(movingCategory.id, {
+              lock_version: movingCategory.lock_version,
+              parent_id: parentId,
+              sort_order: sortOrder,
+            })
+            setMoveModalOpen(false)
+            setMovingCategory(null)
+            await loadCategories()
+            message.success('分类位置已更新')
+          } catch (error) {
+            if (isConflictError(error)) {
+              await loadCategories()
+              message.warning('分类版本已变化，列表已刷新；当前移动设置仍保留，请关闭后重新打开并对比，再提交')
+            } else if (isNotFoundError(error)) {
+              await refreshMissingCategory()
+            } else {
+              message.error(errorMessage(error))
+            }
+          }
+        },
+      )
     } catch (error) {
       if (error instanceof ApiError && isConflictError(error)) {
         await loadCategories()
@@ -207,8 +320,14 @@ export default function QuizManagement() {
   }
 
   const handleSelectCategory = (id?: number) => {
-    setSelectedCategory(id)
-    setFilters((current) => ({ ...current, category_id: id, page: undefined }))
+    updateSearch({ category_id: id })
+  }
+
+  const handleQuestionFilterChange = (next: Partial<QuestionFilter>) => {
+    const changes: Record<string, string | number | undefined> = {}
+    if ('question_type' in next) changes.question_type = next.question_type
+    if ('status' in next) changes.status = next.status
+    updateSearch(changes)
   }
 
   const flatCategories = flattenCategories(tree)
@@ -220,7 +339,16 @@ export default function QuizManagement() {
           <CategoryTree categories={categories} selectedKey={selectedCategory} canWrite={canWrite} onSelect={handleSelectCategory} onCreate={openCreateCategory} onEdit={openEditCategory} onMove={openMoveCategory} onStatus={handleCategoryStatus} onDelete={handleCategoryDelete} />
         </Col>
         <Col xs={24} lg={18}>
-          <QuestionTable filters={filters} categories={categories} canWrite={canWrite} canImport={canImport} onKeywordChange={setKeywordInput} onFilterChange={(next) => setFilters((current) => ({ ...current, ...next, page: undefined }))} onRefreshCategories={loadCategories} />
+          <QuestionTable
+            filters={filters}
+            keyword={keywordInput}
+            categories={categories}
+            canWrite={canWrite}
+            canImport={canImport}
+            onKeywordChange={setKeywordInput}
+            onFilterChange={handleQuestionFilterChange}
+            onRefreshCategories={loadCategories}
+          />
         </Col>
       </Row>
       <Modal title={editingCategory ? '编辑分类' : '新增分类'} open={categoryModalOpen} onOk={saveCategory} onCancel={() => setCategoryModalOpen(false)} destroyOnClose>

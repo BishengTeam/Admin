@@ -10,7 +10,7 @@ interface CategoryTreeProps {
   selectedKey?: number
   canWrite: boolean
   onSelect: (id?: number) => void
-  onCreate: () => void
+  onCreate: (parent?: Category) => void
   onEdit: (category: Category) => void
   onMove: (category: Category) => void
   onStatus: (category: Category) => void
@@ -60,6 +60,7 @@ export function isCategoryEffectivelyDisabled(categories: Category[], id: number
 }
 
 function toNodes(categories: Category[], all: Category[], canWrite: boolean, actions: {
+  onCreate: (parent?: Category) => void
   onEdit: (category: Category) => void
   onMove: (category: Category) => void
   onStatus: (category: Category) => void
@@ -69,10 +70,11 @@ function toNodes(categories: Category[], all: Category[], canWrite: boolean, act
     const inherited = isCategoryEffectivelyDisabled(all, category.id) && category.status !== 'disabled'
     const actionButtons: ReactNode = canWrite ? (
       <Space size={0} onClick={(event) => event.stopPropagation()}>
-        <Tooltip title="编辑分类"><Button type="text" size="small" icon={<EditOutlined />} onClick={() => actions.onEdit(category)} /></Tooltip>
-        <Tooltip title="移动/排序分类"><Button type="text" size="small" icon={<SwapOutlined />} onClick={() => actions.onMove(category)} /></Tooltip>
-        <Tooltip title={category.status === 'active' ? '停用分类' : '启用分类'}><Button type="text" size="small" icon={category.status === 'active' ? <StopOutlined /> : <CheckCircleOutlined />} onClick={() => actions.onStatus(category)} /></Tooltip>
-        <Tooltip title={category.ever_had_question ? '曾包含题目，不可删除' : category.children?.length ? '含有子分类，不可删除' : '删除分类'}><Button type="text" danger size="small" disabled={category.ever_had_question || Boolean(category.children?.length)} icon={<DeleteOutlined />} onClick={() => Modal.confirm({ title: '删除分类？', content: '仅允许删除从未包含题目且没有子分类的空分类，删除后不可恢复。', onOk: () => actions.onDelete(category) })} /></Tooltip>
+        <Tooltip title={category.depth >= 3 ? '已达到三级，不能继续添加' : '添加子分类'}><Button aria-label={`为${category.name}添加子分类`} type="text" size="small" disabled={category.depth >= 3} icon={<PlusOutlined />} onClick={() => actions.onCreate(category)} /></Tooltip>
+        <Tooltip title="编辑分类"><Button aria-label={`编辑分类${category.name}`} type="text" size="small" icon={<EditOutlined />} onClick={() => actions.onEdit(category)} /></Tooltip>
+        <Tooltip title="移动/排序分类"><Button aria-label={`移动分类${category.name}`} type="text" size="small" icon={<SwapOutlined />} onClick={() => actions.onMove(category)} /></Tooltip>
+        <Tooltip title={category.status === 'active' ? '停用分类' : '启用分类'}><Button aria-label={`${category.status === 'active' ? '停用' : '启用'}分类${category.name}`} type="text" size="small" icon={category.status === 'active' ? <StopOutlined /> : <CheckCircleOutlined />} onClick={() => actions.onStatus(category)} /></Tooltip>
+        <Tooltip title="预览删除影响"><Button aria-label={`删除分类${category.name}`} type="text" danger size="small" icon={<DeleteOutlined />} onClick={() => actions.onDelete(category)} /></Tooltip>
       </Space>
     ) : null
     return {
@@ -96,14 +98,14 @@ export default function CategoryTree({ categories, selectedKey, canWrite, onSele
 
   const treeData: DataNode[] = [
     { title: '全部题目', key: 'all', icon: <FolderOutlined /> },
-    ...toNodes(tree, tree, canWrite, { onEdit, onMove, onStatus, onDelete }),
+    ...toNodes(tree, tree, canWrite, { onCreate, onEdit, onMove, onStatus, onDelete }),
   ]
 
   return (
     <Card
       size="small"
       title="题目分类"
-      extra={canWrite && <Button type="link" size="small" icon={<PlusOutlined />} onClick={onCreate}>新增分类</Button>}
+      extra={canWrite && <Button type="link" size="small" icon={<PlusOutlined />} onClick={() => onCreate()}>新增分类</Button>}
       style={{ height: '100%' }}
     >
       <Tree

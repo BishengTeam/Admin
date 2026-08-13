@@ -60,7 +60,7 @@ function getFields(detail: unknown): ApiFieldError[] {
 }
 
 function isQuietBusinessError(status?: number, code?: number) {
-  return status === 409 || status === 422 || code === 40200 || code === 40201
+  return status === 409 || status === 422 || status === 429 || code === 40200 || code === 40201 || code === 40202
 }
 
 function toApiError(error: AxiosError): ApiError {
@@ -186,4 +186,12 @@ export function isValidationError(error: unknown): error is ApiError {
 
 export function isNotFoundError(error: unknown): error is ApiError {
   return isApiError(error) && (error.status === 404 || error.code === 40300)
+}
+
+export function isPermissionError(error: unknown): error is ApiError {
+  return isApiError(error) && (error.status === 403 || error.code === 40101)
+}
+
+export function isRateLimitError(error: unknown): error is ApiError {
+  return isApiError(error) && (error.status === 429 || error.code === 40202)
 }

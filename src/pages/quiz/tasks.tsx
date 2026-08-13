@@ -25,6 +25,10 @@ function probeStatus(probe?: QuizTaskProbe) {
   return <Tag color={ok ? 'success' : 'error'}>{probe.status}（HTTP {probe.http_status}）</Tag>
 }
 
+function secondsSince(value: string | null) {
+  return value ? Math.max(0, (Date.now() - new Date(value).getTime()) / 1000) : Number.POSITIVE_INFINITY
+}
+
 export default function QuizTaskMonitor() {
   const [probes, setProbes] = useState<QuizTaskProbe[]>([])
   const [loading, setLoading] = useState(false)
@@ -62,7 +66,11 @@ export default function QuizTaskMonitor() {
   const ready = probes.find((probe) => probe.endpoint === 'ready')
   const snapshot = health?.quiz_tasks ?? ready?.quiz_tasks
   const processors = useMemo(() => Object.values(snapshot?.processors ?? {}), [snapshot])
-  const hasFailures = processors.some((processor) => processor.failures > 0 || processor.last_error_type)
+  const signals = snapshot?.signals
+  const hasFailures = Boolean(signals?.total_failures) || processors.some((processor) => processor.last_error_type)
+  const staleHeartbeat = Boolean(signals?.stale)
+  const stuckProcessors = signals?.stuck_processors ?? []
+  const statsLagging = Boolean(signals?.stats_lagging)
 
   const columns: ColumnsType<QuizTaskMetric> = [
     { title: '处理器', dataIndex: 'name', width: 170, render: (name: string) => PROCESSOR_LABELS[name] ?? name },
@@ -73,6 +81,7 @@ export default function QuizTaskMonitor() {
     { title: '重试', dataIndex: 'retries', width: 80 },
     { title: '最近耗时', dataIndex: 'last_runtime_seconds', width: 110, render: (value: number | null) => value == null ? '-' : `${value.toFixed(3)} s` },
     { title: '最近心跳', dataIndex: 'last_heartbeat_at', width: 180, render: formatDate },
+    { title: '状态判断', key: 'derived_status', width: 110, render: (_, row) => row.queue_depth > 0 && secondsSince(row.last_heartbeat_at) > 120 ? <Tag color="error">疑似卡死</Tag> : row.name === 'quiz-question-stats' && row.queue_depth > 0 && secondsSince(row.last_finished_at) > 60 ? <Tag color="warning">聚合滞后</Tag> : <Tag color="success">正常</Tag> },
     { title: '最近异常', dataIndex: 'last_error_type', ellipsis: true, render: (value: string | null) => value ? <Text type="danger">{value}</Text> : '-' },
   ]
 
@@ -85,9 +94,18 @@ export default function QuizTaskMonitor() {
         <Descriptions.Item label="存活检查">{probeStatus(health)}</Descriptions.Item>
         <Descriptions.Item label="就绪检查">{probeStatus(ready)}</Descriptions.Item>
         <Descriptions.Item label="任务心跳">{formatDate(snapshot?.heartbeat_at ?? null)}</Descriptions.Item>
+        <Descriptions.Item label="指标来源">
+          {snapshot?.source === 'redis' ? '独立 Worker（Redis 共享）' : snapshot?.source === 'process' ? 'Web 进程内' : snapshot?.source === 'disabled' ? '任务已停用' : '共享指标不可用'}
+        </Descriptions.Item>
+        <Descriptions.Item label="总队列积压">{signals?.total_queue_depth ?? '-'}</Descriptions.Item>
+        <Descriptions.Item label="考试超时积压">{signals?.exam_timeout_queue_depth ?? '-'}</Descriptions.Item>
+        <Descriptions.Item label="OSS 清理积压">{signals?.oss_cleanup_queue_depth ?? '-'}</Descriptions.Item>
       </Descriptions>
       {error && <Alert type="error" showIcon message="部分监控接口请求失败" description={error} style={{ marginBottom: 16 }} />}
       {hasFailures && <Alert type="warning" showIcon message="存在失败或异常处理器，请结合审计日志和后端日志排查" style={{ marginBottom: 16 }} />}
+      {staleHeartbeat && <Alert type="error" showIcon message="任务总心跳超过 120 秒未更新，独立 Worker 可能未运行" style={{ marginBottom: 16 }} />}
+      {stuckProcessors.length > 0 && <Alert type="error" showIcon message="存在疑似卡死处理器" description={stuckProcessors.map((name) => PROCESSOR_LABELS[name] ?? name).join('、')} style={{ marginBottom: 16 }} />}
+      {statsLagging && <Alert type="warning" showIcon message="题目统计队列有积压，最近完成时间已超过 1 分钟" style={{ marginBottom: 16 }} />}
       <Table<QuizTaskMetric>
         rowKey="name"
         columns={columns}
@@ -100,6 +118,7 @@ export default function QuizTaskMonitor() {
       <Space direction="vertical" style={{ marginTop: 16 }} size={2}>
         <Text type="secondary">指标来自后端 `/health` 与 `/ready` 的 `details.quiz_tasks`。</Text>
         <Text type="secondary">就绪检查返回 503 时仍展示任务指标，不会误报为管理接口调用失败。</Text>
+        <Text type="secondary">只有“独立 Worker（Redis 共享）”可作为进程隔离的指标来源；真实部署和故障恢复仍需环境验收。</Text>
       </Space>
     </PageContainer>
   )

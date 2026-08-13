@@ -1,10 +1,18 @@
 // Zod 运行时校验 — 代码准备
 // 逐步覆盖关键 API 响应，后端字段变更时运行时报错而非静默失败
 import { z } from 'zod'
+import type { ImportCategoryImpactNode } from '@/types/quiz'
 
 const nullableString = z.string().nullable()
 const dateString = z.string().min(1)
 const positiveInt = z.number().int().min(1)
+const jsonPrimitiveSchema = z.union([z.string(), z.number(), z.boolean(), z.null()])
+type JsonValueSchema = string | number | boolean | null | JsonValueSchema[] | { [key: string]: JsonValueSchema }
+const jsonValueSchema: z.ZodType<JsonValueSchema> = z.lazy(() => z.union([
+  jsonPrimitiveSchema,
+  z.array(jsonValueSchema),
+  z.record(z.string(), jsonValueSchema),
+]))
 
 export const CategorySchema = z.object({
   id: z.number(),
@@ -92,6 +100,30 @@ export const CategoryStatusUpdateSchema = z.object({
   lock_version: positiveInt,
 }).strict()
 
+export const CategoryImpactQuerySchema = z.object({
+  action: z.enum(['disable', 'move', 'delete']),
+  target_parent_id: positiveInt.nullable().optional(),
+}).strict().superRefine((value, ctx) => {
+  if (value.action !== 'move' && value.target_parent_id !== undefined) {
+    ctx.addIssue({ code: 'custom', path: ['target_parent_id'], message: '仅移动预览允许目标父分类' })
+  }
+})
+
+export const CategoryImpactSchema = z.object({
+  category_id: positiveInt,
+  action: z.enum(['disable', 'move', 'delete']),
+  target_parent_id: positiveInt.nullable(),
+  descendant_category_count: z.number().int().min(0),
+  draft_question_count: z.number().int().min(0),
+  published_question_count: z.number().int().min(0),
+  disabled_question_count: z.number().int().min(0),
+  affected_new_pool_question_count: z.number().int().min(0),
+  history_snapshot_affected: z.literal(false),
+  can_execute: z.boolean(),
+  blocking_reasons: z.array(z.string()),
+  calculated_at: dateString,
+}).strict()
+
 export const QuestionCreateSchema = z.object({
   category_id: positiveInt,
   question_type: z.enum(['single_choice', 'multiple_choice', 'judge']),
@@ -114,7 +146,7 @@ export const QuestionUpdateSchema = z.object({
 export const VersionRequestSchema = z.object({ lock_version: positiveInt }).strict()
 
 export const BatchRequestSchema = z.object({
-  items: z.array(z.object({ question_id: positiveInt, lock_version: positiveInt }).strict()).min(1).max(5000),
+  items: z.array(z.object({ question_id: positiveInt, lock_version: positiveInt }).strict()).min(1).max(100),
 }).strict().refine((value) => new Set(value.items.map((item) => item.question_id)).size === value.items.length, { message: 'question_id 不能重复' })
 
 export const CsvImportMetadataSchema = z.object({ filename: z.string().min(1).max(255).regex(/\.csv$/i, '文件名必须以 .csv 结尾'), size_bytes: z.number().int().min(1).max(10 * 1024 * 1024) }).strict()
@@ -161,6 +193,36 @@ export const QuestionStatsSchema = z.object({
   aggregated_through: nullableString,
 }).strict()
 
+export const StatsOverviewSchema = z.object({
+  calculated_at: dateString,
+  aggregated_through: nullableString,
+  category_count: z.number().int().min(0),
+  active_category_count: z.number().int().min(0),
+  disabled_category_count: z.number().int().min(0),
+  question_count: z.number().int().min(0),
+  draft_question_count: z.number().int().min(0),
+  published_question_count: z.number().int().min(0),
+  disabled_question_count: z.number().int().min(0),
+  practice_session_count: z.number().int().min(0),
+  practice_first_attempts: z.number().int().min(0),
+  practice_first_correct: z.number().int().min(0),
+  practice_first_accuracy: z.coerce.number().min(0).max(100),
+  completed_exam_count: z.number().int().min(0),
+  timed_out_exam_count: z.number().int().min(0),
+  exam_answers: z.number().int().min(0),
+  exam_correct: z.number().int().min(0),
+  exam_accuracy: z.coerce.number().min(0).max(100),
+}).strict()
+
+export const QuestionStatsListItemSchema = QuestionStatsSchema.omit({ question_id: true }).extend({
+  question_id: positiveInt,
+  question_text: z.string(),
+  category_id: positiveInt,
+  category_name: z.string(),
+  question_type: z.enum(['single_choice', 'multiple_choice', 'judge']),
+  status: z.enum(['draft', 'published', 'disabled']),
+}).strict()
+
 export const BatchItemErrorSchema = z.object({
   question_id: z.number(),
   code: z.number(),
@@ -178,7 +240,17 @@ export const ImportJobSchema = z.object({
   id: z.number(),
   admin_id: z.number().nullable(),
   source_type: z.enum(['csv', 'json']),
-  status: z.enum(['queued', 'validating', 'importing', 'succeeded', 'validation_failed', 'failed']),
+  status: z.enum([
+    'queued',
+    'validating',
+    'importing',
+    'awaiting_category_confirmation',
+    'succeeded',
+    'validation_failed',
+    'failed',
+    'cancelled',
+    'expired',
+  ]),
   source_size_bytes: z.number().min(1).max(10 * 1024 * 1024),
   total_rows: z.number().min(0).max(5000),
   validated_rows: z.number().min(0).max(5000),
@@ -190,10 +262,77 @@ export const ImportJobSchema = z.object({
   retry_count: z.number().min(0),
   error_message: nullableString,
   report_available: z.boolean(),
+  lock_version: positiveInt,
+  validation_version: z.number().int().min(0),
+  impact_version: z.string().length(64).nullable(),
+  missing_category_count: z.number().int().min(0).max(500),
+  affected_question_count: z.number().int().min(0).max(5000),
+  confirmed_by: z.number().int().min(1).nullable(),
+  confirmed_at: nullableString,
+  execution_protected_until: nullableString,
   expires_at: dateString,
   created_at: dateString,
   updated_at: dateString,
 }).strict()
+
+export const ImportErrorItemSchema = z.object({
+  row: positiveInt.nullable(),
+  question_index: positiveInt.nullable(),
+  field: z.string().min(1).max(128).nullable(),
+  error_code: z.string().min(1).max(64).nullable(),
+  message: z.string().min(1).max(1024),
+}).strict()
+
+export const ImportErrorPageSchema = z.object({
+  items: z.array(ImportErrorItemSchema),
+  total: z.number().int().min(0),
+  page: positiveInt,
+  page_size: z.literal(50),
+  available_fields: z.array(z.string().min(1).max(128)),
+  validation_version: z.number().int().min(0),
+}).strict()
+
+export const ImportCategoryImpactNodeSchema: z.ZodType<ImportCategoryImpactNode> = z.lazy(() => z.object({
+  name: z.string().min(1).max(128),
+  path: z.array(z.string().min(1).max(128)).min(1).max(3),
+  depth: z.number().int().min(1).max(3),
+  status: z.enum(['existing', 'will_create', 'blocked']),
+  category_id: positiveInt.nullable(),
+  direct_question_count: z.number().int().min(0).max(5000),
+  subtree_question_count: z.number().int().min(0).max(5000),
+  blocking_reasons: z.array(z.string()),
+  children: z.array(ImportCategoryImpactNodeSchema),
+}).strict())
+
+export const ImportCategoryImpactSchema = z.object({
+  job_id: positiveInt,
+  status: z.enum([
+    'queued',
+    'validating',
+    'importing',
+    'awaiting_category_confirmation',
+    'succeeded',
+    'validation_failed',
+    'failed',
+    'cancelled',
+    'expired',
+  ]),
+  tree: z.array(ImportCategoryImpactNodeSchema),
+  new_category_count: z.number().int().min(0).max(500),
+  reused_category_count: z.number().int().min(0),
+  affected_question_count: z.number().int().min(0).max(5000),
+  blocking_reasons: z.array(z.string()),
+  lock_version: positiveInt,
+  impact_version: z.string().regex(/^[0-9a-f]{64}$/),
+  calculated_at: dateString,
+}).strict()
+
+export const ImportConfirmCategoriesRequestSchema = z.object({
+  lock_version: positiveInt,
+  impact_version: z.string().regex(/^[0-9a-f]{64}$/),
+}).strict()
+
+export const ImportCancelRequestSchema = z.object({ lock_version: positiveInt }).strict()
 
 export const SignedUrlSchema = z.object({ url: z.string().min(1), expires_at: dateString }).strict()
 
@@ -208,7 +347,7 @@ export const AuditLogSchema = z.object({
   object_type: z.string(),
   object_id: z.number().nullable(),
   result: z.enum(['succeeded', 'failed']),
-  changed_fields: z.record(z.string(), z.object({ before: z.unknown().nullable(), after: z.unknown().nullable() }).strict()).nullable(),
+  changed_fields: z.record(z.string(), z.object({ before: jsonValueSchema, after: jsonValueSchema }).strict()).nullable(),
   target_ids: z.array(z.number()).nullable(),
   error_summary: nullableString,
   created_at: dateString,
@@ -235,8 +374,21 @@ export const QuizTaskMetricSchema = z.object({
 }).strict()
 
 export const QuizTaskSnapshotSchema = z.object({
+  source: z.enum(['process', 'redis', 'disabled', 'unavailable']),
   heartbeat_at: nullableString,
   processors: z.record(z.string(), QuizTaskMetricSchema),
+  signals: z.object({
+    ready: z.boolean(),
+    stale: z.boolean(),
+    heartbeat_age_seconds: z.number().min(0).nullable(),
+    total_queue_depth: z.number().int().min(0),
+    total_failures: z.number().int().min(0),
+    stuck_processors: z.array(z.string()),
+    stats_lag_seconds: z.number().min(0).nullable(),
+    stats_lagging: z.boolean(),
+    exam_timeout_queue_depth: z.number().int().min(0),
+    oss_cleanup_queue_depth: z.number().int().min(0),
+  }).strict(),
 }).strict()
 
 // 基础分页结构

@@ -14,6 +14,7 @@ import QuestionModal from './QuestionModal'
 
 interface QuestionTableProps {
   filters: QuestionFilter
+  keyword: string
   categories: Category[]
   canWrite: boolean
   canImport: boolean
@@ -61,7 +62,7 @@ function showActionErrors(title: string, errors: Array<{ questionId: number; mes
   })
 }
 
-export default function QuestionTable({ filters, categories, canWrite, canImport, onKeywordChange, onFilterChange, onRefreshCategories }: QuestionTableProps) {
+export default function QuestionTable({ filters, keyword, categories, canWrite, canImport, onKeywordChange, onFilterChange, onRefreshCategories }: QuestionTableProps) {
   const navigate = useNavigate()
   const [data, setData] = useState<{ items: Question[]; total: number; page: number; page_size: number } | null>(null)
   const [loading, setLoading] = useState(false)
@@ -209,64 +210,32 @@ export default function QuestionTable({ filters, categories, canWrite, canImport
       showActionErrors(kind === 'publish' ? '批量发布前校验未通过' : '批量停用前校验未通过', invalid)
       return
     }
-    try {
-      const payload = { items: selectedItems.map(({ question_id, lock_version }) => ({ question_id, lock_version })) }
-      const result = kind === 'publish'
-        ? await quizService.batchPublish(payload)
-        : await quizService.batchDisable(payload)
-      if (result.succeeded) message.success(`已${kind === 'publish' ? '发布' : '停用'} ${result.updated_count} 道题目`)
-      else {
-        showActionErrors('批量操作未完成（整批未提交）', result.errors.map((item) => ({ questionId: item.question_id, messages: [`${item.field ? `${item.field}：` : ''}${item.message}（错误码 ${item.code}）`] })))
-      }
-      setSelected({})
-      await load(page, pageSize)
-      onRefreshCategories()
-    } catch (error) {
-      if (isConflictError(error)) refreshAfterConflict()
-      else if (isNotFoundError(error)) await refreshAfterMissing()
-      else message.error(errorText(error))
-    }
+    Modal.confirm({
+      title: `确认批量${kind === 'publish' ? '发布' : '停用'} ${selectedItems.length} 道题目？`,
+      content: '仅操作当前页明确勾选的题目。服务端将整批重新校验，任一题失败时整批不变。',
+      okText: `确认${kind === 'publish' ? '发布' : '停用'}`,
+      onOk: async () => {
+        try {
+          const payload = { items: selectedItems.map(({ question_id, lock_version }) => ({ question_id, lock_version })) }
+          const result = kind === 'publish'
+            ? await quizService.batchPublish(payload)
+            : await quizService.batchDisable(payload)
+          if (result.succeeded) message.success(`已${kind === 'publish' ? '发布' : '停用'} ${result.updated_count} 道题目`)
+          else {
+            showActionErrors('批量操作未完成（整批未提交）', result.errors.map((item) => ({ questionId: item.question_id, messages: [`${item.field ? `${item.field}：` : ''}${item.message}（错误码 ${item.code}）`] })))
+          }
+          setSelected({})
+          await load(page, pageSize)
+          await onRefreshCategories()
+        } catch (error) {
+          if (isConflictError(error)) refreshAfterConflict()
+          else if (isNotFoundError(error)) await refreshAfterMissing()
+          else message.error(errorText(error))
+        }
+      },
+    })
   }
 
-  const handleDeleteSelectedDrafts = async () => {
-    if (!selectedItems.length) return
-    const invalid = selectedItems
-      .filter((item) => item.status !== 'draft' || item.ever_published)
-      .map((item) => ({ questionId: item.question_id, messages: ['仅允许删除从未发布过的草稿；已发布或曾发布题目不可物理删除'] }))
-    if (invalid.length) {
-      showActionErrors('删除草稿前请只选择可删除草稿', invalid)
-      return
-    }
-    const candidates = selectedItems
-    const successes: number[] = []
-    const failures: string[] = []
-    let hadConflict = false
-    let hadMissing = false
-    for (const item of candidates) {
-      try {
-        await quizService.deleteQuestion(item.question_id, item.lock_version)
-        successes.push(item.question_id)
-      } catch (error) {
-        if (isConflictError(error)) hadConflict = true
-        if (isNotFoundError(error)) hadMissing = true
-        failures.push(`题目 #${item.question_id}：${errorText(error)}`)
-      }
-    }
-    setSelected({})
-    await load(page, pageSize)
-    if (hadConflict) {
-      onRefreshCategories()
-      message.warning('部分草稿版本已变化，数据已刷新；未自动重试')
-    }
-    if (hadMissing) {
-      onRefreshCategories()
-      message.warning('部分题目已不存在，列表已刷新')
-    }
-    if (failures.length) Modal.warning({ title: `删除草稿完成：成功 ${successes.length}，失败 ${failures.length}`, content: <div>{failures.map((item) => <div key={item}>{item}</div>)}</div> })
-    else message.success(`成功处理 ${successes.length} 道题目`)
-  }
-
-  const selectedDraftCount = selectedItems.filter((item) => item.status === 'draft' && !item.ever_published).length
   const selectedPublishedCount = selectedItems.filter((item) => item.status === 'published').length
 
   const publishSingle = (record: Question) => {
@@ -325,7 +294,7 @@ export default function QuestionTable({ filters, categories, canWrite, canImport
       setSelected((current) => {
         const next = { ...current }
         if (checked) {
-          if (Object.keys(next).length >= 5000) { message.warning('最多选择 5,000 道题目'); return current }
+          if (Object.keys(next).length >= 100) { message.warning('每次最多选择 100 道题目'); return current }
           next[record.id] = { question_id: record.id, lock_version: record.lock_version, status: record.status, category_id: record.category_id, ever_published: record.ever_published, question: record }
         }
         else delete next[record.id]
@@ -337,7 +306,7 @@ export default function QuestionTable({ filters, categories, canWrite, canImport
         const next = { ...current }
         changeRows.forEach((record) => {
           if (checked) {
-            if (Object.keys(next).length >= 5000) return
+            if (Object.keys(next).length >= 100) return
             next[record.id] = { question_id: record.id, lock_version: record.lock_version, status: record.status, category_id: record.category_id, ever_published: record.ever_published, question: record }
           }
           else delete next[record.id]
@@ -357,15 +326,14 @@ export default function QuestionTable({ filters, categories, canWrite, canImport
     <div>
       <Space wrap style={{ width: '100%', justifyContent: 'space-between', marginBottom: 16 }}>
         <Space wrap>
-          <Input prefix={<SearchOutlined />} allowClear placeholder="搜索题干" onChange={(event) => onKeywordChange(event.target.value)} style={{ width: 240 }} />
-          <Select allowClear placeholder="题型" style={{ width: 130 }} value={filters.question_type} onChange={(value) => updateFilters({ question_type: value })} options={Object.entries(typeLabels).map(([value, label]) => ({ value, label }))} />
-          <Select allowClear placeholder="状态" style={{ width: 120 }} value={filters.status} onChange={(value) => updateFilters({ status: value })} options={Object.entries(statusLabels).map(([value, label]) => ({ value, label }))} />
+          <Input prefix={<SearchOutlined />} allowClear placeholder="搜索题干" value={keyword} onChange={(event) => onKeywordChange(event.target.value)} style={{ width: 240 }} />
+          <Select aria-label="题目题型" allowClear placeholder="题型" style={{ width: 130 }} value={filters.question_type} onChange={(value) => updateFilters({ question_type: value })} options={Object.entries(typeLabels).map(([value, label]) => ({ value, label }))} />
+          <Select aria-label="题目状态" allowClear placeholder="状态" style={{ width: 120 }} value={filters.status} onChange={(value) => updateFilters({ status: value })} options={Object.entries(statusLabels).map(([value, label]) => ({ value, label }))} />
         </Space>
         <Space>
           {Object.keys(selected).length > 0 && <>
             <Button onClick={() => handleBatch('publish')} disabled={!canWrite}>批量发布 ({Object.keys(selected).length})</Button>
             <Button onClick={() => handleBatch('disable')} disabled={!canWrite}>批量停用已发布题目 ({selectedPublishedCount})</Button>
-            <Button danger icon={<DeleteOutlined />} onClick={() => Modal.confirm({ title: '删除选中草稿？', content: '仅允许删除从未发布过的草稿，选中其他状态将被拒绝。', onOk: handleDeleteSelectedDrafts })} disabled={!canWrite || selectedDraftCount === 0}>删除草稿 ({selectedDraftCount})</Button>
           </>}
           {canImport && <Button icon={<UploadOutlined />} onClick={() => navigate('/admin/quiz/imports')}>导入任务</Button>}
           <Button icon={<ReloadOutlined />} onClick={() => { setSelected({}); load(page, pageSize) }}>刷新</Button>
@@ -380,7 +348,7 @@ export default function QuestionTable({ filters, categories, canWrite, canImport
         dataSource={data?.items ?? []}
         loading={loading}
         rowSelection={canWrite ? rowSelection : undefined}
-        pagination={{ current: data?.page ?? page, pageSize: data?.page_size ?? pageSize, total: data?.total ?? 0, showSizeChanger: true, pageSizeOptions: [10, 20, 50, 100], showTotal: (total) => `共 ${total} 条`, onChange: (nextPage, nextSize) => { setPage(nextSize !== pageSize ? 1 : nextPage); setPageSize(nextSize) } }}
+        pagination={{ current: data?.page ?? page, pageSize: data?.page_size ?? pageSize, total: data?.total ?? 0, showSizeChanger: true, pageSizeOptions: [10, 20, 50, 100], showTotal: (total) => `共 ${total} 条`, onChange: (nextPage, nextSize) => { setSelected({}); setPage(nextSize !== pageSize ? 1 : nextPage); setPageSize(nextSize) } }}
       />
       <QuestionModal open={modalOpen} question={editing} categories={categories} canWrite={canWrite} onClose={closeModal} onSaved={(saved) => { closeModal(); setSelected({}); if (editing) setData((current) => current ? { ...current, items: current.items.map((item) => item.id === saved.id ? saved : item) } : current); else void load(page, pageSize); onRefreshCategories(); message.success(editing ? '题目已更新' : '题目已创建') }} onConflict={refreshAfterConflict} onNotFound={() => { void refreshAfterMissing(editing ? '题目不存在，列表已刷新' : '所属分类不存在，分类和题目列表已刷新') }} />
       <Drawer title={`题目详情${viewing ? ` #${viewing.id}` : ''}`} open={Boolean(viewing)} onClose={() => setViewing(null)} width={600}>

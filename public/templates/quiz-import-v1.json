@@ -1,0 +1,16 @@
+{
+  "questions": [
+    {
+      "category_path": ["网络", "基础"],
+      "question_type": "single_choice",
+      "question_text": "示例题",
+      "options": {
+        "A": "选项 A",
+        "B": "选项 B",
+        "C": "选项 C"
+      },
+      "correct_answer": "A",
+      "explanation": "解析"
+    }
+  ]
+}
