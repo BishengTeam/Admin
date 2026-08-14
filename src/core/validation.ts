@@ -160,7 +160,7 @@ export const JsonImportQuestionSchema = z.object({
   explanation: z.string().max(1024).nullable().optional(),
 }).strict().superRefine(questionShapeRules)
 
-export const JsonImportRequestSchema = z.object({ questions: z.array(JsonImportQuestionSchema).min(1).max(5000) }).strict()
+export const JsonImportRequestSchema = z.object({ library_id: positiveInt.optional(), questions: z.array(JsonImportQuestionSchema).min(1).max(5000) }).strict()
 
 export const QuestionSchema = z.object({
   id: z.number(),
@@ -182,6 +182,230 @@ export const QuestionSchema = z.object({
   updated_at: dateString,
 }).strict().superRefine(questionShapeRules)
 
+export const QuizV2QuestionSchema = z.object({
+  id: positiveInt,
+  category_id: positiveInt.nullable(),
+  library_id: positiveInt,
+  knowledge_point_id: positiveInt,
+  question_type: z.enum(['single_choice', 'multiple_choice', 'judge']),
+  status: z.enum(['draft', 'published', 'disabled', 'deleted']),
+  question_text: z.string(),
+  normalized_question_text: z.string(),
+  options: optionSchema.nullable(),
+  correct_answer: answerSchema.nullable(),
+  explanation: nullableString,
+  ever_published: z.boolean(),
+  published_at: nullableString,
+  disabled_at: nullableString,
+  deleted_at: nullableString,
+  restore_until: nullableString,
+  current_revision_id: z.number().nullable(),
+  current_revision_no: z.number().nullable(),
+  pending_revision_id: z.number().nullable(),
+  pending_revision_no: z.number().nullable(),
+  has_pending_revision: z.boolean(),
+  lock_version: positiveInt,
+  created_by: positiveInt,
+  updated_by: positiveInt,
+  created_at: dateString,
+  updated_at: dateString,
+}).strict().superRefine(questionShapeRules)
+
+const libraryStatusSchema = z.enum(['draft', 'published', 'suspended', 'archived', 'deleted'])
+const libraryAccessModeSchema = z.enum(['access_mode_pending', 'free', 'course_entitlement'])
+const contentStatusSchema = z.enum(['active', 'disabled', 'deleted'])
+
+export const QuizLibrarySchema = z.object({
+  id: positiveInt,
+  library_code: z.string().min(1),
+  name: z.string().min(1),
+  normalized_name: z.string().min(1),
+  description: nullableString,
+  cover_url: nullableString,
+  details: nullableString,
+  access_mode: libraryAccessModeSchema,
+  system_kind: z.enum(['none', 'migration_quarantine']),
+  migration_state: z.enum(['pending_review', 'needs_organization', 'ready']),
+  status: libraryStatusSchema,
+  v2_enabled: z.boolean(),
+  sort_order: z.number().int(),
+  lock_version: positiveInt,
+  published_at: nullableString,
+  suspended_at: nullableString,
+  archived_at: nullableString,
+  deleted_at: nullableString,
+  restore_until: nullableString,
+  open_migration_issue_count: z.number().int().min(0),
+  module_count: z.number().int().min(0),
+  knowledge_point_count: z.number().int().min(0),
+  question_count: z.number().int().min(0),
+  created_at: dateString,
+  updated_at: dateString,
+}).strict()
+
+export const QuizMigrationIssueSchema = z.object({
+  id: positiveInt,
+  library_id: positiveInt,
+  severity: z.enum(['warning', 'blocking']),
+  status: z.enum(['open', 'resolved']),
+  issue_code: z.string().min(1),
+  legacy_object_type: z.enum(['category', 'question']),
+  legacy_id: positiveInt,
+  original_path: z.array(z.record(z.string(), jsonValueSchema)),
+  resolution: z.string(),
+  resolved_at: nullableString,
+  created_at: dateString,
+}).strict()
+
+export const QuizMigrationReportSchema = z.object({
+  generated_at: dateString,
+  library_count: z.number().int().min(0),
+  ready_library_count: z.number().int().min(0),
+  pending_library_count: z.number().int().min(0),
+  open_blocking_issue_count: z.number().int().min(0),
+  mapped_category_count: z.number().int().min(0),
+  mapped_question_count: z.number().int().min(0),
+  issues: z.array(QuizMigrationIssueSchema),
+}).strict()
+
+export const QuizLibraryCreateSchema = z.object({
+  name: z.string().min(1).max(128),
+  description: z.string().max(512).nullable().optional(),
+  cover_url: z.string().max(512).nullable().optional(),
+  details: z.string().max(10000).nullable().optional(),
+  access_mode: libraryAccessModeSchema.optional(),
+  sort_order: z.number().int().optional(),
+}).strict()
+
+export const QuizLibraryUpdateSchema = z.object({
+  lock_version: positiveInt,
+  name: z.string().min(1).max(128).optional(),
+  description: z.string().max(512).nullable().optional(),
+  cover_url: z.string().max(512).nullable().optional(),
+  details: z.string().max(10000).nullable().optional(),
+  access_mode: libraryAccessModeSchema.optional(),
+  v2_enabled: z.boolean().optional(),
+  sort_order: z.number().int().optional(),
+}).strict().refine((value) => Object.keys(value).some((key) => key !== 'lock_version'), { message: '至少需要一个题库变更字段' })
+
+export const QuizCourseBindingSchema = z.object({
+  id: positiveInt,
+  course_id: positiveInt,
+  library_id: positiveInt,
+  status: z.enum(['active', 'inactive']),
+  lock_version: positiveInt,
+  created_by: positiveInt.nullable(),
+  updated_by: positiveInt.nullable(),
+  created_at: dateString,
+  updated_at: dateString,
+}).strict()
+
+export const QuizKnowledgePointSchema = z.object({
+  id: positiveInt,
+  library_id: positiveInt,
+  module_id: positiveInt,
+  name: z.string().min(1),
+  normalized_name: z.string().min(1),
+  description: nullableString,
+  status: contentStatusSchema,
+  system_kind: z.enum(['none', 'uncategorized']),
+  sort_order: z.number().int(),
+  lock_version: positiveInt,
+  question_count: z.number().int().min(0),
+  disabled_at: nullableString.optional().default(null),
+  deleted_at: nullableString.optional().default(null),
+  restore_until: nullableString.optional().default(null),
+  created_at: dateString,
+  updated_at: dateString,
+}).strict()
+
+export const QuizModuleSchema = z.object({
+  id: positiveInt,
+  library_id: positiveInt,
+  name: z.string().min(1),
+  normalized_name: z.string().min(1),
+  description: nullableString,
+  status: contentStatusSchema,
+  system_kind: z.enum(['none', 'pending_organization']),
+  sort_order: z.number().int(),
+  lock_version: positiveInt,
+  question_count: z.number().int().min(0),
+  disabled_at: nullableString.optional().default(null),
+  deleted_at: nullableString.optional().default(null),
+  restore_until: nullableString.optional().default(null),
+  knowledge_points: z.array(QuizKnowledgePointSchema),
+  created_at: dateString,
+  updated_at: dateString,
+}).strict()
+
+export const QuizContentTreeSchema = z.object({ library_id: positiveInt, modules: z.array(QuizModuleSchema) }).strict()
+
+export const QuizQuestionRevisionSchema = z.object({
+  id: positiveInt,
+  question_id: positiveInt,
+  revision_no: positiveInt,
+  status: z.enum(['draft', 'published', 'superseded', 'discarded']),
+  question_type: z.enum(['single_choice', 'multiple_choice', 'judge']),
+  question_text: z.string(),
+  normalized_question_text: z.string(),
+  options: optionSchema.nullable(),
+  correct_answer: answerSchema.nullable(),
+  explanation: nullableString,
+  published_at: nullableString,
+  created_by: positiveInt.nullable(),
+  created_at: dateString,
+}).strict().superRefine(questionShapeRules)
+
+export const QuizModuleCreateSchema = z.object({
+  library_id: positiveInt,
+  name: z.string().min(1).max(128),
+  description: z.string().max(256).nullable().optional(),
+  sort_order: z.number().int().optional(),
+}).strict()
+
+export const QuizModuleUpdateSchema = z.object({
+  lock_version: positiveInt,
+  name: z.string().min(1).max(128).optional(),
+  description: z.string().max(256).nullable().optional(),
+  sort_order: z.number().int().optional(),
+}).strict().refine((value) => Object.keys(value).some((key) => key !== 'lock_version'), { message: '至少需要一个模块变更字段' })
+
+export const QuizKnowledgePointCreateSchema = z.object({
+  module_id: positiveInt,
+  name: z.string().min(1).max(128),
+  description: z.string().max(256).nullable().optional(),
+  sort_order: z.number().int().optional(),
+}).strict()
+
+export const QuizKnowledgePointUpdateSchema = z.object({
+  lock_version: positiveInt,
+  module_id: positiveInt.optional(),
+  name: z.string().min(1).max(128).optional(),
+  description: z.string().max(256).nullable().optional(),
+  sort_order: z.number().int().optional(),
+}).strict().refine((value) => Object.keys(value).some((key) => key !== 'lock_version'), { message: '至少需要一个知识点变更字段' })
+
+export const QuizContentStatusUpdateSchema = z.object({ status: z.enum(['active', 'disabled']), lock_version: positiveInt }).strict()
+
+export const QuizV2QuestionCreateSchema = z.object({
+  knowledge_point_id: positiveInt,
+  question_type: z.enum(['single_choice', 'multiple_choice', 'judge']),
+  question_text: z.string().min(1).max(1024),
+  options: optionSchema.nullable().optional(),
+  correct_answer: answerSchema.nullable().optional(),
+  explanation: z.string().max(1024).nullable().optional(),
+}).strict().superRefine(questionShapeRules)
+
+export const QuizV2QuestionUpdateSchema = z.object({
+  lock_version: positiveInt,
+  knowledge_point_id: positiveInt.optional(),
+  question_type: z.enum(['single_choice', 'multiple_choice', 'judge']).optional(),
+  question_text: z.string().min(1).max(1024).optional(),
+  options: optionSchema.nullable().optional(),
+  correct_answer: answerSchema.nullable().optional(),
+  explanation: z.string().max(1024).nullable().optional(),
+}).strict().refine((value) => Object.keys(value).some((key) => key !== 'lock_version'), { message: '至少需要一个题目变更字段' }).superRefine(questionShapeRules)
+
 export const QuestionStatsSchema = z.object({
   question_id: z.number(),
   practice_first_attempts: z.number().min(0),
@@ -196,9 +420,17 @@ export const QuestionStatsSchema = z.object({
 export const StatsOverviewSchema = z.object({
   calculated_at: dateString,
   aggregated_through: nullableString,
-  category_count: z.number().int().min(0),
-  active_category_count: z.number().int().min(0),
-  disabled_category_count: z.number().int().min(0),
+  library_count: z.number().int().min(0),
+  draft_library_count: z.number().int().min(0),
+  published_library_count: z.number().int().min(0),
+  suspended_library_count: z.number().int().min(0),
+  archived_library_count: z.number().int().min(0),
+  module_count: z.number().int().min(0),
+  active_module_count: z.number().int().min(0),
+  disabled_module_count: z.number().int().min(0),
+  knowledge_point_count: z.number().int().min(0),
+  active_knowledge_point_count: z.number().int().min(0),
+  disabled_knowledge_point_count: z.number().int().min(0),
   question_count: z.number().int().min(0),
   draft_question_count: z.number().int().min(0),
   published_question_count: z.number().int().min(0),
@@ -217,10 +449,14 @@ export const StatsOverviewSchema = z.object({
 export const QuestionStatsListItemSchema = QuestionStatsSchema.omit({ question_id: true }).extend({
   question_id: positiveInt,
   question_text: z.string(),
-  category_id: positiveInt,
-  category_name: z.string(),
+  library_id: positiveInt,
+  library_name: z.string(),
+  module_id: positiveInt,
+  module_name: z.string(),
+  knowledge_point_id: positiveInt,
+  knowledge_point_name: z.string(),
   question_type: z.enum(['single_choice', 'multiple_choice', 'judge']),
-  status: z.enum(['draft', 'published', 'disabled']),
+  status: z.enum(['draft', 'published', 'disabled', 'deleted']),
 }).strict()
 
 export const BatchItemErrorSchema = z.object({
@@ -239,6 +475,7 @@ export const BatchResponseSchema = z.object({
 export const ImportJobSchema = z.object({
   id: z.number(),
   admin_id: z.number().nullable(),
+  library_id: z.number().nullable().optional(),
   source_type: z.enum(['csv', 'json']),
   status: z.enum([
     'queued',

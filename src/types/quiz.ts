@@ -1,5 +1,6 @@
 export type QuestionType = 'single_choice' | 'multiple_choice' | 'judge'
 export type QuestionStatus = 'draft' | 'published' | 'disabled'
+export type StatsQuestionStatus = QuestionStatus | 'deleted'
 export type CategoryStatus = 'active' | 'disabled'
 export type ImportSourceType = 'csv' | 'json'
 export type ImportStatus =
@@ -17,6 +18,251 @@ export type Answer = AnswerKey | AnswerKey[]
 export type CategoryImpactAction = 'disable' | 'move' | 'delete'
 export type JsonPrimitive = string | number | boolean | null
 export type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue }
+
+export type QuizLibraryStatus = 'draft' | 'published' | 'suspended' | 'archived' | 'deleted'
+export type QuizLibraryAccessMode = 'access_mode_pending' | 'free' | 'course_entitlement'
+export type QuizContentStatus = 'active' | 'disabled' | 'deleted'
+export type QuizLibraryLifecycleAction = 'publish' | 'suspend' | 'restore' | 'archive' | 'delete' | 'undo_delete' | 'reconcile_migration'
+
+export interface QuizLibrary {
+  id: number
+  library_code: string
+  name: string
+  normalized_name: string
+  description: string | null
+  cover_url: string | null
+  details: string | null
+  access_mode: QuizLibraryAccessMode
+  system_kind: 'none' | 'migration_quarantine'
+  migration_state: 'pending_review' | 'needs_organization' | 'ready'
+  status: QuizLibraryStatus
+  v2_enabled: boolean
+  sort_order: number
+  lock_version: number
+  published_at: string | null
+  suspended_at: string | null
+  archived_at: string | null
+  deleted_at: string | null
+  restore_until: string | null
+  open_migration_issue_count: number
+  module_count: number
+  knowledge_point_count: number
+  question_count: number
+  created_at: string
+  updated_at: string
+}
+
+export interface QuizMigrationIssue {
+  id: number
+  library_id: number
+  severity: 'warning' | 'blocking'
+  status: 'open' | 'resolved'
+  issue_code: string
+  legacy_object_type: 'category' | 'question'
+  legacy_id: number
+  original_path: Array<Record<string, JsonValue>>
+  resolution: string
+  resolved_at: string | null
+  created_at: string
+}
+
+export interface QuizMigrationReport {
+  generated_at: string
+  library_count: number
+  ready_library_count: number
+  pending_library_count: number
+  open_blocking_issue_count: number
+  mapped_category_count: number
+  mapped_question_count: number
+  issues: QuizMigrationIssue[]
+}
+
+export interface QuizLibraryCreate {
+  name: string
+  description?: string | null
+  cover_url?: string | null
+  details?: string | null
+  access_mode?: QuizLibraryAccessMode
+  sort_order?: number
+}
+
+export interface QuizLibraryUpdate {
+  lock_version: number
+  name?: string
+  description?: string | null
+  cover_url?: string | null
+  details?: string | null
+  access_mode?: QuizLibraryAccessMode
+  v2_enabled?: boolean
+  sort_order?: number
+}
+
+export interface QuizLibraryFilter {
+  status?: QuizLibraryStatus
+  access_mode?: QuizLibraryAccessMode
+  keyword?: string
+  include_deleted?: boolean
+}
+
+export interface QuizCourseBinding {
+  id: number
+  course_id: number
+  library_id: number
+  status: 'active' | 'inactive'
+  lock_version: number
+  created_by: number | null
+  updated_by: number | null
+  created_at: string
+  updated_at: string
+}
+
+export interface QuizKnowledgePoint {
+  id: number
+  library_id: number
+  module_id: number
+  name: string
+  normalized_name: string
+  description: string | null
+  status: QuizContentStatus
+  system_kind: 'none' | 'uncategorized'
+  sort_order: number
+  lock_version: number
+  question_count: number
+  disabled_at: string | null
+  deleted_at: string | null
+  restore_until: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface QuizModule {
+  id: number
+  library_id: number
+  name: string
+  normalized_name: string
+  description: string | null
+  status: QuizContentStatus
+  system_kind: 'none' | 'pending_organization'
+  sort_order: number
+  lock_version: number
+  question_count: number
+  disabled_at: string | null
+  deleted_at: string | null
+  restore_until: string | null
+  knowledge_points: QuizKnowledgePoint[]
+  created_at: string
+  updated_at: string
+}
+
+export interface QuizContentTree {
+  library_id: number
+  modules: QuizModule[]
+}
+
+export interface QuizModuleCreate {
+  library_id: number
+  name: string
+  description?: string | null
+  sort_order?: number
+}
+
+export interface QuizModuleUpdate {
+  lock_version: number
+  name?: string
+  description?: string | null
+  sort_order?: number
+}
+
+export interface QuizKnowledgePointCreate {
+  module_id: number
+  name: string
+  description?: string | null
+  sort_order?: number
+}
+
+export interface QuizKnowledgePointUpdate {
+  lock_version: number
+  module_id?: number
+  name?: string
+  description?: string | null
+  sort_order?: number
+}
+
+export interface QuizV2Question {
+  id: number
+  category_id: number | null
+  library_id: number
+  knowledge_point_id: number
+  question_type: QuestionType
+  status: QuestionStatus | 'deleted'
+  question_text: string
+  normalized_question_text: string
+  options: Record<string, string> | null
+  correct_answer: Answer | null
+  explanation: string | null
+  ever_published: boolean
+  published_at: string | null
+  disabled_at: string | null
+  deleted_at: string | null
+  restore_until: string | null
+  current_revision_id: number | null
+  current_revision_no: number | null
+  pending_revision_id: number | null
+  pending_revision_no: number | null
+  has_pending_revision: boolean
+  lock_version: number
+  created_by: number
+  updated_by: number
+  created_at: string
+  updated_at: string
+}
+
+export interface QuizQuestionRevision {
+  id: number
+  question_id: number
+  revision_no: number
+  status: 'draft' | 'published' | 'superseded' | 'discarded'
+  question_type: QuestionType
+  question_text: string
+  normalized_question_text: string
+  options: Record<string, string> | null
+  correct_answer: Answer | null
+  explanation: string | null
+  published_at: string | null
+  created_by: number | null
+  created_at: string
+}
+
+export interface QuizV2QuestionCreate {
+  knowledge_point_id: number
+  question_type: QuestionType
+  question_text: string
+  options?: Record<string, string> | null
+  correct_answer?: Answer | null
+  explanation?: string | null
+}
+
+export interface QuizV2QuestionUpdate {
+  lock_version: number
+  knowledge_point_id?: number
+  question_type?: QuestionType
+  question_text?: string
+  options?: Record<string, string> | null
+  correct_answer?: Answer | null
+  explanation?: string | null
+}
+
+export interface QuizV2QuestionFilter {
+  library_id: number
+  module_id?: number
+  knowledge_point_id?: number
+  question_type?: QuestionType
+  status?: QuestionStatus | 'deleted'
+  keyword?: string
+  include_deleted?: boolean
+  page?: number
+  page_size?: number
+}
 
 export interface Category {
   id: number
@@ -155,9 +401,17 @@ export interface QuestionStats {
 export interface StatsOverview {
   calculated_at: string
   aggregated_through: string | null
-  category_count: number
-  active_category_count: number
-  disabled_category_count: number
+  library_count: number
+  draft_library_count: number
+  published_library_count: number
+  suspended_library_count: number
+  archived_library_count: number
+  module_count: number
+  active_module_count: number
+  disabled_module_count: number
+  knowledge_point_count: number
+  active_knowledge_point_count: number
+  disabled_knowledge_point_count: number
   question_count: number
   draft_question_count: number
   published_question_count: number
@@ -175,13 +429,27 @@ export interface StatsOverview {
 
 export interface QuestionStatsListItem extends QuestionStats {
   question_text: string
-  category_id: number
-  category_name: string
+  library_id: number
+  library_name: string
+  module_id: number
+  module_name: string
+  knowledge_point_id: number
+  knowledge_point_name: string
   question_type: QuestionType
-  status: QuestionStatus
+  status: StatsQuestionStatus
 }
 
-export interface StatsQuestionFilter extends QuestionFilter {}
+export interface StatsQuestionFilter {
+  library_id?: number
+  module_id?: number
+  knowledge_point_id?: number
+  question_type?: QuestionType
+  status?: StatsQuestionStatus
+  include_deleted?: boolean
+  keyword?: string
+  page?: number
+  page_size?: number
+}
 
 export interface QuestionFilter {
   category_id?: number
@@ -208,6 +476,7 @@ export interface ImportQuestion {
 }
 
 export interface JsonImportRequest {
+  library_id?: number
   questions: ImportQuestion[]
 }
 
@@ -221,6 +490,7 @@ export interface ImportFilter {
 export interface ImportJob {
   id: number
   admin_id: number | null
+  library_id?: number | null
   source_type: ImportSourceType
   status: ImportStatus
   source_size_bytes: number

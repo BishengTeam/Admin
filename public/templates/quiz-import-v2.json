@@ -1,0 +1,12 @@
+{
+  "questions": [
+    {
+      "category_path": ["网络基础", "OSI 模型"],
+      "question_type": "single_choice",
+      "question_text": "OSI 参考模型共有几层？",
+      "options": { "A": "五层", "B": "六层", "C": "七层" },
+      "correct_answer": "C",
+      "explanation": "OSI 参考模型共有七层。"
+    }
+  ]
+}

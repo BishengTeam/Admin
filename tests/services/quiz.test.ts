@@ -59,17 +59,106 @@ describe('quizService frozen admin contract', () => {
     http.delete.mockResolvedValue(null)
   })
 
-  it('keeps all 30 management calls on /admin/quiz without a duplicated /api prefix', () => {
+  it('keeps all legacy and V2 management calls on /admin/quiz without a duplicated /api prefix', () => {
     const source = readFileSync(resolve(process.cwd(), 'src/services/quiz.ts'), 'utf8')
     expect(source).not.toContain('/api/admin/quiz')
-    expect(source.match(/\/admin\/quiz/g)).toHaveLength(30)
+    expect(source.match(/\/admin\/quiz/g)).toHaveLength(58)
     for (const path of [
       '/admin/quiz/categories/${id}/impact',
       '/admin/quiz/imports/${id}/source-url',
       '/admin/quiz/imports/${id}/retry',
       '/admin/quiz/stats/overview',
       '/admin/quiz/stats/questions',
+      '/admin/quiz/migration-report',
+      '/admin/quiz/libraries/${libraryId}/content-tree',
+      '/admin/quiz/questions/${id}/revisions',
+      '/admin/quiz/knowledge-points/${id}/undo-delete',
     ]) expect(source).toContain(path)
+  })
+
+  it('keeps V2 lifecycle responses on the strict V2 question schema', async () => {
+    const { quizService } = await import('@/services/quiz')
+    const v2Question = {
+      ...question,
+      // Migrated V2 questions retain their legacy category for traceability;
+      // library_id + knowledge_point_id remain the active content ownership.
+      category_id: 7,
+      library_id: 9,
+      knowledge_point_id: 12,
+      status: 'published',
+      deleted_at: null,
+      restore_until: null,
+      current_revision_id: 501,
+      current_revision_no: 1,
+      pending_revision_id: null,
+      pending_revision_no: null,
+      has_pending_revision: false,
+    }
+    http.post.mockResolvedValue(v2Question)
+
+    await expect(quizService.publishV2Question(101, 2)).resolves.toEqual(v2Question)
+    await expect(quizService.disableV2Question(101, 2)).resolves.toEqual(v2Question)
+    await expect(quizService.restoreV2Question(101, 2)).resolves.toEqual(v2Question)
+  })
+
+  it('loads migration issue details and sends an explicit migration recheck', async () => {
+    const { quizService } = await import('@/services/quiz')
+    const report = {
+      generated_at: '2026-08-14T10:00:00+08:00',
+      library_count: 1,
+      ready_library_count: 0,
+      pending_library_count: 1,
+      open_blocking_issue_count: 1,
+      mapped_category_count: 2,
+      mapped_question_count: 3,
+      issues: [{
+        id: 91,
+        library_id: 9,
+        severity: 'blocking',
+        status: 'open',
+        issue_code: 'question_attached_to_module',
+        legacy_object_type: 'question',
+        legacy_id: 101,
+        original_path: [{ id: 1, name: '网络' }, { id: 2, name: '基础' }],
+        resolution: '请人工归类',
+        resolved_at: null,
+        created_at: '2026-08-13T10:00:00+08:00',
+      }],
+    }
+    const library = {
+      id: 9,
+      library_code: 'QL00000009',
+      name: '网络题库',
+      normalized_name: '网络题库',
+      description: '旧数据迁移题库',
+      cover_url: null,
+      details: null,
+      access_mode: 'access_mode_pending',
+      system_kind: 'none',
+      migration_state: 'ready',
+      status: 'draft',
+      v2_enabled: false,
+      sort_order: 0,
+      lock_version: 4,
+      published_at: null,
+      suspended_at: null,
+      archived_at: null,
+      deleted_at: null,
+      restore_until: null,
+      open_migration_issue_count: 0,
+      module_count: 1,
+      knowledge_point_count: 1,
+      question_count: 3,
+      created_at: '2026-08-13T10:00:00+08:00',
+      updated_at: '2026-08-14T10:00:00+08:00',
+    }
+    http.get.mockResolvedValueOnce(report)
+    http.post.mockResolvedValueOnce(library)
+
+    await expect(quizService.getMigrationReport()).resolves.toEqual(report)
+    expect(http.get).toHaveBeenCalledWith('/admin/quiz/migration-report', { signal: undefined })
+    await expect(quizService.transitionLibrary(9, 'reconcile_migration', 3)).resolves.toEqual(library)
+    expect(http.post).toHaveBeenCalledWith('/admin/quiz/libraries/9/lifecycle', { action: 'reconcile_migration', lock_version: 3 }, { signal: undefined })
   })
 
   it('uses the new question paths and array-shaped multiple answers', async () => {
@@ -158,7 +247,7 @@ describe('quizService frozen admin contract', () => {
     expect(http.post).toHaveBeenCalledWith('/admin/quiz/questions/batch-disable', { items: [{ question_id: 101, lock_version: 2 }] }, { signal: undefined })
   })
 
-  it('calls category impact, source/retry and aggregate statistics endpoints', async () => {
+  it('calls category impact, source/retry and aggregate statistics endpoints including deleted history', async () => {
     const { quizService } = await import('@/services/quiz')
     const impact = {
       category_id: 12, action: 'disable', target_parent_id: null,
@@ -181,15 +270,20 @@ describe('quizService frozen admin contract', () => {
     }
     const overview = {
       calculated_at: '2026-08-06T00:00:00+08:00', aggregated_through: null,
-      category_count: 1, active_category_count: 1, disabled_category_count: 0,
+      library_count: 1, draft_library_count: 0, published_library_count: 1,
+      suspended_library_count: 0, archived_library_count: 0,
+      module_count: 1, active_module_count: 1, disabled_module_count: 0,
+      knowledge_point_count: 1, active_knowledge_point_count: 1,
+      disabled_knowledge_point_count: 0,
       question_count: 1, draft_question_count: 1, published_question_count: 0,
       disabled_question_count: 0, practice_session_count: 0, practice_first_attempts: 0,
       practice_first_correct: 0, practice_first_accuracy: 0, completed_exam_count: 0,
       timed_out_exam_count: 0, exam_answers: 0, exam_correct: 0, exam_accuracy: 0,
     }
     const statsItem = {
-      question_id: 101, question_text: '选择协议', category_id: 1, category_name: '网络基础',
-      question_type: 'multiple_choice', status: 'draft', practice_first_attempts: 0,
+      question_id: 101, question_text: '选择协议', library_id: 11, library_name: '网络工程师题库',
+      module_id: 21, module_name: '网络基础', knowledge_point_id: 31, knowledge_point_name: 'HTTP 协议',
+      question_type: 'multiple_choice', status: 'deleted', practice_first_attempts: 0,
       practice_first_correct: 0, practice_first_accuracy: 0, exam_answers: 0,
       exam_correct: 0, exam_accuracy: 0, aggregated_through: null,
     }
@@ -207,8 +301,8 @@ describe('quizService frozen admin contract', () => {
     expect(http.get).toHaveBeenNthCalledWith(2, '/admin/quiz/imports/5/source-url', { signal: undefined })
     await expect(quizService.getStatsOverview()).resolves.toEqual(overview)
     expect(http.get).toHaveBeenNthCalledWith(3, '/admin/quiz/stats/overview', { signal: undefined })
-    await expect(quizService.listQuestionStats({ status: 'draft', page: 1, page_size: 20 })).resolves.toEqual({ items: [statsItem], total: 1, page: 1, page_size: 20 })
-    expect(http.get).toHaveBeenNthCalledWith(4, '/admin/quiz/stats/questions', { params: { status: 'draft', page: 1, page_size: 20 }, signal: undefined })
+    await expect(quizService.listQuestionStats({ library_id: 11, module_id: 21, knowledge_point_id: 31, status: 'deleted', page: 1, page_size: 20 })).resolves.toEqual({ items: [statsItem], total: 1, page: 1, page_size: 20 })
+    expect(http.get).toHaveBeenNthCalledWith(4, '/admin/quiz/stats/questions', { params: { library_id: 11, module_id: 21, knowledge_point_id: 31, status: 'deleted', page: 1, page_size: 20 }, signal: undefined })
     await expect(quizService.retryImport(5)).resolves.toEqual(job)
     expect(http.post).toHaveBeenNthCalledWith(1, '/admin/quiz/imports/5/retry', undefined, { signal: undefined })
   })

@@ -8,6 +8,7 @@ import type { ImportCategoryImpact, ImportErrorPage, ImportJob } from '@/types/q
 
 vi.mock('@/services/quiz', () => ({
   quizService: {
+    listLibraries: vi.fn(),
     listImports: vi.fn(),
     getImport: vi.fn(),
     listImportErrors: vi.fn(),
@@ -138,8 +139,9 @@ describe('QuizImports page workflows', () => {
     Modal.destroyAll()
   })
 
-  beforeEach(() => {
+beforeEach(() => {
     vi.clearAllMocks()
+    vi.mocked(quizService.listLibraries).mockResolvedValue([])
     useAuthStore.setState({ permissions: ['quiz:list', 'quiz:import', 'quiz:write'], initialized: true })
   })
 
@@ -186,7 +188,7 @@ describe('QuizImports page workflows', () => {
     vi.mocked(quizService.confirmImportCategories).mockResolvedValue(queued)
 
     render(<QuizImports />)
-    fireEvent.click(await screen.findByRole('button', { name: /分类影响/ }))
+    fireEvent.click(await screen.findByRole('button', { name: /结构影响/ }))
 
     expect(await screen.findByText('网络工程')).toBeInTheDocument()
     expect(screen.getByText('路由协议')).toBeInTheDocument()
@@ -221,7 +223,7 @@ describe('QuizImports page workflows', () => {
     vi.mocked(quizService.getImportCategoryImpact).mockResolvedValue(categoryImpact)
 
     render(<QuizImports />)
-    fireEvent.click(await screen.findByRole('button', { name: /分类影响/ }))
+    fireEvent.click(await screen.findByRole('button', { name: /结构影响/ }))
 
     const confirm = await screen.findByRole('button', { name: /确认创建并导入/ })
     expect(confirm).toBeDisabled()

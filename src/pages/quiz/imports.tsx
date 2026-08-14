@@ -10,6 +10,7 @@ import { ApiError, isConflictError, isNotFoundError } from '@/core/request'
 import { usePermission } from '@/hooks/usePermission'
 import type { ImportCategoryImpact, ImportCategoryImpactNode, ImportErrorFilter, ImportErrorItem, ImportErrorPage, ImportFilter, ImportJob, ImportSourceType, ImportStatus, JsonImportRequest } from '@/types/quiz'
 import { notifyQuizImportSucceeded } from '@/utils/quizEvents'
+import type { QuizLibrary } from '@/types/quiz'
 
 const MAX_SIZE = 10 * 1024 * 1024
 const PROCESSING: ImportStatus[] = ['queued', 'validating', 'importing']
@@ -17,7 +18,7 @@ const statusLabels: Record<ImportStatus, string> = {
   queued: '排队中',
   validating: '校验中',
   importing: '写入中',
-  awaiting_category_confirmation: '等待分类确认',
+  awaiting_category_confirmation: '等待结构确认',
   succeeded: '成功',
   validation_failed: '校验失败',
   failed: '失败',
@@ -36,7 +37,7 @@ const statusColors: Record<ImportStatus, string> = {
   expired: 'default',
 }
 const impactStatusLabels: Record<ImportCategoryImpactNode['status'], string> = {
-  existing: '复用现有分类',
+  existing: '复用现有结构',
   will_create: '将新建',
   blocked: '已阻断',
 }
@@ -90,7 +91,7 @@ function validateFile(file: File, source: ImportSourceType) {
   if (file.size < 1 || file.size > MAX_SIZE) throw new Error('文件大小必须在 1 B 至 10 MiB 之间')
 }
 
-function validateJsonShape(value: unknown): JsonImportRequest {
+function validateJsonShape(value: unknown, libraryId: number): JsonImportRequest {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('JSON 顶层必须是包含 questions 的对象')
   const keys = Object.keys(value as object)
   if (keys.length !== 1 || keys[0] !== 'questions') throw new Error('JSON 顶层仅允许 questions 字段')
@@ -104,7 +105,7 @@ function validateJsonShape(value: unknown): JsonImportRequest {
     const questionType = (question as { question_type?: unknown }).question_type
     if (questionType === 'single' || questionType === 'multi') throw new Error(`第 ${index + 1} 题必须使用 single_choice 或 multiple_choice`)
   })
-  return { questions } as JsonImportRequest
+  return { library_id: libraryId, questions } as JsonImportRequest
 }
 
 function rowProgress(job: ImportJob) {
@@ -137,6 +138,11 @@ export default function QuizImports() {
   const canImport = usePermission('quiz:import')
   const canWrite = usePermission('quiz:write')
   const [source, setSource] = useState<ImportSourceType>('csv')
+  const [libraries, setLibraries] = useState<QuizLibrary[]>([])
+  const [libraryId, setLibraryId] = useState<number | undefined>(() => {
+    const value = typeof window === 'undefined' ? 0 : Number(new URLSearchParams(window.location.search).get('library_id'))
+    return Number.isSafeInteger(value) && value > 0 ? value : undefined
+  })
   const [fileList, setFileList] = useState<UploadFile[]>([])
   const [uploading, setUploading] = useState(false)
   const [filter, setFilter] = useState<ImportFilter>({ page: 1, page_size: 20 })
@@ -164,6 +170,18 @@ export default function QuizImports() {
   const taskController = useRef<AbortController | null>(null)
   const errorController = useRef<AbortController | null>(null)
   const impactController = useRef<AbortController | null>(null)
+
+  useEffect(() => {
+    const next = new AbortController()
+    quizService.listLibraries({ include_deleted: false }, next.signal)
+      .then((items) => {
+        const writable = items.filter((item) => !['archived', 'deleted'].includes(item.status))
+        setLibraries(writable)
+        if (!libraryId && writable.length === 1) setLibraryId(writable[0].id)
+      })
+      .catch((error) => { if (!next.signal.aborted) message.error(errorText(error)) })
+    return () => next.abort()
+  }, [])
 
   const applyJobUpdate = useCallback((job: ImportJob) => {
     setData((current) => current ? {
@@ -267,6 +285,7 @@ export default function QuizImports() {
   const currentFile = fileList[0]?.originFileObj
   const handleUpload = async () => {
     if (!canImport || !currentFile) { message.warning('请选择要导入的文件'); return }
+    if (!libraryId) { message.warning('请先选择目标题库'); return }
     try {
       validateFile(currentFile, source)
       setUploading(true)
@@ -277,9 +296,9 @@ export default function QuizImports() {
         const header = csvText.split(/\r?\n/, 1)[0]
         if (header !== 'category_path,question_type,question_text,options,correct_answer,explanation') throw new Error('CSV 表头不符合冻结契约')
         if (records < 2 || records - 1 > 5000) throw new Error('CSV 必须包含 1 至 5,000 条数据行')
-        job = await quizService.importCsv(currentFile, { filename: currentFile.name, size_bytes: currentFile.size })
+        job = await quizService.importCsv(currentFile, { filename: currentFile.name, size_bytes: currentFile.size }, libraryId)
       } else {
-        const parsed = validateJsonShape(JSON.parse(await readUtf8(currentFile)))
+        const parsed = validateJsonShape(JSON.parse(await readUtf8(currentFile)), libraryId)
         job = await quizService.importJson(parsed)
       }
       submitted.current.add(job.id)
@@ -429,7 +448,7 @@ export default function QuizImports() {
       pollStarted.current = Date.now()
       setImpactJob(null)
       setImpact(null)
-      message.success(`任务 #${updated.id} 已确认，分类和全部草稿题目将由 Worker 在同一事务创建`)
+      message.success(`任务 #${updated.id} 已确认，模块、知识点和全部草稿题目将由 Worker 在同一事务创建`)
     } catch (error) {
       if (isConflictError(error)) {
         message.warning('任务版本或分类影响已变化，已加载最新影响，请重新确认')
@@ -451,7 +470,7 @@ export default function QuizImports() {
       applyJobUpdate(updated)
       setImpactJob(null)
       setImpact(null)
-      message.success(`导入任务 #${updated.id} 已取消，未创建任何分类或题目`)
+      message.success(`导入任务 #${updated.id} 已取消，未创建任何模块、知识点或题目`)
     } catch (error) {
       if (isConflictError(error)) {
         message.warning('任务版本已变化，已加载最新状态')
@@ -474,6 +493,7 @@ export default function QuizImports() {
 
   const columns: ColumnsType<ImportJob> = [
     { title: '任务 ID', dataIndex: 'id', width: 100 },
+    { title: '题库', dataIndex: 'library_id', width: 150, render: (value: number | null | undefined) => value ? libraries.find((item) => item.id === value)?.name ?? `#${value}` : <Tag>旧分类兼容</Tag> },
     { title: '来源', dataIndex: 'source_type', width: 80, render: (value: ImportSourceType) => value.toUpperCase() },
     { title: '大小', dataIndex: 'source_size_bytes', width: 110, render: (value: number) => `${(value / 1024 / 1024).toFixed(2)} MiB` },
     { title: '状态', dataIndex: 'status', width: 150, render: (value: ImportStatus) => <Tag color={statusColors[value]}>{statusLabels[value]}</Tag> },
@@ -487,7 +507,7 @@ export default function QuizImports() {
           <Button type="link" size="small" onClick={() => setDetail(job)}>详情</Button>
           {!isExpired(job.expires_at) && <Button type="link" size="small" icon={<FileOutlined />} loading={signedLoading === `source:${job.id}`} onClick={() => void openSignedFile(job, 'source')}>源文件</Button>}
           {job.error_count > 0 && !isExpired(job.expires_at) && <Button type="link" size="small" onClick={() => void openErrors(job)}>错误明细</Button>}
-          {job.status === 'awaiting_category_confirmation' && <Button type="link" size="small" icon={<FolderOpenOutlined />} onClick={() => void openImpact(job)}>分类影响</Button>}
+          {job.status === 'awaiting_category_confirmation' && <Button type="link" size="small" icon={<FolderOpenOutlined />} onClick={() => void openImpact(job)}>结构影响</Button>}
           {job.status === 'failed' && canImport && (
             <Tooltip title={isExpired(job.expires_at) ? '源文件已超过 7 天，不能重试' : '沿用同一任务和批次键重新排队'}>
               <Button type="link" size="small" icon={<SyncOutlined />} disabled={isExpired(job.expires_at)} loading={retryLoading === job.id} onClick={() => Modal.confirm({ title: `重试导入任务 #${job.id}？`, content: '仅系统执行失败的任务可以重试；服务端会再次校验状态、有效期和重试预算。', onOk: () => retryJob(job) })}>重试</Button>
@@ -502,15 +522,16 @@ export default function QuizImports() {
     <PageContainer title="导入任务">
       {canImport && <Card size="small" title="提交导入任务" style={{ marginBottom: 16 }}>
         <Space direction="vertical" style={{ width: '100%' }} size="middle">
+          <Select aria-label="导入目标题库" showSearch optionFilterProp="label" placeholder="选择目标题库（必选）" value={libraryId} onChange={setLibraryId} options={libraries.map((library) => ({ value: library.id, label: `${library.name} (${library.library_code})` }))} style={{ width: 420 }} />
           <Segmented value={source} onChange={(value) => { setSource(value as ImportSourceType); setFileList([]) }} options={[{ label: 'CSV', value: 'csv' }, { label: 'JSON', value: 'json' }]} />
           <Upload beforeUpload={() => false} maxCount={1} accept={source === 'csv' ? '.csv' : '.json'} fileList={fileList} onChange={({ fileList: next }) => setFileList(next)}>
             <Button icon={<UploadOutlined />}>选择 .{source} 文件</Button>
           </Upload>
           <Space wrap>
-            <Button type="primary" icon={<UploadOutlined />} loading={uploading} disabled={!currentFile} onClick={handleUpload}>提交任务</Button>
-            <Button icon={<DownloadOutlined />} href={`/templates/quiz-import-v1.${source}`} download={`quiz-import-v1.${source}`}>下载 v1 模板</Button>
+            <Button type="primary" icon={<UploadOutlined />} loading={uploading} disabled={!currentFile || !libraryId} onClick={handleUpload}>提交任务</Button>
+            <Button icon={<DownloadOutlined />} href={`/templates/quiz-import-v2.${source}`} download={`quiz-import-v2.${source}`}>下载 v2 模板</Button>
           </Space>
-          <Alert type="info" showIcon message="UTF-8 文件，最大 10 MiB，最多 5,000 行；导入只创建草稿。若文件包含不存在的分类，任务会等待确认；确认后分类和全部草稿题目在同一事务创建，任一错误全部回滚。CSV 表头固定为 category_path、question_type、question_text、options、correct_answer、explanation。" />
+          <Alert type="info" showIcon message="UTF-8 文件，最大 10 MiB，最多 5,000 行；路径严格为 [模块, 知识点]，不能创建题库或把题挂到模块。缺结构时等待确认；确认后模块、知识点和全部草稿题在同一事务创建，任一错误全部回滚。CSV 表头固定为 category_path、question_type、question_text、options、correct_answer、explanation。" />
         </Space>
       </Card>}
       <Space style={{ marginBottom: 16 }} wrap>
@@ -523,12 +544,13 @@ export default function QuizImports() {
         {detail && <Descriptions column={1} bordered size="small">
           <Descriptions.Item label="状态"><Tag color={statusColors[detail.status]}>{statusLabels[detail.status]}</Tag></Descriptions.Item>
           <Descriptions.Item label="来源">{detail.source_type.toUpperCase()}</Descriptions.Item>
+          <Descriptions.Item label="题库">{detail.library_id ? libraries.find((item) => item.id === detail.library_id)?.name ?? `#${detail.library_id}` : '旧分类兼容任务'}</Descriptions.Item>
           <Descriptions.Item label="总行数">{detail.total_rows}</Descriptions.Item>
           <Descriptions.Item label="已校验">{detail.validated_rows}</Descriptions.Item>
           <Descriptions.Item label="已创建草稿">{detail.created_count}</Descriptions.Item>
           <Descriptions.Item label="错误数">{detail.error_count}</Descriptions.Item>
           <Descriptions.Item label="错误摘要">{detail.error_message || '-'}</Descriptions.Item>
-          <Descriptions.Item label="缺失分类">{detail.missing_category_count}</Descriptions.Item>
+          <Descriptions.Item label="缺失结构节点">{detail.missing_category_count}</Descriptions.Item>
           <Descriptions.Item label="受影响题目">{detail.affected_question_count}</Descriptions.Item>
           <Descriptions.Item label="任务版本">{detail.lock_version}</Descriptions.Item>
           <Descriptions.Item label="校验版本">{detail.validation_version}</Descriptions.Item>
@@ -541,7 +563,7 @@ export default function QuizImports() {
           <Descriptions.Item label="过期时间">{formatDate(detail.expires_at)}</Descriptions.Item>
         </Descriptions>}
         {detail?.error_count ? <Alert style={{ marginTop: 16 }} type="warning" showIcon message={`共 ${detail.error_count} 条逐行错误`} description="点击列表中的“错误明细”，可在当前页面按字段筛选并查看行号、字段和原因；需要留档时再下载 JSON。" /> : null}
-        {detail?.status === 'awaiting_category_confirmation' ? <Button block type="primary" style={{ marginTop: 16 }} icon={<FolderOpenOutlined />} onClick={() => void openImpact(detail)}>查看分类影响并确认</Button> : null}
+        {detail?.status === 'awaiting_category_confirmation' ? <Button block type="primary" style={{ marginTop: 16 }} icon={<FolderOpenOutlined />} onClick={() => void openImpact(detail)}>查看模块/知识点影响并确认</Button> : null}
       </Drawer>
       <Drawer
         title={`导入错误明细 #${errorJob?.id ?? ''}`}
@@ -600,7 +622,7 @@ export default function QuizImports() {
         />
       </Drawer>
       <Drawer
-        title={`缺失分类影响 #${impactJob?.id ?? ''}`}
+        title={`缺失模块/知识点影响 #${impactJob?.id ?? ''}`}
         open={Boolean(impactJob)}
         onClose={() => { impactController.current?.abort(); setImpactJob(null); setImpact(null) }}
         width={760}
@@ -614,7 +636,7 @@ export default function QuizImports() {
               loading={impactAction === 'cancel'}
               onClick={() => Modal.confirm({
                 title: `取消导入任务 #${impactJob.id}？`,
-                content: '取消后不会创建任何分类或题目，该任务不能继续确认。',
+                content: '取消后不会创建任何模块、知识点或题目，该任务不能继续确认。',
                 okText: '确认取消',
                 okButtonProps: { danger: true },
                 onOk: cancelAwaitingJob,
@@ -622,15 +644,15 @@ export default function QuizImports() {
             >
               取消任务
             </Button>
-            <Tooltip title={!canWrite ? '确认创建分类还需要 quiz:write 权限' : impact.blocking_reasons.length ? '存在阻断原因，不能确认' : undefined}>
+            <Tooltip title={!canWrite ? '确认创建结构还需要 quiz:write 权限' : impact.blocking_reasons.length ? '存在阻断原因，不能确认' : undefined}>
               <Button
                 type="primary"
                 icon={<SafetyCertificateOutlined />}
                 disabled={!canImport || !canWrite || impact.blocking_reasons.length > 0}
                 loading={impactAction === 'confirm'}
                 onClick={() => Modal.confirm({
-                  title: `确认创建 ${impact.new_category_count} 个分类并导入 ${impact.affected_question_count} 道题？`,
-                  content: '执行前服务端会重新计算分类影响。分类和全部草稿题目在同一 PostgreSQL 事务创建，任一错误全部回滚；影响变化时必须重新确认。',
+                  title: `确认创建 ${impact.new_category_count} 个结构节点并导入 ${impact.affected_question_count} 道题？`,
+                  content: '执行前服务端会重新计算结构影响。模块、知识点和全部草稿题目在同一 PostgreSQL 事务创建，任一错误全部回滚；影响变化时必须重新确认。',
                   okText: '确认创建并导入',
                   onOk: confirmCategories,
                 })}
@@ -645,12 +667,12 @@ export default function QuizImports() {
           <Alert
             type={impact.blocking_reasons.length ? 'error' : 'warning'}
             showIcon
-            message={impact.blocking_reasons.length ? '当前影响存在阻断，不能确认' : '请核对将复用和新建的分类'}
+            message={impact.blocking_reasons.length ? '当前影响存在阻断，不能确认' : '请核对将复用和新建的模块/知识点'}
             description={impact.blocking_reasons.length ? impact.blocking_reasons.join('；') : '确认时仍会重新计算；影响版本变化后不会静默执行。'}
           />
           <Descriptions bordered size="small" column={2}>
-            <Descriptions.Item label="将新建分类">{impact.new_category_count}</Descriptions.Item>
-            <Descriptions.Item label="复用分类">{impact.reused_category_count}</Descriptions.Item>
+            <Descriptions.Item label="将新建结构">{impact.new_category_count}</Descriptions.Item>
+            <Descriptions.Item label="复用结构">{impact.reused_category_count}</Descriptions.Item>
             <Descriptions.Item label="受影响草稿题">{impact.affected_question_count}</Descriptions.Item>
             <Descriptions.Item label="计算时间">{formatDate(impact.calculated_at)}</Descriptions.Item>
             <Descriptions.Item label="影响版本" span={2}><span style={{ wordBreak: 'break-all' }}>{impact.impact_version}</span></Descriptions.Item>

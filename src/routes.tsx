@@ -26,6 +26,8 @@ const RensheApplications = lazy(() => import('@/pages/renshe/applications'))
 const RensheExports = lazy(() => import('@/pages/renshe/exports'))
 const RensheRefunds = lazy(() => import('@/pages/renshe/refunds'))
 const QuizManagement = lazy(() => import('@/pages/quiz'))
+const QuizLibraries = lazy(() => import('@/pages/quiz/libraries'))
+const QuizV2Workbench = lazy(() => import('@/pages/quiz/v2-workbench'))
 const QuizImports = lazy(() => import('@/pages/quiz/imports'))
 const QuizAuditLogs = lazy(() => import('@/pages/quiz/audit-logs'))
 const QuizStats = lazy(() => import('@/pages/quiz/stats'))
@@ -96,14 +98,24 @@ export const adminRoutes: AppRoute[] = [
     children: [
       { index: true, element: <Navigate to="questions" replace /> },
       {
+        path: 'libraries',
+        element: <QuizLibraries />,
+        meta: { title: '题库', icon: 'BookOutlined', permission: 'quiz:list' },
+      },
+      {
         path: 'categories',
         element: <Navigate to="../questions" replace />,
         meta: { title: '分类管理（已合并）', permission: 'quiz:list', hidden: true },
       },
       {
         path: 'questions',
+        element: <QuizV2Workbench />,
+        meta: { title: '内容工作台', icon: 'BookOutlined', permission: 'quiz:list' },
+      },
+      {
+        path: 'legacy-questions',
         element: <QuizManagement />,
-        meta: { title: '分类与题目', icon: 'BookOutlined', permission: 'quiz:list' },
+        meta: { title: '旧分类兼容（7 天）', permission: 'quiz:list', hidden: true },
       },
       {
         path: 'imports',
