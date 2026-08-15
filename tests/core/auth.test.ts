@@ -10,6 +10,7 @@ import {
 describe('auth', () => {
   beforeEach(() => {
     localStorage.clear()
+    sessionStorage.clear()
   })
 
   describe('getToken / setToken / clearToken', () => {
@@ -20,12 +21,22 @@ describe('auth', () => {
     it('setToken 写入后 getToken 可读取', () => {
       setToken('test-jwt-token')
       expect(getToken()).toBe('test-jwt-token')
+      expect(sessionStorage.getItem('admin_token')).toBe('test-jwt-token')
+      expect(localStorage.getItem('admin_token')).toBeNull()
+    })
+
+    it('清理且不信任旧版本遗留在 localStorage 的 token', () => {
+      localStorage.setItem('admin_token', 'legacy-persistent-token')
+
+      expect(getToken()).toBeNull()
+      expect(localStorage.getItem('admin_token')).toBeNull()
     })
 
     it('clearToken 后返回 null', () => {
       setToken('test-jwt-token')
       clearToken()
       expect(getToken()).toBeNull()
+      expect(sessionStorage.getItem('admin_token')).toBeNull()
     })
   })
 

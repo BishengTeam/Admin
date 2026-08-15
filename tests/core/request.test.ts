@@ -31,6 +31,7 @@ describe('request', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     localStorage.clear()
+    sessionStorage.clear()
   })
 
   it('http 对象导出 get/post/put/patch/delete 方法', async () => {
@@ -49,5 +50,14 @@ describe('request', () => {
     expect(isNotFoundError(new ApiError({ message: '冲突', status: 409, code: 40201 }))).toBe(false)
     expect(isPermissionError(new ApiError({ message: '无权限', status: 403, code: 40101 }))).toBe(true)
     expect(isRateLimitError(new ApiError({ message: '限流', status: 429, code: 40202 }))).toBe(true)
+  })
+
+  it('does not confuse a wrong submitted password with an expired login session', async () => {
+    const { isCredentialSubmissionUrl } = await import('@/core/request')
+    expect(isCredentialSubmissionUrl('/admin/auth/login')).toBe(true)
+    expect(isCredentialSubmissionUrl('/admin/auth/reauth')).toBe(false)
+    expect(isCredentialSubmissionUrl('/admin/auth/change-password')).toBe(false)
+    expect(isCredentialSubmissionUrl('/admin/auth/me')).toBe(false)
+    expect(isCredentialSubmissionUrl('/admin/users')).toBe(false)
   })
 })

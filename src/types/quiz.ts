@@ -116,6 +116,11 @@ export interface QuizCourseBinding {
   updated_at: string
 }
 
+export interface QuizCourseOption {
+  id: number
+  title: string
+}
+
 export interface QuizKnowledgePoint {
   id: number
   library_id: number

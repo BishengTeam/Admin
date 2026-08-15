@@ -3,9 +3,10 @@ import { Navigate, useLocation, Outlet } from 'react-router-dom'
 import { Spin } from 'antd'
 import { useAuthStore } from '@/stores/authStore'
 import AdminLayout from '@/layouts/AdminLayout'
+import RestrictedSessionLayout from '@/layouts/RestrictedSessionLayout'
 
 /** 解析 JWT payload 的 exp 字段，返回是否为已过期 */
-function isTokenExpired(token: string): boolean {
+export function isTokenExpired(token: string): boolean {
   try {
     const parts = token.split('.')
     if (parts.length !== 3) return true // 非法格式视为过期
@@ -20,6 +21,8 @@ function isTokenExpired(token: string): boolean {
 export default function AuthGuard() {
   const token = useAuthStore((s) => s.token)
   const initialized = useAuthStore((s) => s.initialized)
+  const sessionMode = useAuthStore((s) => s.sessionMode)
+  const mustChangePassword = useAuthStore((s) => s.mustChangePassword)
   const initFromServer = useAuthStore((s) => s.initFromServer)
   const location = useLocation()
 
@@ -34,14 +37,28 @@ export default function AuthGuard() {
     return <Navigate to="/admin/login" state={{ from: location }} replace />
   }
 
-  // 有 token 但未从服务端初始化 → 显示布局骨架 + 加载中
-  // 直接渲染 AdminLayout 而非独立的 loading 容器，避免初始化完成
-  // 后因 DOM 结构突变（div → Layout）产生整体重排闪烁。
+  // 在 /me 返回前不渲染菜单或业务路由，避免旧权限短暂可见，
+  // 也保证无权限页面组件不会提前发起业务请求。
   if (!initialized) {
     return (
-      <AdminLayout>
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <Spin size="large" />
-      </AdminLayout>
+      </div>
+    )
+  }
+
+  const restricted = sessionMode === 'restricted' || mustChangePassword
+  const onChangePasswordPage = location.pathname === '/admin/change-password'
+
+  if (restricted && !onChangePasswordPage) {
+    return <Navigate to="/admin/change-password" replace />
+  }
+
+  if (restricted) {
+    return (
+      <RestrictedSessionLayout>
+        <Outlet />
+      </RestrictedSessionLayout>
     )
   }
 

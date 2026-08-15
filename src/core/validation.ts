@@ -300,6 +300,11 @@ export const QuizCourseBindingSchema = z.object({
   updated_at: dateString,
 }).strict()
 
+export const QuizCourseOptionSchema = z.object({
+  id: positiveInt,
+  title: z.string().min(1),
+}).strict()
+
 export const QuizKnowledgePointSchema = z.object({
   id: positiveInt,
   library_id: positiveInt,

@@ -27,6 +27,7 @@ import {
   QuizContentStatusUpdateSchema,
   QuizContentTreeSchema,
   QuizCourseBindingSchema,
+  QuizCourseOptionSchema,
   QuizKnowledgePointCreateSchema,
   QuizKnowledgePointSchema,
   QuizKnowledgePointUpdateSchema,
@@ -79,6 +80,7 @@ import type {
   VersionRequest,
   QuizContentTree,
   QuizCourseBinding,
+  QuizCourseOption,
   QuizKnowledgePoint,
   QuizKnowledgePointCreate,
   QuizKnowledgePointUpdate,
@@ -119,6 +121,7 @@ const QuizProbeCoreSchema = z.object({
 }).passthrough()
 const QuizLibrariesSchema = z.array(QuizLibrarySchema)
 const QuizCourseBindingsSchema = z.array(QuizCourseBindingSchema)
+const QuizCourseOptionsSchema = z.array(QuizCourseOptionSchema)
 const QuizQuestionRevisionsSchema = z.array(QuizQuestionRevisionSchema)
 
 function parsed<T>(schema: z.ZodType<T>, value: unknown): T {
@@ -174,6 +177,13 @@ export const quizService = {
 
   async listCourseBindings(libraryId: number, signal?: AbortSignal): Promise<QuizCourseBinding[]> {
     return parsed(QuizCourseBindingsSchema, await http.get(`/admin/quiz/libraries/${libraryId}/course-bindings`, { signal }))
+  },
+
+  async listCourseOptions(keyword?: string, signal?: AbortSignal): Promise<QuizCourseOption[]> {
+    return parsed(
+      QuizCourseOptionsSchema,
+      await http.get('/admin/quiz/course-options', queryConfig({ keyword, limit: 100 }, signal)),
+    )
   },
 
   async createCourseBinding(libraryId: number, course_id: number, signal?: AbortSignal): Promise<QuizCourseBinding> {

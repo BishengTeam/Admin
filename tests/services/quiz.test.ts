@@ -62,8 +62,9 @@ describe('quizService frozen admin contract', () => {
   it('keeps all legacy and V2 management calls on /admin/quiz without a duplicated /api prefix', () => {
     const source = readFileSync(resolve(process.cwd(), 'src/services/quiz.ts'), 'utf8')
     expect(source).not.toContain('/api/admin/quiz')
-    expect(source.match(/\/admin\/quiz/g)).toHaveLength(58)
+    expect(source.match(/\/admin\/quiz/g)).toHaveLength(59)
     for (const path of [
+      '/admin/quiz/course-options',
       '/admin/quiz/categories/${id}/impact',
       '/admin/quiz/imports/${id}/source-url',
       '/admin/quiz/imports/${id}/retry',
@@ -74,6 +75,27 @@ describe('quizService frozen admin contract', () => {
       '/admin/quiz/questions/${id}/revisions',
       '/admin/quiz/knowledge-points/${id}/undo-delete',
     ]) expect(source).toContain(path)
+  })
+
+  it('loads course binding options from the narrow quiz endpoint with a strict response schema', async () => {
+    const { quizService } = await import('@/services/quiz')
+    const signal = new AbortController().signal
+    const options = [{ id: 81, title: '网络工程师课程' }]
+    http.get.mockResolvedValueOnce(options)
+
+    await expect(quizService.listCourseOptions('网络', signal)).resolves.toEqual(options)
+    expect(http.get).toHaveBeenCalledWith('/admin/quiz/course-options', {
+      params: { keyword: '网络', limit: 100 },
+      signal,
+    })
+
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      http.get.mockResolvedValueOnce([{ ...options[0], is_active: true }])
+      await expect(quizService.listCourseOptions()).rejects.toThrow('API response validation failed')
+    } finally {
+      errorSpy.mockRestore()
+    }
   })
 
   it('keeps V2 lifecycle responses on the strict V2 question schema', async () => {

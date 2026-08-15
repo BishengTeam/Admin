@@ -185,10 +185,23 @@ async function authenticate(page: Page, permissions = [
   'quiz_content_publish',
   'course_quiz_bind',
 ]) {
-  await page.addInitScript((token) => localStorage.setItem('admin_token', token), TOKEN)
+  await page.addInitScript((token) => sessionStorage.setItem('admin_token', token), TOKEN)
   await page.route('**/admin/auth/me', (route) => json(route, {
-    admin: { id: 1, username: 'quiz-admin', role: 'admin' },
+    admin: {
+      id: 1,
+      username: 'quiz-admin',
+      display_name: '题库管理员',
+      role: 'quiz_admin',
+      is_active: true,
+      must_change_password: false,
+      locked_until: null,
+      last_login_at: now,
+      created_at: now,
+      updated_at: now,
+    },
     permissions,
+    session_mode: 'normal',
+    must_change_password: false,
   }))
 }
 
@@ -252,25 +265,10 @@ test.describe('题库五页面新版契约冒烟', () => {
       created_at: now,
       updated_at: now,
     }]))
-    await page.route('**/admin/courses?*', (route) => json(route, {
-      items: [{
-        id: 81,
-        title: '网络工程师课程',
-        category: 'network',
-        cover_url: null,
-        description: null,
-        video_url: null,
-        price: 100,
-        is_active: true,
-        teacher_name: '讲师',
-        teacher_contact: '',
-        created_at: now,
-        batches: null,
-      }],
-      total: 1,
-      page: 1,
-      page_size: 100,
-    }))
+    await page.route('**/admin/quiz/course-options?*', (route) => json(route, [{
+      id: 81,
+      title: '网络工程师课程',
+    }]))
     await page.route('**/admin/quiz/course-bindings/71/status', async (route) => {
       bindingStatusBody = route.request().postDataJSON()
       await json(route, {
@@ -331,6 +329,31 @@ test.describe('题库五页面新版契约冒烟', () => {
       { action: 'undo_delete', lock_version: 7 },
     ])
     await expect(page.getByText('已归档', { exact: true })).toBeVisible()
+  })
+
+  test('题库管理员可以修改已有题库的访问配置', async ({ page }) => {
+    let updateBody: object | null = null
+    await mockLibraries(page)
+    await page.route('**/admin/quiz/libraries/11', async (route) => {
+      updateBody = route.request().postDataJSON()
+      await json(route, { ...library, access_mode: 'free', lock_version: 4 })
+    })
+
+    await page.goto('/admin/quiz/libraries')
+    const libraryRow = page.getByRole('row', { name: /网络工程师题库/ })
+    await libraryRow.getByRole('button', { name: '编辑' }).click()
+    const dialog = page.getByRole('dialog', { name: '编辑题库「网络工程师题库」' })
+    const accessMode = dialog.getByRole('combobox', { name: '访问模式' })
+    await expect(accessMode).toBeEnabled()
+    await accessMode.press('ArrowDown')
+    await expect(accessMode).toHaveAttribute('aria-expanded', 'true')
+    const freeOption = page.locator('.ant-select-dropdown:visible .ant-select-item-option', { hasText: '免费题库' })
+    await expect(freeOption).toBeVisible()
+    await freeOption.click()
+    await expect(dialog.getByTitle('免费题库')).toBeVisible()
+    await dialog.getByRole('button', { name: /确\s*定/ }).click()
+
+    await expect.poll(() => updateBody).toEqual({ lock_version: 3, access_mode: 'free' })
   })
 
   test('旧题库可查看迁移问题并按当前归类结果重新检查', async ({ page }) => {

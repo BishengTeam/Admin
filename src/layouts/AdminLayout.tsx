@@ -1,6 +1,6 @@
 import { Suspense, useMemo, type ReactNode } from 'react'
 import { useNavigate, useLocation, Outlet } from 'react-router-dom'
-import { Layout, Menu, Button, Breadcrumb, Dropdown, Avatar, Spin, Result, theme } from 'antd'
+import { Layout, Menu, Button, Breadcrumb, Dropdown, Avatar, Spin, Result, Tag, message, theme } from 'antd'
 import type { MenuProps } from 'antd'
 import {
   MenuFoldOutlined,
@@ -27,6 +27,8 @@ import {
   RollbackOutlined,
   MonitorOutlined,
   BarChartOutlined,
+  SettingOutlined,
+  LockOutlined,
 } from '@ant-design/icons'
 import { useAppStore } from '@/stores/appStore'
 import { useAuthStore } from '@/stores/authStore'
@@ -34,6 +36,8 @@ import { useAuth } from '@/hooks/useAuth'
 import type { AppRoute } from '@/routes'
 import { adminRoutes } from '@/routes'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
+import { getAdminRoleLabel } from '@/core/permission'
+import type { AdminRole } from '@/types/admin'
 
 const APP_TITLE: string = import.meta.env.VITE_APP_TITLE || '运营管理后台'
 
@@ -63,21 +67,33 @@ const iconMap: Record<string, ReactNode> = {
   RollbackOutlined: <RollbackOutlined />,
   MonitorOutlined: <MonitorOutlined />,
   BarChartOutlined: <BarChartOutlined />,
+  SettingOutlined: <SettingOutlined />,
 }
 
-function hasRoutePermission(route: AppRoute, permissions: string[], initialized: boolean) {
+export function hasRouteAccess(
+  route: AppRoute,
+  permissions: string[],
+  initialized: boolean,
+  role?: AdminRole | string,
+) {
   if (!initialized) return true
+  if (route.meta?.roles && (!role || !route.meta.roles.includes(role as AdminRole))) return false
   if (permissions.includes('*')) return true
   const required = route.meta?.permissions ?? (route.meta?.permission ? [route.meta.permission] : [])
   return required.every((permission) => permissions.includes(permission))
 }
 
-function buildMenuItems(routes: AppRoute[], permissions: string[], initialized: boolean): MenuProps['items'] {
+export function buildMenuItems(
+  routes: AppRoute[],
+  permissions: string[],
+  initialized: boolean,
+  role?: AdminRole | string,
+): MenuProps['items'] {
   return routes.flatMap((r) => {
-      if (!r.meta || r.meta.hidden || !hasRoutePermission(r, permissions, initialized)) return []
+      if (!r.meta || r.meta.hidden || !hasRouteAccess(r, permissions, initialized, role)) return []
       const icon = r.meta?.icon ? iconMap[r.meta.icon] : undefined
       if (r.children) {
-        const visibleChildren = r.children.filter((c) => c.meta && !c.meta.hidden && hasRoutePermission(c, permissions, initialized))
+        const visibleChildren = r.children.filter((c) => c.meta && !c.meta.hidden && hasRouteAccess(c, permissions, initialized, role))
         if (visibleChildren.length === 0) return []
         return [{
           key: r.path!,
@@ -139,15 +155,15 @@ export default function AdminLayout({ children }: { children?: ReactNode }) {
   const { token: { colorBgContainer, borderRadiusLG } } = theme.useToken()
 
   const menuItems = useMemo(() => {
-    return buildMenuItems(adminRoutes, permissions, initialized)
-  }, [permissions, initialized])
+    return buildMenuItems(adminRoutes, permissions, initialized, admin?.role)
+  }, [permissions, initialized, admin?.role])
 
   const currentRoute = useMemo(() => {
     const pathname = location.pathname.replace(/^\/admin\/?/, '')
     return findActiveRoute(pathname, adminRoutes)
   }, [location.pathname])
 
-  const routeAllowed = !currentRoute || hasRoutePermission(currentRoute, permissions, initialized)
+  const routeAllowed = !currentRoute || hasRouteAccess(currentRoute, permissions, initialized, admin?.role)
 
   const breadcrumbItems = useMemo(() => {
     const relativePath = location.pathname.replace(/^\/admin\/?/, '')
@@ -169,8 +185,13 @@ export default function AdminLayout({ children }: { children?: ReactNode }) {
   }, [location.pathname])
 
   const handleLogout = async () => {
-    await logout()
-    navigate('/admin/login', { replace: true })
+    try {
+      await logout()
+    } catch {
+      message.warning('服务端未确认会话撤销，本地登录信息已清除；如有安全风险，请联系超级管理员处理。')
+    } finally {
+      navigate('/admin/login', { replace: true })
+    }
   }
 
   return (
@@ -242,6 +263,12 @@ export default function AdminLayout({ children }: { children?: ReactNode }) {
             menu={{
               items: [
                 {
+                  key: 'change-password',
+                  icon: <LockOutlined />,
+                  label: '修改密码',
+                  onClick: () => navigate('/admin/change-password'),
+                },
+                {
                   key: 'logout',
                   icon: <LogoutOutlined />,
                   label: '退出登录',
@@ -252,7 +279,8 @@ export default function AdminLayout({ children }: { children?: ReactNode }) {
           >
             <div style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>
               <Avatar size="small" icon={<UserOutlined />} />
-              <span>{ admin?.username }</span>
+              <span>{admin?.display_name || admin?.username}</span>
+              {admin?.role && <Tag style={{ marginInlineEnd: 0 }}>{getAdminRoleLabel(admin.role)}</Tag>}
             </div>
           </Dropdown>
         </Header>

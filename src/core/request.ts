@@ -90,6 +90,11 @@ function recordServerFailure(error: ApiError, url?: string) {
   })
 }
 
+export function isCredentialSubmissionUrl(requestUrl?: string): boolean {
+  if (!requestUrl) return false
+  return requestUrl.endsWith('/admin/auth/login')
+}
+
 request.interceptors.response.use(
   (response) => {
     const { data, config } = response
@@ -112,7 +117,12 @@ request.interceptors.response.use(
   (error: AxiosError) => {
     if (error.code === 'ERR_CANCELED' || (typeof axios.isCancel === 'function' && axios.isCancel(error))) return Promise.reject(error)
     if (error.response?.status === 401) {
-      if (!window.location.pathname.startsWith('/admin/login') && !authExpiredHandled) {
+      const requestUrl = error.config?.url || ''
+      // 只有登录接口的 401 表示提交的用户名/密码错误。再认证和修改密码
+      // 的当前密码错误由后端返回 422；这些端点的 401 一定表示会话失效，
+      // 必须立即清空认证状态。
+      const credentialSubmission = isCredentialSubmissionUrl(requestUrl)
+      if (!credentialSubmission && !window.location.pathname.startsWith('/admin/login') && !authExpiredHandled) {
         authExpiredHandled = true
         clearAuth()
         setTimeout(() => { authExpiredHandled = false }, 1000)

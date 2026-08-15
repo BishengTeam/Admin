@@ -1,5 +1,8 @@
 import { lazy } from 'react'
 import { Navigate, type RouteObject } from 'react-router-dom'
+import { useAuthStore } from '@/stores/authStore'
+import { getAdminLandingPath } from '@/core/permission'
+import type { AdminRole } from '@/types/admin'
 
 export interface RouteMeta {
   title: string
@@ -7,6 +10,7 @@ export interface RouteMeta {
   permissions?: string[]
   icon?: string
   hidden?: boolean
+  roles?: AdminRole[]
 }
 
 export interface AppRoute {
@@ -40,11 +44,24 @@ const TrainingManagement = lazy(() => import('@/pages/training'))
 const ActivityManagement = lazy(() => import('@/pages/activity'))
 const BannerManagement = lazy(() => import('@/pages/banner'))
 const ReviewManagement = lazy(() => import('@/pages/review'))
+const ChangePassword = lazy(() => import('@/pages/change-password'))
+const AdminAccounts = lazy(() => import('@/pages/settings/admins'))
+const SecurityAudit = lazy(() => import('@/pages/settings/security-audit'))
 
 import AuthGuard from '@/components/AuthGuard'
 import LoginLayout from '@/layouts/LoginLayout'
 
+function AdminLandingRedirect() {
+  const role = useAuthStore((state) => state.admin?.role)
+  return <Navigate to={getAdminLandingPath(role)} replace />
+}
+
 export const adminRoutes: AppRoute[] = [
+  {
+    path: 'change-password',
+    element: <ChangePassword />,
+    meta: { title: '修改密码', hidden: true },
+  },
   {
     path: 'dashboard',
     element: <Dashboard />,
@@ -174,6 +191,23 @@ export const adminRoutes: AppRoute[] = [
     element: <BannerManagement />,
     meta: { title: 'Banner 管理', icon: 'PictureOutlined', permission: 'content:write' },
   },
+  {
+    path: 'settings',
+    meta: { title: '系统管理', icon: 'SettingOutlined', roles: ['super_admin'] },
+    children: [
+      { index: true, element: <Navigate to="admins" replace /> },
+      {
+        path: 'admins',
+        element: <AdminAccounts />,
+        meta: { title: '管理员账号', icon: 'TeamOutlined', roles: ['super_admin'] },
+      },
+      {
+        path: 'security-audit',
+        element: <SecurityAudit />,
+        meta: { title: '安全审计', icon: 'SafetyCertificateOutlined', roles: ['super_admin'] },
+      },
+    ],
+  },
 ]
 
 export const routes: RouteObject[] = [
@@ -191,7 +225,7 @@ export const routes: RouteObject[] = [
     path: '/admin',
     element: <AuthGuard />,
     children: [
-      { index: true, element: <Navigate to="dashboard" replace /> },
+      { index: true, element: <AdminLandingRedirect /> },
       ...(adminRoutes as RouteObject[]),
     ],
   },

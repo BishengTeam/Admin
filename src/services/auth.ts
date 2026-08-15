@@ -1,18 +1,43 @@
 import axios from 'axios'
 import { http, isApiError } from '@/core/request'
-import type { AdminInfo } from '@/types/admin'
+import {
+  AdminAuthSessionSchema,
+  AdminMeSchema,
+  parseAdminResponse,
+  ReauthResponseSchema,
+} from '@/core/adminValidation'
+import type {
+  AdminAuthSession,
+  AdminMe,
+  ChangePasswordPayload,
+  ReauthResponse,
+} from '@/types/admin'
 
 export const authService = {
-  async login(username: string, password: string): Promise<{ access_token: string; admin: AdminInfo; permissions: string[] }> {
-    return http.post<{ access_token: string; admin: AdminInfo; permissions: string[] }>('/admin/auth/login', { username, password })
+  async login(username: string, password: string): Promise<AdminAuthSession> {
+    return parseAdminResponse(
+      AdminAuthSessionSchema,
+      await http.post('/admin/auth/login', { username, password }),
+    )
   },
 
   async logout(): Promise<void> {
     return http.post<void>('/admin/auth/logout')
   },
 
-  async me(): Promise<{ admin: AdminInfo; permissions: string[] }> {
-    return http.get<{ admin: AdminInfo; permissions: string[] }>('/admin/auth/me')
+  async me(): Promise<AdminMe> {
+    return parseAdminResponse(AdminMeSchema, await http.get('/admin/auth/me'))
+  },
+
+  async changePassword(payload: ChangePasswordPayload): Promise<void> {
+    return http.post<void>('/admin/auth/change-password', payload)
+  },
+
+  async reauthenticate(password: string): Promise<ReauthResponse> {
+    return parseAdminResponse(
+      ReauthResponseSchema,
+      await http.post('/admin/auth/reauth', { password }),
+    )
   },
 }
 

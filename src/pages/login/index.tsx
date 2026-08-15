@@ -1,18 +1,15 @@
 import { useState } from 'react'
-import { useNavigate, useLocation } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { Form, Input, Button, Card, message, Alert } from 'antd'
 import { UserOutlined, LockOutlined } from '@ant-design/icons'
 import type { LoginError } from '@/services/auth'
 import { useAuthStore } from '@/stores/authStore'
+import { getAdminLandingPath } from '@/core/permission'
 import { requiredRule } from '@/utils/validator'
 
 interface LoginForm {
   username: string
   password: string
-}
-
-interface LoginLocationState {
-  from?: { pathname: string }
 }
 
 export default function LoginPage() {
@@ -21,10 +18,6 @@ export default function LoginPage() {
   const [form] = Form.useForm<LoginForm>()
   const login = useAuthStore((s) => s.login)
   const navigate = useNavigate()
-  const location = useLocation()
-
-  const locationState = location.state as LoginLocationState
-  const from = locationState?.from?.pathname || '/admin/dashboard'
 
   const handleSubmit = async (values: LoginForm) => {
     setLoading(true)
@@ -35,8 +28,12 @@ export default function LoginPage() {
       { name: 'password', errors: [] },
     ])
     try {
-      await login(values.username, values.password)
-      navigate(from, { replace: true })
+      const session = await login(values.username, values.password)
+      if (session.session_mode === 'restricted' || session.must_change_password) {
+        navigate('/admin/change-password', { replace: true })
+      } else {
+        navigate(getAdminLandingPath(session.admin.role), { replace: true })
+      }
     } catch (error) {
       const loginError = error as LoginError
 

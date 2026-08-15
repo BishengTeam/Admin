@@ -21,12 +21,10 @@ import { useNavigate } from 'react-router-dom'
 import { BookOutlined, LinkOutlined, PlusOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons'
 import { PageContainer } from '@/components/PageContainer'
 import { quizService } from '@/services/quiz'
-import { contentService } from '@/services/content'
 import { usePermission } from '@/hooks/usePermission'
-import { useAuthStore } from '@/stores/authStore'
-import type { Course } from '@/types/content'
 import type {
   QuizCourseBinding,
+  QuizCourseOption,
   QuizLibrary,
   QuizLibraryAccessMode,
   QuizLibraryCreate,
@@ -133,7 +131,6 @@ export default function QuizLibraries() {
   const navigate = useNavigate()
   const canManage = usePermission('quiz_library_manage')
   const canBind = usePermission('course_quiz_bind')
-  const isSuperAdmin = useAuthStore((state) => state.admin?.role === 'super_admin')
   const [libraries, setLibraries] = useState<QuizLibrary[]>([])
   const [loading, setLoading] = useState(false)
   const [filter, setFilter] = useState<QuizLibraryFilter>({ include_deleted: false })
@@ -143,7 +140,7 @@ export default function QuizLibraries() {
   const [form] = Form.useForm()
   const [bindingLibrary, setBindingLibrary] = useState<QuizLibrary | null>(null)
   const [bindings, setBindings] = useState<QuizCourseBinding[]>([])
-  const [courses, setCourses] = useState<Course[]>([])
+  const [courses, setCourses] = useState<QuizCourseOption[]>([])
   const [bindingCourseId, setBindingCourseId] = useState<number>()
   const [bindingLoading, setBindingLoading] = useState(false)
   const [migrationLibrary, setMigrationLibrary] = useState<QuizLibrary | null>(null)
@@ -296,12 +293,12 @@ export default function QuizLibraries() {
     setBindingLoading(true)
     setBindingCourseId(undefined)
     try {
-      const [nextBindings, coursePage] = await Promise.all([
+      const [nextBindings, courseOptions] = await Promise.all([
         quizService.listCourseBindings(library.id),
-        contentService.listCourses({ page: 1, page_size: 100 }),
+        quizService.listCourseOptions(),
       ])
       setBindings(nextBindings)
-      setCourses(coursePage.items)
+      setCourses(courseOptions)
     } catch (error) {
       message.error(errorText(error))
     } finally {
@@ -439,8 +436,8 @@ export default function QuizLibraries() {
           <Form.Item name="description" label="简介" rules={[{ max: 512 }]}><Input.TextArea rows={2} showCount maxLength={512} /></Form.Item>
           <Form.Item name="cover_url" label="封面 URL" rules={[{ max: 512 }]}><Input placeholder="发布前必填" /></Form.Item>
           <Form.Item name="details" label="详细说明" rules={[{ max: 10000 }]}><Input.TextArea rows={5} showCount maxLength={10000} /></Form.Item>
-          <Form.Item name="access_mode" label="访问模式" rules={[{ required: true }]} extra={!isSuperAdmin && editing ? '只有超级管理员可以变更已有题库的访问模式。' : undefined}>
-            <Select disabled={Boolean(editing && !isSuperAdmin)} options={Object.entries(accessLabels).map(([value, label]) => ({ value, label }))} />
+          <Form.Item name="access_mode" label="访问模式" rules={[{ required: true }]}>
+            <Select options={Object.entries(accessLabels).map(([value, label]) => ({ value, label }))} />
           </Form.Item>
           <Form.Item name="sort_order" label="排序"><InputNumber precision={0} style={{ width: '100%' }} /></Form.Item>
         </Form>
