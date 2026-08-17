@@ -61,7 +61,7 @@ async function authenticate(
 }
 
 test.describe('管理员账号与固定角色', () => {
-  test('超级管理员完成再认证并创建只显示一次临时密码的题库管理员', async ({ page }) => {
+  test('超级管理员完成再认证并创建只显示一次临时密码的管理员', async ({ page }) => {
     await authenticate(page)
     let createBody: unknown
     let reauthHeader: string | undefined
@@ -94,8 +94,18 @@ test.describe('管理员账号与固定角色', () => {
     await expect(superAdminRow.getByRole('button', { name: '停用' })).toBeDisabled()
     await expect(superAdminRow.getByRole('button', { name: '重置密码' })).toBeDisabled()
 
-    await page.getByRole('button', { name: '新建题库管理员' }).click()
-    const createDialog = page.getByRole('dialog', { name: '新建题库管理员' })
+    await page.getByRole('button', { name: '创建管理员' }).click()
+    const createDialog = page.getByRole('dialog', { name: '创建管理员' })
+    await createDialog
+      .locator('.ant-form-item')
+      .filter({ hasText: '管理员角色' })
+      .locator('.ant-select')
+      .click()
+    await expect(page.getByRole('option', { name: '超级管理员' })).toHaveCount(0)
+    await page
+      .locator('.ant-select-dropdown .ant-select-item-option')
+      .filter({ hasText: '题库管理员' })
+      .click()
     await createDialog.getByLabel('登录用户名').fill('Quiz.New-Admin')
     await createDialog.getByLabel('管理员显示名').fill('新题库管理员')
     await createDialog.getByRole('button', { name: /创\s*建/ }).click()
@@ -106,7 +116,11 @@ test.describe('管理员账号与固定角色', () => {
 
     const passwordDialog = page.getByRole('dialog', { name: '一次性临时密码' })
     await expect(passwordDialog.getByText('one-time-secret-from-server')).toBeVisible()
-    expect(createBody).toEqual({ username: 'quiz.new-admin', display_name: '新题库管理员' })
+    expect(createBody).toEqual({
+      username: 'quiz.new-admin',
+      display_name: '新题库管理员',
+      role: 'quiz_admin',
+    })
     expect(reauthHeader).toBe('reauth-in-memory')
     expect(reauthCalls).toBe(1)
     expect(await page.evaluate(() => localStorage.getItem('admin_token'))).toBeNull()
@@ -338,8 +352,8 @@ test.describe('管理员账号与固定角色', () => {
     })
 
     await page.goto('/admin/settings/admins')
-    await page.getByRole('button', { name: '新建题库管理员' }).click()
-    const createDialog = page.getByRole('dialog', { name: '新建题库管理员' })
+    await page.getByRole('button', { name: '创建管理员' }).click()
+    const createDialog = page.getByRole('dialog', { name: '创建管理员' })
     await createDialog.getByLabel('登录用户名').fill('quiz.new-admin')
     await createDialog.getByLabel('管理员显示名').fill('新题库管理员')
     await createDialog.getByRole('button', { name: /创\s*建/ }).click()

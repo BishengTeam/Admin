@@ -28,15 +28,21 @@ import { useReauthentication } from '@/hooks/useReauthentication'
 import { adminManagementService } from '@/services/adminManagement'
 import { isApiError, isPermissionError } from '@/core/request'
 import { clearReauthCredential } from '@/core/reauth'
-import { getAdminRoleLabel } from '@/core/permission'
+import { ADMIN_CREATABLE_ROLE_OPTIONS, getAdminRoleLabel } from '@/core/permission'
 import { formatDate } from '@/utils/format'
-import type { AdminAccount, AdminAccountFilters, AdminAccountMutationResult } from '@/types/admin'
+import type {
+  AdminAccount,
+  AdminAccountFilters,
+  AdminAccountMutationResult,
+  AdminCreatableRole,
+} from '@/types/admin'
 
 const { Paragraph, Text } = Typography
 
 interface AdminCreateValues {
   username: string
   display_name: string
+  role: AdminCreatableRole
 }
 
 interface AdminEditValues {
@@ -160,12 +166,13 @@ export default function AdminAccountsPage() {
     const result = await runHighRisk('create', (token) => adminManagementService.createAdmin({
       username: values.username.trim().toLowerCase(),
       display_name: values.display_name.trim(),
+      role: values.role,
     }, token))
     if (!result) return
     setCreateOpen(false)
     createForm.resetFields()
     setTemporaryPassword(result)
-    await finishMutation('题库管理员已创建')
+    await finishMutation('管理员已创建')
   }
 
   const openEdit = (admin: AdminAccount) => {
@@ -361,7 +368,7 @@ export default function AdminAccountsPage() {
       extra={(
         <Space>
           <Button icon={<ReloadOutlined />} onClick={refresh}>刷新</Button>
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateOpen(true)}>新建题库管理员</Button>
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateOpen(true)}>创建管理员</Button>
         </Space>
       )}
     >
@@ -408,7 +415,7 @@ export default function AdminAccountsPage() {
       />
 
       <Modal
-        title="新建题库管理员"
+        title="创建管理员"
         open={createOpen}
         okText="创建"
         cancelText="取消"
@@ -419,6 +426,17 @@ export default function AdminAccountsPage() {
       >
         <Paragraph type="secondary">系统将生成只显示一次的临时密码；新管理员首次登录时必须修改。</Paragraph>
         <Form<AdminCreateValues> form={createForm} layout="vertical">
+          <Form.Item
+            name="role"
+            label="管理员角色"
+            initialValue="quiz_admin"
+            rules={[{ required: true, message: '请选择管理员角色' }]}
+          >
+            <Select
+              options={[...ADMIN_CREATABLE_ROLE_OPTIONS]}
+              placeholder="请选择管理员角色"
+            />
+          </Form.Item>
           <Form.Item
             name="username"
             label="登录用户名"

@@ -37,7 +37,7 @@ const QuizAuditLogs = lazy(() => import('@/pages/quiz/audit-logs'))
 const QuizStats = lazy(() => import('@/pages/quiz/stats'))
 const QuizTaskMonitor = lazy(() => import('@/pages/quiz/tasks'))
 const ContentManagement = lazy(() => import('@/pages/content'))
-const CourseList = lazy(() => import('@/pages/content/courses'))
+const CourseManagement = lazy(() => import('@/pages/courses'))
 const CertificationManagement = lazy(() => import('@/pages/certification'))
 const JobManagement = lazy(() => import('@/pages/job'))
 const TrainingManagement = lazy(() => import('@/pages/training'))
@@ -163,8 +163,8 @@ export const adminRoutes: AppRoute[] = [
   },
   {
     path: 'courses',
-    element: <CourseList />,
-    meta: { title: '课程管理', icon: 'ReadOutlined', permission: 'course:list' },
+    element: <CourseManagement />,
+    meta: { title: '课程管理', icon: 'ReadOutlined', roles: ['super_admin'] },
   },
   {
     path: 'certification',

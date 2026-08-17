@@ -11,6 +11,7 @@ import type {
   AdminAccount,
   AdminAccountFilters,
   AdminAccountMutationResult,
+  AdminCreatableRole,
   SecurityAuditFilters,
   SecurityAuditItem,
 } from '@/types/admin'
@@ -53,7 +54,7 @@ export const adminManagementService = {
   },
 
   createAdmin(
-    payload: { username: string; display_name: string },
+    payload: { username: string; display_name: string; role: AdminCreatableRole },
     reauthToken: string,
   ): Promise<AdminAccountMutationResult> {
     return http.post('/admin/settings/admins', payload, credentialMutationConfig(reauthToken))

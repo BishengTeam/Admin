@@ -33,13 +33,16 @@ describe('administrator management service contract', () => {
     sessionStorage.clear()
   })
 
-  it('sends the fixed create payload and the in-memory reauth header', async () => {
+  it('sends the selected non-super role and the in-memory reauth header', async () => {
     const { adminManagementService } = await import('@/services/adminManagement')
     http.post.mockResolvedValueOnce(mutation)
-    await adminManagementService.createAdmin({ username: 'quiz.ops', display_name: '题库运营' }, 'reauth-1')
+    await adminManagementService.createAdmin(
+      { username: 'quiz.ops', display_name: '题库运营', role: 'quiz_admin' },
+      'reauth-1',
+    )
     expect(http.post).toHaveBeenCalledWith(
       '/admin/settings/admins',
-      { username: 'quiz.ops', display_name: '题库运营' },
+      { username: 'quiz.ops', display_name: '题库运营', role: 'quiz_admin' },
       {
         headers: {
           'X-Reauth-Token': 'reauth-1',
@@ -110,8 +113,14 @@ describe('administrator management service contract', () => {
     const { adminManagementService } = await import('@/services/adminManagement')
 
     try {
-      await adminManagementService.createAdmin({ username: 'quiz.one', display_name: '题库一组' }, 'reauth-3')
-      await adminManagementService.createAdmin({ username: 'quiz.two', display_name: '题库二组' }, 'reauth-3')
+      await adminManagementService.createAdmin(
+        { username: 'quiz.one', display_name: '题库一组', role: 'quiz_admin' },
+        'reauth-3',
+      )
+      await adminManagementService.createAdmin(
+        { username: 'quiz.two', display_name: '题库二组', role: 'quiz_admin' },
+        'reauth-3',
+      )
       await adminManagementService.enableAdmin(7, 'reauth-3')
       await adminManagementService.resetPassword(7, 'reauth-3')
 

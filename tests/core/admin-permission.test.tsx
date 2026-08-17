@@ -1,12 +1,18 @@
 import { describe, expect, it } from 'vitest'
 import { adminRoutes } from '@/routes'
 import { buildMenuItems, hasRouteAccess } from '@/layouts/AdminLayout'
-import { getAdminLandingPath } from '@/core/permission'
+import { ADMIN_CREATABLE_ROLE_OPTIONS, getAdminLandingPath } from '@/core/permission'
 
 describe('fixed administrator role navigation', () => {
   it('uses the frozen role-specific login landing pages', () => {
     expect(getAdminLandingPath('super_admin')).toBe('/admin/dashboard')
     expect(getAdminLandingPath('quiz_admin')).toBe('/admin/quiz/questions')
+  })
+
+  it('only exposes preset non-super roles to the creation dialog', () => {
+    expect(ADMIN_CREATABLE_ROLE_OPTIONS).toEqual([
+      { label: '题库管理员', value: 'quiz_admin' },
+    ])
   })
 
   it('shows system management only to the unique super administrator', () => {
