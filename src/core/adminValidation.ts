@@ -71,6 +71,41 @@ export const SecurityAuditPageSchema = z.object({
   page_size: positiveInt,
 }).strict()
 
+export const SystemUpdateVersionSchema = z.object({
+  release_tag: z.string().min(1),
+  backend_commit: z.string().min(1),
+  admin_commit: z.string().min(1),
+}).strict()
+
+export const SystemUpdateAssetSchema = z.object({
+  name: z.string().min(1),
+  size: z.number().int().min(0),
+  download_url: z.string().url(),
+}).strict()
+
+export const SystemUpdateReleaseSchema = z.object({
+  release_tag: z.string().min(1),
+  published_at: dateString,
+  html_url: z.string().url(),
+  notes: z.string(),
+  backend_commit: z.string().min(1),
+  admin_commit: z.string().min(1),
+  assets: z.array(SystemUpdateAssetSchema),
+}).strict()
+
+export const SystemUpdateCheckSchema = z.object({
+  current: SystemUpdateVersionSchema,
+  latest: SystemUpdateReleaseSchema.nullable(),
+  update_available: z.boolean(),
+  check_status: z.enum(['ok', 'unavailable']),
+  checked_at: dateString,
+  reason_code: z.string().nullable(),
+  manual_upgrade_required: z.boolean(),
+  dry_run_command: z.string().min(1),
+  upgrade_command: z.string().min(1),
+  estimated_downtime_seconds: z.number().int().min(1).max(3600),
+}).strict()
+
 export function parseAdminResponse<T>(schema: z.ZodType<T>, data: unknown): T {
   const result = schema.safeParse(data)
   if (!result.success) {

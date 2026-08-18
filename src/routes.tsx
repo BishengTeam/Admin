@@ -47,6 +47,7 @@ const ReviewManagement = lazy(() => import('@/pages/review'))
 const ChangePassword = lazy(() => import('@/pages/change-password'))
 const AdminAccounts = lazy(() => import('@/pages/settings/admins'))
 const SecurityAudit = lazy(() => import('@/pages/settings/security-audit'))
+const SystemUpdates = lazy(() => import('@/pages/settings/updates'))
 
 import AuthGuard from '@/components/AuthGuard'
 import LoginLayout from '@/layouts/LoginLayout'
@@ -205,6 +206,11 @@ export const adminRoutes: AppRoute[] = [
         path: 'security-audit',
         element: <SecurityAudit />,
         meta: { title: '安全审计', icon: 'SafetyCertificateOutlined', roles: ['super_admin'] },
+      },
+      {
+        path: 'updates',
+        element: <SystemUpdates />,
+        meta: { title: '版本与更新', icon: 'SyncOutlined', roles: ['super_admin'] },
       },
     ],
   },

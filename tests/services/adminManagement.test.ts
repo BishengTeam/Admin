@@ -191,6 +191,41 @@ describe('administrator management service contract', () => {
     expect(adminManagementService).not.toHaveProperty('deleteSecurityAudit')
   })
 
+  it('checks system updates through the read-only super-admin endpoint', async () => {
+    const { systemUpdateService } = await import('@/services/systemUpdate')
+    const signal = new AbortController().signal
+    const checkedAt = '2026-08-19T09:00:00Z'
+    const current = { release_tag: '2026.08.18.6', backend_commit: 'c'.repeat(40), admin_commit: 'd'.repeat(40) }
+    const latest = {
+      release_tag: '2026.08.19.1',
+      published_at: '2026-08-19T01:00:00Z',
+      html_url: 'https://github.com/BishengTeam/Backend/releases/tag/2026.08.19.1',
+      notes: 'Stability release',
+      backend_commit: 'a'.repeat(40),
+      admin_commit: 'b'.repeat(40),
+      assets: [{
+        name: 'SHA256SUMS',
+        size: 358,
+        download_url: 'https://github.com/BishengTeam/Backend/releases/download/2026.08.19.1/SHA256SUMS',
+      }],
+    }
+    const result = {
+      current,
+      latest,
+      update_available: true,
+      check_status: 'ok',
+      checked_at: checkedAt,
+      reason_code: null,
+      manual_upgrade_required: true,
+      dry_run_command: 'upgrade --dry-run',
+      upgrade_command: 'upgrade',
+      estimated_downtime_seconds: 300,
+    }
+    http.get.mockResolvedValueOnce(result)
+    await expect(systemUpdateService.check(signal)).resolves.toEqual(result)
+    expect(http.get).toHaveBeenCalledWith('/admin/system/updates/check', { signal })
+  })
+
   it('rejects administrator responses that expose undeclared security fields', async () => {
     const { adminManagementService } = await import('@/services/adminManagement')
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})

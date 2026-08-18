@@ -26,6 +26,13 @@ describe('fixed administrator role navigation', () => {
     expect(quizMenu.map((item) => item.key)).toEqual(['quiz'])
   })
 
+  it('shows the update checker only inside super-admin system management', () => {
+    const settings = adminRoutes.find((route) => route.path === 'settings')!
+    const updates = settings.children!.find((route) => route.path === 'updates')!
+    expect(hasRouteAccess(updates, ['*'], true, 'super_admin')).toBe(true)
+    expect(hasRouteAccess(updates, ['quiz:list'], true, 'quiz_admin')).toBe(false)
+  })
+
   it('denies non-quiz routes even when a quiz administrator opens a URL directly', () => {
     const users = adminRoutes.find((route) => route.path === 'users')!
     const quizQuestions = adminRoutes

@@ -86,3 +86,38 @@ export interface SecurityAuditFilters extends PageParams {
   started_at?: string
   ended_at?: string
 }
+
+export interface SystemUpdateVersion {
+  release_tag: string
+  backend_commit: string
+  admin_commit: string
+}
+
+export interface SystemUpdateAsset {
+  name: string
+  size: number
+  download_url: string
+}
+
+export interface SystemUpdateRelease {
+  release_tag: string
+  published_at: string
+  html_url: string
+  notes: string
+  backend_commit: string
+  admin_commit: string
+  assets: SystemUpdateAsset[]
+}
+
+export interface SystemUpdateCheck {
+  current: SystemUpdateVersion
+  latest: SystemUpdateRelease | null
+  update_available: boolean
+  check_status: 'ok' | 'unavailable'
+  checked_at: string
+  reason_code: string | null
+  manual_upgrade_required: boolean
+  dry_run_command: string
+  upgrade_command: string
+  estimated_downtime_seconds: number
+}
