@@ -8,7 +8,7 @@ export const AdminAccountSchema = z.object({
   id: positiveInt,
   username: z.string().min(1),
   display_name: z.string().min(1),
-  role: z.enum(['super_admin', 'quiz_admin']),
+  role: z.enum(['super_admin', 'quiz_admin', 'h3c_admin']),
   is_active: z.boolean(),
   must_change_password: z.boolean(),
   locked_until: nullableDate,

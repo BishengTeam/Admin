@@ -12,6 +12,7 @@ describe('fixed administrator role navigation', () => {
   it('only exposes preset non-super roles to the creation dialog', () => {
     expect(ADMIN_CREATABLE_ROLE_OPTIONS).toEqual([
       { label: '题库管理员', value: 'quiz_admin' },
+      { label: 'H3C 管理员', value: 'h3c_admin' },
     ])
   })
 
@@ -31,6 +32,13 @@ describe('fixed administrator role navigation', () => {
     const updates = settings.children!.find((route) => route.path === 'updates')!
     expect(hasRouteAccess(updates, ['*'], true, 'super_admin')).toBe(true)
     expect(hasRouteAccess(updates, ['quiz:list'], true, 'quiz_admin')).toBe(false)
+  })
+
+  it('shows the H3C workbench to H3C and super administrators only', () => {
+    const h3c = adminRoutes.find((route) => route.path === 'h3c')!
+    expect(hasRouteAccess(h3c, ['*'], true, 'super_admin')).toBe(true)
+    expect(hasRouteAccess(h3c, ['h3c:review'], true, 'h3c_admin')).toBe(true)
+    expect(hasRouteAccess(h3c, ['quiz:list'], true, 'quiz_admin')).toBe(false)
   })
 
   it('denies non-quiz routes even when a quiz administrator opens a URL directly', () => {

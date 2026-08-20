@@ -28,6 +28,7 @@ import {
   MonitorOutlined,
   BarChartOutlined,
   SettingOutlined,
+  CloudServerOutlined,
   LockOutlined,
 } from '@ant-design/icons'
 import { useAppStore } from '@/stores/appStore'
@@ -68,6 +69,7 @@ const iconMap: Record<string, ReactNode> = {
   MonitorOutlined: <MonitorOutlined />,
   BarChartOutlined: <BarChartOutlined />,
   SettingOutlined: <SettingOutlined />,
+  CloudServerOutlined: <CloudServerOutlined />,
 }
 
 export function hasRouteAccess(

@@ -48,6 +48,7 @@ const ChangePassword = lazy(() => import('@/pages/change-password'))
 const AdminAccounts = lazy(() => import('@/pages/settings/admins'))
 const SecurityAudit = lazy(() => import('@/pages/settings/security-audit'))
 const SystemUpdates = lazy(() => import('@/pages/settings/updates'))
+const H3CManagement = lazy(() => import('@/pages/h3c'))
 
 import AuthGuard from '@/components/AuthGuard'
 import LoginLayout from '@/layouts/LoginLayout'
@@ -191,6 +192,11 @@ export const adminRoutes: AppRoute[] = [
     path: 'banner',
     element: <BannerManagement />,
     meta: { title: 'Banner 管理', icon: 'PictureOutlined', permission: 'content:write' },
+  },
+  {
+    path: 'h3c',
+    element: <H3CManagement />,
+    meta: { title: 'H3C 认证', icon: 'SafetyCertificateOutlined', permission: 'h3c:review' },
   },
   {
     path: 'settings',
