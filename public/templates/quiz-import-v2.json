@@ -6,7 +6,8 @@
       "question_text": "OSI 参考模型共有几层？",
       "options": { "A": "五层", "B": "六层", "C": "七层" },
       "correct_answer": "C",
-      "explanation": "OSI 参考模型共有七层。"
+      "explanation": "OSI 参考模型共有七层。",
+      "image_urls": ["https://example.com/osi.png"]
     }
   ]
 }

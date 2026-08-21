@@ -10,7 +10,8 @@
         "C": "选项 C"
       },
       "correct_answer": "A",
-      "explanation": "解析"
+      "explanation": "解析",
+      "image_urls": ["https://example.com/question.png"]
     }
   ]
 }

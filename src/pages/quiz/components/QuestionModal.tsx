@@ -40,17 +40,39 @@ function sameValue(a: unknown, b: unknown) {
   return JSON.stringify(a) === JSON.stringify(b)
 }
 
+function parseImageUrls(value: unknown): string[] {
+  return String(value ?? '')
+    .split(/[\r\n,，]+/)
+    .map((url) => url.trim())
+    .filter(Boolean)
+}
+
+function validateImageUrls(value: unknown): string[] {
+  const urls = parseImageUrls(value)
+  if (urls.length > 9) throw new Error('题干图片最多 9 张')
+  for (const url of urls) {
+    try {
+      const parsed = new URL(url)
+      if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('protocol')
+    } catch {
+      throw new Error('图片 URL 必须是有效的 http/https 地址')
+    }
+  }
+  return [...new Set(urls)]
+}
+
 export default function QuestionModal({ open, question, categories, canWrite, onClose, onSaved, onConflict, onNotFound }: QuestionModalProps) {
   const [form] = Form.useForm()
   const type = Form.useWatch('question_type', form) as QuestionType | undefined
   const options = Form.useWatch('options', form) as OptionValue[] | undefined
+  const imageUrlsText = Form.useWatch('image_urls_text', form)
   const isEdit = Boolean(question)
 
   useEffect(() => {
     if (!open) return
     if (!question) {
       form.resetFields()
-      form.setFieldsValue({ question_type: 'single_choice', options: [{ content: '' }, { content: '' }, { content: '' }] })
+      form.setFieldsValue({ question_type: 'single_choice', options: [{ content: '' }, { content: '' }, { content: '' }], image_urls_text: '' })
       return
     }
     form.setFieldsValue({
@@ -62,6 +84,7 @@ export default function QuestionModal({ open, question, categories, canWrite, on
         : Object.entries(stableOptions(question.options)).map(([, content]) => ({ content })),
       correct_answer: question.question_type === 'multiple_choice' ? answerToArray(question.correct_answer) : question.correct_answer,
       explanation: question.explanation ?? undefined,
+      image_urls_text: (question.image_urls ?? []).join('\n'),
     })
   }, [form, open, question])
 
@@ -95,6 +118,7 @@ export default function QuestionModal({ open, question, categories, canWrite, on
         optionRecord.B = '错误'
       }
       const answer = answerToPayload(values.correct_answer, questionType)
+      const imageUrls = validateImageUrls(values.image_urls_text)
       if (!isEdit) {
         const payload: QuestionCreate = {
           category_id: values.category_id,
@@ -103,6 +127,7 @@ export default function QuestionModal({ open, question, categories, canWrite, on
           ...(Object.keys(optionRecord).length ? { options: optionRecord } : {}),
           ...(answer ? { correct_answer: answer } : {}),
           ...(values.explanation?.trim() ? { explanation: values.explanation.trim() } : {}),
+          image_urls: imageUrls,
         }
         const created = await quizService.createQuestion(payload)
         onSaved(created)
@@ -118,6 +143,7 @@ export default function QuestionModal({ open, question, categories, canWrite, on
       if (!sameValue(answer, question!.correct_answer)) update.correct_answer = answer
       const explanation = values.explanation?.trim() || null
       if (explanation !== question!.explanation) update.explanation = explanation
+      if (!sameValue(imageUrls, question!.image_urls ?? [])) update.image_urls = imageUrls
       if (Object.keys(update).length === 1) {
         onClose()
         return
@@ -156,6 +182,7 @@ export default function QuestionModal({ open, question, categories, canWrite, on
     ? ['A', 'B']
     : QUESTION_OPTION_KEYS.slice(0, Math.min(currentOptionsCount, QUESTION_OPTION_KEYS.length))
   const tree = buildCategoryTree(categories)
+  const previewUrls = parseImageUrls(imageUrlsText)
 
   return (
     <Modal
@@ -181,6 +208,14 @@ export default function QuestionModal({ open, question, categories, canWrite, on
         <Form.Item name="question_text" label="题干" rules={[{ required: true, message: '请输入题干' }, { max: 1024, message: '题干不能超过 1024 个字符' }]}>
           <Input.TextArea rows={4} placeholder="草稿允许暂不填写选项，发布时会执行完整校验" />
         </Form.Item>
+        <Form.Item name="image_urls_text" label="题干图片 URL" rules={[{ validator: async (_, value) => { validateImageUrls(value) } }]}>
+          <Input.TextArea rows={3} placeholder="每行一个图片 URL，也可用逗号分隔；仅支持 http/https" />
+        </Form.Item>
+        {previewUrls.length > 0 && (
+          <Space wrap style={{ marginBottom: 16 }}>
+            {previewUrls.map((url) => <img key={url} src={url} alt="题干图片预览" style={{ width: 120, maxHeight: 90, objectFit: 'contain', border: '1px solid #f0f0f0', borderRadius: 4 }} />)}
+          </Space>
+        )}
         <Form.List name="options">
           {(fields, { add, remove }) => (
             <div>

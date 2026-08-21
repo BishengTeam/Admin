@@ -21,6 +21,7 @@ const question = {
   options: { A: 'OSPF', B: 'HTTP', C: 'BGP', D: 'FTP' },
   correct_answer: ['A', 'C'],
   explanation: null,
+  image_urls: [],
   ever_published: false,
   published_at: null,
   disabled_at: null,
@@ -191,8 +192,9 @@ describe('quizService frozen admin contract', () => {
       question_text: '选择协议',
       options: { A: 'OSPF', B: 'HTTP', C: 'BGP', D: 'FTP' },
       correct_answer: ['A', 'C'],
+      image_urls: ['https://example.com/protocol.png'],
     })
-    expect(http.post).toHaveBeenCalledWith('/admin/quiz/questions', expect.objectContaining({ correct_answer: ['A', 'C'] }), { signal: undefined })
+    expect(http.post).toHaveBeenCalledWith('/admin/quiz/questions', expect.objectContaining({ correct_answer: ['A', 'C'], image_urls: ['https://example.com/protocol.png'] }), { signal: undefined })
     expect(http.post.mock.calls[0][1]).not.toHaveProperty('category_name')
 
     await quizService.publishQuestion(101, 2)
