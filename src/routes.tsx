@@ -37,7 +37,11 @@ const QuizAuditLogs = lazy(() => import('@/pages/quiz/audit-logs'))
 const QuizStats = lazy(() => import('@/pages/quiz/stats'))
 const QuizTaskMonitor = lazy(() => import('@/pages/quiz/tasks'))
 const ContentManagement = lazy(() => import('@/pages/content'))
-const CourseManagement = lazy(() => import('@/pages/courses'))
+const CourseList = lazy(() => import('@/pages/courses/List'))
+const CourseCategories = lazy(() => import('@/pages/courses/Categories'))
+const CourseDetail = lazy(() => import('@/pages/courses/Detail'))
+const CourseStudents = lazy(() => import('@/pages/courses/Students'))
+const CourseAudit = lazy(() => import('@/pages/courses/Audit'))
 const CertificationManagement = lazy(() => import('@/pages/certification'))
 const JobManagement = lazy(() => import('@/pages/job'))
 const TrainingManagement = lazy(() => import('@/pages/training'))
@@ -165,8 +169,35 @@ export const adminRoutes: AppRoute[] = [
   },
   {
     path: 'courses',
-    element: <CourseManagement />,
-    meta: { title: '课程管理', icon: 'ReadOutlined', roles: ['super_admin'] },
+    meta: { title: '课程管理', icon: 'ReadOutlined', permission: 'course:read' },
+    children: [
+      { index: true, element: <Navigate to="list" replace /> },
+      {
+        path: 'list',
+        element: <CourseList />,
+        meta: { title: '课程列表', icon: 'ReadOutlined', permission: 'course:read' },
+      },
+      {
+        path: 'categories',
+        element: <CourseCategories />,
+        meta: { title: '类目管理', icon: 'ClusterOutlined', permission: 'course:write' },
+      },
+      {
+        path: 'students',
+        element: <CourseStudents />,
+        meta: { title: '报名学员', icon: 'TeamOutlined', permission: 'course:read' },
+      },
+      {
+        path: 'audit',
+        element: <CourseAudit />,
+        meta: { title: '课程审计', icon: 'AuditOutlined', permission: 'course:read' },
+      },
+      {
+        path: ':courseId',
+        element: <CourseDetail />,
+        meta: { title: '课程工作台', icon: 'PlayCircleOutlined', permission: 'course:read', hidden: true },
+      },
+    ],
   },
   {
     path: 'certification',

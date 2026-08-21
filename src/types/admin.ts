@@ -1,6 +1,6 @@
 import type { PageParams } from './api'
 
-export type AdminRole = 'super_admin' | 'quiz_admin' | 'h3c_admin'
+export type AdminRole = 'super_admin' | 'quiz_admin' | 'h3c_admin' | 'course_admin'
 export type AdminCreatableRole = Exclude<AdminRole, 'super_admin'>
 export type AdminSessionMode = 'normal' | 'restricted'
 

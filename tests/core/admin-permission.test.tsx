@@ -7,12 +7,14 @@ describe('fixed administrator role navigation', () => {
   it('uses the frozen role-specific login landing pages', () => {
     expect(getAdminLandingPath('super_admin')).toBe('/admin/dashboard')
     expect(getAdminLandingPath('quiz_admin')).toBe('/admin/quiz/questions')
+    expect(getAdminLandingPath('course_admin')).toBe('/admin/courses')
   })
 
   it('only exposes preset non-super roles to the creation dialog', () => {
     expect(ADMIN_CREATABLE_ROLE_OPTIONS).toEqual([
       { label: '题库管理员', value: 'quiz_admin' },
       { label: 'H3C 管理员', value: 'h3c_admin' },
+      { label: '课程管理员', value: 'course_admin' },
     ])
   })
 
