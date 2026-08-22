@@ -92,7 +92,7 @@ export default function CourseDetailPage() {
   const [categories, setCategories] = useState<{ id: number; name: string; is_active: boolean }[]>([])
   const [bindings, setBindings] = useState<Awaited<ReturnType<typeof courseManagementService.listBindings>>>([])
   const [editingChapter, setEditingChapter] = useState<CourseChapter | null>(null)
-  const [chapterForm] = Form.useForm<Pick<CourseChapter, 'title' | 'duration' | 'sort_order'>>()
+  const [chapterForm] = Form.useForm<Pick<CourseChapter, 'title' | 'sort_order'>>()
 
   const load = useCallback(async () => {
     const [courseResult, chapterPage, uploadList, categoryList, bindingList] =
@@ -173,7 +173,6 @@ export default function CourseDetailPage() {
           <Button type="link" size="small" onClick={async () => {
             chapterForm.setFieldsValue({
               title: record.title,
-              duration: record.duration,
               sort_order: record.sort_order,
             })
             setEditingChapter(record)
@@ -208,7 +207,6 @@ export default function CourseDetailPage() {
   const stageColumns: ColumnsType<StageFile> = [
     { title: '排序', dataIndex: 'sort_order', width: 80, render: (value, record) => <InputNumber min={1} precision={0} value={value} disabled={record.status === 'uploading'} onChange={next => setStage(current => current.map(row => row.key === record.key ? { ...row, sort_order: next ?? 1 } : row))} /> },
     { title: '课程名', dataIndex: 'title', render: (value, record) => <Input value={value} disabled={record.status === 'uploading'} onChange={event => setStage(current => current.map(row => row.key === record.key ? { ...row, title: event.target.value } : row))} /> },
-    { title: '时长', dataIndex: 'duration', width: 105, render: (value, record) => <InputNumber min={1} precision={0} value={value} disabled={record.status === 'uploading'} onChange={next => setStage(current => current.map(row => row.key === record.key ? { ...row, duration: next ?? 1 } : row))} /> },
     { title: '状态', dataIndex: 'status', width: 120, render: (_, record) => record.status === 'failed'
       ? <Tag color="red">{record.error ?? '失败'}</Tag>
       : <Tag color={record.status === 'uploading' ? 'processing' : record.status === 'done' ? 'success' : 'default'}>{record.status === 'uploading' ? '上传中' : record.status === 'done' ? '完成' : '待上传'}</Tag> },
@@ -470,8 +468,13 @@ export default function CourseDetailPage() {
                             next.push(current.get(key)!)
                             continue
                           }
-                          let duration = 1
-                          try { duration = await readVideoDuration(file) } catch { duration = 1 }
+                          let duration: number
+                          try {
+                            duration = await readVideoDuration(file)
+                          } catch {
+                            message.error(`无法读取「${file.name}」的视频时长，请更换浏览器或视频文件`)
+                            continue
+                          }
                           next.push({
                             key,
                             file,
@@ -633,10 +636,7 @@ export default function CourseDetailPage() {
       >
         <Form form={chapterForm} layout="vertical">
           <Form.Item name="title" label="课程名" rules={[{ required: true }]}><Input /></Form.Item>
-          <Space>
-            <Form.Item name="duration" label="时长（秒）"><InputNumber min={1} precision={0} /></Form.Item>
-            <Form.Item name="sort_order" label="排序"><InputNumber min={1} precision={0} /></Form.Item>
-          </Space>
+          <Form.Item name="sort_order" label="排序"><InputNumber min={1} precision={0} /></Form.Item>
         </Form>
       </Modal>
     </PageContainer>
