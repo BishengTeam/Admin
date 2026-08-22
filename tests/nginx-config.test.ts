@@ -28,6 +28,7 @@ describe('Admin nginx probes', () => {
     for (const file of ['nginx.conf.template', 'nginx.conf', 'vite.config.ts']) {
       const source = readFileSync(resolve(process.cwd(), file), 'utf8')
       expect(source).toContain("img-src 'self' data: blob: https:")
+      expect(source).toContain("media-src 'self' blob: https:")
       expect(source).toContain(`connect-src 'self' ${ossOrigin}`)
       expect(source).not.toContain("img-src 'self' data: https:")
     }
