@@ -1,20 +1,25 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import {
   Alert,
   Button,
- Descriptions,
+  Card,
+  Col,
+  Descriptions,
+  Empty,
   Form,
   Image,
   Input,
   InputNumber,
   Modal,
+  Row,
   Select,
   Space,
-  Switch,
+  Statistic,
   Table,
   Tabs,
   Tag,
   Upload,
+  Typography,
   message,
 } from 'antd'
 import {
@@ -44,6 +49,29 @@ type StageFile = {
   sort_order: number
   status: 'ready' | 'uploading' | 'done' | 'failed'
   error?: string
+}
+
+const { Text } = Typography
+
+const courseStatusLabels: Record<CourseItem['status'], { label: string; color: string }> = {
+  draft: { label: '草稿', color: 'default' },
+  published: { label: '已发布', color: 'green' },
+  offline: { label: '已下线', color: 'orange' },
+  archived: { label: '已归档', color: 'red' },
+}
+
+function formatDuration(seconds: number) {
+  if (seconds < 60) return `${seconds} 秒`
+  const minutes = Math.floor(seconds / 60)
+  const rest = seconds % 60
+  if (minutes < 60) return rest ? `${minutes} 分 ${rest} 秒` : `${minutes} 分钟`
+  const hours = Math.floor(minutes / 60)
+  return `${hours} 小时 ${minutes % 60} 分`
+}
+
+function formatSize(bytes: number) {
+  if (bytes >= 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} GB`
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`
 }
 
 export default function CourseDetailPage() {
@@ -130,17 +158,18 @@ export default function CourseDetailPage() {
   }
 
   const chapterColumns: ColumnsType<CourseChapter> = [
-    { title: '排序', dataIndex: 'sort_order', width: 70 },
-    { title: '章节', dataIndex: 'title', ellipsis: true },
-    { title: '文件', dataIndex: 'original_filename', ellipsis: true },
-    { title: '时长', dataIndex: 'duration', width: 100, render: value => `${value} 秒` },
-    { title: '大小', dataIndex: 'size_bytes', width: 110, render: value => `${(value / 1024 / 1024).toFixed(1)} MB` },
-    { title: '试看', width: 90, render: (_, record) => <Tag color={course && record.sort_order <= course.preview_chapter_count ? 'green' : 'default'}>{course && record.sort_order <= course.preview_chapter_count ? '试看' : '完整'}</Tag> },
+    { title: '排序', dataIndex: 'sort_order', width: 64, align: 'center' },
+    { title: '章节', dataIndex: 'title', ellipsis: true, render: value => <Text strong>{value}</Text> },
+    { title: '文件', dataIndex: 'original_filename', ellipsis: true, render: value => <Text type="secondary">{value}</Text> },
+    { title: '时长', dataIndex: 'duration', width: 110, render: value => formatDuration(value) },
+    { title: '大小', dataIndex: 'size_bytes', width: 100, align: 'right', render: value => formatSize(value) },
+    { title: '权限', width: 88, align: 'center', render: (_, record) => <Tag color={course && record.sort_order <= course.preview_chapter_count ? 'green' : 'blue'}>{course && record.sort_order <= course.preview_chapter_count ? '试看' : '完整'}</Tag> },
     {
       title: '操作',
-      width: 210,
+      width: 230,
+      fixed: 'right',
       render: (_, record) => (
-        <Space size={0}>
+        <Space size={4}>
           <Button type="link" size="small" onClick={async () => {
             chapterForm.setFieldsValue({
               title: record.title,
@@ -177,10 +206,12 @@ export default function CourseDetailPage() {
   ]
 
   const stageColumns: ColumnsType<StageFile> = [
-    { title: '排序', dataIndex: 'sort_order', width: 90, render: (value, record) => <InputNumber min={1} precision={0} value={value} disabled={record.status === 'uploading'} onChange={next => setStage(current => current.map(row => row.key === record.key ? { ...row, sort_order: next ?? 1 } : row))} /> },
+    { title: '排序', dataIndex: 'sort_order', width: 80, render: (value, record) => <InputNumber min={1} precision={0} value={value} disabled={record.status === 'uploading'} onChange={next => setStage(current => current.map(row => row.key === record.key ? { ...row, sort_order: next ?? 1 } : row))} /> },
     { title: '标题', dataIndex: 'title', render: (value, record) => <Input value={value} disabled={record.status === 'uploading'} onChange={event => setStage(current => current.map(row => row.key === record.key ? { ...row, title: event.target.value } : row))} /> },
-    { title: '时长', dataIndex: 'duration', width: 110, render: (value, record) => <InputNumber min={1} precision={0} value={value} disabled={record.status === 'uploading'} onChange={next => setStage(current => current.map(row => row.key === record.key ? { ...row, duration: next ?? 1 } : row))} /> },
-    { title: '状态', dataIndex: 'status', width: 130, render: (_, record) => record.status === 'failed' ? <Tag color="red">{record.error ?? '失败'}</Tag> : <Tag>{record.status === 'uploading' ? '上传中' : record.status === 'done' ? '完成' : '待上传'}</Tag> },
+    { title: '时长', dataIndex: 'duration', width: 105, render: (value, record) => <InputNumber min={1} precision={0} value={value} disabled={record.status === 'uploading'} onChange={next => setStage(current => current.map(row => row.key === record.key ? { ...row, duration: next ?? 1 } : row))} /> },
+    { title: '状态', dataIndex: 'status', width: 120, render: (_, record) => record.status === 'failed'
+      ? <Tag color="red">{record.error ?? '失败'}</Tag>
+      : <Tag color={record.status === 'uploading' ? 'processing' : record.status === 'done' ? 'success' : 'default'}>{record.status === 'uploading' ? '上传中' : record.status === 'done' ? '完成' : '待上传'}</Tag> },
     {
       title: '操作',
       width: 90,
@@ -200,15 +231,15 @@ export default function CourseDetailPage() {
   ]
 
   const pendingColumns: ColumnsType<CourseUpload> = [
-    { title: '标题', dataIndex: 'title' },
-    { title: '文件', dataIndex: 'filename' },
-    { title: '声明大小', dataIndex: 'size_bytes', render: value => `${(value / 1024 / 1024).toFixed(1)} MB` },
-    { title: '过期时间', dataIndex: 'expires_at' },
+    { title: '标题', dataIndex: 'title', ellipsis: true, render: value => <Text strong>{value}</Text> },
+    { title: '文件', dataIndex: 'filename', ellipsis: true, render: value => <Text type="secondary">{value}</Text> },
+    { title: '声明大小', dataIndex: 'size_bytes', width: 110, align: 'right', render: value => formatSize(value) },
+    { title: '过期时间', dataIndex: 'expires_at', width: 180, render: value => <Text type="secondary">{value}</Text> },
     {
       title: '操作',
       width: 170,
       render: (_, record) => (
-        <Space>
+        <Space size={4}>
           <Upload showUploadList={false} accept=".mp4,.mov,.mkv" beforeUpload={async file => {
             try {
               await courseManagementService.resumeChapterVideo(record, file)
@@ -228,16 +259,16 @@ export default function CourseDetailPage() {
   ]
 
   const completedColumns: ColumnsType<CourseUpload> = [
-    { title: '标题', dataIndex: 'title' },
-    { title: '文件', dataIndex: 'filename' },
-    { title: '时长', dataIndex: 'duration', width: 100, render: value => `${value ?? 0} 秒` },
-    { title: '排序', dataIndex: 'sort_order', width: 80 },
-    { title: '状态', dataIndex: 'status', width: 100, render: () => <Tag color="green">待确认</Tag> },
+    { title: '标题', dataIndex: 'title', ellipsis: true, render: value => <Text strong>{value}</Text> },
+    { title: '文件', dataIndex: 'filename', ellipsis: true, render: value => <Text type="secondary">{value}</Text> },
+    { title: '时长', dataIndex: 'duration', width: 110, render: value => formatDuration(value ?? 0) },
+    { title: '排序', dataIndex: 'sort_order', width: 70, align: 'center' },
+    { title: '状态', dataIndex: 'status', width: 95, align: 'center', render: () => <Tag color="green">待确认</Tag> },
     {
       title: '操作',
       width: 260,
       render: (_, record) => (
-        <Space>
+        <Space size={4}>
           <Button
             type="link"
             size="small"
@@ -307,130 +338,229 @@ export default function CourseDetailPage() {
       )}
     >
       {course && (
-        <Descriptions bordered size="small" column={3} style={{ marginBottom: 16 }}>
-          <Descriptions.Item label="封面"><Image src={course.cover_url} width={128} height={72} preview={false} /></Descriptions.Item>
-          <Descriptions.Item label="状态"><Tag>{course.status}</Tag></Descriptions.Item>
-          <Descriptions.Item label="价格">{course.price_yuan} 元</Descriptions.Item>
-        </Descriptions>
+        <Card size="small" style={{ marginBottom: 16 }}>
+          <Space align="start" size={20} wrap>
+            <Image
+              src={course.cover_url}
+              width={168}
+              height={94}
+              preview={false}
+              style={{ borderRadius: 8, objectFit: 'cover' }}
+            />
+            <div style={{ minWidth: 280, flex: 1 }}>
+              <Space wrap size={8}>
+                <Text strong style={{ fontSize: 18 }}>{course.title}</Text>
+                <Tag color={courseStatusLabels[course.status].color}>
+                  {courseStatusLabels[course.status].label}
+                </Tag>
+              </Space>
+              <div style={{ marginTop: 8 }}>
+                <Text type="secondary">
+                  {course.category} · {course.teacher_name || '未设置讲师'} · 试看 {course.preview_chapter_count} 集
+                </Text>
+              </div>
+              <div style={{ marginTop: 6 }}>
+                <Text strong>{course.price_yuan}</Text>
+                <Text type="secondary"> 元 / 门</Text>
+              </div>
+            </div>
+          </Space>
+        </Card>
       )}
+      <Row gutter={[12, 12]} style={{ marginBottom: 16 }}>
+        <Col xs={12} md={6}>
+          <Card size="small">
+            <Statistic title="已创建章节" value={chapters.length} suffix="个" valueStyle={{ fontSize: 22 }} />
+          </Card>
+        </Col>
+        <Col xs={12} md={6}>
+          <Card size="small">
+            <Statistic title="本地待上传" value={stage.length} suffix="个" valueStyle={{ fontSize: 22 }} />
+          </Card>
+        </Col>
+        <Col xs={12} md={6}>
+          <Card size="small">
+            <Statistic title="断点续传" value={pendingUploads.length} suffix="个" valueStyle={{ fontSize: 22 }} />
+          </Card>
+        </Col>
+        <Col xs={12} md={6}>
+          <Card size="small">
+            <Statistic title="待确认视频" value={completedUploads.length} suffix="个" valueStyle={{ fontSize: 22 }} />
+          </Card>
+        </Col>
+      </Row>
       <Tabs items={[
         {
           key: 'basic',
           label: '基本信息',
           children: (
-            <Form form={form} layout="vertical" disabled={!canWrite} style={{ maxWidth: 760 }}>
-              <Space size={16} wrap>
-                <Form.Item name="title" label="课程标题" rules={[{ required: true }]} style={{ minWidth: 360 }}><Input /></Form.Item>
-                <Form.Item name="category" label="类目" rules={[{ required: true }]} style={{ width: 180 }}>
-                  <Select options={categories.filter(item => item.is_active).map(item => ({ value: item.name, label: item.name }))} />
-                </Form.Item>
-              </Space>
-              <Form.Item name="description" label="简介"><Input.TextArea rows={4} /></Form.Item>
-              <Space size={16} wrap>
-                <Form.Item name="price_yuan" label="价格（元）">
-                  <Input disabled={!isSuper} style={{ width: 140 }} />
-                </Form.Item>
-                <Form.Item name="preview_chapter_count" label="试看集数"><InputNumber min={0} precision={0} /></Form.Item>
-                <Form.Item name="teacher_name" label="讲师"><Input /></Form.Item>
-                <Form.Item name="teacher_contact" label="联系方式"><Input /></Form.Item>
-              </Space>
-              <Space>
-                <Button type="primary" onClick={async () => {
-                  const values = await form.validateFields()
-                  const payload = { ...values } as Record<string, unknown>
-                  delete payload.price_yuan
-                  await courseManagementService.updateCourse(courseId, payload)
-                  if (isSuper && values.price_yuan) await courseManagementService.updatePrice(courseId, values.price_yuan)
-                  message.success('课程信息已保存')
-                  await load()
-                }}>保存基本信息</Button>
-                <Upload showUploadList={false} accept=".jpg,.jpeg,.png,.webp" beforeUpload={async file => {
-                  const uploaded = await courseManagementService.uploadCover(file)
-                  await courseManagementService.updateCourse(courseId, { cover_upload_id: uploaded.id })
-                  message.success('封面已替换')
-                  await load()
-                  return false
-                }}>
-                  <Button icon={<UploadOutlined />}>替换 16:9 封面</Button>
-                </Upload>
-              </Space>
-            </Form>
+            <Card size="small" title="课程资料" extra={<Text type="secondary">价格仅超级管理员可修改</Text>}>
+              <Form form={form} layout="vertical" disabled={!canWrite} style={{ maxWidth: 860 }}>
+                <Space size={16} wrap>
+                  <Form.Item name="title" label="课程标题" rules={[{ required: true }]} style={{ minWidth: 360 }}><Input /></Form.Item>
+                  <Form.Item name="category" label="类目" rules={[{ required: true }]} style={{ width: 180 }}>
+                    <Select options={categories.filter(item => item.is_active).map(item => ({ value: item.name, label: item.name }))} />
+                  </Form.Item>
+                </Space>
+                <Form.Item name="description" label="简介"><Input.TextArea rows={4} /></Form.Item>
+                <Space size={16} wrap>
+                  <Form.Item name="price_yuan" label="价格（元）">
+                    <Input disabled={!isSuper} style={{ width: 140 }} />
+                  </Form.Item>
+                  <Form.Item name="preview_chapter_count" label="试看集数"><InputNumber min={0} precision={0} /></Form.Item>
+                  <Form.Item name="teacher_name" label="讲师"><Input /></Form.Item>
+                  <Form.Item name="teacher_contact" label="联系方式"><Input /></Form.Item>
+                </Space>
+                <Space>
+                  <Button type="primary" onClick={async () => {
+                    const values = await form.validateFields()
+                    const payload = { ...values } as Record<string, unknown>
+                    delete payload.price_yuan
+                    await courseManagementService.updateCourse(courseId, payload)
+                    if (isSuper && values.price_yuan) await courseManagementService.updatePrice(courseId, values.price_yuan)
+                    message.success('课程信息已保存')
+                    await load()
+                  }}>保存基本信息</Button>
+                  <Upload showUploadList={false} accept=".jpg,.jpeg,.png,.webp" beforeUpload={async file => {
+                    const uploaded = await courseManagementService.uploadCover(file)
+                    await courseManagementService.updateCourse(courseId, { cover_upload_id: uploaded.id })
+                    message.success('封面已替换')
+                    await load()
+                    return false
+                  }}>
+                    <Button icon={<UploadOutlined />}>替换 16:9 封面</Button>
+                  </Upload>
+                </Space>
+              </Form>
+            </Card>
           ),
         },
         {
           key: 'chapters',
-          label: '章节视频',
+          label: `章节视频 (${chapters.length})`,
           children: (
             <>
-              <Alert type="warning" showIcon message="支持 MP4 / MOV / MKV，最大 5GB；非 MP4 可能无法在微信小程序播放。" style={{ marginBottom: 12 }} />
-              <Space wrap style={{ marginBottom: 12 }}>
-                <Upload
-                  multiple
-                  maxCount={50}
-                  accept=".mp4,.mov,.mkv"
-                  showUploadList={false}
-                  disabled={!canWrite || uploading}
-                  beforeUpload={() => false}
-                  onChange={async ({ fileList }) => {
-                    const current = new Map(stage.map(item => [item.file.name + item.file.size + item.file.lastModified, item]))
-                    const next: StageFile[] = []
-                    for (let index = 0; index < fileList.length; index += 1) {
-                      const uploadFile = fileList[index]
-                      const file = uploadFile.originFileObj
-                      if (!file) continue
-                      const key = `${file.name}${file.size}${file.lastModified}`
-                      if (current.has(key)) {
-                        next.push(current.get(key)!)
-                        continue
-                      }
-                      let duration = 1
-                      try { duration = await readVideoDuration(file) } catch { duration = 1 }
-                      next.push({
-                        key,
-                        file,
-                        title: file.name.replace(/\.[^.]+$/, ''),
-                        duration,
-                        sort_order: chapters.length + index + 1,
-                        status: 'ready',
-                      })
-                    }
-                    setStage(next.slice(0, 50))
-                  }}
-                >
-                  <Button type="primary" icon={<PlayCircleOutlined />} disabled={!canWrite || uploading}>选择视频（最多 50 个）</Button>
-                </Upload>
-                <Button onClick={startUpload} loading={uploading} disabled={!canWrite || stage.length === 0}>全部上传</Button>
-              </Space>
-              <Table rowKey="key" size="small" columns={stageColumns} dataSource={stage} pagination={false} style={{ marginBottom: 24 }} />
-              <Table rowKey="id" columns={chapterColumns} dataSource={chapters} pagination={false} />
+              <Alert
+                type="warning"
+                showIcon
+                message="支持 MP4 / MOV / MKV，最大 5GB；非 MP4 可能无法在微信小程序播放。"
+                style={{ marginBottom: 12 }}
+              />
+              <Card
+                size="small"
+                title={`上传队列 (${stage.length})`}
+                extra={(
+                  <Space wrap>
+                    <Upload
+                      multiple
+                      maxCount={50}
+                      accept=".mp4,.mov,.mkv"
+                      showUploadList={false}
+                      disabled={!canWrite || uploading}
+                      beforeUpload={() => false}
+                      onChange={async ({ fileList }) => {
+                        const current = new Map(stage.map(item => [item.file.name + item.file.size + item.file.lastModified, item]))
+                        const next: StageFile[] = []
+                        for (let index = 0; index < fileList.length; index += 1) {
+                          const uploadFile = fileList[index]
+                          const file = uploadFile.originFileObj
+                          if (!file) continue
+                          const key = `${file.name}${file.size}${file.lastModified}`
+                          if (current.has(key)) {
+                            next.push(current.get(key)!)
+                            continue
+                          }
+                          let duration = 1
+                          try { duration = await readVideoDuration(file) } catch { duration = 1 }
+                          next.push({
+                            key,
+                            file,
+                            title: file.name.replace(/\.[^.]+$/, ''),
+                            duration,
+                            sort_order: chapters.length + index + 1,
+                            status: 'ready',
+                          })
+                        }
+                        setStage(next.slice(0, 50))
+                      }}
+                    >
+                      <Button icon={<PlayCircleOutlined />} disabled={!canWrite || uploading}>选择视频</Button>
+                    </Upload>
+                    <Button type="primary" onClick={startUpload} loading={uploading} disabled={!canWrite || stage.length === 0}>全部上传</Button>
+                  </Space>
+                )}
+              >
+                <Table
+                  rowKey="key"
+                  size="small"
+                  columns={stageColumns}
+                  dataSource={stage}
+                  pagination={false}
+                  scroll={{ x: 720 }}
+                  locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="先选择视频，上传前可调整标题、时长和排序" /> }}
+                />
+              </Card>
+              <Card size="small" title={`已创建章节 (${chapters.length})`} style={{ marginTop: 16 }}>
+                <Table
+                  rowKey="id"
+                  columns={chapterColumns}
+                  dataSource={chapters}
+                  pagination={false}
+                  scroll={{ x: 920 }}
+                  locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无章节，上传完成后再确认创建" /> }}
+                />
+              </Card>
             </>
           ),
         },
         {
           key: 'pending',
           label: `待完成上传 (${pendingUploads.length})`,
-          children: <Table rowKey="id" columns={pendingColumns} dataSource={pendingUploads} pagination={false} />,
+          children: (
+            <Card size="small" title="断点续传队列">
+              <Table
+                rowKey="id"
+                columns={pendingColumns}
+                dataSource={pendingUploads}
+                pagination={false}
+                scroll={{ x: 820 }}
+                locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="没有待续传的视频" /> }}
+              />
+            </Card>
+          ),
         },
         {
           key: 'confirm',
           label: `待确认章节 (${completedUploads.length})`,
           children: (
-            <>
-              <Button type="primary" disabled={selectedUploadIds.length === 0} onClick={async () => {
-                await courseManagementService.batchCreateChapters(courseId, selectedUploadIds)
-                setSelectedUploadIds([])
-                message.success('章节已创建')
-                await load()
-              }}>创建所选章节</Button>
+            <Card
+              size="small"
+              title="上传完成待确认"
+              extra={(
+                <Button
+                  type="primary"
+                  disabled={selectedUploadIds.length === 0}
+                  onClick={async () => {
+                    await courseManagementService.batchCreateChapters(courseId, selectedUploadIds)
+                    setSelectedUploadIds([])
+                    message.success('章节已创建')
+                    await load()
+                  }}
+                >
+                  创建所选章节
+                </Button>
+              )}
+            >
               <Table
                 rowKey="id"
                 columns={completedColumns}
                 dataSource={completedUploads}
                 pagination={false}
-                style={{ marginTop: 12 }}
+                scroll={{ x: 880 }}
+                locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="没有待确认的视频" /> }}
                 rowSelection={{ selectedRowKeys: selectedUploadIds, onChange: keys => setSelectedUploadIds(keys as number[]) }}
               />
-            </>
+            </Card>
           ),
         },
         {
@@ -439,33 +569,39 @@ export default function CourseDetailPage() {
           children: (
             <>
               {isSuper ? (
-                <Space direction="vertical" style={{ width: '100%' }}>
-                  <Button type="primary" onClick={() => setBindingOpen(true)}>绑定题库</Button>
-                  <Table rowKey="id" pagination={false} dataSource={bindings} columns={[
-                    { title: '题库', dataIndex: 'library_name' },
-                    { title: '编码', dataIndex: 'library_code' },
-                    { title: '状态', dataIndex: 'status', render: value => <Tag color={value === 'active' ? 'green' : 'default'}>{value === 'active' ? '有效' : '停用'}</Tag> },
-                    {
-                      title: '操作',
-                      width: 100,
-                      render: (_, record) => (
-                        <ConfirmButton
-                          title={record.status === 'active' ? '停用绑定' : '启用绑定'}
-                          danger={record.status === 'active'}
-                          description={record.status === 'active' ? '停用后将撤销无其他有效来源的用户权益。' : '启用后将为已购用户排队回补权益。'}
-                          type="link"
-                          size="small"
-                          onConfirm={async () => {
-                            await courseManagementService.setBindingStatus(record.id, record.status === 'active' ? 'inactive' : 'active')
-                            setBindings(await courseManagementService.listBindings(courseId))
-                          }}
-                        >
-                          {record.status === 'active' ? '停用' : '启用'}
-                        </ConfirmButton>
-                      ),
-                    },
-                  ]} />
-                </Space>
+                <Card size="small" title="题库权益" extra={<Button type="primary" size="small" onClick={() => setBindingOpen(true)}>绑定题库</Button>}>
+                  <Table
+                    rowKey="id"
+                    size="small"
+                    pagination={false}
+                    dataSource={bindings}
+                    locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂未绑定题库" /> }}
+                    columns={[
+                      { title: '题库', dataIndex: 'library_name', render: value => <Text strong>{value}</Text> },
+                      { title: '编码', dataIndex: 'library_code' },
+                      { title: '状态', dataIndex: 'status', width: 90, render: value => <Tag color={value === 'active' ? 'green' : 'default'}>{value === 'active' ? '有效' : '停用'}</Tag> },
+                      {
+                        title: '操作',
+                        width: 100,
+                        render: (_, record) => (
+                          <ConfirmButton
+                            title={record.status === 'active' ? '停用绑定' : '启用绑定'}
+                            danger={record.status === 'active'}
+                            description={record.status === 'active' ? '停用后将撤销无其他有效来源的用户权益。' : '启用后将为已购用户排队回补权益。'}
+                            type="link"
+                            size="small"
+                            onConfirm={async () => {
+                              await courseManagementService.setBindingStatus(record.id, record.status === 'active' ? 'inactive' : 'active')
+                              setBindings(await courseManagementService.listBindings(courseId))
+                            }}
+                          >
+                            {record.status === 'active' ? '停用' : '启用'}
+                          </ConfirmButton>
+                        ),
+                      },
+                    ]}
+                  />
+                </Card>
               ) : (
                 <Alert type="info" showIcon message="题库绑定和回补需要超级管理员操作。" />
               )}
@@ -515,14 +651,15 @@ function CourseJobs({ courseId }: { courseId: number }) {
   )
 
   return (
-    <>
-      <Button onClick={refresh}>刷新任务</Button>
+    <Card size="small" title="权益回补 / 撤销任务" extra={<Button size="small" onClick={refresh}>刷新任务</Button>}>
       <Table
         rowKey="id"
+        size="small"
         loading={loading}
         pagination={pagination}
         dataSource={data?.items ?? []}
-        style={{ marginTop: 12 }}
+        scroll={{ x: 760 }}
+        locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无权益任务" /> }}
         columns={[
           { title: '任务 ID', dataIndex: 'id', width: 90 },
           { title: '动作', dataIndex: 'action', width: 90 },
@@ -540,7 +677,7 @@ function CourseJobs({ courseId }: { courseId: number }) {
           },
         ]}
       />
-    </>
+    </Card>
   )
 }
 
