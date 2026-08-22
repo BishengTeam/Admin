@@ -17,7 +17,12 @@ import {
   Upload,
   message,
 } from 'antd'
-import { PlayCircleOutlined, ReloadOutlined, UploadOutlined } from '@ant-design/icons'
+import {
+  DeleteOutlined,
+  PlayCircleOutlined,
+  ReloadOutlined,
+  UploadOutlined,
+} from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import { useNavigate, useParams } from 'react-router-dom'
 import { PageContainer } from '@/components/PageContainer'
@@ -55,6 +60,7 @@ export default function CourseDetailPage() {
   const [form] = Form.useForm()
   const [bindingOpen, setBindingOpen] = useState(false)
   const [selectedUploadIds, setSelectedUploadIds] = useState<number[]>([])
+  const [replaceTargetByUploadId, setReplaceTargetByUploadId] = useState<Record<number, number>>({})
   const [categories, setCategories] = useState<{ id: number; name: string; is_active: boolean }[]>([])
   const [bindings, setBindings] = useState<Awaited<ReturnType<typeof courseManagementService.listBindings>>>([])
   const [editingChapter, setEditingChapter] = useState<CourseChapter | null>(null)
@@ -175,6 +181,22 @@ export default function CourseDetailPage() {
     { title: '标题', dataIndex: 'title', render: (value, record) => <Input value={value} disabled={record.status === 'uploading'} onChange={event => setStage(current => current.map(row => row.key === record.key ? { ...row, title: event.target.value } : row))} /> },
     { title: '时长', dataIndex: 'duration', width: 110, render: (value, record) => <InputNumber min={1} precision={0} value={value} disabled={record.status === 'uploading'} onChange={next => setStage(current => current.map(row => row.key === record.key ? { ...row, duration: next ?? 1 } : row))} /> },
     { title: '状态', dataIndex: 'status', width: 130, render: (_, record) => record.status === 'failed' ? <Tag color="red">{record.error ?? '失败'}</Tag> : <Tag>{record.status === 'uploading' ? '上传中' : record.status === 'done' ? '完成' : '待上传'}</Tag> },
+    {
+      title: '操作',
+      width: 90,
+      render: (_, record) => (
+        <Button
+          type="link"
+          size="small"
+          danger
+          icon={<DeleteOutlined />}
+          disabled={record.status === 'uploading'}
+          onClick={() => setStage(current => current.filter(row => row.key !== record.key))}
+        >
+          取消
+        </Button>
+      ),
+    },
   ]
 
   const pendingColumns: ColumnsType<CourseUpload> = [
@@ -211,6 +233,47 @@ export default function CourseDetailPage() {
     { title: '时长', dataIndex: 'duration', width: 100, render: value => `${value ?? 0} 秒` },
     { title: '排序', dataIndex: 'sort_order', width: 80 },
     { title: '状态', dataIndex: 'status', width: 100, render: () => <Tag color="green">待确认</Tag> },
+    {
+      title: '操作',
+      width: 260,
+      render: (_, record) => (
+        <Space>
+          <Button
+            type="link"
+            size="small"
+            onClick={async () => {
+              await courseManagementService.batchCreateChapters(courseId, [record.id])
+              message.success('章节已创建')
+              await load()
+            }}
+          >
+            创建章节
+          </Button>
+          <Select
+            size="small"
+            placeholder="替换已有章节"
+            style={{ width: 130 }}
+            value={replaceTargetByUploadId[record.id]}
+            options={chapters.map(chapter => ({ value: chapter.id, label: `${chapter.sort_order}. ${chapter.title}` }))}
+            onChange={value => setReplaceTargetByUploadId(current => ({ ...current, [record.id]: value }))}
+          />
+          <Button
+            type="link"
+            size="small"
+            disabled={!replaceTargetByUploadId[record.id]}
+            onClick={async () => {
+              const targetId = replaceTargetByUploadId[record.id]
+              if (!targetId) return
+              await courseManagementService.replaceChapterVideo(courseId, targetId, record.id)
+              message.success('章节视频已替换')
+              await load()
+            }}
+          >
+            替换
+          </Button>
+        </Space>
+      ),
+    },
   ]
 
   return (
@@ -309,13 +372,13 @@ export default function CourseDetailPage() {
                   disabled={!canWrite || uploading}
                   beforeUpload={() => false}
                   onChange={async ({ fileList }) => {
-                    const current = new Map(stage.map(item => [item.file.name + item.file.size, item]))
+                    const current = new Map(stage.map(item => [item.file.name + item.file.size + item.file.lastModified, item]))
                     const next: StageFile[] = []
                     for (let index = 0; index < fileList.length; index += 1) {
                       const uploadFile = fileList[index]
                       const file = uploadFile.originFileObj
                       if (!file) continue
-                      const key = file.name + file.size
+                      const key = `${file.name}${file.size}${file.lastModified}`
                       if (current.has(key)) {
                         next.push(current.get(key)!)
                         continue
@@ -336,7 +399,7 @@ export default function CourseDetailPage() {
                 >
                   <Button type="primary" icon={<PlayCircleOutlined />} disabled={!canWrite || uploading}>选择视频（最多 50 个）</Button>
                 </Upload>
-                <Button onClick={startUpload} loading={uploading} disabled={!canWrite || stage.length === 0}>并行上传 3 个</Button>
+                <Button onClick={startUpload} loading={uploading} disabled={!canWrite || stage.length === 0}>全部上传</Button>
               </Space>
               <Table rowKey="key" size="small" columns={stageColumns} dataSource={stage} pagination={false} style={{ marginBottom: 24 }} />
               <Table rowKey="id" columns={chapterColumns} dataSource={chapters} pagination={false} />
@@ -358,7 +421,7 @@ export default function CourseDetailPage() {
                 setSelectedUploadIds([])
                 message.success('章节已创建')
                 await load()
-              }}>确认创建章节</Button>
+              }}>创建所选章节</Button>
               <Table
                 rowKey="id"
                 columns={completedColumns}
