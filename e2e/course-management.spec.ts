@@ -120,6 +120,59 @@ async function authenticate(page: Page, admin = superAdmin, permissions: string[
 }
 
 test.describe('课程管理', () => {
+  test('封面上传不发送未参与 OSS 签名的 Content-Type', async ({ page }) => {
+    await authenticate(page)
+    const upload = {
+      id: 51,
+      course_id: null,
+      kind: 'cover',
+      filename: 'course-cover-16x9.png',
+      content_type: 'image/png',
+      size_bytes: 100,
+      part_size: 16 * 1024 * 1024,
+      status: 'pending',
+      title: null,
+      duration: null,
+      sort_order: null,
+      object_key: 'course/test/covers/course-cover.png',
+      oss_upload_id: '',
+      upload_url: 'https://materials-20260817.oss-cn-chengdu.aliyuncs.com/signed-cover',
+      expires_at: now,
+      completed_at: null,
+      parts: [],
+    }
+    let ossContentType: string | undefined
+
+    await page.route('**/admin/courses/list', route => route.continue())
+    await page.route(/\/admin\/courses(?:\?.*)?$/, route => json(route, {
+      items: [course], total: 1, page: 1, page_size: 20,
+    }))
+    await page.route('**/admin/courses/categories', route => json(route, [category]))
+    await page.route('**/admin/course-uploads', route => json(route, upload))
+    await page.route('**/admin/course-uploads/51/complete', route => json(route, {
+      upload: { ...upload, status: 'completed', upload_url: null },
+      object_key: upload.object_key,
+    }))
+    await page.route('**/signed-cover', async route => {
+      ossContentType = route.request().headers()['content-type']
+      await route.fulfill({ status: 200, body: '' })
+    })
+
+    await page.goto('/admin/courses/list')
+    await page.getByRole('button', { name: '创建课程' }).click()
+    const dialog = page.getByRole('dialog', { name: '创建课程草稿' })
+    await dialog.locator('input[type="file"]').setInputFiles({
+      name: 'course-cover.png',
+      mimeType: 'image/png',
+      buffer: Buffer.from(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+        'base64',
+      ),
+    })
+    await expect(page.getByText('封面上传完成')).toBeVisible()
+    expect(ossContentType).toBeUndefined()
+  })
+
   test('超级管理员完成课程题库绑定影响预览和回补确认', async ({ page }) => {
     await authenticate(page)
     let createBody: unknown

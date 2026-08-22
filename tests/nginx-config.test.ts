@@ -22,4 +22,14 @@ describe('Admin nginx probes', () => {
     expect(block?.[1]).not.toContain('rewrite ^ /index.html')
     expect(config.indexOf('location ~ ^/admin/quiz/imports/')).toBeLessThan(config.indexOf('location /admin/'))
   })
+
+  it('allows course blob previews and direct uploads to the configured OSS bucket', () => {
+    const ossOrigin = 'https://materials-20260817.oss-cn-chengdu.aliyuncs.com'
+    for (const file of ['nginx.conf.template', 'nginx.conf', 'vite.config.ts']) {
+      const source = readFileSync(resolve(process.cwd(), file), 'utf8')
+      expect(source).toContain("img-src 'self' data: blob: https:")
+      expect(source).toContain(`connect-src 'self' ${ossOrigin}`)
+      expect(source).not.toContain("img-src 'self' data: https:")
+    }
+  })
 })
