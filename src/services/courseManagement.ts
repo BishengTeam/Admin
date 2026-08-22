@@ -270,8 +270,8 @@ export const courseManagementService = {
     overrides?: { title?: string; duration?: number },
     existing?: CourseUpload,
   ): Promise<CourseUpload> {
-    if (file.size > 5 * 1024 * 1024 * 1024) throw new Error('章节视频不能超过 5GB')
-    if (!/\.(mp4|mov|mkv)$/i.test(file.name)) throw new Error('章节视频仅支持 MP4、MOV、MKV')
+    if (file.size > 5 * 1024 * 1024 * 1024) throw new Error('课程视频不能超过 5GB')
+    if (!/\.(mp4|mov|mkv)$/i.test(file.name)) throw new Error('课程视频仅支持 MP4、MOV、MKV')
     const duration = overrides?.duration ?? await readVideoDuration(file)
     return uploadMultipart(
       {

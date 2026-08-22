@@ -159,7 +159,7 @@ export default function CourseDetailPage() {
 
   const chapterColumns: ColumnsType<CourseChapter> = [
     { title: '排序', dataIndex: 'sort_order', width: 64, align: 'center' },
-    { title: '章节', dataIndex: 'title', ellipsis: true, render: value => <Text strong>{value}</Text> },
+    { title: '课程名', dataIndex: 'title', ellipsis: true, render: value => <Text strong>{value}</Text> },
     { title: '文件', dataIndex: 'original_filename', ellipsis: true, render: value => <Text type="secondary">{value}</Text> },
     { title: '时长', dataIndex: 'duration', width: 110, render: value => formatDuration(value) },
     { title: '大小', dataIndex: 'size_bytes', width: 100, align: 'right', render: value => formatSize(value) },
@@ -196,7 +196,7 @@ export default function CourseDetailPage() {
           }}>
             <Button type="link" size="small">替换视频</Button>
           </Upload>
-          <ConfirmButton title="删除章节" description="已有学习进度的章节不能删除，删除后文件同步清理。" danger type="link" size="small" onConfirm={async () => {
+          <ConfirmButton title="删除课程视频" description="已有学习进度的课程视频不能删除，删除后文件同步清理。" danger type="link" size="small" onConfirm={async () => {
             await courseManagementService.deleteChapter(courseId, record.id)
             await load()
           }}>删除</ConfirmButton>
@@ -207,7 +207,7 @@ export default function CourseDetailPage() {
 
   const stageColumns: ColumnsType<StageFile> = [
     { title: '排序', dataIndex: 'sort_order', width: 80, render: (value, record) => <InputNumber min={1} precision={0} value={value} disabled={record.status === 'uploading'} onChange={next => setStage(current => current.map(row => row.key === record.key ? { ...row, sort_order: next ?? 1 } : row))} /> },
-    { title: '标题', dataIndex: 'title', render: (value, record) => <Input value={value} disabled={record.status === 'uploading'} onChange={event => setStage(current => current.map(row => row.key === record.key ? { ...row, title: event.target.value } : row))} /> },
+    { title: '课程名', dataIndex: 'title', render: (value, record) => <Input value={value} disabled={record.status === 'uploading'} onChange={event => setStage(current => current.map(row => row.key === record.key ? { ...row, title: event.target.value } : row))} /> },
     { title: '时长', dataIndex: 'duration', width: 105, render: (value, record) => <InputNumber min={1} precision={0} value={value} disabled={record.status === 'uploading'} onChange={next => setStage(current => current.map(row => row.key === record.key ? { ...row, duration: next ?? 1 } : row))} /> },
     { title: '状态', dataIndex: 'status', width: 120, render: (_, record) => record.status === 'failed'
       ? <Tag color="red">{record.error ?? '失败'}</Tag>
@@ -231,7 +231,7 @@ export default function CourseDetailPage() {
   ]
 
   const pendingColumns: ColumnsType<CourseUpload> = [
-    { title: '标题', dataIndex: 'title', ellipsis: true, render: value => <Text strong>{value}</Text> },
+    { title: '课程名', dataIndex: 'title', ellipsis: true, render: value => <Text strong>{value}</Text> },
     { title: '文件', dataIndex: 'filename', ellipsis: true, render: value => <Text type="secondary">{value}</Text> },
     { title: '声明大小', dataIndex: 'size_bytes', width: 110, align: 'right', render: value => formatSize(value) },
     { title: '过期时间', dataIndex: 'expires_at', width: 180, render: value => <Text type="secondary">{value}</Text> },
@@ -259,7 +259,7 @@ export default function CourseDetailPage() {
   ]
 
   const completedColumns: ColumnsType<CourseUpload> = [
-    { title: '标题', dataIndex: 'title', ellipsis: true, render: value => <Text strong>{value}</Text> },
+    { title: '课程名', dataIndex: 'title', ellipsis: true, render: value => <Text strong>{value}</Text> },
     { title: '文件', dataIndex: 'filename', ellipsis: true, render: value => <Text type="secondary">{value}</Text> },
     { title: '时长', dataIndex: 'duration', width: 110, render: value => formatDuration(value ?? 0) },
     { title: '排序', dataIndex: 'sort_order', width: 70, align: 'center' },
@@ -274,15 +274,15 @@ export default function CourseDetailPage() {
             size="small"
             onClick={async () => {
               await courseManagementService.batchCreateChapters(courseId, [record.id])
-              message.success('章节已创建')
+              message.success('课程名已创建')
               await load()
             }}
           >
-            创建章节
+            创建课程名
           </Button>
           <Select
             size="small"
-            placeholder="替换已有章节"
+            placeholder="替换已有课程名"
             style={{ width: 130 }}
             value={replaceTargetByUploadId[record.id]}
             options={chapters.map(chapter => ({ value: chapter.id, label: `${chapter.sort_order}. ${chapter.title}` }))}
@@ -296,7 +296,7 @@ export default function CourseDetailPage() {
               const targetId = replaceTargetByUploadId[record.id]
               if (!targetId) return
               await courseManagementService.replaceChapterVideo(courseId, targetId, record.id)
-              message.success('章节视频已替换')
+              message.success('课程视频已替换')
               await load()
             }}
           >
@@ -315,7 +315,7 @@ export default function CourseDetailPage() {
           <Button icon={<ReloadOutlined />} onClick={load}>刷新</Button>
           <Button onClick={() => navigate('/admin/courses')}>返回列表</Button>
           {canPublish && course?.status === 'draft' && (
-            <ConfirmButton title="发布课程" type="primary" description="发布前会校验封面、章节和试看集数。" onConfirm={async () => { await courseManagementService.changeLifecycle(courseId, 'publish'); message.success('课程已发布'); await load() }}>
+            <ConfirmButton title="发布课程" type="primary" description="发布前会校验封面、课程名和试看集数。" onConfirm={async () => { await courseManagementService.changeLifecycle(courseId, 'publish'); message.success('课程已发布'); await load() }}>
               发布课程
             </ConfirmButton>
           )}
@@ -370,7 +370,7 @@ export default function CourseDetailPage() {
       <Row gutter={[12, 12]} style={{ marginBottom: 16 }}>
         <Col xs={12} md={6}>
           <Card size="small">
-            <Statistic title="已创建章节" value={chapters.length} suffix="个" valueStyle={{ fontSize: 22 }} />
+            <Statistic title="已创建课程名" value={chapters.length} suffix="个" valueStyle={{ fontSize: 22 }} />
           </Card>
         </Col>
         <Col xs={12} md={6}>
@@ -437,7 +437,7 @@ export default function CourseDetailPage() {
         },
         {
           key: 'chapters',
-          label: `章节视频 (${chapters.length})`,
+          label: `课程视频 (${chapters.length})`,
           children: (
             <>
               <Alert
@@ -500,14 +500,14 @@ export default function CourseDetailPage() {
                   locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="先选择视频，上传前可调整标题、时长和排序" /> }}
                 />
               </Card>
-              <Card size="small" title={`已创建章节 (${chapters.length})`} style={{ marginTop: 16 }}>
+              <Card size="small" title={`已创建课程名 (${chapters.length})`} style={{ marginTop: 16 }}>
                 <Table
                   rowKey="id"
                   columns={chapterColumns}
                   dataSource={chapters}
                   pagination={false}
                   scroll={{ x: 920 }}
-                  locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无章节，上传完成后再确认创建" /> }}
+                  locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无课程名，上传完成后再确认创建" /> }}
                 />
               </Card>
             </>
@@ -531,7 +531,7 @@ export default function CourseDetailPage() {
         },
         {
           key: 'confirm',
-          label: `待确认章节 (${completedUploads.length})`,
+          label: `待确认课程名 (${completedUploads.length})`,
           children: (
             <Card
               size="small"
@@ -543,11 +543,11 @@ export default function CourseDetailPage() {
                   onClick={async () => {
                     await courseManagementService.batchCreateChapters(courseId, selectedUploadIds)
                     setSelectedUploadIds([])
-                    message.success('章节已创建')
+                    message.success('课程名已创建')
                     await load()
                   }}
                 >
-                  创建所选章节
+                  创建所选课程名
                 </Button>
               )}
             >
@@ -619,7 +619,7 @@ export default function CourseDetailPage() {
         <BindingWizard courseId={courseId} onDone={async () => { setBindingOpen(false); await load() }} />
       </Modal>
       <Modal
-        title="编辑章节"
+        title="编辑课程名"
         open={editingChapter !== null}
         onOk={async () => {
           if (!editingChapter) return
@@ -632,7 +632,7 @@ export default function CourseDetailPage() {
         destroyOnClose
       >
         <Form form={chapterForm} layout="vertical">
-          <Form.Item name="title" label="章节标题" rules={[{ required: true }]}><Input /></Form.Item>
+          <Form.Item name="title" label="课程名" rules={[{ required: true }]}><Input /></Form.Item>
           <Space>
             <Form.Item name="duration" label="时长（秒）"><InputNumber min={1} precision={0} /></Form.Item>
             <Form.Item name="sort_order" label="排序"><InputNumber min={1} precision={0} /></Form.Item>

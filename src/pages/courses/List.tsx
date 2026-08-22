@@ -89,7 +89,7 @@ export default function CourseListPage() {
         <Space size={0} wrap>
           <Button type="link" size="small" onClick={() => navigate(`/admin/courses/${record.id}`)}>管理</Button>
           {canPublish && record.status === 'draft' && (
-            <ConfirmButton title="发布课程" description="发布前会校验封面、章节和试看集数。" type="link" size="small" onConfirm={async () => { await courseManagementService.changeLifecycle(record.id, 'publish'); message.success('课程已发布'); refresh() }}>发布</ConfirmButton>
+            <ConfirmButton title="发布课程" description="发布前会校验封面、课程名和试看集数。" type="link" size="small" onConfirm={async () => { await courseManagementService.changeLifecycle(record.id, 'publish'); message.success('课程已发布'); refresh() }}>发布</ConfirmButton>
           )}
           {canPublish && record.status === 'published' && (
             <ConfirmButton title="下线课程" description="下线后不能新购，已购用户继续学习。" danger type="link" size="small" onConfirm={async () => { await courseManagementService.changeLifecycle(record.id, 'offline'); refresh() }}>下线</ConfirmButton>
@@ -122,7 +122,7 @@ export default function CourseListPage() {
       <Table rowKey="id" columns={columns} dataSource={data?.items ?? []} loading={loading} pagination={pagination} scroll={{ x: 1250 }} />
 
       <Modal title="创建课程草稿" open={open} onOk={submit} onCancel={() => setOpen(false)} width={720} okText="保存并进入" cancelText="取消" destroyOnClose>
-        <Alert type="info" showIcon message="保存草稿后进入课程工作台，再批量上传章节视频。" style={{ marginBottom: 16 }} />
+        <Alert type="info" showIcon message="保存草稿后进入课程工作台，再批量上传课程视频。" style={{ marginBottom: 16 }} />
         <Form form={form} layout="vertical" initialValues={{ price_yuan: '0.00', preview_chapter_count: 0 }}>
           <Space style={{ width: '100%' }} size={16} wrap>
             <Form.Item name="title" label="课程标题" rules={[{ required: true, whitespace: true }]} style={{ minWidth: 360 }}><Input maxLength={256} /></Form.Item>
