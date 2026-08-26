@@ -3,6 +3,7 @@ import { Upload, message } from 'antd'
 import { PlusOutlined, LoadingOutlined } from '@ant-design/icons'
 import type { UploadFile, RcFile } from 'antd/es/upload/interface'
 import { http } from '@/core/request'
+import { toAbsoluteMediaUrl } from '@/utils/mediaUrl'
 
 interface ImageUploadProps {
   value?: string
@@ -37,7 +38,7 @@ export function ImageUpload({ value, onChange, maxSize = 5 }: ImageUploadProps) 
         headers: { 'Content-Type': 'multipart/form-data' },
       })
       onSuccess({ url: res.url })
-      onChange?.(res.url)
+      onChange?.(toAbsoluteMediaUrl(res.url))
     } catch (err) {
       onError(err instanceof Error ? err : new Error('上传失败'))
       message.error('上传失败，请重试')

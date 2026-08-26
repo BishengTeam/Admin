@@ -45,9 +45,8 @@ const optionSchema = z.record(z.string(), z.string()).superRefine((value, ctx) =
   if (keys.some((key, index) => key !== expected[index])) {
     ctx.addIssue({ code: 'custom', message: '选项键必须从 A 开始连续排列' })
   }
-  if (keys.some((key) => !value[key].trim())) {
-    ctx.addIssue({ code: 'custom', message: '选项内容不能为空' })
-  }
+  // Option text may be empty when the option carries an image; the backend
+  // enforces the text-or-image minimum at save time.
 })
 const imageUrlSchema = z.array(z.string().trim().url().max(512)).max(9)
 const imageUrlsResponseSchema = imageUrlSchema.default([])

@@ -108,7 +108,7 @@ export default function QuizStats() {
         showIcon
         type="info"
         style={{ marginBottom: 16 }}
-        message="管理端统计最多延迟 1 分钟，不提供用户下钻或导出。"
+        message="管理端统计最多延迟 1 分钟，不提供用户下载或导出。"
         description={`查询时间：${formatDate(overview?.calculated_at ?? null)}；聚合水位：${formatDate(overview?.aggregated_through ?? null)}`}
       />
       <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
