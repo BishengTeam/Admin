@@ -22,6 +22,7 @@ const question = {
   correct_answer: ['A', 'C'],
   explanation: null,
   image_urls: [],
+  option_image_urls: {},
   ever_published: false,
   published_at: null,
   disabled_at: null,

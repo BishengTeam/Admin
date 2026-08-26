@@ -1,6 +1,8 @@
 import { useEffect } from 'react'
 import { Button, Checkbox, Form, Input, message, Modal, Radio, Select, Space } from 'antd'
 import { MinusCircleOutlined, PlusOutlined } from '@ant-design/icons'
+import { ImageUpload } from '@/components/ImageUpload'
+import { MultiImageUpload } from '@/components/MultiImageUpload'
 import { quizService } from '@/services/quiz'
 import type {
   QuizKnowledgePoint,
@@ -24,7 +26,7 @@ interface Props {
   onNotFound: () => void
 }
 
-interface OptionValue { content?: string }
+interface OptionValue { content?: string; image_url?: string }
 
 function stableOptions(value: Record<string, string> | null | undefined) {
   return QUESTION_OPTION_KEYS.reduce<Record<string, string>>((result, key) => {
@@ -37,38 +39,17 @@ function sameValue(a: unknown, b: unknown) {
   return JSON.stringify(a) === JSON.stringify(b)
 }
 
-function parseImageUrls(value: unknown): string[] {
-  return String(value ?? '')
-    .split(/[\r\n,，]+/)
-    .map((url) => url.trim())
-    .filter(Boolean)
-}
-
-function validateImageUrls(value: unknown): string[] {
-  const urls = parseImageUrls(value)
-  if (urls.length > 9) throw new Error('题干图片最多 9 张')
-  for (const url of urls) {
-    try {
-      const parsed = new URL(url)
-      if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('protocol')
-    } catch {
-      throw new Error('图片 URL 必须是有效的 http/https 地址')
-    }
-  }
-  return [...new Set(urls)]
-}
 
 export default function V2QuestionModal({ open, question, modules, defaultPointId, onClose, onSaved, onConflict, onNotFound }: Props) {
   const [form] = Form.useForm()
   const type = Form.useWatch('question_type', form) as QuestionType | undefined
   const options = Form.useWatch('options', form) as OptionValue[] | undefined
-  const imageUrlsText = Form.useWatch('image_urls_text', form)
 
   useEffect(() => {
     if (!open) return
     if (!question) {
       form.resetFields()
-      form.setFieldsValue({ knowledge_point_id: defaultPointId, question_type: 'single_choice', options: [{ content: '' }, { content: '' }, { content: '' }], image_urls_text: '' })
+      form.setFieldsValue({ knowledge_point_id: defaultPointId, question_type: 'single_choice', options: [{ content: '' }, { content: '' }, { content: '' }], image_urls: [] })
       return
     }
     form.setFieldsValue({
@@ -77,10 +58,10 @@ export default function V2QuestionModal({ open, question, modules, defaultPointI
       question_text: question.question_text,
       options: question.question_type === 'judge'
         ? [{ content: '正确' }, { content: '错误' }]
-        : Object.entries(stableOptions(question.options)).map(([, content]) => ({ content })),
+        : Object.entries(stableOptions(question.options)).map(([key, content]) => ({ content, image_url: question.option_image_urls?.[key] ?? '' })),
       correct_answer: question.question_type === 'multiple_choice' ? answerToArray(question.correct_answer) : question.correct_answer,
       explanation: question.explanation ?? undefined,
-      image_urls_text: (question.image_urls ?? []).join('\n'),
+      image_urls: question.image_urls ?? [],
     })
   }, [defaultPointId, form, open, question])
 
@@ -95,14 +76,19 @@ export default function V2QuestionModal({ open, question, modules, defaultPointI
       const values = await form.validateFields()
       const questionType = values.question_type as QuestionType
       const optionRecord: Record<string, string> = {}
+      const optionImages: Record<string, string> = {}
       ;((values.options ?? []) as OptionValue[]).slice(0, 4).forEach((item, index) => {
         const content = String(item?.content ?? '').trim()
-        if (content) optionRecord[QUESTION_OPTION_KEYS[index]] = content
+        const imageUrl = String(item?.image_url ?? '').trim()
+        if (content || imageUrl) {
+          optionRecord[QUESTION_OPTION_KEYS[index]] = content
+          if (imageUrl) optionImages[QUESTION_OPTION_KEYS[index]] = imageUrl
+        }
       })
       if (questionType === 'judge') { optionRecord.A = '正确'; optionRecord.B = '错误' }
       const answer = answerToPayload(values.correct_answer, questionType)
       const questionText = String(values.question_text).trim()
-      const imageUrls = validateImageUrls(values.image_urls_text)
+      const imageUrls: string[] = values.image_urls ?? []
       if (!question) {
         const payload: QuizV2QuestionCreate = {
           knowledge_point_id: values.knowledge_point_id,
@@ -112,6 +98,7 @@ export default function V2QuestionModal({ open, question, modules, defaultPointI
           correct_answer: answer,
           explanation: values.explanation?.trim() || null,
           image_urls: imageUrls,
+          option_image_urls: Object.keys(optionImages).length ? optionImages : undefined,
         }
         onSaved(await quizService.createV2Question(payload))
         return
@@ -126,6 +113,7 @@ export default function V2QuestionModal({ open, question, modules, defaultPointI
       const explanation = values.explanation?.trim() || null
       if (explanation !== question.explanation) payload.explanation = explanation
       if (!sameValue(imageUrls, question.image_urls ?? [])) payload.image_urls = imageUrls
+      if (!sameValue(optionImages, question.option_image_urls ?? {})) payload.option_image_urls = optionImages
       if (Object.keys(payload).length === 1) { onClose(); return }
       onSaved(await quizService.updateV2Question(question.id, payload))
     } catch (error) {
@@ -149,7 +137,6 @@ export default function V2QuestionModal({ open, question, modules, defaultPointI
   })))
   const optionCount = options?.length ?? 0
   const keys = type === 'judge' ? ['A', 'B'] : QUESTION_OPTION_KEYS.slice(0, Math.min(optionCount, 4))
-  const previewUrls = parseImageUrls(imageUrlsText)
 
   return (
     <Modal title={question ? '编辑题目并创建待发布修订' : '新增题目草稿'} open={open} onOk={save} onCancel={onClose} width={760} destroyOnClose>
@@ -158,14 +145,14 @@ export default function V2QuestionModal({ open, question, modules, defaultPointI
         <Form.Item name="knowledge_point_id" label="所属知识点" rules={[{ required: true, message: '请选择知识点；模块和题库不能直接挂题' }]}><Select showSearch optionFilterProp="label" options={points} /></Form.Item>
         <Form.Item name="question_type" label="题型" rules={[{ required: true }]}><Radio.Group onChange={(event) => handleTypeChange(event.target.value)}><Radio value="single_choice">单选题</Radio><Radio value="multiple_choice">多选题</Radio><Radio value="judge">判断题</Radio></Radio.Group></Form.Item>
         <Form.Item name="question_text" label="题干" rules={[{ required: true, message: '请输入题干' }, { max: 1024 }]}><Input.TextArea rows={4} /></Form.Item>
-        <Form.Item name="image_urls_text" label="题干图片 URL" rules={[{ validator: async (_, value) => { validateImageUrls(value) } }]}><Input.TextArea rows={3} placeholder="每行一个图片 URL，也可用逗号分隔；仅支持 http/https" /></Form.Item>
-        {previewUrls.length > 0 && <Space wrap style={{ marginBottom: 16 }}>{previewUrls.map((url) => <img key={url} src={url} alt="题干图片预览" style={{ width: 120, maxHeight: 90, objectFit: 'contain', border: '1px solid #f0f0f0', borderRadius: 4 }} />)}</Space>}
+        <Form.Item name="image_urls" label="题干图片（最多 9 张）"><MultiImageUpload /></Form.Item>
         <Form.List name="options">
           {(fields, { add, remove }) => <div>
             <div style={{ marginBottom: 8 }}>选项（A-D）</div>
             {fields.slice(0, 4).map(({ key, name, ...rest }) => <Space key={key} align="baseline" style={{ display: 'flex', marginBottom: 8 }}>
               <strong style={{ width: 22 }}>{QUESTION_OPTION_KEYS[name]}</strong>
-              <Form.Item {...rest} name={[name, 'content']} style={{ marginBottom: 0 }}><Input disabled={type === 'judge'} style={{ width: 560 }} /></Form.Item>
+              <Form.Item {...rest} name={[name, 'content']} style={{ marginBottom: 0 }}><Input disabled={type === 'judge'} style={{ width: 360 }} /></Form.Item>
+              {type !== 'judge' && <Form.Item {...rest} name={[name, 'image_url']} style={{ marginBottom: 0 }}><ImageUpload /></Form.Item>}
               {type !== 'judge' && fields.length > 2 && <MinusCircleOutlined onClick={() => remove(name)} />}
             </Space>)}
             {type !== 'judge' && optionCount < 4 && <Button type="dashed" icon={<PlusOutlined />} onClick={() => add({ content: '' })}>添加选项</Button>}

@@ -51,6 +51,8 @@ const optionSchema = z.record(z.string(), z.string()).superRefine((value, ctx) =
 })
 const imageUrlSchema = z.array(z.string().trim().url().max(512)).max(9)
 const imageUrlsResponseSchema = imageUrlSchema.default([])
+const optionImageUrlsSchema = z.record(z.string().regex(/^[A-D]$/, '选项键只能为 A-D'), z.string().trim().url().max(512))
+const optionImageUrlsResponseSchema = optionImageUrlsSchema.default({})
 
 function questionShapeRules(value: {
   question_type?: 'single_choice' | 'multiple_choice' | 'judge'
@@ -134,6 +136,7 @@ export const QuestionCreateSchema = z.object({
   correct_answer: answerSchema.nullable().optional(),
   explanation: z.string().max(1024).nullable().optional(),
   image_urls: imageUrlSchema.optional(),
+  option_image_urls: optionImageUrlsSchema.optional(),
 }).strict().superRefine(questionShapeRules)
 
 export const QuestionUpdateSchema = z.object({
@@ -145,6 +148,7 @@ export const QuestionUpdateSchema = z.object({
   correct_answer: answerSchema.nullable().optional(),
   explanation: z.string().max(1024).nullable().optional(),
   image_urls: imageUrlSchema.optional(),
+  option_image_urls: optionImageUrlsSchema.optional(),
 }).strict().refine((value) => Object.keys(value).some((key) => key !== 'lock_version'), { message: '至少需要一个题目变更字段' }).superRefine(questionShapeRules)
 
 export const VersionRequestSchema = z.object({ lock_version: positiveInt }).strict()
@@ -163,6 +167,7 @@ export const JsonImportQuestionSchema = z.object({
   correct_answer: answerSchema.nullable().optional(),
   explanation: z.string().max(1024).nullable().optional(),
   image_urls: imageUrlSchema.optional(),
+  option_image_urls: optionImageUrlsSchema.optional(),
 }).strict().superRefine(questionShapeRules)
 
 export const JsonImportRequestSchema = z.object({ library_id: positiveInt.optional(), questions: z.array(JsonImportQuestionSchema).min(1).max(5000) }).strict()
@@ -178,6 +183,7 @@ export const QuestionSchema = z.object({
   correct_answer: answerSchema.nullable(),
   explanation: nullableString,
   image_urls: imageUrlsResponseSchema,
+  option_image_urls: optionImageUrlsResponseSchema,
   ever_published: z.boolean(),
   published_at: nullableString,
   disabled_at: nullableString,
@@ -201,6 +207,7 @@ export const QuizV2QuestionSchema = z.object({
   correct_answer: answerSchema.nullable(),
   explanation: nullableString,
   image_urls: imageUrlsResponseSchema,
+  option_image_urls: optionImageUrlsResponseSchema,
   ever_published: z.boolean(),
   published_at: nullableString,
   disabled_at: nullableString,
@@ -364,6 +371,7 @@ export const QuizQuestionRevisionSchema = z.object({
   correct_answer: answerSchema.nullable(),
   explanation: nullableString,
   image_urls: imageUrlsResponseSchema,
+  option_image_urls: optionImageUrlsResponseSchema,
   published_at: nullableString,
   created_by: positiveInt.nullable(),
   created_at: dateString,
@@ -408,6 +416,7 @@ export const QuizV2QuestionCreateSchema = z.object({
   correct_answer: answerSchema.nullable().optional(),
   explanation: z.string().max(1024).nullable().optional(),
   image_urls: imageUrlSchema.optional(),
+  option_image_urls: optionImageUrlsSchema.optional(),
 }).strict().superRefine(questionShapeRules)
 
 export const QuizV2QuestionUpdateSchema = z.object({
@@ -419,6 +428,7 @@ export const QuizV2QuestionUpdateSchema = z.object({
   correct_answer: answerSchema.nullable().optional(),
   explanation: z.string().max(1024).nullable().optional(),
   image_urls: imageUrlSchema.optional(),
+  option_image_urls: optionImageUrlsSchema.optional(),
 }).strict().refine((value) => Object.keys(value).some((key) => key !== 'lock_version'), { message: '至少需要一个题目变更字段' }).superRefine(questionShapeRules)
 
 export const QuestionStatsSchema = z.object({

@@ -206,6 +206,7 @@ export interface QuizV2Question {
   correct_answer: Answer | null
   explanation: string | null
   image_urls: string[]
+  option_image_urls: Record<string, string>
   ever_published: boolean
   published_at: string | null
   disabled_at: string | null
@@ -235,6 +236,7 @@ export interface QuizQuestionRevision {
   correct_answer: Answer | null
   explanation: string | null
   image_urls: string[]
+  option_image_urls: Record<string, string>
   published_at: string | null
   created_by: number | null
   created_at: string
@@ -248,6 +250,7 @@ export interface QuizV2QuestionCreate {
   correct_answer?: Answer | null
   explanation?: string | null
   image_urls?: string[]
+  option_image_urls?: Record<string, string>
 }
 
 export interface QuizV2QuestionUpdate {
@@ -259,6 +262,7 @@ export interface QuizV2QuestionUpdate {
   correct_answer?: Answer | null
   explanation?: string | null
   image_urls?: string[]
+  option_image_urls?: Record<string, string>
 }
 
 export interface QuizV2QuestionFilter {
@@ -342,6 +346,7 @@ export interface Question {
   correct_answer: Answer | null
   explanation: string | null
   image_urls: string[]
+  option_image_urls: Record<string, string>
   ever_published: boolean
   published_at: string | null
   disabled_at: string | null
@@ -360,6 +365,7 @@ export interface QuestionCreate {
   correct_answer?: Answer | null
   explanation?: string | null
   image_urls?: string[]
+  option_image_urls?: Record<string, string>
 }
 
 export interface QuestionUpdate {
@@ -371,6 +377,7 @@ export interface QuestionUpdate {
   correct_answer?: Answer | null
   explanation?: string | null
   image_urls?: string[]
+  option_image_urls?: Record<string, string>
 }
 
 export interface VersionRequest {
@@ -486,6 +493,7 @@ export interface ImportQuestion {
   correct_answer?: Answer | null
   explanation?: string | null
   image_urls?: string[]
+  option_image_urls?: Record<string, string>
 }
 
 export interface JsonImportRequest {
