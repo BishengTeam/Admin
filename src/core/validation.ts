@@ -48,9 +48,9 @@ const optionSchema = z.record(z.string(), z.string()).superRefine((value, ctx) =
   // Option text may be empty when the option carries an image; the backend
   // enforces the text-or-image minimum at save time.
 })
-const imageUrlSchema = z.array(z.string().trim().url().max(512)).max(9)
+const imageUrlSchema = z.array(z.string().trim().url().max(1024)).max(9)
 const imageUrlsResponseSchema = imageUrlSchema.default([])
-const optionImageUrlsSchema = z.record(z.string().regex(/^[A-D]$/, '选项键只能为 A-D'), z.string().trim().url().max(512))
+const optionImageUrlsSchema = z.record(z.string().regex(/^[A-D]$/, '选项键只能为 A-D'), z.string().trim().url().max(1024))
 const optionImageUrlsResponseSchema = optionImageUrlsSchema.default({})
 
 function questionShapeRules(value: {
