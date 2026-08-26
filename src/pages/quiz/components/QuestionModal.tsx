@@ -3,6 +3,7 @@ import { Button, Checkbox, Form, Input, message, Modal, Radio, Space, TreeSelect
 import { MinusCircleOutlined, PlusOutlined } from '@ant-design/icons'
 import { ImageUpload } from '@/components/ImageUpload'
 import { MultiImageUpload } from '@/components/MultiImageUpload'
+import { toAbsoluteMediaUrl } from '@/utils/mediaUrl'
 import type { Category, Question, QuestionCreate, QuestionType, QuestionUpdate } from '@/types/quiz'
 import { answerToArray, answerToPayload, QUESTION_OPTION_KEYS } from '@/types/quiz'
 import { buildCategoryTree, isCategoryEffectivelyDisabled } from './CategoryTree'
@@ -96,7 +97,7 @@ export default function QuestionModal({ open, question, categories, canWrite, on
         const imageUrl = String(item?.image_url ?? '').trim()
         if (content || imageUrl) {
           optionRecord[QUESTION_OPTION_KEYS[index]] = content
-          if (imageUrl) optionImages[QUESTION_OPTION_KEYS[index]] = imageUrl
+          if (imageUrl) optionImages[QUESTION_OPTION_KEYS[index]] = toAbsoluteMediaUrl(imageUrl)
         }
       })
       if (questionType === 'judge') {
@@ -104,7 +105,7 @@ export default function QuestionModal({ open, question, categories, canWrite, on
         optionRecord.B = '错误'
       }
       const answer = answerToPayload(values.correct_answer, questionType)
-      const imageUrls: string[] = values.image_urls ?? []
+      const imageUrls: string[] = (values.image_urls ?? []).map(toAbsoluteMediaUrl)
       if (!isEdit) {
         const payload: QuestionCreate = {
           category_id: values.category_id,
@@ -196,7 +197,7 @@ export default function QuestionModal({ open, question, categories, canWrite, on
           <Input.TextArea rows={4} placeholder="草稿允许暂不填写选项，发布时会执行完整校验" />
         </Form.Item>
         <Form.Item name="image_urls" label="题干图片（最多 9 张）">
-          <MultiImageUpload />
+          <MultiImageUpload purpose='quiz' />
         </Form.Item>
         <Form.List name="options">
           {(fields, { add, remove }) => (
@@ -210,7 +211,7 @@ export default function QuestionModal({ open, question, categories, canWrite, on
                   </Form.Item>
                   {type !== 'judge' && (
                     <Form.Item {...rest} name={[name, 'image_url']} style={{ marginBottom: 0 }}>
-                      <ImageUpload />
+                      <ImageUpload purpose='quiz' />
                     </Form.Item>
                   )}
                   {type !== 'judge' && fields.length > 2 && <MinusCircleOutlined onClick={() => remove(name)} />}

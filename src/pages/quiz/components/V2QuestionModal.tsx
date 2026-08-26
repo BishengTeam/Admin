@@ -3,6 +3,7 @@ import { Button, Checkbox, Form, Input, message, Modal, Radio, Select, Space } f
 import { MinusCircleOutlined, PlusOutlined } from '@ant-design/icons'
 import { ImageUpload } from '@/components/ImageUpload'
 import { MultiImageUpload } from '@/components/MultiImageUpload'
+import { toAbsoluteMediaUrl } from '@/utils/mediaUrl'
 import { quizService } from '@/services/quiz'
 import type {
   QuizKnowledgePoint,
@@ -82,13 +83,13 @@ export default function V2QuestionModal({ open, question, modules, defaultPointI
         const imageUrl = String(item?.image_url ?? '').trim()
         if (content || imageUrl) {
           optionRecord[QUESTION_OPTION_KEYS[index]] = content
-          if (imageUrl) optionImages[QUESTION_OPTION_KEYS[index]] = imageUrl
+          if (imageUrl) optionImages[QUESTION_OPTION_KEYS[index]] = toAbsoluteMediaUrl(imageUrl)
         }
       })
       if (questionType === 'judge') { optionRecord.A = '正确'; optionRecord.B = '错误' }
       const answer = answerToPayload(values.correct_answer, questionType)
       const questionText = String(values.question_text).trim()
-      const imageUrls: string[] = values.image_urls ?? []
+      const imageUrls: string[] = (values.image_urls ?? []).map(toAbsoluteMediaUrl)
       if (!question) {
         const payload: QuizV2QuestionCreate = {
           knowledge_point_id: values.knowledge_point_id,
@@ -145,14 +146,14 @@ export default function V2QuestionModal({ open, question, modules, defaultPointI
         <Form.Item name="knowledge_point_id" label="所属知识点" rules={[{ required: true, message: '请选择知识点；模块和题库不能直接挂题' }]}><Select showSearch optionFilterProp="label" options={points} /></Form.Item>
         <Form.Item name="question_type" label="题型" rules={[{ required: true }]}><Radio.Group onChange={(event) => handleTypeChange(event.target.value)}><Radio value="single_choice">单选题</Radio><Radio value="multiple_choice">多选题</Radio><Radio value="judge">判断题</Radio></Radio.Group></Form.Item>
         <Form.Item name="question_text" label="题干" rules={[{ required: true, message: '请输入题干' }, { max: 1024 }]}><Input.TextArea rows={4} /></Form.Item>
-        <Form.Item name="image_urls" label="题干图片（最多 9 张）"><MultiImageUpload /></Form.Item>
+        <Form.Item name="image_urls" label="题干图片（最多 9 张）"><MultiImageUpload purpose='quiz' /></Form.Item>
         <Form.List name="options">
           {(fields, { add, remove }) => <div>
             <div style={{ marginBottom: 8 }}>选项（A-D）</div>
             {fields.slice(0, 4).map(({ key, name, ...rest }) => <Space key={key} align="baseline" style={{ display: 'flex', marginBottom: 8 }}>
               <strong style={{ width: 22 }}>{QUESTION_OPTION_KEYS[name]}</strong>
               <Form.Item {...rest} name={[name, 'content']} style={{ marginBottom: 0 }}><Input disabled={type === 'judge'} style={{ width: 360 }} /></Form.Item>
-              {type !== 'judge' && <Form.Item {...rest} name={[name, 'image_url']} style={{ marginBottom: 0 }}><ImageUpload /></Form.Item>}
+              {type !== 'judge' && <Form.Item {...rest} name={[name, 'image_url']} style={{ marginBottom: 0 }}><ImageUpload purpose='quiz' /></Form.Item>}
               {type !== 'judge' && fields.length > 2 && <MinusCircleOutlined onClick={() => remove(name)} />}
             </Space>)}
             {type !== 'judge' && optionCount < 4 && <Button type="dashed" icon={<PlusOutlined />} onClick={() => add({ content: '' })}>添加选项</Button>}

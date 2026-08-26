@@ -9,9 +9,10 @@ interface ImageUploadProps {
   value?: string
   onChange?: (url: string) => void
   maxSize?: number
+  purpose?: 'generic' | 'quiz'
 }
 
-export function ImageUpload({ value, onChange, maxSize = 5 }: ImageUploadProps) {
+export function ImageUpload({ value, onChange, maxSize = 5, purpose = 'generic' }: ImageUploadProps) {
   const [loading, setLoading] = useState(false)
 
   const beforeUpload = (file: RcFile) => {
@@ -32,13 +33,28 @@ export function ImageUpload({ value, onChange, maxSize = 5 }: ImageUploadProps) 
     const { file, onSuccess, onError } = options
     setLoading(true)
     try {
-      const formData = new FormData()
-      formData.append('file', file)
-      const res = await http.post<{ url: string }>('/admin/upload', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      })
-      onSuccess({ url: res.url })
-      onChange?.(toAbsoluteMediaUrl(res.url))
+      if (purpose === 'quiz') {
+        const { quizService } = await import('@/services/quiz')
+        const target = await quizService.createImageUpload({
+          filename: file.name,
+          content_type: file.type || 'application/octet-stream',
+          size_bytes: file.size,
+        })
+        await fetch(target.upload_url, {
+          method: 'PUT',
+          body: await file.arrayBuffer(),
+        })
+        onSuccess({ url: target.public_url })
+        onChange?.(target.public_url)
+      } else {
+        const formData = new FormData()
+        formData.append('file', file)
+        const res = await http.post<{ url: string }>('/admin/upload', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        })
+        onSuccess({ url: res.url })
+        onChange?.(toAbsoluteMediaUrl(res.url))
+      }
     } catch (err) {
       onError(err instanceof Error ? err : new Error('上传失败'))
       message.error('上传失败，请重试')

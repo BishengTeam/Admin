@@ -510,6 +510,19 @@ export const UserStatsPageSchema = z.object({
   page_size: positiveInt,
 }).strict()
 
+export const QuizImageUploadCreateSchema = z.object({
+  filename: z.string().min(1).max(255),
+  content_type: z.string().min(1).max(128),
+  size_bytes: z.number().int().min(1).max(10 * 1024 * 1024),
+}).strict()
+
+export const QuizImageUploadSchema = z.object({
+  object_key: z.string().min(1),
+  upload_url: z.string().url().max(2048),
+  public_url: z.string().url().max(2048),
+  expires_at: dateString,
+}).strict()
+
 export const BatchItemErrorSchema = z.object({
   question_id: z.number(),
   code: z.number(),

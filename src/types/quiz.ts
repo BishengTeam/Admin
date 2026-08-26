@@ -490,6 +490,13 @@ export interface UserStatsListItem {
   consecutive_days: number
 }
 
+export interface QuizImageUpload {
+  object_key: string
+  upload_url: string
+  public_url: string
+  expires_at: string
+}
+
 export interface QuestionFilter {
   category_id?: number
   include_descendants?: boolean

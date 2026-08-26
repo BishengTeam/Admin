@@ -13,6 +13,8 @@ import {
   CategoryUpdateSchema,
   CsvImportMetadataSchema,
   DailyStatsSchema,
+  QuizImageUploadCreateSchema,
+  QuizImageUploadSchema,
   ImportCancelRequestSchema,
   ImportCategoryImpactSchema,
   ImportConfirmCategoriesRequestSchema,
@@ -62,6 +64,7 @@ import type {
   CategoryUpdate,
   CsvImportMetadata,
   DailyStatsItem,
+  QuizImageUpload,
   ImportFilter,
   ImportCancelRequest,
   ImportCategoryImpact,
@@ -426,6 +429,13 @@ export const quizService = {
 
   async listUserStats(params: { page?: number; page_size?: number } = {}, signal?: AbortSignal): Promise<PageData<UserStatsListItem>> {
     return parsed(UserStatsPageSchema, await http.get('/admin/quiz/stats/users', queryConfig(params, signal)))
+  },
+
+  async createImageUpload(input: { filename: string; content_type: string; size_bytes: number }, signal?: AbortSignal): Promise<QuizImageUpload> {
+    return parsed(
+      QuizImageUploadSchema,
+      await http.post('/admin/quiz/uploads', requestParsed(QuizImageUploadCreateSchema, input), { signal }),
+    )
   },
 
   async listAuditLogs(params: AuditFilter = {}, signal?: AbortSignal): Promise<PageData<AuditLog>> {
