@@ -12,6 +12,7 @@ import {
   CategoryStatusUpdateSchema,
   CategoryUpdateSchema,
   CsvImportMetadataSchema,
+  DailyStatsSchema,
   ImportCancelRequestSchema,
   ImportCategoryImpactSchema,
   ImportConfirmCategoriesRequestSchema,
@@ -44,6 +45,7 @@ import {
   QuizV2QuestionUpdateSchema,
   SignedUrlSchema,
   StatsOverviewSchema,
+  UserStatsPageSchema,
   VersionRequestSchema,
 } from '@/core/validation'
 import type { PageData } from '@/types/api'
@@ -59,6 +61,7 @@ import type {
   CategoryStatusUpdate,
   CategoryUpdate,
   CsvImportMetadata,
+  DailyStatsItem,
   ImportFilter,
   ImportCancelRequest,
   ImportCategoryImpact,
@@ -77,6 +80,7 @@ import type {
   SignedUrl,
   StatsOverview,
   StatsQuestionFilter,
+  UserStatsListItem,
   VersionRequest,
   QuizContentTree,
   QuizCourseBinding,
@@ -414,6 +418,14 @@ export const quizService = {
 
   async listQuestionStats(params: StatsQuestionFilter = {}, signal?: AbortSignal): Promise<PageData<QuestionStatsListItem>> {
     return parsed(QuestionStatsPageSchema, await http.get('/admin/quiz/stats/questions', queryConfig(params, signal)))
+  },
+
+  async getDailyStats(days: 7 | 30 | 90 = 30, signal?: AbortSignal): Promise<DailyStatsItem[]> {
+    return parsed(DailyStatsSchema, await http.get('/admin/quiz/stats/daily', queryConfig({ days }, signal)))
+  },
+
+  async listUserStats(params: { page?: number; page_size?: number } = {}, signal?: AbortSignal): Promise<PageData<UserStatsListItem>> {
+    return parsed(UserStatsPageSchema, await http.get('/admin/quiz/stats/users', queryConfig(params, signal)))
   },
 
   async listAuditLogs(params: AuditFilter = {}, signal?: AbortSignal): Promise<PageData<AuditLog>> {

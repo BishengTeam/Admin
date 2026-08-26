@@ -484,6 +484,33 @@ export const QuestionStatsListItemSchema = QuestionStatsSchema.omit({ question_i
   status: z.enum(['draft', 'published', 'disabled', 'deleted']),
 }).strict()
 
+export const DailyStatsItemSchema = z.object({
+  date: z.string().min(1),
+  practice_attempts: z.number().int().min(0),
+  active_users: z.number().int().min(0),
+}).strict()
+
+export const DailyStatsSchema = z.array(DailyStatsItemSchema)
+
+export const UserStatsListItemSchema = z.object({
+  user_id: positiveInt,
+  nickname: nullableString,
+  phone_masked: nullableString,
+  practice_total_attempts: z.number().int().min(0),
+  practice_first_attempts: z.number().int().min(0),
+  practice_first_correct: z.number().int().min(0),
+  practice_answered_questions: z.number().int().min(0),
+  checkin_days: z.number().int().min(0),
+  consecutive_days: z.number().int().min(0),
+}).strict()
+
+export const UserStatsPageSchema = z.object({
+  items: z.array(UserStatsListItemSchema),
+  total: z.number().int().min(0),
+  page: positiveInt,
+  page_size: positiveInt,
+}).strict()
+
 export const BatchItemErrorSchema = z.object({
   question_id: z.number(),
   code: z.number(),

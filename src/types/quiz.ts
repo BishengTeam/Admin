@@ -466,8 +466,28 @@ export interface StatsQuestionFilter {
   status?: StatsQuestionStatus
   include_deleted?: boolean
   keyword?: string
+  sort?: 'updated_at' | 'practice_first_attempts' | 'practice_wrong_count'
+  order?: 'asc' | 'desc'
   page?: number
   page_size?: number
+}
+
+export interface DailyStatsItem {
+  date: string
+  practice_attempts: number
+  active_users: number
+}
+
+export interface UserStatsListItem {
+  user_id: number
+  nickname: string | null
+  phone_masked: string | null
+  practice_total_attempts: number
+  practice_first_attempts: number
+  practice_first_correct: number
+  practice_answered_questions: number
+  checkin_days: number
+  consecutive_days: number
 }
 
 export interface QuestionFilter {
