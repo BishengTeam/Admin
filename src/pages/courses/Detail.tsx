@@ -11,6 +11,7 @@ import {
   Input,
   InputNumber,
   Modal,
+  Progress,
   Row,
   Select,
   Space,
@@ -48,6 +49,16 @@ type StageFile = {
   duration: number
   sort_order: number
   status: 'ready' | 'uploading' | 'done' | 'failed'
+  percent: number
+  error?: string
+}
+
+type ReplaceUploadState = {
+  chapterId: number
+  chapterTitle: string
+  fileName: string
+  percent: number
+  phase: 'uploading' | 'binding' | 'failed'
   error?: string
 }
 
@@ -93,6 +104,7 @@ export default function CourseDetailPage() {
   const [bindings, setBindings] = useState<Awaited<ReturnType<typeof courseManagementService.listBindings>>>([])
   const [editingChapter, setEditingChapter] = useState<CourseChapter | null>(null)
   const [chapterForm] = Form.useForm<Pick<CourseChapter, 'title' | 'sort_order'>>()
+  const [replaceUpload, setReplaceUpload] = useState<ReplaceUploadState | null>(null)
 
   const load = useCallback(async () => {
     const [courseResult, chapterPage, uploadList, categoryList, bindingList] =
@@ -132,13 +144,19 @@ export default function CourseDetailPage() {
       while (queue.length) {
         const item = queue.shift()
         if (!item) return
-        setStage(current => current.map(row => row.key === item.key ? { ...row, status: 'uploading' } : row))
+        setStage(current => current.map(row => row.key === item.key ? { ...row, status: 'uploading', percent: 0 } : row))
         try {
           await courseManagementService.uploadChapterVideo(
             courseId,
             item.file,
             item.sort_order,
-            { title: item.title, duration: item.duration },
+            {
+              title: item.title,
+              duration: item.duration,
+              onProgress: percent => setStage(current => current.map(row =>
+                row.key === item.key ? { ...row, percent } : row
+              )),
+            },
           )
           setStage(current => current.map(row => row.key === item.key ? { ...row, status: 'done' } : row))
         } catch (error) {
@@ -158,7 +176,7 @@ export default function CourseDetailPage() {
   }
 
   const chapterColumns: ColumnsType<CourseChapter> = [
-    { title: '排序', dataIndex: 'sort_order', width: 64, align: 'center' },
+    { title: 'ID', dataIndex: 'id', width: 64, align: 'center' },
     { title: '课程名', dataIndex: 'title', ellipsis: true, render: value => <Text strong>{value}</Text> },
     { title: '文件', dataIndex: 'original_filename', ellipsis: true, render: value => <Text type="secondary">{value}</Text> },
     { title: '时长', dataIndex: 'duration', width: 110, render: value => formatDuration(value) },
@@ -177,20 +195,46 @@ export default function CourseDetailPage() {
             })
             setEditingChapter(record)
           }}>编辑</Button>
-          <Upload showUploadList={false} accept=".mp4,.mov,.mkv" beforeUpload={async file => {
-            try {
-              const uploaded = await courseManagementService.uploadChapterVideo(
-                courseId,
-                file,
-                record.sort_order,
-                { title: record.title },
-              )
-              await courseManagementService.replaceChapterVideo(courseId, record.id, uploaded.id)
-              message.success('视频已替换')
-              await load()
-            } catch (error) {
-              message.error(error instanceof Error ? error.message : '替换失败')
-            }
+          <Upload showUploadList={false} accept=".mp4,.mov,.mkv" beforeUpload={file => {
+            void (async () => {
+              setReplaceUpload({
+                chapterId: record.id,
+                chapterTitle: record.title,
+                fileName: file.name,
+                percent: 0,
+                phase: 'uploading',
+              })
+              try {
+                const uploaded = await courseManagementService.uploadChapterVideo(
+                  courseId,
+                  file,
+                  record.sort_order,
+                  {
+                    title: record.title,
+                    onProgress: percent => setReplaceUpload(current =>
+                      current && current.chapterId === record.id ? { ...current, percent } : current
+                    ),
+                  },
+                )
+                setReplaceUpload(current =>
+                  current && current.chapterId === record.id
+                    ? { ...current, percent: 100, phase: 'binding' }
+                    : current
+                )
+                await courseManagementService.replaceChapterVideo(courseId, record.id, uploaded.id)
+                message.success('视频已替换')
+                await load()
+                setReplaceUpload(null)
+              } catch (error) {
+                const errorMessage = error instanceof Error ? error.message : '替换失败'
+                message.error(errorMessage)
+                setReplaceUpload(current =>
+                  current && current.chapterId === record.id
+                    ? { ...current, phase: 'failed', error: errorMessage }
+                    : current
+                )
+              }
+            })()
             return false
           }}>
             <Button type="link" size="small">替换视频</Button>
@@ -207,9 +251,23 @@ export default function CourseDetailPage() {
   const stageColumns: ColumnsType<StageFile> = [
     { title: '排序', dataIndex: 'sort_order', width: 80, render: (value, record) => <InputNumber min={1} precision={0} value={value} disabled={record.status === 'uploading'} onChange={next => setStage(current => current.map(row => row.key === record.key ? { ...row, sort_order: next ?? 1 } : row))} /> },
     { title: '课程名', dataIndex: 'title', render: (value, record) => <Input value={value} disabled={record.status === 'uploading'} onChange={event => setStage(current => current.map(row => row.key === record.key ? { ...row, title: event.target.value } : row))} /> },
-    { title: '状态', dataIndex: 'status', width: 120, render: (_, record) => record.status === 'failed'
-      ? <Tag color="red">{record.error ?? '失败'}</Tag>
-      : <Tag color={record.status === 'uploading' ? 'processing' : record.status === 'done' ? 'success' : 'default'}>{record.status === 'uploading' ? '上传中' : record.status === 'done' ? '完成' : '待上传'}</Tag> },
+    {
+      title: '上传进度',
+      width: 180,
+      render: (_, record) => record.status === 'failed'
+        ? <Tag color="red">{record.error ?? '失败'}</Tag>
+        : (
+          <Space size={8}>
+            <Progress
+              percent={record.percent}
+              size="small"
+              status={record.status === 'uploading' ? 'active' : record.status === 'done' ? 'success' : 'normal'}
+              style={{ width: 96, marginBottom: 0 }}
+            />
+            <Text type="secondary">{record.status === 'uploading' ? '上传中' : record.status === 'done' ? '完成' : '待上传'}</Text>
+          </Space>
+        ),
+    },
     {
       title: '操作',
       width: 90,
@@ -283,7 +341,10 @@ export default function CourseDetailPage() {
             placeholder="替换已有课程名"
             style={{ width: 130 }}
             value={replaceTargetByUploadId[record.id]}
-            options={chapters.map(chapter => ({ value: chapter.id, label: `${chapter.sort_order}. ${chapter.title}` }))}
+            options={[...chapters].sort((a, b) => a.id - b.id).map(chapter => ({
+              value: chapter.id,
+              label: `#${chapter.id} ${chapter.title}`,
+            }))}
             onChange={value => setReplaceTargetByUploadId(current => ({ ...current, [record.id]: value }))}
           />
           <Button
@@ -479,10 +540,11 @@ export default function CourseDetailPage() {
                             key,
                             file,
                             title: file.name.replace(/\.[^.]+$/, ''),
-                            duration,
-                            sort_order: chapters.length + index + 1,
-                            status: 'ready',
-                          })
+            duration,
+            sort_order: chapters.length + index + 1,
+            status: 'ready',
+            percent: 0,
+          })
                         }
                         setStage(next.slice(0, 50))
                       }}
@@ -507,7 +569,7 @@ export default function CourseDetailPage() {
                 <Table
                   rowKey="id"
                   columns={chapterColumns}
-                  dataSource={chapters}
+                  dataSource={[...chapters].sort((a, b) => a.id - b.id)}
                   pagination={false}
                   scroll={{ x: 920 }}
                   locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无课程名，上传完成后再确认创建" /> }}
@@ -638,6 +700,35 @@ export default function CourseDetailPage() {
           <Form.Item name="title" label="课程名" rules={[{ required: true }]}><Input /></Form.Item>
           <Form.Item name="sort_order" label="排序"><InputNumber min={1} precision={0} /></Form.Item>
         </Form>
+      </Modal>
+      <Modal
+        title="替换课程视频"
+        open={replaceUpload !== null}
+        closable={replaceUpload?.phase === 'failed'}
+        keyboard={replaceUpload?.phase === 'failed'}
+        maskClosable={replaceUpload?.phase === 'failed'}
+        onCancel={() => setReplaceUpload(null)}
+        footer={replaceUpload?.phase === 'failed' ? (
+          <Button onClick={() => setReplaceUpload(null)}>关闭</Button>
+        ) : null}
+        destroyOnClose
+      >
+        {replaceUpload && (
+          <Space direction="vertical" size={12} style={{ width: '100%' }}>
+            <Descriptions size="small" column={1} bordered>
+              <Descriptions.Item label="课程名">{replaceUpload.chapterTitle}</Descriptions.Item>
+              <Descriptions.Item label="新视频">{replaceUpload.fileName}</Descriptions.Item>
+              <Descriptions.Item label="状态">
+                {replaceUpload.phase === 'uploading' && '正在上传新视频'}
+                {replaceUpload.phase === 'binding' && '上传完成，正在绑定课程视频'}
+                {replaceUpload.phase === 'failed' && (replaceUpload.error ?? '替换失败')}
+              </Descriptions.Item>
+            </Descriptions>
+            {replaceUpload.phase === 'failed'
+              ? <Alert type="error" showIcon message={replaceUpload.error ?? '替换失败，旧视频未被替换。'} />
+              : <Progress percent={replaceUpload.phase === 'binding' ? 100 : replaceUpload.percent} status={replaceUpload.phase === 'binding' ? 'active' : 'active'} />}
+          </Space>
+        )}
       </Modal>
     </PageContainer>
   )

@@ -105,6 +105,7 @@ async function uploadMultipart(
   start: CourseUploadStart,
   file: File,
   existing?: CourseUpload,
+  onProgress?: (percent: number) => void,
 ): Promise<CourseUpload> {
   let upload = existing
   let uploadedPartNumbers = new Set<number>()
@@ -120,28 +121,63 @@ async function uploadMultipart(
     // in the signature. Passing a File makes the browser add its MIME type,
     // which changes OSS's calculated signature and returns 403. ArrayBuffer
     // sends the same bytes without an implicit Content-Type header.
-    const response = await fetch(upload.upload_url, {
-      method: 'PUT',
-      body: await file.arrayBuffer(),
+    await putArrayBuffer(upload.upload_url, await file.arrayBuffer(), loaded => {
+      onProgress?.(toPercent(loaded, file.size))
     })
-    if (!response.ok) throw new Error('封面上传失败')
     const completed = await courseManagementService.completeUpload(upload.id)
+    onProgress?.(100)
     return completed.upload
   }
   const partCount = Math.ceil(file.size / upload.part_size)
+  let uploadedBytes = 0
   for (let partNumber = 1; partNumber <= partCount; partNumber += 1) {
-    if (uploadedPartNumbers.has(partNumber)) continue
+    if (uploadedPartNumbers.has(partNumber)) {
+      const partSize = Math.min(upload.part_size, file.size - uploadedBytes)
+      uploadedBytes += partSize
+      onProgress?.(toPercent(uploadedBytes, file.size))
+      continue
+    }
     const part = await courseManagementService.createUploadPartUrl(upload.id, partNumber)
     const startByte = (partNumber - 1) * upload.part_size
     const body = file.slice(startByte, Math.min(file.size, startByte + upload.part_size))
-    const response = await fetch(part.url, {
-      method: 'PUT',
-      body: await body.arrayBuffer(),
+    const baseBytes = uploadedBytes
+    await putArrayBuffer(part.url, await body.arrayBuffer(), loaded => {
+      onProgress?.(toPercent(baseBytes + loaded, file.size))
     })
-    if (!response.ok) throw new Error(`分片 ${partNumber} 上传失败`)
+    uploadedBytes = baseBytes + body.size
+    onProgress?.(toPercent(uploadedBytes, file.size))
   }
   const completed = await courseManagementService.completeUpload(upload.id)
+  onProgress?.(100)
   return completed.upload
+}
+
+function toPercent(loaded: number, total: number) {
+  if (total <= 0) return 100
+  return Math.max(0, Math.min(99, Math.floor((loaded / total) * 100)))
+}
+
+function putArrayBuffer(
+  url: string,
+  body: ArrayBuffer,
+  onProgress?: (loaded: number) => void,
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const request = new XMLHttpRequest()
+    request.open('PUT', url)
+    request.upload.onprogress = event => onProgress?.(event.loaded)
+    request.onload = () => {
+      if (request.status >= 200 && request.status < 300) {
+        resolve()
+        return
+      }
+      reject(new Error(`文件上传失败（${request.status}）`))
+    }
+    request.onerror = () => reject(new Error('文件上传失败，请检查网络后重试'))
+    request.onabort = () => reject(new Error('文件上传已取消'))
+    // Do not set Content-Type: the presigned URL is calculated without it.
+    request.send(body)
+  })
 }
 
 export const courseManagementService = {
@@ -267,7 +303,7 @@ export const courseManagementService = {
     courseId: number,
     file: File,
     sortOrder: number,
-    overrides?: { title?: string; duration?: number },
+    overrides?: { title?: string; duration?: number; onProgress?: (percent: number) => void },
     existing?: CourseUpload,
   ): Promise<CourseUpload> {
     if (file.size > 5 * 1024 * 1024 * 1024) throw new Error('课程视频不能超过 5GB')
@@ -286,6 +322,7 @@ export const courseManagementService = {
       },
       file,
       existing,
+      overrides?.onProgress,
     )
   },
 
