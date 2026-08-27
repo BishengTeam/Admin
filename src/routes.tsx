@@ -178,8 +178,21 @@ export const adminRoutes: AppRoute[] = [
     path: 'certification',
     meta: { title: '认证管理', icon: 'SafetyCertificateOutlined', permission: 'content:list' },
     children: [
-      { index: true, element: <CertificationOverview /> },
-      { path: ':type', element: <TypeWorkbench /> },
+      {
+        index: true,
+        element: <CertificationOverview />,
+        meta: { title: '总览', icon: 'DashboardOutlined', permission: 'content:list' },
+      },
+      {
+        path: 'h3c',
+        element: <TypeWorkbench type='h3c' />,
+        meta: { title: '新华三认证', icon: 'ClusterOutlined', permission: 'h3c:review' },
+      },
+      {
+        path: 'renshe',
+        element: <TypeWorkbench type='renshe' />,
+        meta: { title: '人社认证', icon: 'AuditOutlined', permission: 'user:list' },
+      },
     ],
   },
   {

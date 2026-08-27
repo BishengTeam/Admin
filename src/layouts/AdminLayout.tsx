@@ -92,22 +92,24 @@ export function buildMenuItems(
   role?: AdminRole | string,
 ): MenuProps['items'] {
   return routes.flatMap((r) => {
-      if (!r.meta || r.meta.hidden || !hasRouteAccess(r, permissions, initialized, role)) return []
+      if (!r.meta || r.meta.hidden) return []
       const icon = r.meta?.icon ? iconMap[r.meta.icon] : undefined
       if (r.children) {
         const visibleChildren = r.children.filter((c) => c.meta && !c.meta.hidden && hasRouteAccess(c, permissions, initialized, role))
         if (visibleChildren.length === 0) return []
+        if (r.meta.roles && (!role || !r.meta.roles.includes(role as AdminRole))) return []
         return [{
           key: r.path!,
           icon,
           label: r.meta?.title,
           children: visibleChildren.map((c) => ({
-            key: `${r.path}/${c.path}`,
+            key: c.index ? r.path : `${r.path}/${c.path}`,
             icon: c.meta?.icon ? iconMap[c.meta.icon] : undefined,
             label: c.meta?.title,
           })),
         }]
       }
+      if (!hasRouteAccess(r, permissions, initialized, role)) return []
       return [{
         key: r.path!,
         icon,

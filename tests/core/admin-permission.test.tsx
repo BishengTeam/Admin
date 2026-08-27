@@ -37,10 +37,30 @@ describe('fixed administrator role navigation', () => {
   })
 
   it('shows the certification workbench based on content permission', () => {
-    const cert = adminRoutes.find((route) => route.path === 'certification')!
-    expect(hasRouteAccess(cert, ['*'], true, 'super_admin')).toBe(true)
-    expect(hasRouteAccess(cert, ['content:list'], true, 'h3c_admin')).toBe(true)
-    expect(hasRouteAccess(cert, ['quiz:list'], true, 'quiz_admin')).toBe(false)
+    const superMenu = buildMenuItems(adminRoutes, ['*'], true, 'super_admin') as Array<{
+      key: string
+      children?: Array<{ key: string; label: string }>
+    }>
+    const certMenu = superMenu.find((item) => item.key === 'certification')
+    expect(certMenu).toBeDefined()
+    expect(certMenu!.children!.map((child) => child.key)).toEqual([
+      'certification',
+      'certification/h3c',
+      'certification/renshe',
+    ])
+
+    const h3cMenu = buildMenuItems(adminRoutes, ['h3c:review', 'h3c:export'], true, 'h3c_admin') as Array<{
+      key: string
+      children?: Array<{ key: string }>
+    }>
+    const h3cCert = h3cMenu.find((item) => item.key === 'certification')
+    expect(h3cCert).toBeDefined()
+    expect(h3cCert!.children!.map((child) => child.key)).toEqual([
+      'certification/h3c',
+    ])
+
+    const quizMenu = buildMenuItems(adminRoutes, ['quiz:list'], true, 'quiz_admin') as Array<{ key: string }>
+    expect(quizMenu.find((item) => item.key === 'certification')).toBeUndefined()
   })
 
   it('denies non-quiz routes even when a quiz administrator opens a URL directly', () => {

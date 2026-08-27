@@ -11,8 +11,9 @@ import PlanTable from './components/shared/PlanTable'
 
 const { Text } = Typography
 
-export default function TypeWorkbench() {
-  const { type } = useParams<{ type: string }>()
+export default function TypeWorkbench({ type: typeProp }: { type?: string }) {
+  const params = useParams<{ type: string }>()
+  const type = typeProp ?? params.type
   const meta = CERT_TYPE_META[type as CertType]
   const profile = getVendorProfile(type as CertType)
 
