@@ -44,6 +44,7 @@ const CourseDetail = lazy(() => import('@/pages/courses/Detail'))
 const CourseStudents = lazy(() => import('@/pages/courses/Students'))
 const CourseAudit = lazy(() => import('@/pages/courses/Audit'))
 const CertificationManagement = lazy(() => import('@/pages/certification'))
+const CertificationDetail = lazy(() => import('@/pages/certification/Detail'))
 const JobManagement = lazy(() => import('@/pages/job'))
 const TrainingManagement = lazy(() => import('@/pages/training'))
 const ActivityManagement = lazy(() => import('@/pages/activity'))
@@ -83,36 +84,9 @@ export const adminRoutes: AppRoute[] = [
     path: 'orders',
     element: <OrderList />,
     meta: { title: '订单管理', icon: 'ShoppingOutlined', permission: 'order:list' },
-  },
-  {
-    path: 'renshe',
-    meta: { title: '人社报名', icon: 'SolutionOutlined' },
-    children: [
-      { index: true, element: <Navigate to="batches" replace /> },
-      {
-        path: 'batches',
-        element: <RensheBatches />,
-        meta: { title: '批次管理', icon: 'ClusterOutlined', permission: 'user:list' },
-      },
-      {
-        path: 'applications',
-        element: <RensheApplications />,
-        meta: { title: '报名审核', icon: 'FormOutlined', permission: 'user:list' },
-      },
-      {
-        path: 'exports',
-        element: <RensheExports />,
-        meta: { title: '导出中心', icon: 'FileZipOutlined', permission: 'user:list' },
-      },
-      {
-        path: 'refunds',
-        element: <RensheRefunds />,
-        meta: { title: '退款工作台', icon: 'RollbackOutlined', permission: 'order:list' },
-      },
-    ],
-  },
-  {
-    path: 'reviews',
+ },
+ {
+   path: 'reviews',
     element: <ReviewManagement />,
     meta: { title: '审核管理', icon: 'AuditOutlined', permission: 'review:list' },
   },
@@ -210,13 +184,45 @@ export const adminRoutes: AppRoute[] = [
     meta: { title: '认证管理', icon: 'SafetyCertificateOutlined', permission: 'content:list' },
     children: [
       { index: true, element: <CertificationManagement /> },
+     {
+       path: 'h3c',
+       element: <H3CManagement />,
+       meta: { title: 'H3C 认证', permission: 'h3c:review' },
+     },
       {
-        path: 'h3c',
-        element: <H3CManagement />,
-        meta: { title: 'H3C 认证', permission: 'h3c:review' },
+        path: 'renshe',
+        meta: { title: '人社认证' },
+        children: [
+          { index: true, element: <Navigate to="batches" replace /> },
+          {
+            path: 'batches',
+            element: <RensheBatches />,
+            meta: { title: '批次管理', icon: 'ClusterOutlined', permission: 'user:list' },
+          },
+          {
+            path: 'applications',
+            element: <RensheApplications />,
+            meta: { title: '报名审核', icon: 'FormOutlined', permission: 'user:list' },
+          },
+          {
+            path: 'exports',
+            element: <RensheExports />,
+            meta: { title: '导出中心', icon: 'FileZipOutlined', permission: 'user:list' },
+          },
+          {
+            path: 'refunds',
+            element: <RensheRefunds />,
+            meta: { title: '退款工作台', icon: 'RollbackOutlined', permission: 'order:list' },
+          },
+       ],
+     },
+      {
+        path: ':code',
+        element: <CertificationDetail />,
+        meta: { title: '认证详情', hidden: true },
       },
-    ],
-  },
+   ],
+ },
   {
     path: 'job',
     element: <JobManagement />,

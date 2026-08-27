@@ -278,10 +278,10 @@ export default function RensheBatchesPage() {
       fixed: 'right',
       render: (_, plan) => (
         <Space size={0} wrap>
-          <Button type="link" size="small" icon={<EyeOutlined />} onClick={() => navigate(`/admin/renshe/applications?plan_id=${plan.id}`)}>
+          <Button type="link" size="small" icon={<EyeOutlined />} onClick={() => navigate(`/admin/certification/renshe/applications?plan_id=${plan.id}`)}>
             查看报名
           </Button>
-          <Button type="link" size="small" icon={<ExportOutlined />} onClick={() => navigate(`/admin/renshe/exports?plan_id=${plan.id}`)}>
+          <Button type="link" size="small" icon={<ExportOutlined />} onClick={() => navigate(`/admin/certification/renshe/exports?plan_id=${plan.id}`)}>
             导出
           </Button>
           {canWrite && plan.status === 'draft' && (

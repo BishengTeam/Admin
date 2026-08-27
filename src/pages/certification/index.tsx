@@ -1,17 +1,29 @@
 import { useEffect, useState } from 'react'
-import { Card, Col, Row, Button, Modal, Form, Input, InputNumber, Switch, Space, Spin, Tag, Typography, message } from 'antd'
+import { Card, Col, Row, Button, Modal, Form, Input, InputNumber, Switch, Space, Spin, Statistic, Tag, Typography, message } from 'antd'
 import { PlusOutlined, ReloadOutlined, RightOutlined } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
 import { PageContainer } from '@/components/PageContainer'
 import { usePermission } from '@/hooks/usePermission'
 import { certificationService } from '@/services/certification'
 import { formatPrice } from '@/utils/format'
-import type { Certification, CertificationPayload } from '@/types/certification'
+import type { Certification, CertificationPayload, CertificationPlan } from '@/types/certification'
 
 const { Text } = Typography
 
+const VENDOR_ROUTE_MAP: Record<string, string> = {
+  h3c: 'h3c',
+  人社: 'renshe',
+  renshe: 'renshe',
+}
+
+const VENDOR_EMOJI: Record<string, string> = {
+  h3c: 'H',
+  人社: '人',
+  renshe: '人',
+}
+
 interface VendorCard { vendor: string; certifications: Certification[] }
-interface VendorStats { total: number; active: number }
+interface VendorStats { total: number; active: number; publishedPlans: number; totalEnrolled: number }
 
 const defaultFormValues: CertificationPayload = { code: '', vendor: '', normal_price: 0, student_price: 0, is_active: true }
 
@@ -44,14 +56,32 @@ export default function CertificationOverview() {
       }
       const cardList = Object.entries(grouped).map(([vendor, certs]) => ({ vendor, certifications: certs }))
       setVendors(cardList)
-      setStats(
-        Object.fromEntries(
-          Object.entries(grouped).map(([vendor, certs]) => [
-            vendor,
-            { total: certs.length, active: certs.filter((c) => c.is_active).length },
-          ]),
-        ),
+
+      const vendorStats: Record<string, VendorStats> = {}
+      await Promise.all(
+        Object.entries(grouped).map(async ([vendor, certs]) => {
+          let publishedPlans = 0
+          let totalEnrolled = 0
+          await Promise.all(
+            certs.filter(c => c.is_active).map(async (c) => {
+              try {
+                const plans: CertificationPlan[] = await certificationService.listPlans(c.code)
+                for (const p of plans) {
+                  if (p.status === 'published') publishedPlans++
+                  totalEnrolled += p.enrolled
+                }
+              } catch { /* plan API may not exist for all vendors */ }
+            }),
+          )
+          vendorStats[vendor] = {
+            total: certs.length,
+            active: certs.filter(c => c.is_active).length,
+            publishedPlans,
+            totalEnrolled,
+          }
+        }),
       )
+      setStats(vendorStats)
     } finally {
       setLoading(false)
     }
@@ -70,6 +100,11 @@ export default function CertificationOverview() {
     loadData()
   }
 
+  const getVendorRoute = (vendor: string) => {
+    const lower = vendor.toLowerCase()
+    return VENDOR_ROUTE_MAP[lower] || VENDOR_ROUTE_MAP[vendor] || null
+  }
+
   return (
     <PageContainer
       title='认证管理'
@@ -82,24 +117,35 @@ export default function CertificationOverview() {
         <Row gutter={[24, 24]}>
           {vendors.map(({ vendor, certifications }) => {
             const s = stats[vendor]
+            const route = getVendorRoute(vendor)
+            const emoji = VENDOR_EMOJI[vendor.toLowerCase()] || VENDOR_EMOJI[vendor] || vendor[0]
             return (
               <Col xs={24} lg={12} xl={8} key={vendor} style={{ marginBottom: 24 }}>
-                <Card hoverable actions={[
-                  <Button key='enter' type='link' icon={<RightOutlined />} onClick={() => navigate('h3c')}>进入管理</Button>,
-                ]}>
-                 <Card.Meta
-                   avatar={<div style={{ fontSize: 28, backgroundColor: '#f5f5f5', width: 48, height: 48, lineHeight: '48px', textAlign: 'center', borderRadius: 8 }}>{vendor[0]}</div>}
+                <Card
+                  hoverable
+                  actions={route ? [
+                    <Button key='enter' type='link' icon={<RightOutlined />} onClick={() => navigate(route)}>进入管理</Button>,
+                  ] : undefined}
+                >
+                  <Card.Meta
+                    avatar={<div style={{ fontSize: 24, backgroundColor: '#f0f5ff', width: 48, height: 48, lineHeight: '48px', textAlign: 'center', borderRadius: 10, color: '#1677ff', fontWeight: 700 }}>{emoji}</div>}
                     title={
                       <Space><Text strong style={{ fontSize: 16 }}>{vendor}</Text><Tag color={s?.active ? 'green' : 'default'}>{s?.active ?? 0} 启用 / {s?.total ?? 0}</Tag></Space>
                     }
                     description={
-                      <Space direction='vertical' size={4} style={{ width: '100%' }}>
+                      <Space direction='vertical' size={8} style={{ width: '100%' }}>
+                        {s && (s.publishedPlans > 0 || s.totalEnrolled > 0) && (
+                          <Row gutter={16}>
+                            <Col span={12}><Statistic title='进行中批次' value={s.publishedPlans} valueStyle={{ fontSize: 20 }} /></Col>
+                            <Col span={12}><Statistic title='总报名人次' value={s.totalEnrolled} valueStyle={{ fontSize: 20 }} /></Col>
+                          </Row>
+                        )}
                         {certifications.map((c) => (
-                          <Row key={c.id} justify='space-between' align='middle' style={{ fontSize: 13 }}>
+                          <Row key={c.id} justify='space-between' align='middle' style={{ fontSize: 13, cursor: 'pointer' }} onClick={() => navigate(c.code)}>
                             <Col><Text type='secondary'>{c.code}</Text></Col>
                             <Col><Space size='small'><Text>{formatPrice(c.normal_price)}</Text><Text type='secondary'>/</Text><Text>{formatPrice(c.student_price)}</Text></Space></Col>
                             <Col><Tag color={c.is_active ? 'success' : 'default'}>{c.is_active ? '启用' : '禁用'}</Tag></Col>
-                            {canWrite && <Col><Button type='link' size='small' onClick={() => handleEdit(c)}>编辑</Button></Col>}
+                            {canWrite && <Col><Button type='link' size='small' onClick={(e) => { e.stopPropagation(); handleEdit(c) }}>编辑</Button></Col>}
                           </Row>
                         ))}
                       </Space>
@@ -118,7 +164,7 @@ export default function CertificationOverview() {
             <Input placeholder='如： H3CNE-2026' />
           </Form.Item>
           <Form.Item name='vendor' label='厂商' rules={[{ required: true, message: '请输入厂商' }]}>
-            <Input placeholder='如： H3C、深信服' />
+            <Input placeholder='如： H3C、人社' />
           </Form.Item>
           <Text type='secondary' style={{ fontSize: 13, fontWeight: 600, letterSpacing: 0.5 }}>定价</Text>
           <div style={{ height: 1, background: '#f0f0f0', margin: '8px 0 20px' }} />
