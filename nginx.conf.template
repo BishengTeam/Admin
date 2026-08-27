@@ -8,6 +8,10 @@ server {
     listen 80;
     server_name _;
 
+    # The generic admin image uploader accepts files up to 5 MiB. Course assets
+    # have a dedicated 200 MiB limit and override this value below.
+    client_max_body_size 10m;
+
     root /usr/share/nginx/html;
     index index.html;
 
@@ -17,7 +21,7 @@ server {
     gzip_min_length 256;
 
     # ── 安全响应头 ──
-    add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; media-src 'self' blob: https:; connect-src 'self' https://materials-20260817.oss-cn-chengdu.aliyuncs.com; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'" always;
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; connect-src 'self' https://materials-20260817.oss-cn-chengdu.aliyuncs.com; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'" always;
     add_header X-Content-Type-Options "nosniff" always;
     add_header X-Frame-Options "DENY" always;
     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
@@ -30,7 +34,7 @@ server {
         add_header Cache-Control "no-cache" always;
         add_header Pragma "no-cache" always;
         # 安全头在子 block 中需显式保留
-        add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; media-src 'self' blob: https:; connect-src 'self' https://materials-20260817.oss-cn-chengdu.aliyuncs.com; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'" always;
+        add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; connect-src 'self' https://materials-20260817.oss-cn-chengdu.aliyuncs.com; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'" always;
         add_header X-Content-Type-Options "nosniff" always;
         add_header X-Frame-Options "DENY" always;
         add_header Referrer-Policy "strict-origin-when-cross-origin" always;
@@ -40,7 +44,7 @@ server {
     location /assets/ {
         expires 1y;
         add_header Cache-Control "public, immutable" always;
-        add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; media-src 'self' blob: https:; connect-src 'self' https://materials-20260817.oss-cn-chengdu.aliyuncs.com; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'" always;
+        add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; connect-src 'self' https://materials-20260817.oss-cn-chengdu.aliyuncs.com; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'" always;
         add_header X-Content-Type-Options "nosniff" always;
         add_header Referrer-Policy "strict-origin-when-cross-origin" always;
     }
@@ -62,6 +66,18 @@ server {
     # 发送 Accept: text/html，因此必须在通用 /admin/ SPA 判定之前强制
     # 代理，否则错误报告会被误写成 index.html 并跳到登录页。
     location ~ ^/admin/quiz/imports/[0-9]+/(report|source)$ {
+        proxy_pass http://${BACKEND_HOST}:${BACKEND_PORT};
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # Course teaching videos are materially larger than cover images. Keep this
+    # regex before the generic /admin/ proxy so only this endpoint gets the
+    # higher body limit.
+    location ~ ^/admin/courses/[0-9]+/assets$ {
+        client_max_body_size 210m;
         proxy_pass http://${BACKEND_HOST}:${BACKEND_PORT};
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;

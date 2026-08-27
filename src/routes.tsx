@@ -207,8 +207,15 @@ export const adminRoutes: AppRoute[] = [
   },
   {
     path: 'certification',
-    element: <CertificationManagement />,
     meta: { title: '认证管理', icon: 'SafetyCertificateOutlined', permission: 'content:list' },
+    children: [
+      { index: true, element: <CertificationManagement /> },
+      {
+        path: 'h3c',
+        element: <H3CManagement />,
+        meta: { title: 'H3C 认证', permission: 'h3c:review' },
+      },
+    ],
   },
   {
     path: 'job',
@@ -229,11 +236,6 @@ export const adminRoutes: AppRoute[] = [
     path: 'banner',
     element: <BannerManagement />,
     meta: { title: 'Banner 管理', icon: 'PictureOutlined', permission: 'content:write' },
-  },
-  {
-    path: 'h3c',
-    element: <H3CManagement />,
-    meta: { title: 'H3C 认证', icon: 'SafetyCertificateOutlined', permission: 'h3c:review' },
   },
   {
     path: 'settings',

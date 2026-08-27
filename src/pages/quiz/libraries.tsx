@@ -18,10 +18,12 @@ import {
 } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { useNavigate } from 'react-router-dom'
-import { BookOutlined, LinkOutlined, PlusOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons'
+import { BookOutlined, LinkOutlined, PlusOutlined, ReloadOutlined, SearchOutlined, SwapOutlined } from '@ant-design/icons'
 import { PageContainer } from '@/components/PageContainer'
 import { quizService } from '@/services/quiz'
 import { usePermission } from '@/hooks/usePermission'
+import { useAuthStore } from '@/stores/authStore'
+import { useReauthentication } from '@/hooks/useReauthentication'
 import type {
   QuizCourseBinding,
   QuizCourseOption,
@@ -79,6 +81,17 @@ function errorText(error: unknown) {
   return error instanceof Error ? error.message : '请求失败'
 }
 
+const ALLOWED_TRANSITIONS: Record<QuizLibraryAccessMode, QuizLibraryAccessMode[]> = {
+  access_mode_pending: ['free', 'course_entitlement'],
+  free: ['course_entitlement'],
+  course_entitlement: ['free'],
+}
+
+function convertWarning(_current: QuizLibraryAccessMode, target: QuizLibraryAccessMode): string {
+  if (target === 'course_entitlement') return '切换后只有通过课程购买获得权益的用户可以练习该题库。免费用户将无法继续使用，请确保已配置有效的课程绑定。'
+  return '切换后所有用户均可练习该题库。已有的课程权益记录不会删除，但权益不再是访问前提。'
+}
+
 function publicationBlockers(library: QuizLibrary) {
   const blockers: string[] = []
   if (!library.cover_url) blockers.push('缺少封面')
@@ -131,6 +144,11 @@ export default function QuizLibraries() {
   const navigate = useNavigate()
   const canManage = usePermission('quiz_library_manage')
   const canBind = usePermission('course_quiz_bind')
+  const isSuperAdmin = useAuthStore((s) => s.admin?.role === 'super_admin')
+  const { ensureReauthenticated, reauthDialog } = useReauthentication()
+  const [convertTarget, setConvertTarget] = useState<QuizLibrary | null>(null)
+  const [convertMode, setConvertMode] = useState<QuizLibraryAccessMode | undefined>(undefined)
+  const [converting, setConverting] = useState(false)
   const [libraries, setLibraries] = useState<QuizLibrary[]>([])
   const [loading, setLoading] = useState(false)
   const [filter, setFilter] = useState<QuizLibraryFilter>({ include_deleted: false })
@@ -344,10 +362,37 @@ export default function QuizLibraries() {
     }
   }
 
+  const openConvertModal = (library: QuizLibrary) => {
+    const targets = ALLOWED_TRANSITIONS[library.access_mode]
+    if (!targets?.length) { message.warning('当前模式没有可转换的目标'); return }
+    setConvertTarget(library)
+    setConvertMode(undefined)
+  }
+
+  const doConvert = async () => {
+    if (!convertTarget || !convertMode) return
+    setConverting(true)
+    try {
+      const token = await ensureReauthenticated()
+      if (!token) { setConverting(false); return }
+      const result = await quizService.convertAccessMode(convertTarget.id, convertTarget.lock_version, convertMode, token)
+      message.success(`访问模式已转换为「${accessLabels[result.library.access_mode]}」${result.sessions_affected ? `，${result.sessions_affected} 个进行中的练习会话已同步` : ''}`)
+      setConvertTarget(null)
+      setConvertMode(undefined)
+      await load(filter)
+    } catch (error) {
+      if (isConflictError(error)) { await load(filter); message.warning('题库版本已变化，列表已刷新') }
+      else message.error(errorText(error))
+    } finally {
+      setConverting(false)
+    }
+  }
+
   const actions = (library: QuizLibrary) => {
     const buttons = []
     if (canManage && !['archived', 'deleted'].includes(library.status)) buttons.push(<Button key="edit" type="link" size="small" onClick={() => openEdit(library)}>编辑</Button>)
     if (library.access_mode === 'course_entitlement') buttons.push(<Button key="binding" type="link" size="small" icon={<LinkOutlined />} onClick={() => void openBindings(library)}>课程绑定</Button>)
+    if (isSuperAdmin && ALLOWED_TRANSITIONS[library.access_mode]?.length) buttons.push(<Button key="convert" type="link" size="small" icon={<SwapOutlined />} onClick={() => openConvertModal(library)}>转换模式</Button>)
     if (canManage && library.status === 'draft') buttons.push(<Button key="publish" type="link" size="small" onClick={() => transition(library, 'publish')}>发布</Button>)
     if (canManage && library.status === 'published') buttons.push(<Button key="suspend" type="link" size="small" danger onClick={() => transition(library, 'suspend')}>停用</Button>)
     if (canManage && library.status === 'suspended') buttons.push(<Button key="restore" type="link" size="small" onClick={() => transition(library, 'restore')}>恢复</Button>)
@@ -466,6 +511,37 @@ export default function QuizLibraries() {
           <Descriptions.Item label="V2 用户入口">{bindingLibrary.v2_enabled ? '已开启' : '已关闭'}</Descriptions.Item>
         </Descriptions>}
       </Drawer>
+      {convertTarget && (
+        <Modal
+          title={`转换「${convertTarget.name}」的访问模式`}
+          open
+          okText="确认转换"
+          okButtonProps={{ danger: true, loading: converting }}
+          onCancel={() => { setConvertTarget(null); setConvertMode(undefined) }}
+          onOk={() => void doConvert()}
+          width={560}
+          destroyOnClose
+        >
+          <Space direction="vertical" style={{ width: '100%' }} size="middle">
+            <div>当前模式：<Tag color={convertTarget.access_mode === 'free' ? 'green' : convertTarget.access_mode === 'course_entitlement' ? 'blue' : 'default'}>{accessLabels[convertTarget.access_mode]}</Tag></div>
+            <div>
+              目标模式：
+              <Select
+                style={{ width: 200 }}
+                placeholder="选择目标模式"
+                value={convertMode}
+                onChange={setConvertMode}
+                options={
+                  (ALLOWED_TRANSITIONS[convertTarget.access_mode] ?? [])
+                    .map((mode) => ({ value: mode, label: accessLabels[mode] }))
+                }
+              />
+            </div>
+            {convertMode && <Alert type="warning" showIcon message={convertWarning(convertTarget.access_mode, convertMode)} />}
+          </Space>
+        </Modal>
+      )}
+      {reauthDialog}
     </PageContainer>
   )
 }

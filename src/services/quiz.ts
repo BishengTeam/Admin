@@ -3,6 +3,7 @@ import { http } from '@/core/request'
 import { validateOrThrow, validateRequestOrThrow } from '@/core/validation'
 import {
   AuditLogSchema,
+  QuizAccessModeConvertResponseSchema,
   BatchResponseSchema,
   BatchRequestSchema,
   CategoryImpactQuerySchema,
@@ -53,6 +54,7 @@ import {
 import type { PageData } from '@/types/api'
 import type {
   AuditFilter,
+  QuizAccessModeConvertResponse,
   AuditLog,
   BatchRequest,
   BatchResponse,
@@ -168,6 +170,17 @@ export const quizService = {
 
   async getMigrationReport(signal?: AbortSignal): Promise<QuizMigrationReport> {
     return parsed(QuizMigrationReportSchema, await http.get('/admin/quiz/migration-report', { signal }))
+  },
+
+  async convertAccessMode(libraryId: number, lockVersion: number, targetMode: QuizLibraryAccessMode, reauthToken: string, signal?: AbortSignal): Promise<QuizAccessModeConvertResponse> {
+    return parsed(
+      QuizAccessModeConvertResponseSchema,
+      await http.post(
+        `/admin/quiz/libraries/${libraryId}/convert-access-mode`,
+        { lock_version: lockVersion, target_mode: targetMode },
+        { headers: { 'X-Reauth-Token': reauthToken }, signal },
+      ),
+    )
   },
 
   async createLibrary(data: QuizLibraryCreate, signal?: AbortSignal): Promise<QuizLibrary> {

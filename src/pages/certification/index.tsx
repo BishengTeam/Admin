@@ -1,256 +1,136 @@
-import { useState } from 'react'
-import { Table, Button, Input, Switch, Space, Modal, Form, message, InputNumber } from 'antd'
-import { DownloadOutlined, PlusOutlined, SearchOutlined } from '@ant-design/icons'
-import type { ColumnsType } from 'antd/es/table'
+import { useEffect, useState } from 'react'
+import { Card, Col, Row, Button, Modal, Form, Input, InputNumber, Switch, Space, Spin, Tag, Typography, message } from 'antd'
+import { PlusOutlined, ReloadOutlined, RightOutlined } from '@ant-design/icons'
+import { useNavigate } from 'react-router-dom'
 import { PageContainer } from '@/components/PageContainer'
-import { ConfirmButton } from '@/components/ConfirmButton'
-import { usePagination } from '@/hooks/usePagination'
-import { useExport } from '@/hooks/useExport'
 import { usePermission } from '@/hooks/usePermission'
 import { certificationService } from '@/services/certification'
-import { formatDate, formatPrice } from '@/utils/format'
-import { downloadBlob } from '@/utils/download'
+import { formatPrice } from '@/utils/format'
 import type { Certification, CertificationPayload } from '@/types/certification'
-import CertificationDetailDrawer from './components/CertificationDetailDrawer'
 
-const defaultFormValues: CertificationPayload = {
-  code: '',
-  vendor: '',
-  normal_price: 0,
-  student_price: 0,
-  is_active: true,
-}
+const { Text } = Typography
 
-export default function CertificationManagement() {
-  const [keyword, setKeyword] = useState('')
-  const [searchText, setSearchText] = useState('')
+interface VendorCard { vendor: string; certifications: Certification[] }
+interface VendorStats { total: number; active: number }
+
+const defaultFormValues: CertificationPayload = { code: '', vendor: '', normal_price: 0, student_price: 0, is_active: true }
+
+export default function CertificationOverview() {
+  const navigate = useNavigate()
+  const canWrite = usePermission('content:write')
+  const [vendors, setVendors] = useState<VendorCard[]>([])
+  const [stats, setStats] = useState<Record<string, VendorStats>>({})
+  const [loading, setLoading] = useState(true)
   const [modalOpen, setModalOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<Certification | null>(null)
-  const [detailItem, setDetailItem] = useState<Certification | null>(null)
-  const [detailOpen, setDetailOpen] = useState(false)
-  const [detailTab, setDetailTab] = useState('basic')
   const [form] = Form.useForm<CertificationPayload>()
-  const { exporting, startExport, finishExport } = useExport()
-  const canWrite = usePermission('content:write')
 
-  const { data, loading, pagination, refresh } = usePagination(
-    (page) => certificationService.list({ keyword: searchText || undefined, ...page }),
-    [searchText],
-  )
-
-  const handleAdd = () => {
-    setEditingItem(null)
-    form.resetFields()
-    form.setFieldsValue(defaultFormValues)
-    setModalOpen(true)
+  const loadData = async () => {
+    setLoading(true)
+    try {
+      let page = 1
+      let allItems: Certification[] = []
+      while (true) {
+        const result = await certificationService.list({ page, page_size: 100 })
+        allItems.push(...result.items)
+        if (allItems.length >= result.total) break
+        page += 1
+      }
+      const grouped: Record<string, Certification[]> = {}
+      for (const item of allItems) {
+        const v = item.vendor || '其他'
+        if (!grouped[v]) grouped[v] = []
+        grouped[v].push(item)
+      }
+      const cardList = Object.entries(grouped).map(([vendor, certs]) => ({ vendor, certifications: certs }))
+      setVendors(cardList)
+      setStats(
+        Object.fromEntries(
+          Object.entries(grouped).map(([vendor, certs]) => [
+            vendor,
+            { total: certs.length, active: certs.filter((c) => c.is_active).length },
+          ]),
+        ),
+      )
+    } finally {
+      setLoading(false)
+    }
   }
 
-  const handleEdit = (item: Certification) => {
-    setEditingItem(item)
-    form.setFieldsValue({
-      code: item.code,
-      vendor: item.vendor,
-      normal_price: item.normal_price,
-      student_price: item.student_price,
-      is_active: item.is_active,
-    })
-    setModalOpen(true)
-  }
+  useEffect(() => { loadData() }, [])
 
-  const handleOpenDetail = (item: Certification, tab = 'basic') => {
-    setDetailItem(item)
-    setDetailTab(tab)
-    setDetailOpen(true)
-  }
-
-  const handleDelete = async (id: number) => {
-    await certificationService.delete(id)
-    message.success('下架成功')
-    refresh()
-  }
-
-  const handleToggleStatus = async (id: number, checked: boolean) => {
-    await certificationService.update(id, { is_active: checked })
-    message.success(checked ? '已启用' : '已禁用')
-    refresh()
-  }
+  const handleAdd = () => { setEditingItem(null); form.resetFields(); form.setFieldsValue(defaultFormValues); setModalOpen(true) }
+  const handleEdit = (item: Certification) => { setEditingItem(item); form.setFieldsValue({ code: item.code, vendor: item.vendor, normal_price: item.normal_price, student_price: item.student_price, is_active: item.is_active }); setModalOpen(true) }
 
   const handleModalOk = async () => {
     const values = await form.validateFields()
-    if (editingItem) {
-      await certificationService.update(editingItem.id, values)
-      message.success('更新成功')
-    } else {
-      await certificationService.create(values)
-      message.success('创建成功')
-    }
+    if (editingItem) { await certificationService.update(editingItem.id, values); message.success('更新成功') }
+    else { await certificationService.create(values); message.success('创建成功') }
     setModalOpen(false)
-    refresh()
+    loadData()
   }
-
-  const handleExport = async () => {
-    startExport()
-    try {
-      const blob = await certificationService.export({ keyword: searchText || undefined })
-      downloadBlob(blob, `认证数据_${new Date().toISOString().slice(0, 10)}.xlsx`)
-      message.success('导出成功')
-    } finally {
-      finishExport()
-    }
-  }
-
-  const columns: ColumnsType<Certification> = [
-    { title: '认证代码', dataIndex: 'code', width: 140, ellipsis: true },
-    { title: '厂商', dataIndex: 'vendor', width: 100 },
-    {
-      title: '普通价格',
-      dataIndex: 'normal_price',
-      width: 120,
-      render: (price: number) => formatPrice(price),
-    },
-    {
-      title: '学生价格',
-      dataIndex: 'student_price',
-      width: 120,
-      render: (price: number) => formatPrice(price),
-    },
-    {
-      title: '上架状态',
-      dataIndex: 'is_active',
-      width: 100,
-      render: (is_active: boolean, record) => (
-        <Switch
-          checked={is_active}
-          disabled={!canWrite || record.code === 'RS-ZY'}
-          onChange={(checked) => handleToggleStatus(record.id, checked)}
-          checkedChildren="启用"
-          unCheckedChildren="禁用"
-        />
-      ),
-    },
-    {
-      title: '创建时间',
-      dataIndex: 'created_at',
-      width: 170,
-      render: (t: string) => formatDate(t),
-    },
-    {
-      title: '更新时间',
-      dataIndex: 'updated_at',
-      width: 170,
-      render: (t: string) => formatDate(t),
-    },
-    {
-      title: '操作',
-      width: 220,
-      render: (_, record) => (
-        <Space>
-          <Button type="link" size="small" onClick={() => handleOpenDetail(record)}>
-            详情
-          </Button>
-          <Button type="link" size="small" onClick={() => handleOpenDetail(record, 'plans')}>
-            批次
-          </Button>
-          {canWrite && record.code !== 'RS-ZY' && (
-            <>
-              <Button type="link" size="small" onClick={() => handleEdit(record)}>编辑</Button>
-              <ConfirmButton
-                title="下架认证"
-                description="确认下架此认证？下架后不能再创建订单。"
-                danger
-                type="link"
-                size="small"
-                onConfirm={() => handleDelete(record.id)}
-              >
-                下架
-              </ConfirmButton>
-            </>
-          )}
-        </Space>
-      ),
-    },
-  ]
 
   return (
     <PageContainer
-      title="认证管理"
+      title='认证管理'
       extra={[
-        <Button key="export" icon={<DownloadOutlined />} loading={exporting} onClick={handleExport}>
-            导出
-        </Button>,
-        canWrite ? <Button key="create" type="primary" icon={<PlusOutlined />} onClick={handleAdd}>新增认证</Button> : null,
+        <Button key='refresh' icon={<ReloadOutlined />} onClick={loadData}>刷新</Button>,
+        canWrite ? <Button key='create' type='primary' icon={<PlusOutlined />} onClick={handleAdd}>新增认证</Button> : null,
       ]}
     >
-      <Space style={{ marginBottom: 16 }}>
-        <Input
-          placeholder="搜索认证代码/厂商..."
-          prefix={<SearchOutlined />}
-          value={keyword}
-          onChange={(e) => setKeyword(e.target.value)}
-          style={{ width: 240 }}
-          onPressEnter={() => setSearchText(keyword)}
-          allowClear
-        />
-        <Button type="primary" onClick={() => setSearchText(keyword)}>查询</Button>
-        <Button onClick={() => { setKeyword(''); setSearchText(''); }}>重置</Button>
-      </Space>
-
-      <Table
-        rowKey="id"
-        columns={columns}
-        dataSource={data?.items}
-        loading={loading}
-        pagination={pagination}
-      />
-
-      <Modal
-        title={editingItem ? '编辑认证' : '新增认证'}
-        open={modalOpen}
-        onOk={handleModalOk}
-        onCancel={() => setModalOpen(false)}
-        destroyOnClose
-      >
-        <Form form={form} layout="vertical" initialValues={defaultFormValues}>
-          <Form.Item
-            name="code"
-            label="认证代码"
-            rules={[
-              { required: true, message: '请输入认证代码' },
-              { whitespace: true, message: '认证代码不能只包含空格' },
-            ]}
-          >
-            <Input placeholder="如：H3C-NE" />
+      <Spin spinning={loading}>
+        <Row gutter={[24, 24]}>
+          {vendors.map(({ vendor, certifications }) => {
+            const s = stats[vendor]
+            return (
+              <Col xs={24} lg={12} xl={8} key={vendor} style={{ marginBottom: 24 }}>
+                <Card hoverable actions={[
+                  <Button key='enter' type='link' icon={<RightOutlined />} onClick={() => navigate('h3c')}>进入管理</Button>,
+                ]}>
+                  <Card.Meta
+                    avatar={{ style: { fontSize: 28, backgroundColor: '#f5f5f5', width: 48, height: 48, lineHeight: '48px', textAlign: 'center', borderRadius: 8 }, children: vendor[0] }}
+                    title={
+                      <Space><Text strong style={{ fontSize: 16 }}>{vendor}</Text><Tag color={s?.active ? 'green' : 'default'}>{s?.active ?? 0} 启用 / {s?.total ?? 0}</Tag></Space>
+                    }
+                    description={
+                      <Space direction='vertical' size={4} style={{ width: '100%' }}>
+                        {certifications.map((c) => (
+                          <Row key={c.id} justify='space-between' align='middle' style={{ fontSize: 13 }}>
+                            <Col><Text type='secondary'>{c.code}</Text></Col>
+                            <Col><Space size='small'><Text>{formatPrice(c.normal_price)}</Text><Text type='secondary'>/</Text><Text>{formatPrice(c.student_price)}</Text></Space></Col>
+                            <Col><Tag color={c.is_active ? 'success' : 'default'}>{c.is_active ? '启用' : '禁用'}</Tag></Col>
+                            {canWrite && <Col><Button type='link' size='small' onClick={() => handleEdit(c)}>编辑</Button></Col>}
+                          </Row>
+                        ))}
+                      </Space>
+                    } />
+                </Card>
+              </Col>
+            )
+          })}
+        </Row>
+      </Spin>
+      <Modal title={editingItem ? '编辑认证' : '新增认证'} open={modalOpen} onOk={handleModalOk} onCancel={() => setModalOpen(false)} destroyOnClose>
+        <Form form={form} layout='vertical' initialValues={defaultFormValues} style={{ marginTop: 16 }}>
+          <Text type='secondary' style={{ fontSize: 13, fontWeight: 600, letterSpacing: 0.5 }}>认证标识</Text>
+          <div style={{ height: 1, background: '#f0f0f0', margin: '8px 0 20px' }} />
+          <Form.Item name='code' label='认证代码' rules={[{ required: true, message: '请输入认证代码' }, { whitespace: true, message: '认证代码不能只含空格' }]}>
+            <Input placeholder='如： H3CNE-2026' />
           </Form.Item>
-          <Form.Item name="vendor" label="厂商" rules={[{ required: true, message: '请输入厂商' }]}>
-            <Input placeholder="如：H3C" />
+          <Form.Item name='vendor' label='厂商' rules={[{ required: true, message: '请输入厂商' }]}>
+            <Input placeholder='如： H3C、深信服' />
           </Form.Item>
-          <Form.Item
-            name="normal_price"
-            label="普通价格"
-            rules={[{ required: true, message: '请输入普通价格' }]}
-          >
-            <InputNumber min={0} precision={0} addonAfter="分" style={{ width: '100%' }} />
-          </Form.Item>
-          <Form.Item
-            name="student_price"
-            label="学生价格"
-            rules={[{ required: true, message: '请输入学生价格' }]}
-          >
-            <InputNumber min={0} precision={0} addonAfter="分" style={{ width: '100%' }} />
-          </Form.Item>
-          <Form.Item name="is_active" label="上架状态" valuePropName="checked">
-            <Switch checkedChildren="上架" unCheckedChildren="下架" />
-          </Form.Item>
+          <Text type='secondary' style={{ fontSize: 13, fontWeight: 600, letterSpacing: 0.5 }}>定价</Text>
+          <div style={{ height: 1, background: '#f0f0f0', margin: '8px 0 20px' }} />
+          <Row gutter={16}>
+            <Col span={12}><Form.Item name='normal_price' label='普通价格' rules={[{ required: true, message: '请输入普通价格' }]}><InputNumber min={0} precision={0} addonAfter='分' style={{ width: '100%' }} /></Form.Item></Col>
+            <Col span={12}><Form.Item name='student_price' label='学生价格' rules={[{ required: true, message: '请输入学生价格' }]}><InputNumber min={0} precision={0} addonAfter='分' style={{ width: '100%' }} /></Form.Item></Col>
+          </Row>
+          <Text type='secondary' style={{ fontSize: 13, fontWeight: 600, letterSpacing: 0.5 }}>状态</Text>
+          <div style={{ height: 1, background: '#f0f0f0', margin: '8px 0 20px' }} />
+          <Form.Item name='is_active' label='上架状态' valuePropName='checked'><Switch checkedChildren='上架' unCheckedChildren='下架' /></Form.Item>
         </Form>
       </Modal>
-
-      <CertificationDetailDrawer
-        open={detailOpen}
-        certification={detailItem}
-        activeKey={detailTab}
-        onTabChange={setDetailTab}
-        onClose={() => setDetailOpen(false)}
-      />
     </PageContainer>
   )
 }

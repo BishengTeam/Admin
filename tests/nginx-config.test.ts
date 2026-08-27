@@ -23,14 +23,34 @@ describe('Admin nginx probes', () => {
     expect(config.indexOf('location ~ ^/admin/quiz/imports/')).toBeLessThan(config.indexOf('location /admin/'))
   })
 
-  it('allows course blob previews and direct uploads to the configured OSS bucket', () => {
+  it('allows cover images larger than the Nginx one-megabyte default', () => {
+    const config = readFileSync(resolve(process.cwd(), 'nginx.conf.template'), 'utf8')
+    expect(config).toContain('client_max_body_size 10m;')
+  })
+
+  it('allows local blob previews used by the cover cropper', () => {
+    const config = readFileSync(resolve(process.cwd(), 'nginx.conf.template'), 'utf8')
+    expect(config).toContain("img-src 'self' data: blob: https:")
+    expect(config).not.toContain("img-src 'self' data: https:")
+
+    const viteConfig = readFileSync(resolve(process.cwd(), 'vite.config.ts'), 'utf8')
+    expect(viteConfig).toContain("img-src 'self' data: blob: https:")
+    expect(viteConfig).not.toContain("img-src 'self' data: https:")
+  })
+
+  it('allows direct uploads only to the configured private OSS bucket', () => {
     const ossOrigin = 'https://materials-20260817.oss-cn-chengdu.aliyuncs.com'
     for (const file of ['nginx.conf.template', 'nginx.conf', 'vite.config.ts']) {
       const source = readFileSync(resolve(process.cwd(), file), 'utf8')
-      expect(source).toContain("img-src 'self' data: blob: https:")
-      expect(source).toContain("media-src 'self' blob: https:")
       expect(source).toContain(`connect-src 'self' ${ossOrigin}`)
-      expect(source).not.toContain("img-src 'self' data: https:")
     }
+  })
+
+  it('gives course assets a higher upload limit before the generic admin proxy', () => {
+    const config = readFileSync(resolve(process.cwd(), 'nginx.conf.template'), 'utf8')
+    const courseAssets = config.match(/location\s+~\s+\^\/admin\/courses\/\[0-9\]\+\/assets\$\s*\{([\s\S]*?)\n\s*\}/)
+    expect(courseAssets).not.toBeNull()
+    expect(courseAssets?.[1]).toContain('client_max_body_size 210m;')
+    expect(config.indexOf('location ~ ^/admin/courses/')).toBeLessThan(config.indexOf('location /admin/'))
   })
 })

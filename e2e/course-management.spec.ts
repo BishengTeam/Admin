@@ -77,6 +77,28 @@ const binding = {
   updated_at: now,
 }
 
+const asset = {
+  id: 61,
+  course_id: course.id,
+  title: 'lesson.mp4',
+  storage_key: `${course.id}/lesson.mp4`,
+  asset_type: 'video/mp4',
+  sort_order: 1,
+  is_preview: false,
+  created_at: now,
+}
+
+const chapter = {
+  id: 71,
+  title: '第一节',
+  video_url: null,
+  video_source_type: 'course_asset',
+  asset_id: asset.id,
+  duration: 120,
+  sort_order: 1,
+  is_preview: false,
+}
+
 const job = {
   id: 41,
   course_id: course.id,
@@ -175,7 +197,11 @@ test.describe('课程管理', () => {
 
   test('超级管理员完成课程题库绑定影响预览和回补确认', async ({ page }) => {
     await authenticate(page)
-    let createBody: unknown
+    let coverBody: unknown
+    let bindingBody: unknown
+    let assetUploadBody: string | undefined
+    let assetItems: unknown[] = []
+    let chapterBody: unknown
 
     await page.route(/\/admin\/courses(?:\?.*)?$/, async route => {
       const method = route.request().method()
@@ -187,12 +213,27 @@ test.describe('课程管理', () => {
         await json(route, { items: [course], total: 1, page: 1, page_size: 20 })
         return
       }
-      createBody = route.request().postDataJSON()
-      await json(route, job)
+      coverBody = route.request().postDataJSON()
+      await json(route, course)
     })
     await page.route('**/admin/courses/categories', route => json(route, [category]))
-    await page.route('**/admin/courses/12/chapters**', route => json(route, { items: [], total: 0, page: 1, page_size: 100 }))
-    await page.route('**/admin/courses/12/assets', route => json(route, []))
+    await page.route('**/admin/courses/12/chapters**', async route => {
+      if (route.request().method() === 'POST') {
+        chapterBody = route.request().postDataJSON()
+        await json(route, chapter)
+        return
+      }
+      await json(route, { items: [], total: 0, page: 1, page_size: 100 })
+    })
+    await page.route('**/admin/courses/12/assets', async route => {
+      if (route.request().method() === 'POST') {
+        assetUploadBody = (route.request().postData() ?? Buffer.alloc(0)).toString('utf8')
+        assetItems = [asset]
+        await json(route, asset)
+        return
+      }
+      await json(route, assetItems)
+    })
     await page.route('**/admin/courses/12/quiz-bindings**', async route => {
       if (route.request().method() === 'GET' && new URL(route.request().url()).searchParams.has('library_id')) {
         await json(route, {
@@ -211,7 +252,7 @@ test.describe('课程管理', () => {
         return
       }
       if (route.request().method() === 'POST') {
-        createBody = route.request().postDataJSON()
+        bindingBody = route.request().postDataJSON()
         await json(route, job)
         return
       }
@@ -221,11 +262,78 @@ test.describe('课程管理', () => {
     await page.route('**/admin/quiz/libraries**', route => json(route, [library]))
     await page.route('**/admin/courses/audit-logs**', route => json(route, { items: [], total: 0, page: 1, page_size: 20 }))
     await page.route('**/admin/courses/enrollments**', route => json(route, { items: [], total: 0, page: 1, page_size: 20 }))
+    await page.route('**/admin/upload', async route => {
+      const formData = route.request().postData()
+      expect(formData).toContain('course-cover.png')
+      await json(route, { url: '/api/media/course-cover.png' })
+    })
 
     await page.goto('/admin/courses')
     await expect(page.getByRole('heading', { name: '课程管理' })).toBeVisible()
     await expect(page.getByRole('row', { name: /网络工程师在线课/ })).toBeVisible()
+
+    await page.getByRole('button', { name: '创建课程' }).click()
+    const createDialog = page.getByRole('dialog', { name: '创建课程' })
+    await createDialog.getByLabel('课程标题').fill('新在线课程')
+    await createDialog.getByLabel('价格（分）').fill('0')
+    await createDialog.locator('.ant-select').click()
+    await page.locator('.ant-select-dropdown .ant-select-item-option')
+      .filter({ hasText: category.name })
+      .click()
+    const coverFileChooser = page.waitForEvent('filechooser')
+    await createDialog.locator('.ant-upload.ant-upload-select').click()
+    const coverChooser = await coverFileChooser
+    await coverChooser.setFiles({
+      name: 'course-cover.png',
+      mimeType: 'image/png',
+      buffer: Buffer.from('fake-png'),
+    })
+    await expect(createDialog.locator('img[src="/api/media/course-cover.png"]')).toBeVisible()
+    await createDialog.getByRole('button', { name: '保 存' }).click()
+    await expect(page.getByText('课程已创建')).toBeVisible()
+    expect(coverBody).toEqual({
+      title: '新在线课程',
+      category: category.name,
+      cover_url: '/api/media/course-cover.png',
+      price: 0,
+    })
+
     await page.getByRole('button', { name: /^管理/ }).click()
+    await page.getByRole('tab', { name: '资料管理' }).click()
+    await page.locator('.ant-drawer-body input[type="file"]').setInputFiles({
+      name: 'lesson.mp4',
+      mimeType: 'video/mp4',
+      buffer: Buffer.from('\x00\x00\x00\x20ftypisom'),
+    })
+    await expect(page.getByText('课程资料已上传')).toBeVisible()
+    await expect(page.getByRole('row', { name: /lesson\.mp4/ })).toBeVisible()
+    expect(assetUploadBody).toContain('lesson.mp4')
+    expect(assetUploadBody).toContain('video/mp4')
+    expect(assetUploadBody).toContain('is_preview')
+
+    await page.getByRole('tab', { name: '章节管理' }).click()
+    await page.getByRole('button', { name: '新增章节' }).click()
+    const chapterDialog = page.getByRole('dialog', { name: '新增章节' })
+    await chapterDialog.getByLabel('章节标题').fill('第一节')
+    await chapterDialog.locator('.ant-select').first().click()
+    await page.locator('.ant-select-dropdown .ant-select-item-option')
+      .filter({ hasText: '课程私有资料' })
+      .click()
+    await chapterDialog.locator('.ant-select').last().click()
+    await page.locator('.ant-select-dropdown .ant-select-item-option')
+      .filter({ hasText: `lesson.mp4 (#${asset.id})` })
+      .click()
+    await chapterDialog.getByLabel('时长（秒）').fill('120')
+    await chapterDialog.getByRole('button', { name: '保 存' }).click()
+    await expect(page.getByText('章节已创建')).toBeVisible()
+    expect(chapterBody).toEqual({
+      title: '第一节',
+      video_source_type: 'course_asset',
+      asset_id: asset.id,
+      duration: 120,
+      is_preview: false,
+    })
+
     await page.getByRole('tab', { name: '赠送题库' }).click()
     await page.locator('.ant-drawer-body .ant-select').first().click()
     await page
@@ -237,7 +345,7 @@ test.describe('课程管理', () => {
     await page.getByRole('button', { name: /确认绑定/ }).click()
     await page.getByRole('button', { name: /确\s*定/ }).click()
     await expect(page.getByText('绑定已创建，回补任务已排队')).toBeVisible()
-    expect(createBody).toEqual({
+    expect(bindingBody).toEqual({
       library_id: library.id,
       backfill_confirmations: ['impact_confirmed'],
     })

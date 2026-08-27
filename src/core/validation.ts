@@ -256,6 +256,11 @@ export const QuizLibrarySchema = z.object({
   updated_at: dateString,
 }).strict()
 
+export const QuizAccessModeConvertResponseSchema = z.object({
+  library: QuizLibrarySchema,
+  sessions_affected: z.number().int().min(0),
+}).strict()
+
 export const QuizMigrationIssueSchema = z.object({
   id: positiveInt,
   library_id: positiveInt,

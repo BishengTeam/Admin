@@ -77,6 +77,11 @@ export interface QuizMigrationReport {
   issues: QuizMigrationIssue[]
 }
 
+export interface QuizAccessModeConvertResponse {
+  library: QuizLibrary
+  sessions_affected: number
+}
+
 export interface QuizLibraryCreate {
   name: string
   description?: string | null
