@@ -25,10 +25,6 @@ const LoginPage = lazy(() => import('@/pages/login'))
 const Dashboard = lazy(() => import('@/pages/dashboard'))
 const UserList = lazy(() => import('@/pages/users'))
 const OrderList = lazy(() => import('@/pages/orders'))
-const RensheBatches = lazy(() => import('@/pages/renshe/batches'))
-const RensheApplications = lazy(() => import('@/pages/renshe/applications'))
-const RensheExports = lazy(() => import('@/pages/renshe/exports'))
-const RensheRefunds = lazy(() => import('@/pages/renshe/refunds'))
 const QuizManagement = lazy(() => import('@/pages/quiz'))
 const QuizLibraries = lazy(() => import('@/pages/quiz/libraries'))
 const QuizV2Workbench = lazy(() => import('@/pages/quiz/v2-workbench'))
@@ -43,8 +39,8 @@ const CourseCategories = lazy(() => import('@/pages/courses/Categories'))
 const CourseDetail = lazy(() => import('@/pages/courses/Detail'))
 const CourseStudents = lazy(() => import('@/pages/courses/Students'))
 const CourseAudit = lazy(() => import('@/pages/courses/Audit'))
-const CertificationManagement = lazy(() => import('@/pages/certification'))
-const CertificationDetail = lazy(() => import('@/pages/certification/Detail'))
+const CertificationOverview = lazy(() => import('@/pages/certification'))
+const TypeWorkbench = lazy(() => import('@/pages/certification/TypeWorkbench'))
 const JobManagement = lazy(() => import('@/pages/job'))
 const TrainingManagement = lazy(() => import('@/pages/training'))
 const ActivityManagement = lazy(() => import('@/pages/activity'))
@@ -54,7 +50,6 @@ const ChangePassword = lazy(() => import('@/pages/change-password'))
 const AdminAccounts = lazy(() => import('@/pages/settings/admins'))
 const SecurityAudit = lazy(() => import('@/pages/settings/security-audit'))
 const SystemUpdates = lazy(() => import('@/pages/settings/updates'))
-const H3CManagement = lazy(() => import('@/pages/h3c'))
 
 import AuthGuard from '@/components/AuthGuard'
 import LoginLayout from '@/layouts/LoginLayout'
@@ -183,46 +178,10 @@ export const adminRoutes: AppRoute[] = [
     path: 'certification',
     meta: { title: '认证管理', icon: 'SafetyCertificateOutlined', permission: 'content:list' },
     children: [
-      { index: true, element: <CertificationManagement /> },
-     {
-       path: 'h3c',
-       element: <H3CManagement />,
-       meta: { title: 'H3C 认证', permission: 'h3c:review' },
-     },
-      {
-        path: 'renshe',
-        meta: { title: '人社认证' },
-        children: [
-          { index: true, element: <Navigate to="batches" replace /> },
-          {
-            path: 'batches',
-            element: <RensheBatches />,
-            meta: { title: '批次管理', icon: 'ClusterOutlined', permission: 'user:list' },
-          },
-          {
-            path: 'applications',
-            element: <RensheApplications />,
-            meta: { title: '报名审核', icon: 'FormOutlined', permission: 'user:list' },
-          },
-          {
-            path: 'exports',
-            element: <RensheExports />,
-            meta: { title: '导出中心', icon: 'FileZipOutlined', permission: 'user:list' },
-          },
-          {
-            path: 'refunds',
-            element: <RensheRefunds />,
-            meta: { title: '退款工作台', icon: 'RollbackOutlined', permission: 'order:list' },
-          },
-       ],
-     },
-      {
-        path: ':code',
-        element: <CertificationDetail />,
-        meta: { title: '认证详情', hidden: true },
-      },
-   ],
- },
+      { index: true, element: <CertificationOverview /> },
+      { path: ':type', element: <TypeWorkbench /> },
+    ],
+  },
   {
     path: 'job',
     element: <JobManagement />,

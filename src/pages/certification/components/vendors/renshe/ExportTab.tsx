@@ -13,17 +13,20 @@ import {
 } from 'antd'
 import { DownloadOutlined, EyeOutlined, PlusOutlined, ReloadOutlined, RetweetOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
-import { useSearchParams } from 'react-router-dom'
-import { PageContainer } from '@/components/PageContainer'
 import { usePermission } from '@/hooks/usePermission'
 import { certificationService } from '@/services/certification'
 import { rensheService } from '@/services/renshe'
 import type { CertificationPlan } from '@/types/certification'
 import type { RensheCleanupRun, RensheExportJob, RensheExportVolume } from '@/types/renshe'
 import { formatDate } from '@/utils/format'
-import { formatBytes, isPlanExportLocked, RENSHE_PRODUCT_CODE } from '@/utils/renshe'
+import { formatBytes, isPlanExportLocked } from '@/utils/renshe'
+import type { CertType } from '../type-registry'
 
 const { Text } = Typography
+
+interface ExportTabProps {
+  type: CertType
+}
 
 const EXPORT_STATUS_MAP: Record<string, { text: string; color: string }> = {
   queued: { text: '排队中', color: 'default' },
@@ -47,11 +50,9 @@ function downloadSignedUrl(url: string) {
   link.remove()
 }
 
-export default function RensheExportsPage() {
-  const [searchParams] = useSearchParams()
-  const queryPlanId = Number(searchParams.get('plan_id')) || undefined
+export default function ExportTab(_props: ExportTabProps) {
   const [plans, setPlans] = useState<CertificationPlan[]>([])
-  const [selectedPlanId, setSelectedPlanId] = useState<number | undefined>(queryPlanId)
+  const [selectedPlanId, setSelectedPlanId] = useState<number | undefined>(undefined)
   const [jobs, setJobs] = useState<RensheExportJob[]>([])
   const [cleanupRuns, setCleanupRuns] = useState<RensheCleanupRun[]>([])
   const [loading, setLoading] = useState(false)
@@ -62,11 +63,11 @@ export default function RensheExportsPage() {
   const exportLocked = isPlanExportLocked(selectedPlan, cleanupRuns)
 
   useEffect(() => {
-    certificationService.listPlans(RENSHE_PRODUCT_CODE).then((items) => {
+    certificationService.listPlans('renshe').then((items) => {
       setPlans(items)
-      if (!queryPlanId && items.length > 0) setSelectedPlanId(items[0].id)
+      if (items.length > 0) setSelectedPlanId(items[0].id)
     })
-  }, [queryPlanId])
+  }, [])
 
   const loadJobs = useCallback(async (quiet = false) => {
     if (!selectedPlanId) {
@@ -190,24 +191,7 @@ export default function RensheExportsPage() {
   ], [canWrite, exportLocked])
 
   return (
-    <PageContainer
-      title="人社批次导出中心"
-      extra={
-        <>
-          {canWrite && (
-            <Button
-              type="primary"
-              icon={<PlusOutlined />}
-              disabled={!selectedPlanId || exportLocked}
-              onClick={createExport}
-            >
-              新建导出
-            </Button>
-          )}
-          <Button icon={<ReloadOutlined />} loading={loading} onClick={() => loadJobs()}>刷新</Button>
-        </>
-      }
-    >
+    <>
       <Space style={{ marginBottom: 16 }} wrap>
         <Text strong>批次</Text>
         <Select
@@ -226,6 +210,17 @@ export default function RensheExportsPage() {
             清理期限：{formatDate(selectedPlan.cleanup_due_at)}
           </Text>
         )}
+        {canWrite && (
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            disabled={!selectedPlanId || exportLocked}
+            onClick={createExport}
+          >
+            新建导出
+          </Button>
+        )}
+        <Button icon={<ReloadOutlined />} loading={loading} onClick={() => loadJobs()}>刷新</Button>
       </Space>
 
       <Table
@@ -270,6 +265,6 @@ export default function RensheExportsPage() {
           </>
         )}
       </Drawer>
-    </PageContainer>
+    </>
   )
 }

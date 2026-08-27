@@ -21,8 +21,6 @@ import {
   CloseCircleOutlined,
   DeleteOutlined,
   EditOutlined,
-  ExportOutlined,
-  EyeOutlined,
   FileDoneOutlined,
   PlusOutlined,
   ReloadOutlined,
@@ -30,8 +28,6 @@ import {
   StopOutlined,
 } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
-import { useNavigate } from 'react-router-dom'
-import { PageContainer } from '@/components/PageContainer'
 import { ConfirmButton } from '@/components/ConfirmButton'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermission } from '@/hooks/usePermission'
@@ -41,10 +37,15 @@ import type { CertificationPlan, CertificationPlanPayload } from '@/types/certif
 import { PLAN_STATUS_MAP } from '@/types/certification'
 import type { RensheCleanupRun } from '@/types/renshe'
 import { formatDate, formatPrice } from '@/utils/format'
-import { RENSHE_PRODUCT_CODE } from '@/utils/renshe'
+import type { CertType } from '../type-registry'
 
 const { RangePicker } = DatePicker
 const { Text } = Typography
+
+interface BatchOverridesProps {
+  type: CertType
+  productCode: string | null
+}
 
 interface PlanFormValues {
   name: string
@@ -99,7 +100,8 @@ function toPayload(values: PlanFormValues): CertificationPlanPayload {
   }
 }
 
-export default function RensheBatchesPage() {
+export default function BatchOverrides({ productCode }: BatchOverridesProps) {
+  const pc = productCode!
   const [plans, setPlans] = useState<CertificationPlan[]>([])
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -109,7 +111,6 @@ export default function RensheBatchesPage() {
   const [cleanupRuns, setCleanupRuns] = useState<RensheCleanupRun[]>([])
   const [cleanupLoading, setCleanupLoading] = useState(false)
   const [form] = Form.useForm<PlanFormValues>()
-  const navigate = useNavigate()
   const canWrite = usePermission('user:write')
   const { admin } = useAuth()
   const isSuperAdmin = admin?.role === 'super_admin'
@@ -117,11 +118,11 @@ export default function RensheBatchesPage() {
   const loadPlans = useCallback(async () => {
     setLoading(true)
     try {
-      setPlans(await certificationService.listPlans(RENSHE_PRODUCT_CODE))
+      setPlans(await certificationService.listPlans(pc))
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [pc])
 
   useEffect(() => {
     void loadPlans()
@@ -146,10 +147,10 @@ export default function RensheBatchesPage() {
     try {
       const payload = toPayload(values)
       if (editingPlan) {
-        await certificationService.updatePlan(RENSHE_PRODUCT_CODE, editingPlan.id, payload)
+        await certificationService.updatePlan(pc, editingPlan.id, payload)
         message.success('批次已更新')
       } else {
-        await certificationService.createPlan(RENSHE_PRODUCT_CODE, payload)
+        await certificationService.createPlan(pc, payload)
         message.success('批次已创建')
       }
       setModalOpen(false)
@@ -185,8 +186,8 @@ export default function RensheBatchesPage() {
       okButtonProps: { danger: true },
       onOk: () => mutatePlan(
         () => isFinalize
-          ? certificationService.finalizePlan(RENSHE_PRODUCT_CODE, plan.id)
-          : certificationService.cancelPlan(RENSHE_PRODUCT_CODE, plan.id),
+          ? certificationService.finalizePlan(pc, plan.id)
+          : certificationService.cancelPlan(pc, plan.id),
         isFinalize ? '批次已终结' : '批次已取消',
       ),
     })
@@ -274,16 +275,10 @@ export default function RensheBatchesPage() {
     { title: '排序', dataIndex: 'sort_order', width: 70 },
     {
       title: '操作',
-      width: 360,
+      width: 300,
       fixed: 'right',
       render: (_, plan) => (
         <Space size={0} wrap>
-          <Button type="link" size="small" icon={<EyeOutlined />} onClick={() => navigate(`/admin/certification/renshe/applications?plan_id=${plan.id}`)}>
-            查看报名
-          </Button>
-          <Button type="link" size="small" icon={<ExportOutlined />} onClick={() => navigate(`/admin/certification/renshe/exports?plan_id=${plan.id}`)}>
-            导出
-          </Button>
           {canWrite && plan.status === 'draft' && (
             <>
               <Button type="link" size="small" icon={<EditOutlined />} onClick={() => openEdit(plan)}>编辑</Button>
@@ -294,7 +289,7 @@ export default function RensheBatchesPage() {
                 size="small"
                 icon={<SendOutlined />}
                 onConfirm={() => mutatePlan(
-                  () => certificationService.publishPlan(RENSHE_PRODUCT_CODE, plan.id),
+                  () => certificationService.publishPlan(pc, plan.id),
                   '批次已发布',
                 )}
               >
@@ -308,7 +303,7 @@ export default function RensheBatchesPage() {
                 size="small"
                 icon={<DeleteOutlined />}
                 onConfirm={() => mutatePlan(
-                  () => certificationService.deletePlan(RENSHE_PRODUCT_CODE, plan.id),
+                  () => certificationService.deletePlan(pc, plan.id),
                   '批次已删除',
                 )}
               >
@@ -326,7 +321,7 @@ export default function RensheBatchesPage() {
                 size="small"
                 icon={<StopOutlined />}
                 onConfirm={() => mutatePlan(
-                  () => certificationService.closeRegistration(RENSHE_PRODUCT_CODE, plan.id),
+                  () => certificationService.closeRegistration(pc, plan.id),
                   '报名已关闭',
                 )}
               >
@@ -349,7 +344,7 @@ export default function RensheBatchesPage() {
               type="link"
               size="small"
               onConfirm={() => mutatePlan(
-                () => certificationService.archivePlan(RENSHE_PRODUCT_CODE, plan.id),
+                () => certificationService.archivePlan(pc, plan.id),
                 '批次已归档',
               )}
             >
@@ -364,18 +359,15 @@ export default function RensheBatchesPage() {
         </Space>
       ),
     },
-  ], [canWrite, isSuperAdmin, navigate])
+  ], [canWrite, isSuperAdmin])
 
   return (
-    <PageContainer
-      title="人社批次管理"
-      extra={
-        <>
-          {canWrite && <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>新建批次</Button>}
-          <Button icon={<ReloadOutlined />} loading={loading} onClick={loadPlans}>刷新</Button>
-        </>
-      }
-    >
+    <>
+      <Space style={{ marginBottom: 16, width: '100%', justifyContent: 'flex-end' }}>
+        {canWrite && <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>新建批次</Button>}
+        <Button icon={<ReloadOutlined />} loading={loading} onClick={loadPlans}>刷新</Button>
+      </Space>
+
       <Descriptions bordered size="small" column={5} style={{ marginBottom: 16 }}>
         <Descriptions.Item label="产品">RS-ZY</Descriptions.Item>
         <Descriptions.Item label="职业">信息安全管理员</Descriptions.Item>
@@ -478,6 +470,6 @@ export default function RensheBatchesPage() {
           scroll={{ x: 900 }}
         />
       </Drawer>
-    </PageContainer>
+    </>
   )
 }

@@ -3,8 +3,6 @@ import { Button, DatePicker, Form, Input, Select, Space, Table, Tag } from 'antd
 import { AuditOutlined, EyeOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import type { Dayjs } from 'dayjs'
-import { useSearchParams } from 'react-router-dom'
-import { PageContainer } from '@/components/PageContainer'
 import { usePagination } from '@/hooks/usePagination'
 import { usePermission } from '@/hooks/usePermission'
 import { certificationService } from '@/services/certification'
@@ -20,11 +18,15 @@ import { formatDate } from '@/utils/format'
 import {
   RENSHE_APPLICATION_STATUS_MAP,
   RENSHE_PAYMENT_STATUS_MAP,
-  RENSHE_PRODUCT_CODE,
 } from '@/utils/renshe'
-import ApplicationDetailDrawer from './components/ApplicationDetailDrawer'
+import type { CertType } from '../type-registry'
+import ApplicationDetailDrawer from './ApplicationDetailDrawer'
 
 const { RangePicker } = DatePicker
+
+interface ApplicationTabProps {
+  type: CertType
+}
 
 interface FilterFormValues {
   plan_id?: number
@@ -50,15 +52,12 @@ function statusTag(status: string | null, map: Record<string, { text: string; co
   return <Tag color={config?.color}>{config?.text ?? status}</Tag>
 }
 
-export default function RensheApplicationsPage() {
-  const [searchParams] = useSearchParams()
-  const queryPlanId = Number(searchParams.get('plan_id')) || undefined
-  const queryApplicationId = Number(searchParams.get('application_id')) || null
+export default function ApplicationTab(_props: ApplicationTabProps) {
   const [form] = Form.useForm<FilterFormValues>()
   const [plans, setPlans] = useState<CertificationPlan[]>([])
-  const [filters, setFilters] = useState<RensheApplicationFilter>({ plan_id: queryPlanId })
-  const [selectedApplicationId, setSelectedApplicationId] = useState<number | null>(queryApplicationId)
-  const [drawerOpen, setDrawerOpen] = useState(Boolean(queryApplicationId))
+  const [filters, setFilters] = useState<RensheApplicationFilter>({})
+  const [selectedApplicationId, setSelectedApplicationId] = useState<number | null>(null)
+  const [drawerOpen, setDrawerOpen] = useState(false)
   const canReview = usePermission('user:write')
 
   const { data, loading, pagination, refresh } = usePagination(
@@ -67,12 +66,8 @@ export default function RensheApplicationsPage() {
   )
 
   useEffect(() => {
-    certificationService.listPlans(RENSHE_PRODUCT_CODE).then(setPlans)
+    certificationService.listPlans('renshe').then(setPlans)
   }, [])
-
-  useEffect(() => {
-    if (queryPlanId) form.setFieldValue('plan_id', queryPlanId)
-  }, [form, queryPlanId])
 
   const openApplication = useCallback((applicationId: number) => {
     setSelectedApplicationId(applicationId)
@@ -160,14 +155,14 @@ export default function RensheApplicationsPage() {
   ], [canReview, openApplication])
 
   return (
-    <PageContainer
-      title="人社报名审核"
-      extra={<Button icon={<ReloadOutlined />} loading={loading} onClick={refresh}>刷新</Button>}
-    >
+    <>
+      <Space style={{ marginBottom: 16, width: '100%', justifyContent: 'flex-end' }}>
+        <Button icon={<ReloadOutlined />} loading={loading} onClick={refresh}>刷新</Button>
+      </Space>
+
       <Form
         form={form}
         layout="inline"
-        initialValues={{ plan_id: queryPlanId }}
         onFinish={handleSearch}
         style={{ rowGap: 12, marginBottom: 16 }}
       >
@@ -216,6 +211,6 @@ export default function RensheApplicationsPage() {
         onClose={() => setDrawerOpen(false)}
         onChanged={refresh}
       />
-    </PageContainer>
+    </>
   )
 }

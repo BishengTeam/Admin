@@ -3,16 +3,20 @@ import dayjs from 'dayjs'
 import { Button, Form, Input, Modal, Select, Space, Table, Tag, Typography, message } from 'antd'
 import { CheckOutlined, EyeOutlined, ReloadOutlined, RetweetOutlined, StopOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
-import { PageContainer } from '@/components/PageContainer'
 import { useAuth } from '@/hooks/useAuth'
 import { usePagination } from '@/hooks/usePagination'
 import { usePermission } from '@/hooks/usePermission'
 import { rensheService } from '@/services/renshe'
 import type { RensheRefund, RensheRefundFilter, RensheRefundStatus } from '@/types/renshe'
 import { formatDate, formatPrice } from '@/utils/format'
-import ApplicationDetailDrawer from './components/ApplicationDetailDrawer'
+import type { CertType } from '../type-registry'
+import ApplicationDetailDrawer from './ApplicationDetailDrawer'
 
 const { Text } = Typography
+
+interface RefundTabProps {
+  type: CertType
+}
 
 const REFUND_STATUS_MAP: Record<RensheRefundStatus, { text: string; color: string }> = {
   requested: { text: '待处理', color: 'orange' },
@@ -48,7 +52,7 @@ function dueTag(refund: RensheRefund) {
   return <Tag>{Math.ceil(hours / 24)} 天</Tag>
 }
 
-export default function RensheRefundsPage() {
+export default function RefundTab(_props: RefundTabProps) {
   const [filters, setFilters] = useState<RensheRefundFilter>({})
   const [selectedApplicationId, setSelectedApplicationId] = useState<number | null>(null)
   const [rejectingRefund, setRejectingRefund] = useState<RensheRefund | null>(null)
@@ -169,10 +173,7 @@ export default function RensheRefundsPage() {
   ], [canViewApplications, isSuperAdmin, processingId])
 
   return (
-    <PageContainer
-      title="人社退款工作台"
-      extra={<Button icon={<ReloadOutlined />} loading={loading} onClick={refresh}>刷新</Button>}
-    >
+    <>
       <Space style={{ marginBottom: 16 }} wrap>
         <Text strong>状态</Text>
         <Select
@@ -183,6 +184,7 @@ export default function RensheRefundsPage() {
           style={{ width: 160 }}
           options={Object.entries(REFUND_STATUS_MAP).map(([value, config]) => ({ value, label: config.text }))}
         />
+        <Button icon={<ReloadOutlined />} loading={loading} onClick={refresh}>刷新</Button>
       </Space>
 
       <Table
@@ -219,6 +221,6 @@ export default function RensheRefundsPage() {
           </Form.Item>
         </Form>
       </Modal>
-    </PageContainer>
+    </>
   )
 }

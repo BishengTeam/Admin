@@ -10,7 +10,7 @@ export function checkPermissionOneOf(permissions: string[], codes: string[]): bo
 
 export function getAdminLandingPath(role: AdminRole | string | undefined): string {
   if (role === 'quiz_admin') return '/admin/quiz/questions'
-  if (role === 'h3c_admin') return '/admin/h3c'
+  if (role === 'h3c_admin') return '/admin/certification/h3c'
   if (role === 'course_admin') return '/admin/courses'
   return '/admin/dashboard'
 }
