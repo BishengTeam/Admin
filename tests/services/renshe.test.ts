@@ -22,7 +22,7 @@ describe('renshe admin services', () => {
     const { rensheService } = await import('@/services/renshe')
 
     await rensheService.listApplications({ plan_id: 12, status: 'pending_initial_review', page: 1, page_size: 20 })
-    expect(http.get).toHaveBeenCalledWith('/admin/renshe/applications', {
+    expect(http.get).toHaveBeenCalledWith('/admin/cert-products/renshe/applications', {
       params: { plan_id: 12, status: 'pending_initial_review', page: 1, page_size: 20 },
     })
 
@@ -31,19 +31,19 @@ describe('renshe admin services', () => {
       reason: '学生证不清晰',
       required_changes: ['student_card'],
     })
-    expect(http.post).toHaveBeenCalledWith('/admin/renshe/applications/101/initial-review', {
+    expect(http.post).toHaveBeenCalledWith('/admin/cert-products/renshe/applications/101/initial-review', {
       decision: 'rejected',
       reason: '学生证不清晰',
       required_changes: ['student_card'],
     })
 
     await rensheService.getVerificationMaterialSignedUrl(8, 'id_card_front', false)
-    expect(http.get).toHaveBeenCalledWith('/admin/renshe/users/8/verification-materials/id_card_front/signed-url', {
+    expect(http.get).toHaveBeenCalledWith('/admin/cert-products/renshe/users/8/verification-materials/id_card_front/signed-url', {
       params: { download: false },
     })
 
     await rensheService.getMaterialSignedUrl(33, true)
-    expect(http.get).toHaveBeenCalledWith('/admin/renshe/materials/33/signed-url', {
+    expect(http.get).toHaveBeenCalledWith('/admin/cert-products/renshe/materials/33/signed-url', {
       params: { download: true },
     })
   })
@@ -52,16 +52,16 @@ describe('renshe admin services', () => {
     const { rensheService } = await import('@/services/renshe')
 
     await rensheService.createExportJob(12)
-    expect(http.post).toHaveBeenCalledWith('/admin/renshe/plans/12/exports')
+    expect(http.post).toHaveBeenCalledWith('/admin/cert-products/renshe/plans/12/exports')
 
     await rensheService.retryExportJob(51)
-    expect(http.post).toHaveBeenCalledWith('/admin/renshe/exports/51/retry')
+    expect(http.post).toHaveBeenCalledWith('/admin/cert-products/renshe/exports/51/retry')
 
     await rensheService.decideRefund(61, { decision: 'approved' })
-    expect(http.post).toHaveBeenCalledWith('/admin/renshe/refunds/61/decision', { decision: 'approved' })
+    expect(http.post).toHaveBeenCalledWith('/admin/cert-products/renshe/refunds/61/decision', { decision: 'approved' })
 
     await rensheService.retryCleanupRun(71)
-    expect(http.post).toHaveBeenCalledWith('/admin/renshe/cleanup-runs/71/retry')
+    expect(http.post).toHaveBeenCalledWith('/admin/cert-products/renshe/cleanup-runs/71/retry')
   })
 
   it('uses dedicated user verification review endpoints', async () => {
