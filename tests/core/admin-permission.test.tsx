@@ -36,13 +36,12 @@ describe('fixed administrator role navigation', () => {
     expect(hasRouteAccess(updates, ['quiz:list'], true, 'quiz_admin')).toBe(false)
   })
 
- it('shows the H3C workbench to H3C and super administrators only', () => {
+  it('shows the certification workbench based on content permission', () => {
     const cert = adminRoutes.find((route) => route.path === 'certification')!
-    const h3c = cert.children!.find((route) => route.path === 'h3c')!
-   expect(hasRouteAccess(h3c, ['*'], true, 'super_admin')).toBe(true)
-   expect(hasRouteAccess(h3c, ['h3c:review'], true, 'h3c_admin')).toBe(true)
-   expect(hasRouteAccess(h3c, ['quiz:list'], true, 'quiz_admin')).toBe(false)
- })
+    expect(hasRouteAccess(cert, ['*'], true, 'super_admin')).toBe(true)
+    expect(hasRouteAccess(cert, ['content:list'], true, 'h3c_admin')).toBe(true)
+    expect(hasRouteAccess(cert, ['quiz:list'], true, 'quiz_admin')).toBe(false)
+  })
 
   it('denies non-quiz routes even when a quiz administrator opens a URL directly', () => {
     const users = adminRoutes.find((route) => route.path === 'users')!
