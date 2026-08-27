@@ -87,8 +87,8 @@ export default function CertificationOverview() {
                 <Card hoverable actions={[
                   <Button key='enter' type='link' icon={<RightOutlined />} onClick={() => navigate('h3c')}>进入管理</Button>,
                 ]}>
-                  <Card.Meta
-                    avatar={{ style: { fontSize: 28, backgroundColor: '#f5f5f5', width: 48, height: 48, lineHeight: '48px', textAlign: 'center', borderRadius: 8 }, children: vendor[0] }}
+                 <Card.Meta
+                   avatar={<div style={{ fontSize: 28, backgroundColor: '#f5f5f5', width: 48, height: 48, lineHeight: '48px', textAlign: 'center', borderRadius: 8 }}>{vendor[0]}</div>}
                     title={
                       <Space><Text strong style={{ fontSize: 16 }}>{vendor}</Text><Tag color={s?.active ? 'green' : 'default'}>{s?.active ?? 0} 启用 / {s?.total ?? 0}</Tag></Space>
                     }
