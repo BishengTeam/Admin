@@ -7,13 +7,14 @@ describe('fixed administrator role navigation', () => {
   it('uses the frozen role-specific login landing pages', () => {
     expect(getAdminLandingPath('super_admin')).toBe('/admin/dashboard')
     expect(getAdminLandingPath('quiz_admin')).toBe('/admin/quiz/questions')
+    expect(getAdminLandingPath('cert_admin')).toBe('/admin/certification')
     expect(getAdminLandingPath('course_admin')).toBe('/admin/courses')
   })
 
   it('only exposes preset non-super roles to the creation dialog', () => {
     expect(ADMIN_CREATABLE_ROLE_OPTIONS).toEqual([
       { label: '题库管理员', value: 'quiz_admin' },
-      { label: 'H3C 管理员', value: 'h3c_admin' },
+      { label: '认证管理员', value: 'cert_admin' },
       { label: '课程管理员', value: 'course_admin' },
     ])
   })
@@ -49,14 +50,29 @@ describe('fixed administrator role navigation', () => {
       'certification/renshe',
     ])
 
-    const h3cMenu = buildMenuItems(adminRoutes, ['h3c:review', 'h3c:export'], true, 'h3c_admin') as Array<{
+    const certAdminPermissions = [
+      'content:read',
+      'content:list',
+      'content:write',
+      'user:list',
+      'user:write',
+      'order:list',
+      'h3c:batch_manage',
+      'h3c:review',
+      'h3c:export',
+      'h3c:refund',
+      'h3c:order_close',
+    ]
+    const certAdminMenu = buildMenuItems(adminRoutes, certAdminPermissions, true, 'cert_admin') as Array<{
       key: string
       children?: Array<{ key: string }>
     }>
-    const h3cCert = h3cMenu.find((item) => item.key === 'certification')
-    expect(h3cCert).toBeDefined()
-    expect(h3cCert!.children!.map((child) => child.key)).toEqual([
+    const certAdminCert = certAdminMenu.find((item) => item.key === 'certification')
+    expect(certAdminCert).toBeDefined()
+    expect(certAdminCert!.children!.map((child) => child.key)).toEqual([
+      'certification',
       'certification/h3c',
+      'certification/renshe',
     ])
 
     const quizMenu = buildMenuItems(adminRoutes, ['quiz:list'], true, 'quiz_admin') as Array<{ key: string }>
