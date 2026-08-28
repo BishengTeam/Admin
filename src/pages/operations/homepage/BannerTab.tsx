@@ -4,7 +4,6 @@ import { PlusOutlined, SearchOutlined, DeleteOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import type { TableRowSelection } from 'antd/es/table/interface'
 import dayjs from 'dayjs'
-import { PageContainer } from '@/components/PageContainer'
 import { ConfirmButton } from '@/components/ConfirmButton'
 import { ImageUpload } from '@/components/ImageUpload'
 import { usePagination } from '@/hooks/usePagination'
@@ -20,7 +19,7 @@ const TARGET_TYPE_OPTIONS: { label: string; value: BannerTargetType }[] = (
   Object.entries(BANNER_TARGET_LABELS) as [BannerTargetType, string][]
 ).map(([value, label]) => ({ label, value }))
 
-export default function BannerManagement() {
+export default function BannerTab() {
   const [keyword, setKeyword] = useState('')
   const [searchText, setSearchText] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
@@ -191,14 +190,10 @@ export default function BannerManagement() {
   ]
 
   return (
-    <PageContainer
-      title="Banner 管理"
-      extra={
-        <Button type="primary" icon={<PlusOutlined />} onClick={handleAdd}>
-          新增 Banner
-        </Button>
-      }
-    >
+    <>
+      <Space style={{ marginBottom: 16 }}>
+        <Button type="primary" icon={<PlusOutlined />} onClick={handleAdd}>新增 Banner</Button>
+      </Space>
       <Space style={{ marginBottom: 16 }}>
         <Input
           placeholder="搜索 Banner..."
@@ -288,6 +283,6 @@ export default function BannerManagement() {
           </Form.Item>
         </Form>
       </Modal>
-    </PageContainer>
+    </>
   )
 }

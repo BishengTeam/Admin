@@ -4,22 +4,21 @@ import { PlusOutlined, SearchOutlined, DeleteOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import type { TableRowSelection } from 'antd/es/table/interface'
 import dayjs from 'dayjs'
-import { PageContainer } from '@/components/PageContainer'
 import { ConfirmButton } from '@/components/ConfirmButton'
 import { ImageUpload } from '@/components/ImageUpload'
 import { usePagination } from '@/hooks/usePagination'
 import { activityService } from '@/services/activity'
 import { formatDate } from '@/utils/format'
 import { requiredRule } from '@/utils/validator'
-import type { Training } from '@/types/training'
+import type { Activity } from '@/types/activity'
 
 const { RangePicker } = DatePicker
 
-export default function ActivityManagement() {
+export default function ActivityTab() {
   const [keyword, setKeyword] = useState('')
   const [searchText, setSearchText] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
-  const [editingItem, setEditingItem] = useState<Training | null>(null)
+  const [editingItem, setEditingItem] = useState<Activity | null>(null)
   const [selectedRowKeys, setSelectedRowKeys] = useState<number[]>([])
   const [form] = Form.useForm()
 
@@ -35,7 +34,7 @@ export default function ActivityManagement() {
     setModalOpen(true)
   }
 
-  const handleEdit = (item: Training) => {
+  const handleEdit = (item: Activity) => {
     setEditingItem(item)
     form.setFieldsValue({
       title: item.title,
@@ -66,7 +65,7 @@ export default function ActivityManagement() {
     refresh()
   }
 
-  const rowSelection: TableRowSelection<Training> = {
+  const rowSelection: TableRowSelection<Activity> = {
     selectedRowKeys,
     onChange: (keys) => setSelectedRowKeys(keys as number[]),
   }
@@ -102,7 +101,7 @@ export default function ActivityManagement() {
     refresh()
   }
 
-  const columns: ColumnsType<Training> = [
+  const columns: ColumnsType<Activity> = [
     { title: '活动名称', dataIndex: 'title', width: 200, ellipsis: true },
     { title: '地点', dataIndex: 'location', width: 140 },
     {
@@ -150,10 +149,10 @@ export default function ActivityManagement() {
   ]
 
   return (
-    <PageContainer
-      title="活动管理"
-      extra={<Button type="primary" icon={<PlusOutlined />} onClick={handleAdd}>新增活动</Button>}
-    >
+    <>
+      <Space style={{ marginBottom: 16 }}>
+        <Button type="primary" icon={<PlusOutlined />} onClick={handleAdd}>新增活动</Button>
+      </Space>
       <Space style={{ marginBottom: 16 }}>
         <Input
           placeholder="搜索活动..."
@@ -217,6 +216,6 @@ export default function ActivityManagement() {
           </Form.Item>
         </Form>
       </Modal>
-    </PageContainer>
+    </>
   )
 }

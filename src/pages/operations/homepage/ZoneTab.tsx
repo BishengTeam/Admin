@@ -3,17 +3,24 @@ import { Table, Button, Input, Select, Switch, Space, Image, message } from 'ant
 import { PlusOutlined, SearchOutlined, DeleteOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import type { TableRowSelection } from 'antd/es/table/interface'
-import { PageContainer } from '@/components/PageContainer'
 import { ConfirmButton } from '@/components/ConfirmButton'
 import { usePagination } from '@/hooks/usePagination'
 import { usePermission } from '@/hooks/usePermission'
 import { contentService } from '@/services/content'
 import { formatDate } from '@/utils/format'
-import { ZONE_OPTIONS } from '@/core/constants'
 import type { ContentItem } from '@/types/content'
 import ContentEditDrawer from './components/ContentEditDrawer'
 
-export default function ContentManagement() {
+const ZONE_OPTIONS = [
+  { label: '认证专区', value: 'cert' },
+  { label: '学习专区', value: 'study' },
+  { label: '竞赛专区', value: 'competition' },
+  { label: '活动专区', value: 'activity' },
+  { label: '就业专区', value: 'employment' },
+  { label: '培训专区', value: 'training' },
+]
+
+export default function ZoneTab() {
   const [keyword, setKeyword] = useState('')
   const [searchText, setSearchText] = useState('')
   const [zoneType, setZoneType] = useState<string>('study')
@@ -147,10 +154,10 @@ export default function ContentManagement() {
   ]
 
   return (
-    <PageContainer
-      title="内容管理"
-      extra={canWrite ? <Button type="primary" icon={<PlusOutlined />} onClick={handleAdd}>新增内容</Button> : null}
-    >
+    <>
+      <Space style={{ marginBottom: 16 }}>
+        {canWrite && <Button type="primary" icon={<PlusOutlined />} onClick={handleAdd}>新增内容</Button>}
+      </Space>
       <Space style={{ marginBottom: 16 }}>
         <Input
           placeholder="搜索标题..."
@@ -198,6 +205,6 @@ export default function ContentManagement() {
         onClose={handleDrawerClose}
         onSuccess={handleDrawerSuccess}
       />
-    </PageContainer>
+    </>
   )
 }

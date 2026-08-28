@@ -107,7 +107,7 @@ export default function JobManagement() {
 
   return (
     <PageContainer
-      title="就业管理"
+      title="招聘管理"
       extra={<Button type="primary" icon={<PlusOutlined />} onClick={handleAdd}>新增职位</Button>}
     >
       <Space style={{ marginBottom: 16 }}>
@@ -159,7 +159,11 @@ export default function JobManagement() {
           <Form.Item name="requirements" label="任职要求">
             <TextArea rows={3} placeholder="任职要求..." />
           </Form.Item>
-          <Form.Item name="contact_info" label="联系方式">
+          <Form.Item
+            name="contact_info"
+            label="联系方式"
+            rules={[{ required: true, message: '请输入联系方式（投递功能已下线，联系方式是求职者联系企业的唯一途径）' }]}
+          >
             <Input placeholder="邮箱或电话" />
           </Form.Item>
           <Form.Item name="is_active" label="启用" valuePropName="checked">

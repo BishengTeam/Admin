@@ -3,6 +3,7 @@ import { useNavigate, useLocation, Outlet } from 'react-router-dom'
 import { Layout, Menu, Button, Breadcrumb, Dropdown, Avatar, Spin, Result, Tag, message, theme } from 'antd'
 import type { MenuProps } from 'antd'
 import {
+  AppstoreOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
   UserOutlined,
@@ -48,6 +49,7 @@ const { Header, Sider, Content } = Layout
 // 路由 meta.icon 存的是字符串名称（lazy 组件无法序列化 ReactNode），
 // AdminLayout 通过此映射在运行时解析为实际图标组件。
 const iconMap: Record<string, ReactNode> = {
+  AppstoreOutlined: <AppstoreOutlined />,
   CalendarOutlined: <CalendarOutlined />,
   DashboardOutlined: <DashboardOutlined />,
   TeamOutlined: <TeamOutlined />,

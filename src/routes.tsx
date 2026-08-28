@@ -33,7 +33,7 @@ const QuizAuditLogs = lazy(() => import('@/pages/quiz/audit-logs'))
 const QuizStats = lazy(() => import('@/pages/quiz/stats'))
 const QuizBehavior = lazy(() => import('@/pages/quiz/behavior'))
 const QuizTaskMonitor = lazy(() => import('@/pages/quiz/tasks'))
-const ContentManagement = lazy(() => import('@/pages/content'))
+const HomepageManagement = lazy(() => import('@/pages/operations/homepage'))
 const CourseList = lazy(() => import('@/pages/courses/List'))
 const CourseCategories = lazy(() => import('@/pages/courses/Categories'))
 const CourseDetail = lazy(() => import('@/pages/courses/Detail'))
@@ -41,10 +41,9 @@ const CourseStudents = lazy(() => import('@/pages/courses/Students'))
 const CourseAudit = lazy(() => import('@/pages/courses/Audit'))
 const CertificationOverview = lazy(() => import('@/pages/certification'))
 const TypeWorkbench = lazy(() => import('@/pages/certification/TypeWorkbench'))
-const JobManagement = lazy(() => import('@/pages/job'))
-const TrainingManagement = lazy(() => import('@/pages/training'))
-const ActivityManagement = lazy(() => import('@/pages/activity'))
-const BannerManagement = lazy(() => import('@/pages/banner'))
+const JobManagement = lazy(() => import('@/pages/operations/jobs'))
+const TrainingManagement = lazy(() => import('@/pages/operations/training'))
+const ActivityManagement = lazy(() => import('@/pages/operations/activities'))
 const ReviewManagement = lazy(() => import('@/pages/review'))
 const ChangePassword = lazy(() => import('@/pages/change-password'))
 const AdminAccounts = lazy(() => import('@/pages/settings/admins'))
@@ -137,11 +136,7 @@ export const adminRoutes: AppRoute[] = [
       },
     ],
   },
-  {
-    path: 'content',
-    element: <ContentManagement />,
-    meta: { title: '内容配置', icon: 'FileTextOutlined', permission: 'content:list' },
-  },
+
   {
     path: 'courses',
     meta: { title: '课程管理', icon: 'ReadOutlined', permission: 'course:read' },
@@ -196,24 +191,31 @@ export const adminRoutes: AppRoute[] = [
     ],
   },
   {
-    path: 'job',
-    element: <JobManagement />,
-    meta: { title: '就业管理', icon: 'IdcardOutlined', permission: 'content:list' },
-  },
-  {
-    path: 'training',
-    element: <TrainingManagement />,
-    meta: { title: '培训管理', icon: 'SolutionOutlined', permission: 'content:list' },
-  },
-  {
-    path: 'activity',
-    element: <ActivityManagement />,
-    meta: { title: '活动管理', icon: 'CalendarOutlined', permission: 'content:write' },
-  },
-  {
-    path: 'banner',
-    element: <BannerManagement />,
-    meta: { title: 'Banner 管理', icon: 'PictureOutlined', permission: 'content:write' },
+    path: 'operations',
+    meta: { title: '运营中心', icon: 'AppstoreOutlined' },
+    children: [
+      { index: true, element: <Navigate to="homepage" replace /> },
+      {
+        path: 'homepage',
+        element: <HomepageManagement />,
+        meta: { title: '首页配置', icon: 'PictureOutlined', permission: 'homepage:list' },
+      },
+      {
+        path: 'jobs',
+        element: <JobManagement />,
+        meta: { title: '招聘管理', icon: 'IdcardOutlined', permission: 'job:list' },
+      },
+      {
+        path: 'training',
+        element: <TrainingManagement />,
+        meta: { title: '培训管理', icon: 'SolutionOutlined', permission: 'training:list' },
+      },
+      {
+        path: 'activities',
+        element: <ActivityManagement />,
+        meta: { title: '活动管理', icon: 'CalendarOutlined', permission: 'activity:list' },
+      },
+    ],
   },
   {
     path: 'settings',
