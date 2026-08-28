@@ -44,6 +44,7 @@ const TypeWorkbench = lazy(() => import('@/pages/certification/TypeWorkbench'))
 const JobManagement = lazy(() => import('@/pages/operations/jobs'))
 const TrainingManagement = lazy(() => import('@/pages/operations/training'))
 const ActivityManagement = lazy(() => import('@/pages/operations/activities'))
+const CompetitionManagement = lazy(() => import('@/pages/operations/competitions'))
 const ReviewManagement = lazy(() => import('@/pages/review'))
 const ChangePassword = lazy(() => import('@/pages/change-password'))
 const AdminAccounts = lazy(() => import('@/pages/settings/admins'))
@@ -214,6 +215,11 @@ export const adminRoutes: AppRoute[] = [
         path: 'activities',
         element: <ActivityManagement />,
         meta: { title: '活动管理', icon: 'CalendarOutlined', permission: 'activity:list' },
+      },
+      {
+        path: 'competitions',
+        element: <CompetitionManagement />,
+        meta: { title: '竞赛管理', icon: 'TrophyOutlined', permission: 'competition:list' },
       },
     ],
   },

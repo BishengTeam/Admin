@@ -7,12 +7,12 @@ import RegistrationsTab from './RegistrationsTab'
 
 export default function ActivityManagement() {
   const [activeKey, setActiveKey] = useState('activities')
-  const [activities, setActivities] = useState<{ id: number; title: string }[]>([])
+  const [activities, setActivities] = useState<{ id: number; title: string; max_participants: number }[]>([])
 
   useEffect(() => {
     activityService
       .list({ page: 1, page_size: 100 })
-      .then((page) => setActivities(page.items.map((a) => ({ id: a.id, title: a.title }))))
+      .then((page) => setActivities(page.items.map((a) => ({ id: a.id, title: a.title, max_participants: a.max_participants }))))
       .catch(() => setActivities([]))
   }, [activeKey])
 

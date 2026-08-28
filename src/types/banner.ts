@@ -18,7 +18,6 @@ export const BANNER_PAGES: { label: string; value: string }[] = [
   { label: '培训', value: '/pages/training/index' },
   { label: '活动专区', value: '/pages/activity-zone/index' },
   { label: '我的', value: '/pages/profile/index' },
-  { label: '就业专区', value: '/pages/employment-zone/index' },
   { label: '题库练习', value: '/pages/quiz/index' },
   { label: '课程列表', value: '/pages/course/index' },
   { label: '报名入口', value: '/pages/registration/index' },

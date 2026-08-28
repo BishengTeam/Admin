@@ -8,6 +8,11 @@ export interface Activity {
   end_time: string | null
   max_participants: number
   is_active: boolean
+  related_cert_id: number | null
+  related_course_id: number | null
+  live_url: string | null
+  group_qrcode_url: string | null
+  registration_deadline: string | null
   created_at: string
   updated_at: string
 }

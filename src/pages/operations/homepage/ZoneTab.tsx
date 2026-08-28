@@ -11,19 +11,17 @@ import { formatDate } from '@/utils/format'
 import type { ContentItem } from '@/types/content'
 import ContentEditDrawer from './components/ContentEditDrawer'
 
+/** 仅保留首页实际渲染卡片的专区类型；study/activity/training 首页直接展示实体数据，不读卡片 */
 const ZONE_OPTIONS = [
   { label: '认证专区', value: 'cert' },
-  { label: '学习专区', value: 'study' },
   { label: '竞赛专区', value: 'competition' },
-  { label: '活动专区', value: 'activity' },
   { label: '就业专区', value: 'employment' },
-  { label: '培训专区', value: 'training' },
 ]
 
 export default function ZoneTab() {
   const [keyword, setKeyword] = useState('')
   const [searchText, setSearchText] = useState('')
-  const [zoneType, setZoneType] = useState<string>('study')
+  const [zoneType, setZoneType] = useState<string | undefined>(undefined)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<ContentItem | null>(null)
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
@@ -104,6 +102,7 @@ export default function ZoneTab() {
       title: '所属专区',
       dataIndex: 'zone_type',
       width: 120,
+      render: (v: string) => ZONE_OPTIONS.find((o) => o.value === v)?.label ?? v,
     },
     {
       title: '状态',
@@ -170,7 +169,7 @@ export default function ZoneTab() {
         />
         <Select
           value={zoneType}
-          onChange={(val) => setZoneType(val || 'study')}
+          onChange={(val) => setZoneType(val)}
           style={{ width: 140 }}
           options={ZONE_OPTIONS}
           allowClear

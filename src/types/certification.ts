@@ -1,5 +1,7 @@
 export interface Certification {
   id: number
+  name: string
+  chinese_name: string
   code: string
   vendor: string
   normal_price: number

@@ -2,14 +2,10 @@ export interface ContentItem {
   id: number
   title: string
   zone_type: string
-  cover_url: string
-  description: string
-  link_url: string
+  cover_url: string | null
+  description: string | null
   sort_order: number
   is_active: boolean
-  is_banner: boolean
-  start_time: string | null
-  end_time: string | null
   created_at: string
 }
 

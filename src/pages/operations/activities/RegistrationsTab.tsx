@@ -11,7 +11,7 @@ import type { ActivityRegistration } from '@/types/activity'
 const { Text } = Typography
 
 interface RegistrationsTabProps {
-  activities: { id: number; title: string }[]
+  activities: { id: number; title: string; max_participants: number }[]
 }
 
 export default function RegistrationsTab({ activities }: RegistrationsTabProps) {
@@ -56,7 +56,15 @@ export default function RegistrationsTab({ activities }: RegistrationsTabProps) 
           />
           <Button icon={<ReloadOutlined />} loading={loading} onClick={refresh} disabled={!activityId}>刷新</Button>
         </Space>
-        <Text type='secondary'>共 {data?.total ?? 0} 条报名</Text>
+        <Text type='secondary'>
+          已报 {data?.total ?? 0} 人
+          {(() => {
+            const act = activities.find((a) => a.id === activityId)
+            if (!act || act.max_participants <= 0) return ' · 不限名额'
+            const full = (data?.total ?? 0) >= act.max_participants
+            return ` / 上限 ${act.max_participants}${full ? '（已满）' : ''}`
+          })()}
+        </Text>
       </div>
       <Table<ActivityRegistration>
         rowKey='id'

@@ -4,6 +4,7 @@ import { Layout, Menu, Button, Breadcrumb, Dropdown, Avatar, Spin, Result, Tag, 
 import type { MenuProps } from 'antd'
 import {
   AppstoreOutlined,
+  TrophyOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
   UserOutlined,
@@ -50,6 +51,7 @@ const { Header, Sider, Content } = Layout
 // AdminLayout 通过此映射在运行时解析为实际图标组件。
 const iconMap: Record<string, ReactNode> = {
   AppstoreOutlined: <AppstoreOutlined />,
+  TrophyOutlined: <TrophyOutlined />,
   CalendarOutlined: <CalendarOutlined />,
   DashboardOutlined: <DashboardOutlined />,
   TeamOutlined: <TeamOutlined />,

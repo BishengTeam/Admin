@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Table, Button, Input, Switch, Space, Modal, Form, DatePicker, message } from 'antd'
+import { useEffect, useState } from 'react'
+import { Table, Button, Input, Switch, Space, Modal, Form, DatePicker, InputNumber, Row, Col, Divider, Select, Tag, Typography, message } from 'antd'
 import { PlusOutlined, SearchOutlined, DeleteOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import type { TableRowSelection } from 'antd/es/table/interface'
@@ -8,11 +8,14 @@ import { ConfirmButton } from '@/components/ConfirmButton'
 import { ImageUpload } from '@/components/ImageUpload'
 import { usePagination } from '@/hooks/usePagination'
 import { activityService } from '@/services/activity'
+import { certificationService } from '@/services/certification'
+import { courseManagementService } from '@/services/courseManagement'
 import { formatDate } from '@/utils/format'
 import { requiredRule } from '@/utils/validator'
 import type { Activity } from '@/types/activity'
 
 const { RangePicker } = DatePicker
+const { Text } = Typography
 
 export default function ActivityTab() {
   const [keyword, setKeyword] = useState('')
@@ -20,7 +23,24 @@ export default function ActivityTab() {
   const [modalOpen, setModalOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<Activity | null>(null)
   const [selectedRowKeys, setSelectedRowKeys] = useState<number[]>([])
+  const [certOptions, setCertOptions] = useState<{ label: string; value: number }[]>([])
+  const [courseOptions, setCourseOptions] = useState<{ label: string; value: number }[]>([])
   const [form] = Form.useForm()
+
+  useEffect(() => {
+    certificationService
+      .list({ page: 1, page_size: 100 })
+      .then((res) => setCertOptions(
+        res.items
+          .filter((c) => c.is_active)
+          .map((c) => ({ label: `${c.chinese_name}（${c.code}）`, value: c.id })),
+      ))
+      .catch(() => setCertOptions([]))
+    courseManagementService
+      .listCourses({ page: 1, page_size: 100 })
+      .then((res) => setCourseOptions(res.items.map((c) => ({ label: c.title, value: c.id }))))
+      .catch(() => setCourseOptions([]))
+  }, [])
 
   const { data, loading, pagination, refresh } = usePagination(
     (page) => activityService.list({ keyword: searchText || undefined, ...page }),
@@ -43,6 +63,11 @@ export default function ActivityTab() {
       location: item.location || '',
       max_participants: item.max_participants,
       is_active: item.is_active,
+      live_url: item.live_url || '',
+      group_qrcode_url: item.group_qrcode_url || '',
+      registration_deadline: item.registration_deadline ? dayjs(item.registration_deadline) : undefined,
+      related_cert_id: item.related_cert_id ?? undefined,
+      related_course_id: item.related_course_id ?? undefined,
       time_range: [
         item.start_time ? dayjs(item.start_time) : null,
         item.end_time ? dayjs(item.end_time) : null,
@@ -82,6 +107,13 @@ export default function ActivityTab() {
       end_time: end ? end.toISOString() : null,
       max_participants: values.max_participants ?? 0,
       is_active: values.is_active,
+      live_url: values.live_url?.trim() || null,
+      group_qrcode_url: values.group_qrcode_url || null,
+      registration_deadline: values.registration_deadline
+        ? values.registration_deadline.toISOString()
+        : null,
+      related_cert_id: values.related_cert_id ?? null,
+      related_course_id: values.related_course_id ?? null,
     }
 
     if (editingItem) {
@@ -195,25 +227,114 @@ export default function ActivityTab() {
         width={600}
         destroyOnClose
       >
-        <Form form={form} layout="vertical">
+        <Form form={form} layout="vertical" style={{ marginTop: 20 }} requiredMark='optional'>
+
+          <Divider orientation='left' orientationMargin={0} style={{ margin: '4px 0 16px' }}>
+            <Text type='secondary' style={{ fontSize: 13 }}>活动信息</Text>
+          </Divider>
+
           <Form.Item name="title" label="活动名称" rules={[requiredRule('名称')]}>
             <Input placeholder="请输入活动名称" />
           </Form.Item>
           <Form.Item name="cover_url" label="封面图">
             <ImageUpload />
           </Form.Item>
-          <Form.Item name="description" label="活动描述">
-            <Input.TextArea rows={3} placeholder="活动简介" />
+          <Form.Item name="description" label="活动介绍">
+            <Input.TextArea rows={3} placeholder="活动内容、亮点、嘉宾等" maxLength={2000} showCount />
           </Form.Item>
-          <Form.Item name="location" label="地点">
-            <Input placeholder="活动地点" />
-          </Form.Item>
+
+          <Divider orientation='left' orientationMargin={0} style={{ margin: '8px 0 16px' }}>
+            <Text type='secondary' style={{ fontSize: 13 }}>时间与名额</Text>
+          </Divider>
+
           <Form.Item name="time_range" label="活动时间">
             <RangePicker showTime style={{ width: '100%' }} />
           </Form.Item>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item
+                name="registration_deadline" label='报名截止'
+                tooltip='截止后用户无法继续报名；不填则持续到活动结束'
+              >
+                <DatePicker showTime style={{ width: '100%' }} placeholder="不填则不限" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item
+                name="max_participants"
+                label="名额上限"
+                tooltip="0 表示不限人数；满员后用户无法继续报名"
+              >
+                <InputNumber min={0} precision={0} style={{ width: '100%' }} placeholder="0 为不限" />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Divider orientation='left' orientationMargin={0} style={{ margin: '8px 0 16px' }}>
+            <Text type='secondary' style={{ fontSize: 13 }}>参与方式（线上营销）</Text>
+          </Divider>
+
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item
+                name="live_url" label='直播/会议链接'
+                tooltip='视频号直播、腾讯会议等链接；详情页展示"进入直播"按钮，点击复制'
+              >
+                <Input placeholder="https:// 或会议链接" maxLength={512} />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item
+                name="group_qrcode_url" label='答疑群二维码'
+                tooltip='详情页展示二维码图片，用户长按识别进群'
+              >
+                <ImageUpload />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Divider orientation='left' orientationMargin={0} style={{ margin: '8px 0 16px' }}>
+            <Text type='secondary' style={{ fontSize: 13 }}>转化目标</Text>
+          </Divider>
+
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item
+                name="related_cert_id" label='关联认证'
+                tooltip='详情页显示"立即报名认证"按钮，直达该认证报名表单'
+              >
+                <Select
+                  placeholder="搜索选择认证"
+                  options={certOptions}
+                  showSearch
+                  optionFilterProp='label'
+                  allowClear
+                />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item
+                name="related_course_id" label='关联课程'
+                tooltip='详情页显示"查看课程"按钮，直达课程详情页'
+              >
+                <Select
+                  placeholder="搜索选择课程"
+                  options={courseOptions}
+                  showSearch
+                  optionFilterProp='label'
+                  allowClear
+                />
+              </Form.Item>
+            </Col>
+          </Row>
+
           <Form.Item name="is_active" label="状态" valuePropName="checked">
             <Switch checkedChildren="上架" unCheckedChildren="下架" />
           </Form.Item>
+
+          <Text type='secondary' style={{ fontSize: 12 }}>
+            配置转化目标后，活动详情页将展示对应 CTA 按钮，引导用户报名认证或购买课程。
+          </Text>
         </Form>
       </Modal>
     </>
