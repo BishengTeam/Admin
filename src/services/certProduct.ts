@@ -1,8 +1,12 @@
 import { http } from '@/core/request'
-import type { CertProduct, CertProductCreatePayload, CertProductStats, CertProductUpdatePayload } from '@/types/certProduct'
+import type { CertCatalogItem, CertProduct, CertProductCreatePayload, CertProductStats, CertProductUpdatePayload } from '@/types/certProduct'
 import type { PageData, PageParams } from '@/types/api'
 
 export const certProductService = {
+  async getCatalog(type?: string): Promise<CertCatalogItem[]> {
+    return http.get<CertCatalogItem[]>('/admin/cert-products/catalog', { params: { type } })
+  },
+
   async list(params: { type?: string; keyword?: string } & PageParams): Promise<PageData<CertProduct>> {
     return http.get<PageData<CertProduct>>('/admin/cert-products', { params })
   },
