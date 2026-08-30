@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import dayjs from 'dayjs'
 import {
   Button,
+  Col,
   DatePicker,
   Divider,
   Form,
@@ -9,6 +10,8 @@ import {
   InputNumber,
   Modal,
   Popconfirm,
+  Row,
+  Select,
   Space,
   Table,
   Tag,
@@ -16,11 +19,13 @@ import {
   message,
 } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
-import { PlusOutlined, ReloadOutlined } from '@ant-design/icons'
+import { CalendarOutlined, FileProtectOutlined, PayCircleOutlined, PlusOutlined, ReloadOutlined, SafetyCertificateOutlined, TrophyOutlined } from '@ant-design/icons'
 import { usePagination } from '@/hooks/usePagination'
 import { useReauthentication } from '@/hooks/useReauthentication'
 import { h3cService } from '@/services/h3c'
+import { certProductService } from '@/services/certProduct'
 import { formatDate, formatPrice } from '@/utils/format'
+import type { CertProduct } from '@/types/certProduct'
 import type { CertType } from '../type-registry'
 import type {
   H3cExamBatch,
@@ -53,7 +58,16 @@ const BATCH_STATUS: Record<string, { text: string; color: string }> = {
 export default function BatchOverrides(_props: { type: CertType; productCode: string | null }) {
   const [batchOpen, setBatchOpen] = useState(false)
   const [editingBatch, setEditingBatch] = useState<H3cExamBatch | null>(null)
+  const [products, setProducts] = useState<CertProduct[]>([])
   const [form] = Form.useForm()
+
+  useEffect(() => {
+    if (!batchOpen || products.length > 0) return
+    certProductService
+      .list({ type: 'h3c', page: 1, page_size: 100 })
+      .then((page) => setProducts(page.items.filter((item) => item.is_active)))
+      .catch(() => setProducts([]))
+  }, [batchOpen, products.length])
 
   const { data, loading, pagination, refresh } = usePagination(
     (page) => h3cService.listBatches(page),
@@ -98,6 +112,23 @@ export default function BatchOverrides(_props: { type: CertType; productCode: st
     })
     message.success('H3C 考试批次已更新')
     setBatchOpen(false)
+  }
+
+  /** 从产品名提取认证缩写作为身份标签 */
+  const extractIdentityTag = (product: CertProduct): string => {
+    const paren = product.chinese_name.match(/[（(]([^）)]+)[）)]/)?.[1]
+    if (paren && /^[A-Za-z0-9+-]/.test(paren)) return paren
+    const leading = product.chinese_name.match(/^([A-Za-z][A-Za-z0-9+.-]*)/)?.[1]
+    return leading ?? product.name
+  }
+
+  const handleProductSelect = (code: string) => {
+    const product = products.find((item) => item.code === code)
+    if (!product) return
+    form.setFieldsValue({
+      exam_code: product.code,
+      identity_tag: extractIdentityTag(product),
+    })
   }
 
   const handleCreate = () => {
@@ -208,77 +239,167 @@ export default function BatchOverrides(_props: { type: CertType; productCode: st
         width={720}
         destroyOnClose
       >
-        <Form form={form} layout='vertical'>
-          <Typography.Text type='secondary' style={{ fontSize: 13, fontWeight: 600, letterSpacing: 0.5 }}>基本信息</Typography.Text>
-          <Divider style={{ margin: '8px 0 20px' }} />
+        <Form form={form} layout='vertical' style={{ marginTop: 20 }} requiredMark='optional'>
+          <Divider orientation='left' orientationMargin={0} style={{ margin: '4px 0 16px' }}>
+            <Space size={6}>
+              <SafetyCertificateOutlined style={{ color: '#1677ff' }} />
+              <Typography.Text type='secondary' style={{ fontSize: 13 }}>关联认证</Typography.Text>
+            </Space>
+          </Divider>
 
-          <Form.Item name='certification_code' label='认证代码' rules={[{ required: true, message: '请输入认证代码' }]} tooltip='H3C 认证体系的唯一标识'>
-            <Input disabled={Boolean(editingBatch)} placeholder='例如 H3CNE-2026' />
-          </Form.Item>
-          <Form.Item name='name' label='批次名称' rules={[{ required: true, message: '请输入批次名称' }]}>
-            <Input placeholder='例如 2026 年 10 月成都考区' />
-          </Form.Item>
-          <Form.Item name='exam_code' label='考试代码' rules={[{ required: true, message: '请输入考试代码' }]}>
-            <Input placeholder='H3C 官方考试科目代码' />
-          </Form.Item>
-          <Form.Item name='identity_tag' label='身份标签' rules={[{ required: true, message: '请输入身份标签' }]} tooltip='用于区分不同认证科目或等级'>
-            <Input placeholder='例如 H3CNE-RS' />
-          </Form.Item>
-
-          <Typography.Text type='secondary' style={{ fontSize: 13, fontWeight: 600, letterSpacing: 0.5 }}>时间与地点</Typography.Text>
-          <Divider style={{ margin: '8px 0 20px' }} />
-
-          <Form.Item name='apply_start' label='报名开始时间' rules={[{ required: true, message: '请选择报名开始时间' }]}>
-            <DatePicker showTime style={{ width: '100%' }} placeholder='选择报名开始时间' />
-          </Form.Item>
-          <Form.Item name='apply_end' label='报名截止时间' rules={[{ required: true, message: '请选择报名截止时间' }]}>
-            <DatePicker showTime style={{ width: '100%' }} placeholder='选择报名截止时间' />
-          </Form.Item>
-          <Form.Item name='exam_date' label='考试时间' rules={[{ required: true, message: '请选择考试时间' }]}>
-            <DatePicker showTime style={{ width: '100%' }} placeholder='选择考试时间' />
-          </Form.Item>
-          <Form.Item name='capacity' label='总名额' rules={[{ required: true, message: '请输入总名额' }]}>
-            <InputNumber min={1} style={{ width: '100%' }} placeholder='可报名人数上限' />
-          </Form.Item>
-          <Form.Item name='exam_location' label='考试地点'>
-            <Input placeholder='线下考试填写地址' />
-          </Form.Item>
-
-          <Typography.Text type='secondary' style={{ fontSize: 13, fontWeight: 600, letterSpacing: 0.5 }}>报名价格（元）</Typography.Text>
-          <Divider style={{ margin: '8px 0 20px' }} />
-
-          <Form.Item name='coupon_price_cents' label='考券价' rules={[{ required: true, message: '请输入考券价格' }]}>
-            <InputNumber min={0} precision={2} style={{ width: '100%' }} placeholder='0.00' />
-          </Form.Item>
-          <Form.Item name='student_price_cents' label='学生价' rules={[{ required: true, message: '请输入学生价格' }]}>
-            <InputNumber min={0} precision={2} style={{ width: '100%' }} placeholder='0.00' />
-          </Form.Item>
-          <Form.Item name='full_price_cents' label='全额价' rules={[{ required: true, message: '请输入全额价格' }]}>
-            <InputNumber min={0} precision={2} style={{ width: '100%' }} placeholder='0.00' />
-          </Form.Item>
-
-          <Typography.Text type='secondary' style={{ fontSize: 13, fontWeight: 600, letterSpacing: 0.5 }}>审核与补交</Typography.Text>
-          <Divider style={{ margin: '8px 0 20px' }} />
-
-          <Form.Item name='payment_timeout_minutes' label='支付保留（分钟）' rules={[{ required: true, message: '请输入支付超时时间' }]} tooltip='未在规定时间内完成支付的订单将自动关闭'>
-            <InputNumber min={1} style={{ width: '100%' }} />
-          </Form.Item>
-          <Form.Item name='resubmission_window_hours' label='补交窗口（小时）' rules={[{ required: true, message: '请输入补交窗口' }]} tooltip='审核驳回后，考生可在此时间内重新提交材料'>
-            <InputNumber min={1} style={{ width: '100%' }} />
-          </Form.Item>
-          <Form.Item name='max_resubmissions' label='最大补交次数' rules={[{ required: true, message: '请输入最大补交次数' }]}>
-            <InputNumber min={0} max={10} style={{ width: '100%' }} />
-          </Form.Item>
-          <Form.Item name='max_material_bytes' label='单图上限（MB）' rules={[{ required: true, message: '请输入单图大小上限' }]}
-            tooltip='考生上传的每张证件照最大体积'
-            normalize={(v) => (v != null ? v * 1048576 : undefined)}
-            getValueFromEvent={(e) => {
-              const raw = typeof e?.target?.value === 'number' ? e.target.value : e
-              return raw != null ? Math.round(raw / 1048576) : undefined
-            }}
+          <Form.Item
+            name='certification_code'
+            label='认证产品'
+            rules={[{ required: true, message: '请选择认证产品' }]}
+            tooltip='从已上架的 H3C 认证产品中选择，选中后自动带出考试代码与身份标签'
           >
-            <InputNumber min={1} max={50} style={{ width: '100%' }} placeholder='10' />
+            <Select
+              placeholder='选择认证产品'
+              showSearch
+              optionFilterProp='label'
+              disabled={Boolean(editingBatch)}
+              onChange={handleProductSelect}
+              options={products.map((item) => ({
+                label: `${item.code} · ${item.chinese_name}`,
+                value: item.code,
+              }))}
+              notFoundContent={products.length === 0 ? '暂无上架的 H3C 认证产品，请先在「认证产品」Tab 上架' : undefined}
+            />
           </Form.Item>
+
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item
+                name='exam_code' label='考试代码'
+                rules={[{ required: true, message: '请确认考试代码' }]}
+                tooltip='H3C 官方考试科目代码（GB0-xxx），选择认证后自动带出'
+              >
+                <Input placeholder='自动带出，可修改' maxLength={64} />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item
+                name='identity_tag' label='身份标签'
+                rules={[{ required: true, message: '请确认身份标签' }]}
+                tooltip='用于区分不同认证科目或等级，选择认证后自动带出'
+              >
+                <Input placeholder='自动带出，可修改' maxLength={64} />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Form.Item name='name' label='批次名称' rules={[{ required: true, message: '请输入批次名称' }]}>
+            <Input placeholder='例如 2026 年 10 月成都考区' maxLength={128} />
+          </Form.Item>
+
+          <Divider orientation='left' orientationMargin={0} style={{ margin: '8px 0 16px' }}>
+            <Space size={6}>
+              <CalendarOutlined style={{ color: '#722ED1' }} />
+              <Typography.Text type='secondary' style={{ fontSize: 13 }}>时间与地点</Typography.Text>
+            </Space>
+          </Divider>
+
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item name='apply_start' label='报名开始' rules={[{ required: true, message: '请选择' }]}>
+                <DatePicker showTime style={{ width: '100%' }} placeholder='报名开始时间' />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name='apply_end' label='报名截止' rules={[{ required: true, message: '请选择' }]}>
+                <DatePicker showTime style={{ width: '100%' }} placeholder='报名截止时间' />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name='exam_date' label='考试时间' rules={[{ required: true, message: '请选择' }]}>
+                <DatePicker showTime style={{ width: '100%' }} placeholder='考试时间' />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name='capacity' label='总名额' rules={[{ required: true, message: '请输入' }]}>
+                <InputNumber min={1} precision={0} style={{ width: '100%' }} placeholder='可报名人数上限' />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Form.Item name='exam_location' label='考试地点'>
+            <Input placeholder='线下考试填写地址' maxLength={256} />
+          </Form.Item>
+
+          <Divider orientation='left' orientationMargin={0} style={{ margin: '8px 0 16px' }}>
+            <Space size={6}>
+              <PayCircleOutlined style={{ color: '#FA8C16' }} />
+              <Typography.Text type='secondary' style={{ fontSize: 13 }}>报名价格（元）</Typography.Text>
+            </Space>
+          </Divider>
+
+          <Row gutter={16}>
+            <Col span={8}>
+              <Form.Item name='coupon_price_cents' label='考券价' rules={[{ required: true, message: '必填' }]}>
+                <InputNumber min={0} precision={2} style={{ width: '100%' }} placeholder='0.00' prefix='¥' />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item name='student_price_cents' label='学生价' rules={[{ required: true, message: '必填' }]}>
+                <InputNumber min={0} precision={2} style={{ width: '100%' }} placeholder='0.00' prefix='¥' />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item name='full_price_cents' label='全额价' rules={[{ required: true, message: '必填' }]}>
+                <InputNumber min={0} precision={2} style={{ width: '100%' }} placeholder='0.00' prefix='¥' />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Divider orientation='left' orientationMargin={0} style={{ margin: '8px 0 16px' }}>
+            <Space size={6}>
+              <FileProtectOutlined style={{ color: '#52c41a' }} />
+              <Typography.Text type='secondary' style={{ fontSize: 13 }}>审核与补交</Typography.Text>
+            </Space>
+          </Divider>
+
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item
+                name='payment_timeout_minutes' label='支付保留（分钟）'
+                rules={[{ required: true, message: '必填' }]}
+                tooltip='未在规定时间内完成支付的订单将自动关闭'
+              >
+                <InputNumber min={1} precision={0} style={{ width: '100%' }} />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item
+                name='resubmission_window_hours' label='补交窗口（小时）'
+                rules={[{ required: true, message: '必填' }]}
+                tooltip='审核驳回后，考生可在此时间内重新提交材料'
+              >
+                <InputNumber min={1} precision={0} style={{ width: '100%' }} />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name='max_resubmissions' label='最大补交次数' rules={[{ required: true, message: '必填' }]}>
+                <InputNumber min={0} max={10} precision={0} style={{ width: '100%' }} />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item
+                name='max_material_bytes' label='单图上限（MB）'
+                rules={[{ required: true, message: '必填' }]}
+                tooltip='考生上传的每张证件照最大体积'
+                normalize={(v) => (v != null ? v * 1048576 : undefined)}
+                getValueFromEvent={(e) => {
+                  const raw = typeof e?.target?.value === 'number' ? e.target.value : e
+                  return raw != null ? Math.round(raw / 1048576) : undefined
+                }}
+              >
+                <InputNumber min={1} max={50} precision={0} style={{ width: '100%' }} placeholder='10' />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Typography.Text type='secondary' style={{ fontSize: 12 }}>
+            批次创建后为草稿状态，需在列表中点击「发布」才会展示到小程序；价格与学生证明材料在审核环节校验。
+          </Typography.Text>
         </Form>
       </Modal>
     </>
