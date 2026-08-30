@@ -271,9 +271,10 @@ export interface QuizV2QuestionUpdate {
 }
 
 export interface QuizV2QuestionFilter {
-  library_id: number
+  library_id?: number
   module_id?: number
   knowledge_point_id?: number
+  question_id?: number
   question_type?: QuestionType
   status?: QuestionStatus | 'deleted'
   keyword?: string
@@ -502,6 +503,18 @@ export interface UserPracticeDay {
   accuracy: number
 }
 
+export interface UserExamRound {
+  exam_id: number
+  status: 'in_progress' | 'completed' | 'timed_out' | 'abandoned'
+  started_at: string
+  settled_at: string | null
+  question_count: number
+  correct_count: number | null
+  wrong_count: number | null
+  unanswered_count: number | null
+  score: number | null
+}
+
 export interface UserPracticeStats {
   user_id: number
   library_id: number
@@ -514,6 +527,11 @@ export interface UserPracticeStats {
   first_accuracy: number
   active_days: number
   daily: UserPracticeDay[]
+  exam_rounds: UserExamRound[]
+  exam_settled_count: number
+  exam_average_score: number | null
+  exam_highest_score: number | null
+  exam_latest_score: number | null
 }
 
 export interface QuizImageUpload {

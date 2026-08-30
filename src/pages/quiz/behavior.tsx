@@ -7,7 +7,8 @@ import ReactECharts from 'echarts-for-react'
 import { PageContainer } from '@/components/PageContainer'
 import { quizService } from '@/services/quiz'
 import { userService } from '@/services/users'
-import type { DailyStatsItem, QuestionStatsListItem, QuestionType, QuizLibrary, StatsQuestionFilter, UserPracticeStats, UserStatsListItem } from '@/types/quiz'
+import { formatDate } from '@/utils/format'
+import type { DailyStatsItem, QuestionStatsListItem, QuestionType, QuizLibrary, StatsQuestionFilter, UserExamRound, UserPracticeStats, UserStatsListItem } from '@/types/quiz'
 
 const { Text } = Typography
 const { RangePicker } = DatePicker
@@ -16,6 +17,13 @@ const typeLabels: Record<QuestionType, string> = { single_choice: '单选', mult
 interface StudentOption {
   value: number
   label: string
+}
+
+const examStatusLabels: Record<UserExamRound['status'], { text: string; color: string }> = {
+  in_progress: { text: '进行中', color: 'processing' },
+  completed: { text: '已完成', color: 'green' },
+  timed_out: { text: '超时结算', color: 'orange' },
+  abandoned: { text: '已放弃', color: 'default' },
 }
 
 function errorText(error: unknown) {
@@ -172,6 +180,30 @@ export default function QuizBehavior() {
     ],
   }), [practiceResult])
 
+  const examColumns: ColumnsType<UserExamRound> = [
+    { title: '考试 ID', dataIndex: 'exam_id', width: 90 },
+    {
+      title: '状态',
+      dataIndex: 'status',
+      width: 100,
+      render: (value: UserExamRound['status']) => (
+        <Tag color={examStatusLabels[value].color}>{examStatusLabels[value].text}</Tag>
+      ),
+    },
+    { title: '开始时间', dataIndex: 'started_at', width: 170, render: (value: string) => formatDate(value) },
+    { title: '结算时间', dataIndex: 'settled_at', width: 170, render: (value: string | null) => (value ? formatDate(value) : '—') },
+    { title: '题量', dataIndex: 'question_count', width: 80 },
+    { title: '答对', dataIndex: 'correct_count', width: 70, render: (value: number | null) => value ?? '—' },
+    { title: '答错', dataIndex: 'wrong_count', width: 70, render: (value: number | null) => value ?? '—' },
+    { title: '未答', dataIndex: 'unanswered_count', width: 70, render: (value: number | null) => value ?? '—' },
+    {
+      title: '得分',
+      dataIndex: 'score',
+      width: 90,
+      render: (value: number | null) => (value === null ? '—' : `${value.toFixed(1)}`),
+    },
+  ]
+
   const userColumns: ColumnsType<UserStatsListItem> = [
     { title: '排名', width: 70, render: (_value, _record, index) => ((users?.page ?? 1) - 1) * (users?.page_size ?? 20) + index + 1 },
     { title: '用户 ID', dataIndex: 'user_id', width: 100 },
@@ -255,6 +287,33 @@ export default function QuizBehavior() {
             ) : (
               <Text type="secondary">该时间段内没有练习记录</Text>
             )}
+            <div style={{ marginTop: 16 }}>
+              <Space wrap style={{ marginBottom: 8 }}>
+                <Text strong>考试成绩</Text>
+                <Text type="secondary">
+                  已结算 {practiceResult.exam_settled_count} 场
+                  {practiceResult.exam_settled_count > 0 && (
+                    <>
+                      {' · '}平均 {practiceResult.exam_average_score?.toFixed(1)} 分
+                      {' · '}最高 {practiceResult.exam_highest_score?.toFixed(1)} 分
+                      {' · '}最近 {practiceResult.exam_latest_score?.toFixed(1)} 分
+                    </>
+                  )}
+                </Text>
+              </Space>
+              {practiceResult.exam_rounds.length > 0 ? (
+                <Table<UserExamRound>
+                  rowKey="exam_id"
+                  size="small"
+                  scroll={{ x: 920 }}
+                  columns={examColumns}
+                  dataSource={practiceResult.exam_rounds}
+                  pagination={false}
+                />
+              ) : (
+                <Text type="secondary">该时间段内没有考试记录</Text>
+              )}
+            </div>
           </>
         )}
       </Card>

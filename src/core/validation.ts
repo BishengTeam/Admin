@@ -522,6 +522,18 @@ export const UserPracticeDaySchema = z.object({
   accuracy: z.coerce.number().min(0).max(100),
 }).strict()
 
+export const UserExamRoundSchema = z.object({
+  exam_id: positiveInt,
+  status: z.enum(['in_progress', 'completed', 'timed_out', 'abandoned']),
+  started_at: dateString,
+  settled_at: nullableString,
+  question_count: z.number().int().min(1),
+  correct_count: z.number().int().min(0).nullable(),
+  wrong_count: z.number().int().min(0).nullable(),
+  unanswered_count: z.number().int().min(0).nullable(),
+  score: z.coerce.number().min(0).max(100).nullable(),
+}).strict()
+
 export const UserPracticeStatsSchema = z.object({
   user_id: positiveInt,
   library_id: positiveInt,
@@ -534,6 +546,11 @@ export const UserPracticeStatsSchema = z.object({
   first_accuracy: z.coerce.number().min(0).max(100),
   active_days: z.number().int().min(0),
   daily: z.array(UserPracticeDaySchema),
+  exam_rounds: z.array(UserExamRoundSchema),
+  exam_settled_count: z.number().int().min(0),
+  exam_average_score: z.coerce.number().min(0).max(100).nullable(),
+  exam_highest_score: z.coerce.number().min(0).max(100).nullable(),
+  exam_latest_score: z.coerce.number().min(0).max(100).nullable(),
 }).strict()
 
 export const QuizImageUploadCreateSchema = z.object({
