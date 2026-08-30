@@ -73,6 +73,7 @@ export default function QuizV2Workbench() {
   const selectedLibraryId = Number(params.get('library_id')) || undefined
   const selectedModuleId = Number(params.get('module_id')) || undefined
   const selectedPointId = Number(params.get('knowledge_point_id')) || undefined
+  const focusQuestionId = Number(params.get('question_id')) || undefined
   const selection: Selection = selectedPointId ? { kind: 'point', id: selectedPointId } : selectedModuleId ? { kind: 'module', id: selectedModuleId } : { kind: 'all' }
   const [tree, setTree] = useState<QuizContentTree | null>(null)
   const [treeLoading, setTreeLoading] = useState(false)
@@ -94,6 +95,7 @@ export default function QuizV2Workbench() {
   const librariesController = useRef<AbortController>()
   const treeController = useRef<AbortController>()
   const questionsController = useRef<AbortController>()
+  const focusResolvedRef = useRef<number | null>(null)
 
   const updateParams = useCallback((changes: Record<string, string | number | undefined>) => {
     setParams((current) => {
@@ -111,11 +113,11 @@ export default function QuizV2Workbench() {
       const result = await quizService.listLibraries({ include_deleted: false }, controller.signal)
       if (controller.signal.aborted) return
       setLibraries(result)
-      if (!selectedLibraryId && result.length) updateParams({ library_id: result[0].id })
+      if (!selectedLibraryId && !focusQuestionId && result.length) updateParams({ library_id: result[0].id })
     } catch (error) {
       if (!controller.signal.aborted) message.error(errorText(error))
     }
-  }, [selectedLibraryId, updateParams])
+  }, [focusQuestionId, selectedLibraryId, updateParams])
 
   const loadTree = useCallback(async () => {
     treeController.current?.abort()
@@ -131,17 +133,18 @@ export default function QuizV2Workbench() {
     } finally { if (!controller.signal.aborted) setTreeLoading(false) }
   }, [selectedLibraryId])
 
-  const filters = useMemo<QuizV2QuestionFilter | null>(() => selectedLibraryId ? {
-    library_id: selectedLibraryId,
+  const filters = useMemo<QuizV2QuestionFilter | null>(() => selectedLibraryId || focusQuestionId ? {
+    ...(selectedLibraryId ? { library_id: selectedLibraryId } : {}),
+    ...(focusQuestionId ? { question_id: focusQuestionId } : {}),
     ...(selection.kind === 'module' ? { module_id: selection.id } : {}),
     ...(selection.kind === 'point' ? { knowledge_point_id: selection.id } : {}),
     question_type: (params.get('question_type') as QuizV2QuestionFilter['question_type']) || undefined,
     status: (params.get('status') as QuizV2QuestionFilter['status']) || undefined,
     keyword: params.get('keyword')?.trim() || undefined,
-    include_deleted: params.get('include_deleted') === 'true',
+    include_deleted: focusQuestionId !== undefined || params.get('include_deleted') === 'true',
     page,
     page_size: pageSize,
-  } : null, [page, pageSize, params, selectedLibraryId, selection.kind, selection.kind === 'all' ? 0 : selection.id])
+  } : null, [focusQuestionId, page, pageSize, params, selectedLibraryId, selection.kind, selection.kind === 'all' ? 0 : selection.id])
 
   const loadQuestions = useCallback(async () => {
     questionsController.current?.abort()
@@ -275,9 +278,9 @@ export default function QuizV2Workbench() {
 
   const selectNode = (keys: React.Key[]) => {
     const key = String(keys[0] ?? 'all')
-    if (key.startsWith('module:')) updateParams({ module_id: Number(key.split(':')[1]), knowledge_point_id: undefined })
-    else if (key.startsWith('point:')) updateParams({ module_id: undefined, knowledge_point_id: Number(key.split(':')[1]) })
-    else updateParams({ module_id: undefined, knowledge_point_id: undefined })
+    if (key.startsWith('module:')) updateParams({ module_id: Number(key.split(':')[1]), knowledge_point_id: undefined, question_id: undefined, include_deleted: undefined })
+    else if (key.startsWith('point:')) updateParams({ module_id: undefined, knowledge_point_id: Number(key.split(':')[1]), question_id: undefined, include_deleted: undefined })
+    else updateParams({ module_id: undefined, knowledge_point_id: undefined, question_id: undefined, include_deleted: undefined })
   }
 
   const openQuestion = (question?: QuizV2Question) => {
@@ -322,13 +325,28 @@ export default function QuizV2Workbench() {
     })
   }
 
-  const openRevisions = async (question: QuizV2Question) => {
+  const openRevisions = useCallback(async (question: QuizV2Question) => {
     setViewing(question)
     setRevisionLoading(true)
     try { setRevisions(await quizService.listQuestionRevisions(question.id)) }
     catch (error) { message.error(errorText(error)) }
     finally { setRevisionLoading(false) }
-  }
+  }, [])
+
+  // 工单「处理」跳转：按题目 ID 定位到所属题库与知识点，并自动打开修订历史。
+  useEffect(() => {
+    if (focusQuestionId === undefined) { focusResolvedRef.current = null; return }
+    if (!questions || focusResolvedRef.current === focusQuestionId) return
+    focusResolvedRef.current = focusQuestionId
+    const focused = questions.items.find((item) => item.id === focusQuestionId)
+    if (!focused) {
+      message.warning(`未找到题目 #${focusQuestionId}，可能不是新版题库题目或已被彻底删除`)
+      updateParams({ question_id: undefined, include_deleted: undefined })
+      return
+    }
+    updateParams({ library_id: focused.library_id, module_id: undefined, knowledge_point_id: focused.knowledge_point_id })
+    void openRevisions(focused)
+  }, [focusQuestionId, openRevisions, questions, updateParams])
 
   const batch = (action: 'publish' | 'disable') => {
     const rows = Object.values(selectedRows)
@@ -394,11 +412,13 @@ export default function QuizV2Workbench() {
       <Space direction="vertical" style={{ width: '100%' }} size="middle">
         <Alert type="info" showIcon message="固定层级：题库 → 模块 → 知识点 → 题目" description="题库和模块不能直接挂题。点击模块可查看整个模块题目；新增单题必须选择知识点，导入文件则自行携带完整的“模块 / 知识点”路径。发布后编辑生成待发布修订，不覆盖线上版本。" />
         <Space wrap>
-          <Select aria-label="选择题库" showSearch optionFilterProp="label" placeholder="先选择题库" value={selectedLibraryId} onChange={(library_id) => updateParams({ library_id, module_id: undefined, knowledge_point_id: undefined })} options={libraries.filter((item) => item.status !== 'deleted').map((item) => ({ value: item.id, label: `${item.name} (${item.library_code})` }))} style={{ width: 360 }} />
+          <Select aria-label="选择题库" showSearch optionFilterProp="label" placeholder="先选择题库" value={selectedLibraryId} onChange={(library_id) => updateParams({ library_id, module_id: undefined, knowledge_point_id: undefined, question_id: undefined, include_deleted: undefined })} options={libraries.filter((item) => item.status !== 'deleted').map((item) => ({ value: item.id, label: `${item.name} (${item.library_code})` }))} style={{ width: 360 }} />
           {selectedLibrary && <><Tag color={selectedLibrary.status === 'published' ? 'success' : 'default'}>{selectedLibrary.status}</Tag><Tag color={selectedLibrary.v2_enabled ? 'blue' : 'default'}>V2 {selectedLibrary.v2_enabled ? '已开放' : '未开放'}</Tag></>}
           <Button icon={<ReloadOutlined />} onClick={() => void refreshAll()}>刷新</Button>
         </Space>
-        {!selectedLibraryId ? <Alert type="warning" message="请先在“题库”页面创建并选择一个题库" /> : <Row gutter={16} align="top">
+        {!selectedLibraryId ? (focusQuestionId
+          ? <Alert type="info" showIcon message={`正在定位题目 #${focusQuestionId}…`} />
+          : <Alert type="warning" message="请先在“题库”页面创建并选择一个题库" />) : <Row gutter={16} align="top">
           <Col xs={24} lg={7} xl={6}>
             <Card size="small" title="模块与知识点" loading={treeLoading} extra={canWrite && selectedLibrary && !['archived', 'deleted'].includes(selectedLibrary.status) ? <Button type="link" size="small" icon={<PlusOutlined />} onClick={() => openCreateContent('module')}>新增模块</Button> : undefined}>
               <Tree showLine blockNode defaultExpandAll treeData={treeData} selectedKeys={[selection.kind === 'all' ? 'all' : `${selection.kind}:${selection.id}`]} onSelect={selectNode} style={{ maxHeight: 'calc(100vh - 340px)', overflow: 'auto' }} />
@@ -407,9 +427,9 @@ export default function QuizV2Workbench() {
           <Col xs={24} lg={17} xl={18}>
             <Space wrap style={{ width: '100%', justifyContent: 'space-between', marginBottom: 16 }}>
               <Space wrap>
-                <Input.Search allowClear value={keyword} onChange={(event) => setKeyword(event.target.value)} onSearch={(value) => updateParams({ keyword: value.trim() || undefined })} placeholder="搜索题干" style={{ width: 220 }} />
-                <Select aria-label="题目题型" allowClear placeholder="题型" value={params.get('question_type') || undefined} onChange={(question_type) => updateParams({ question_type })} options={Object.entries(typeLabels).map(([value, label]) => ({ value, label }))} style={{ width: 120 }} />
-                <Select aria-label="题目状态" allowClear placeholder="状态" value={params.get('status') || undefined} onChange={(status) => updateParams({ status, include_deleted: status === 'deleted' ? 'true' : undefined })} options={Object.entries(statusLabels).map(([value, label]) => ({ value, label }))} style={{ width: 120 }} />
+                <Input.Search allowClear value={keyword} onChange={(event) => setKeyword(event.target.value)} onSearch={(value) => updateParams({ keyword: value.trim() || undefined, question_id: undefined })} placeholder="搜索题干" style={{ width: 220 }} />
+                <Select aria-label="题目题型" allowClear placeholder="题型" value={params.get('question_type') || undefined} onChange={(question_type) => updateParams({ question_type, question_id: undefined })} options={Object.entries(typeLabels).map(([value, label]) => ({ value, label }))} style={{ width: 120 }} />
+                <Select aria-label="题目状态" allowClear placeholder="状态" value={params.get('status') || undefined} onChange={(status) => updateParams({ status, include_deleted: status === 'deleted' ? 'true' : undefined, question_id: undefined })} options={Object.entries(statusLabels).map(([value, label]) => ({ value, label }))} style={{ width: 120 }} />
               </Space>
               <Space wrap>
                 {Object.keys(selectedRows).length > 0 && <><Button disabled={!canPublish} onClick={() => batch('publish')}>批量发布修订 ({Object.keys(selectedRows).length})</Button><Button danger disabled={!canPublish} onClick={() => batch('disable')}>批量停用</Button></>}
@@ -418,6 +438,7 @@ export default function QuizV2Workbench() {
               </Space>
             </Space>
             {selection.kind !== 'point' && <Alert style={{ marginBottom: 12 }} type="warning" showIcon message={selection.kind === 'module' ? '当前展示整个模块的题目；新增单题仍需选择知识点，导入可直接选择当前题库。' : '当前展示整库题目；新增单题仍需选择知识点，导入可直接选择当前题库。'} />}
+            {focusQuestionId && <Alert style={{ marginBottom: 12 }} type="info" showIcon closable message={`题目 #${focusQuestionId} 定位模式`} description="当前列表仅显示该题目，修订历史已自动打开；修正后可点击「已解决」闭环工单，或关闭本提示恢复完整列表。" onClose={() => updateParams({ question_id: undefined, include_deleted: undefined })} />}
             <Table<QuizV2Question> rowKey="id" loading={questionLoading} dataSource={questions?.items ?? []} columns={columns} scroll={{ x: 1450 }} rowSelection={canWrite ? rowSelection : undefined} pagination={{ current: questions?.page ?? page, pageSize: questions?.page_size ?? pageSize, total: questions?.total ?? 0, showSizeChanger: true, pageSizeOptions: [10, 20, 50, 100], onChange: (nextPage, nextSize) => { setSelectedRows({}); setPage(nextSize !== pageSize ? 1 : nextPage); setPageSize(nextSize) } }} />
           </Col>
         </Row>}

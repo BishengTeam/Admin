@@ -1,9 +1,12 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Modal, Space, Table, Tabs, Tag, Typography, message } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { PageContainer } from '@/components/PageContainer'
+import { usePermission } from '@/hooks/usePermission'
 import { usePagination } from '@/hooks/usePagination'
 import { ticketService } from '@/services/tickets'
+import { parseQuizFeedbackQuestionId } from '@/utils/tickets'
 import { formatDate } from '@/utils/format'
 import type { Ticket, TicketStatus } from '@/types/ticket'
 
@@ -19,6 +22,8 @@ const isTicketStatus = (value: string): value is TicketStatus =>
   value === 'waiting_manual' || value === 'processing' || value === 'resolved'
 
 export default function TicketManagement() {
+  const navigate = useNavigate()
+  const canAccessQuiz = usePermission('quiz:list')
   const [statusFilter, setStatusFilter] = useState<string>('')
   const [detail, setDetail] = useState<Ticket | null>(null)
   const [updating, setUpdating] = useState<number | null>(null)
@@ -36,6 +41,24 @@ export default function TicketManagement() {
       message.success(`工单 #${ticket.id} 已标记为「${STATUS_CONFIG[status]?.text ?? status}」`)
       setDetail(current => (current?.id === ticket.id ? null : current))
       refresh()
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '更新失败，请重试')
+    } finally {
+      setUpdating(null)
+    }
+  }
+
+  const locateFeedbackQuestion = async (ticket: Ticket) => {
+    const questionId = parseQuizFeedbackQuestionId(ticket.content)
+    if (updating !== null || !questionId) return
+    setUpdating(ticket.id)
+    try {
+      if (ticket.status !== 'processing') {
+        await ticketService.update(ticket.id, { status: 'processing' })
+      }
+      message.success(`工单 #${ticket.id} 已标记为处理中，正在定位题目 #${questionId}`)
+      setDetail(current => (current?.id === ticket.id ? null : current))
+      navigate(`/admin/quiz/questions?question_id=${questionId}&include_deleted=true`)
     } catch (error) {
       message.error(error instanceof Error ? error.message : '更新失败，请重试')
     } finally {
@@ -66,10 +89,15 @@ export default function TicketManagement() {
     {
       title: '操作',
       key: 'actions',
-      width: 200,
+      width: 260,
       render: (_, record) => (
         <Space>
           <a onClick={() => setDetail(record)}>查看</a>
+          {canAccessQuiz && record.status !== 'resolved' && parseQuizFeedbackQuestionId(record.content) !== null && (
+            <a onClick={() => void locateFeedbackQuestion(record)}>
+              {updating === record.id ? '跳转中…' : '处理'}
+            </a>
+          )}
           {record.status !== 'processing' && (
             <a onClick={() => void updateStatus(record, 'processing')}>标记处理中</a>
           )}
@@ -95,7 +123,7 @@ export default function TicketManagement() {
         style={{ marginBottom: 8 }}
       />
       <Text type="secondary" style={{ display: 'block', marginBottom: 16 }}>
-        学生在练习页提交的「题目纠错」会以【题目反馈】开头进入这里；修正题目后请标记状态，形成处理闭环。
+        学生在练习页提交的「题目纠错」会以【题目反馈】开头进入这里；点击「处理」会自动标记处理中并跳转到对应题目，修正后请标记已解决，形成处理闭环。
       </Text>
       <Table
         rowKey="id"
@@ -130,6 +158,11 @@ export default function TicketManagement() {
             </Space>
             {isTicketStatus(detail.status) && detail.status !== 'resolved' && (
               <Space>
+                {canAccessQuiz && parseQuizFeedbackQuestionId(detail.content) !== null && (
+                  <a onClick={() => void locateFeedbackQuestion(detail)}>
+                    {updating === detail.id ? '跳转中…' : `处理并定位题目 #${parseQuizFeedbackQuestionId(detail.content)}`}
+                  </a>
+                )}
                 {detail.status !== 'processing' && (
                   <a onClick={() => void updateStatus(detail, 'processing')}>标记处理中</a>
                 )}
