@@ -84,34 +84,55 @@ export default function BatchOverrides(_props: { type: CertType; productCode: st
   }
 
   const createBatch = async () => {
-    const values = await form.validateFields()
-    await h3cService.createBatch({
-      ...values,
-      apply_start: values.apply_start?.toISOString(),
-      apply_end: values.apply_end?.toISOString(),
-      exam_date: values.exam_date?.toISOString(),
-      coupon_price_cents: yuanToCents(values.coupon_price_cents),
-      student_price_cents: yuanToCents(values.student_price_cents),
-      full_price_cents: yuanToCents(values.full_price_cents),
-    })
-    message.success('H3C 考试批次已创建，请刷新批次列表后发布')
-    setBatchOpen(false)
+    let values: Awaited<ReturnType<typeof form.validateFields>>
+    try {
+      values = await form.validateFields()
+    } catch {
+      return // 校验失败：antd 已标红字段
+    }
+    try {
+      await h3cService.createBatch({
+        ...values,
+        apply_start: values.apply_start?.toISOString(),
+        apply_end: values.apply_end?.toISOString(),
+        exam_date: values.exam_date?.toISOString(),
+        coupon_price_cents: yuanToCents(values.coupon_price_cents),
+        student_price_cents: yuanToCents(values.student_price_cents),
+        full_price_cents: yuanToCents(values.full_price_cents),
+        max_material_bytes: Math.round(values.max_material_bytes_mb * 1048576),
+      })
+      message.success('H3C 考试批次已创建，请在列表中发布')
+      setBatchOpen(false)
+    } catch (error) {
+      // 422 等静默业务错误在此显式提示，避免"点击无反应"
+      message.error(error instanceof Error ? error.message : '创建失败，请重试')
+    }
   }
   const updateBatch = async () => {
     if (!editingBatch) return
-    const values = await form.validateFields()
-    const { certification_code: _ignored, ...payload } = values
-    await h3cService.updateBatch(editingBatch.id, {
-      ...payload,
-      apply_start: values.apply_start?.toISOString(),
-      apply_end: values.apply_end?.toISOString(),
-      exam_date: values.exam_date?.toISOString(),
-      coupon_price_cents: yuanToCents(values.coupon_price_cents),
-      student_price_cents: yuanToCents(values.student_price_cents),
-      full_price_cents: yuanToCents(values.full_price_cents),
-    })
-    message.success('H3C 考试批次已更新')
-    setBatchOpen(false)
+    let values: Awaited<ReturnType<typeof form.validateFields>>
+    try {
+      values = await form.validateFields()
+    } catch {
+      return // 校验失败：antd 已标红字段
+    }
+    const { certification_code: _ignored, ...rest } = values
+    try {
+      await h3cService.updateBatch(editingBatch.id, {
+        ...rest,
+        apply_start: values.apply_start?.toISOString(),
+        apply_end: values.apply_end?.toISOString(),
+        exam_date: values.exam_date?.toISOString(),
+        coupon_price_cents: yuanToCents(values.coupon_price_cents),
+        student_price_cents: yuanToCents(values.student_price_cents),
+        full_price_cents: yuanToCents(values.full_price_cents),
+        max_material_bytes: Math.round(values.max_material_bytes_mb * 1048576),
+      })
+      message.success('H3C 考试批次已更新')
+      setBatchOpen(false)
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '更新失败，请重试')
+    }
   }
 
   /** 从产品名提取认证缩写作为身份标签 */
@@ -138,7 +159,7 @@ export default function BatchOverrides(_props: { type: CertType; productCode: st
       payment_timeout_minutes: 30,
       resubmission_window_hours: 72,
       max_resubmissions: 2,
-      max_material_bytes: 10485760,
+      max_material_bytes_mb: 10,
     })
     setBatchOpen(true)
   }
@@ -162,7 +183,7 @@ export default function BatchOverrides(_props: { type: CertType; productCode: st
       payment_timeout_minutes: batch.payment_timeout_minutes,
       resubmission_window_hours: batch.resubmission_window_hours,
       max_resubmissions: batch.max_resubmissions,
-      max_material_bytes: batch.max_material_bytes,
+      max_material_bytes_mb: batch.max_material_bytes / 1048576,
     })
     setBatchOpen(true)
   }
@@ -383,16 +404,11 @@ export default function BatchOverrides(_props: { type: CertType; productCode: st
             </Col>
             <Col span={12}>
               <Form.Item
-                name='max_material_bytes' label='单图上限（MB）'
+                name='max_material_bytes_mb' label='单图上限（MB）'
                 rules={[{ required: true, message: '必填' }]}
-                tooltip='考生上传的每张证件照最大体积'
-                normalize={(v) => (v != null ? v * 1048576 : undefined)}
-                getValueFromEvent={(e) => {
-                  const raw = typeof e?.target?.value === 'number' ? e.target.value : e
-                  return raw != null ? Math.round(raw / 1048576) : undefined
-                }}
+                tooltip='考生上传的每张证件照最大体积（提交时自动转换为字节）'
               >
-                <InputNumber min={1} max={50} precision={0} style={{ width: '100%' }} placeholder='10' />
+                <InputNumber min={1} max={20} precision={0} style={{ width: '100%' }} placeholder='10' addonAfter='MB' />
               </Form.Item>
             </Col>
           </Row>
