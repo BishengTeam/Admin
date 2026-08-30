@@ -25,6 +25,7 @@ const LoginPage = lazy(() => import('@/pages/login'))
 const Dashboard = lazy(() => import('@/pages/dashboard'))
 const UserList = lazy(() => import('@/pages/users'))
 const OrderList = lazy(() => import('@/pages/orders'))
+const TicketManagement = lazy(() => import('@/pages/tickets'))
 const QuizManagement = lazy(() => import('@/pages/quiz'))
 const QuizLibraries = lazy(() => import('@/pages/quiz/libraries'))
 const QuizV2Workbench = lazy(() => import('@/pages/quiz/v2-workbench'))
@@ -74,6 +75,11 @@ export const adminRoutes: AppRoute[] = [
     path: 'users',
     element: <UserList />,
     meta: { title: '用户管理', icon: 'TeamOutlined', permission: 'user:list' },
+  },
+  {
+    path: 'tickets',
+    element: <TicketManagement />,
+    meta: { title: '客服工单', icon: 'CustomerServiceOutlined', permission: 'user:list' },
   },
   {
     path: 'orders',
