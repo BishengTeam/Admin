@@ -495,6 +495,27 @@ export interface UserStatsListItem {
   consecutive_days: number
 }
 
+export interface UserPracticeDay {
+  date: string
+  attempts: number
+  correct: number
+  accuracy: number
+}
+
+export interface UserPracticeStats {
+  user_id: number
+  library_id: number
+  date_from: string
+  date_to: string
+  total_attempts: number
+  answered_questions: number
+  first_attempts: number
+  first_correct: number
+  first_accuracy: number
+  active_days: number
+  daily: UserPracticeDay[]
+}
+
 export interface QuizImageUpload {
   object_key: string
   upload_url: string

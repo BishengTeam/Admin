@@ -515,6 +515,27 @@ export const UserStatsPageSchema = z.object({
   page_size: positiveInt,
 }).strict()
 
+export const UserPracticeDaySchema = z.object({
+  date: z.string().min(1),
+  attempts: z.number().int().min(0),
+  correct: z.number().int().min(0),
+  accuracy: z.coerce.number().min(0).max(100),
+}).strict()
+
+export const UserPracticeStatsSchema = z.object({
+  user_id: positiveInt,
+  library_id: positiveInt,
+  date_from: z.string().min(1),
+  date_to: z.string().min(1),
+  total_attempts: z.number().int().min(0),
+  answered_questions: z.number().int().min(0),
+  first_attempts: z.number().int().min(0),
+  first_correct: z.number().int().min(0),
+  first_accuracy: z.coerce.number().min(0).max(100),
+  active_days: z.number().int().min(0),
+  daily: z.array(UserPracticeDaySchema),
+}).strict()
+
 export const QuizImageUploadCreateSchema = z.object({
   filename: z.string().min(1).max(255),
   content_type: z.string().min(1).max(128),

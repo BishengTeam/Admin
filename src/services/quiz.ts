@@ -48,6 +48,7 @@ import {
   SignedUrlSchema,
   StatsOverviewSchema,
   UserStatsPageSchema,
+  UserPracticeStatsSchema,
   VersionRequestSchema,
 } from '@/core/validation'
 import type { PageData } from '@/types/api'
@@ -84,6 +85,7 @@ import type {
   StatsOverview,
   StatsQuestionFilter,
   UserStatsListItem,
+  UserPracticeStats,
   VersionRequest,
   QuizContentTree,
   QuizCourseBinding,
@@ -439,6 +441,13 @@ export const quizService = {
 
   async listUserStats(params: { page?: number; page_size?: number } = {}, signal?: AbortSignal): Promise<PageData<UserStatsListItem>> {
     return parsed(UserStatsPageSchema, await http.get('/admin/quiz/stats/users', queryConfig(params, signal)))
+  },
+
+  async getUserPracticeStats(
+    params: { user_id: number; library_id: number; date_from: string; date_to: string },
+    signal?: AbortSignal,
+  ): Promise<UserPracticeStats> {
+    return parsed(UserPracticeStatsSchema, await http.get('/admin/quiz/stats/user-practice', queryConfig(params, signal)))
   },
 
   async createImageUpload(input: { filename: string; content_type: string; size_bytes: number }, signal?: AbortSignal): Promise<QuizImageUpload> {
