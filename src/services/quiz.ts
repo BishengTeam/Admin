@@ -5,12 +5,6 @@ import {
   AuditLogSchema,
   BatchResponseSchema,
   BatchRequestSchema,
-  CategoryImpactQuerySchema,
-  CategoryImpactSchema,
-  CategorySchema,
-  CategoryCreateSchema,
-  CategoryStatusUpdateSchema,
-  CategoryUpdateSchema,
   CsvImportMetadataSchema,
   DailyStatsSchema,
   QuizImageUploadCreateSchema,
@@ -21,11 +15,8 @@ import {
   ImportErrorPageSchema,
   ImportJobSchema,
   JsonImportRequestSchema,
-  QuestionSchema,
-  QuestionCreateSchema,
   QuestionStatsSchema,
   QuestionStatsListItemSchema,
-  QuestionUpdateSchema,
   QuizTaskSnapshotSchema,
   QuizContentStatusUpdateSchema,
   QuizContentTreeSchema,
@@ -57,12 +48,6 @@ import type {
   AuditLog,
   BatchRequest,
   BatchResponse,
-  Category,
-  CategoryCreate,
-  CategoryImpact,
-  CategoryImpactQuery,
-  CategoryStatusUpdate,
-  CategoryUpdate,
   CsvImportMetadata,
   DailyStatsItem,
   QuizImageUpload,
@@ -74,12 +59,7 @@ import type {
   ImportErrorPage,
   ImportJob,
   JsonImportRequest,
-  Question,
-  QuestionCreate,
-  QuestionFilter,
-  QuestionStats,
   QuestionStatsListItem,
-  QuestionUpdate,
   QuizTaskProbe,
   SignedUrl,
   StatsOverview,
@@ -119,8 +99,6 @@ const pageSchema = <T extends z.ZodType>(item: T) => z.object({
   page_size: z.number(),
 }).strict()
 
-const CategoriesSchema = z.array(CategorySchema)
-const QuestionsPageSchema = pageSchema(QuestionSchema)
 const QuizV2QuestionsPageSchema = pageSchema(QuizV2QuestionSchema)
 const ImportsPageSchema = pageSchema(ImportJobSchema)
 const AuditPageSchema = pageSchema(AuditLogSchema)
@@ -295,69 +273,10 @@ export const quizService = {
     const payload = requestParsed(VersionRequestSchema, { lock_version } satisfies VersionRequest)
     return parsed(QuizV2QuestionSchema, await http.post(`/admin/quiz/questions/${id}/restore`, payload, { signal }))
   },
-  async listCategories(params: { status?: Category['status']; parent_id?: number } = {}, signal?: AbortSignal): Promise<Category[]> {
-    return parsed(CategoriesSchema, await http.get('/admin/quiz/categories', queryConfig(params, signal)))
-  },
-
-  async createCategory(data: CategoryCreate, signal?: AbortSignal): Promise<Category> {
-    const payload = requestParsed(CategoryCreateSchema, omitUndefined(data))
-    return parsed(CategorySchema, await http.post('/admin/quiz/categories', payload, { signal }))
-  },
-
-  async updateCategory(id: number, data: CategoryUpdate, signal?: AbortSignal): Promise<Category> {
-    const payload = requestParsed(CategoryUpdateSchema, omitUndefined(data))
-    return parsed(CategorySchema, await http.put(`/admin/quiz/categories/${id}`, payload, { signal }))
-  },
-
-  async deleteCategory(id: number, lock_version: number, signal?: AbortSignal): Promise<null> {
-    const payload = requestParsed(VersionRequestSchema, { lock_version } satisfies VersionRequest)
-    await http.delete(`/admin/quiz/categories/${id}`, { data: payload, signal })
-    return null
-  },
-
-  async updateCategoryStatus(id: number, data: CategoryStatusUpdate, signal?: AbortSignal): Promise<Category> {
-    const payload = requestParsed(CategoryStatusUpdateSchema, omitUndefined(data))
-    return parsed(CategorySchema, await http.post(`/admin/quiz/categories/${id}/status`, payload, { signal }))
-  },
-
-  async previewCategoryImpact(id: number, data: CategoryImpactQuery, signal?: AbortSignal): Promise<CategoryImpact> {
-    const query = requestParsed(CategoryImpactQuerySchema, omitUndefined(data))
-    return parsed(CategoryImpactSchema, await http.get(`/admin/quiz/categories/${id}/impact`, queryConfig(query, signal)))
-  },
-
-  async listQuestions(params: QuestionFilter, signal?: AbortSignal): Promise<PageData<Question>> {
-    return parsed(QuestionsPageSchema, await http.get('/admin/quiz/questions', queryConfig(params, signal)))
-  },
-
-  async createQuestion(data: QuestionCreate, signal?: AbortSignal): Promise<Question> {
-    const payload = requestParsed(QuestionCreateSchema, omitUndefined(data))
-    return parsed(QuestionSchema, await http.post('/admin/quiz/questions', payload, { signal }))
-  },
-
-  async updateQuestion(id: number, data: QuestionUpdate, signal?: AbortSignal): Promise<Question> {
-    const payload = requestParsed(QuestionUpdateSchema, omitUndefined(data))
-    return parsed(QuestionSchema, await http.put(`/admin/quiz/questions/${id}`, payload, { signal }))
-  },
-
   async deleteQuestion(id: number, lock_version: number, signal?: AbortSignal): Promise<null> {
     const payload = requestParsed(VersionRequestSchema, { lock_version } satisfies VersionRequest)
     await http.delete(`/admin/quiz/questions/${id}`, { data: payload, signal })
     return null
-  },
-
-  async publishQuestion(id: number, lock_version: number, signal?: AbortSignal): Promise<Question> {
-    const payload = requestParsed(VersionRequestSchema, { lock_version } satisfies VersionRequest)
-    return parsed(QuestionSchema, await http.post(`/admin/quiz/questions/${id}/publish`, payload, { signal }))
-  },
-
-  async disableQuestion(id: number, lock_version: number, signal?: AbortSignal): Promise<Question> {
-    const payload = requestParsed(VersionRequestSchema, { lock_version } satisfies VersionRequest)
-    return parsed(QuestionSchema, await http.post(`/admin/quiz/questions/${id}/disable`, payload, { signal }))
-  },
-
-  async restoreQuestion(id: number, lock_version: number, signal?: AbortSignal): Promise<Question> {
-    const payload = requestParsed(VersionRequestSchema, { lock_version } satisfies VersionRequest)
-    return parsed(QuestionSchema, await http.post(`/admin/quiz/questions/${id}/restore`, payload, { signal }))
   },
 
   async batchPublish(data: BatchRequest, signal?: AbortSignal): Promise<BatchResponse> {
@@ -368,10 +287,6 @@ export const quizService = {
   async batchDisable(data: BatchRequest, signal?: AbortSignal): Promise<BatchResponse> {
     const payload = requestParsed(BatchRequestSchema, omitUndefined(data))
     return parsed(BatchResponseSchema, await http.post('/admin/quiz/questions/batch-disable', payload, { signal }))
-  },
-
-  async getQuestionStats(id: number, signal?: AbortSignal): Promise<QuestionStats> {
-    return parsed(QuestionStatsSchema, await http.get(`/admin/quiz/questions/${id}/stats`, { signal }))
   },
 
   async importCsv(file: File, metadata: CsvImportMetadata, libraryId?: number, signal?: AbortSignal): Promise<ImportJob> {

@@ -161,6 +161,26 @@ const awaitingImport = {
   impact_version: 'a'.repeat(64),
 }
 
+const taskSnapshot = {
+  source: 'redis',
+  heartbeat_at: '2026-08-12T14:59:30+08:00',
+  processors: {
+    'quiz-import': {
+      name: 'quiz-import', runs: 5, successes: 5, failures: 0, failure_count: 0,
+      retries: 0, retry_count: 0, total_runtime_seconds: 1.2, runtime_seconds: 1.2,
+      last_runtime_seconds: 0.25, last_started_at: now, last_finished_at: now,
+      last_heartbeat_at: now, last_error: null, last_error_type: null,
+      queue_depth: 2, did_work: true,
+    },
+  },
+  signals: {
+    ready: true, stale: false, heartbeat_age_seconds: 10,
+    total_queue_depth: 2, total_failures: 0, stuck_processors: [],
+    stats_lag_seconds: null, stats_lagging: false,
+    exam_timeout_queue_depth: 0, oss_cleanup_queue_depth: 0,
+  },
+}
+
 function envelope(data: object | object[] | null) {
   return { code: 0, message: 'ok', data }
 }
@@ -838,7 +858,7 @@ test.describe('题库五页面新版契约冒烟', () => {
     }))
 
     await page.goto('/admin/quiz/stats')
-    await expect(page.getByText('管理端统计最多延迟 1 分钟，不提供用户下钻或导出。')).toBeVisible()
+    await expect(page.getByText('管理端统计最多延迟 1 分钟，不提供用户下载或导出。')).toBeVisible()
     await expect(page.getByText('题库', { exact: true }).first()).toBeVisible()
     await expect(page.getByText('模块', { exact: true }).first()).toBeVisible()
     await expect(page.getByText('知识点', { exact: true }).first()).toBeVisible()
@@ -883,5 +903,28 @@ test.describe('题库五页面新版契约冒烟', () => {
     await page.getByRole('button', { name: '刷新' }).click()
     await expect.poll(() => auditedRequestId).toBe('req-quiz-001')
     await expect(page.getByRole('button', { name: /删除|编辑|导出/ })).toHaveCount(0)
+  })
+
+  test('监控与审计合并页展示任务探针并保留旧路由重定向', async ({ page }) => {
+    await page.route('**/health', (route) => json(route, { status: 'ok', checks: { redis: 'ok' }, details: { quiz_tasks: taskSnapshot } }))
+    await page.route('**/ready', (route) => json(route, { status: 'ready', checks: { redis: 'ok' }, details: { quiz_tasks: taskSnapshot } }))
+    await page.route('**/admin/quiz/audit-logs?*', (route) => json(route, { items: [], total: 0, page: 1, page_size: 20 }))
+
+    await page.goto('/admin/quiz/tasks')
+    await expect(page).toHaveURL(/\/admin\/quiz\/monitoring\?tab=tasks$/)
+    await expect(page.getByText('题库监控与审计')).toBeVisible()
+    await expect(page.getByRole('tab', { name: '任务监控' })).toHaveAttribute('aria-selected', 'true')
+    await expect(page.getByText('独立 Worker（Redis 共享）')).toBeVisible()
+    await expect(page.getByRole('cell', { name: '导入任务', exact: true })).toBeVisible()
+    await expect(page.getByRole('button', { name: /删除|编辑|导出/ })).toHaveCount(0)
+
+    await page.getByRole('tab', { name: '审计日志' }).click()
+    await expect(page).toHaveURL(/\/admin\/quiz\/monitoring\?tab=audit$/)
+    await expect(page.getByRole('tab', { name: '审计日志' })).toHaveAttribute('aria-selected', 'true')
+    await expect(page.getByPlaceholder('请求 ID')).toBeVisible()
+
+    await page.goto('/admin/quiz/audit-logs')
+    await expect(page).toHaveURL(/\/admin\/quiz\/monitoring\?tab=audit$/)
+    await expect(page.getByRole('tab', { name: '审计日志' })).toHaveAttribute('aria-selected', 'true')
   })
 })

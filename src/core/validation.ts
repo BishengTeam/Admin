@@ -14,23 +14,6 @@ const jsonValueSchema: z.ZodType<JsonValueSchema> = z.lazy(() => z.union([
   z.record(z.string(), jsonValueSchema),
 ]))
 
-export const CategorySchema = z.object({
-  id: z.number(),
-  name: z.string(),
-  normalized_name: z.string(),
-  parent_id: z.number().nullable(),
-  depth: z.number().min(1).max(3),
-  description: nullableString,
-  status: z.enum(['active', 'disabled']),
-  sort_order: z.number(),
-  ever_had_question: z.boolean(),
-  lock_version: z.number().min(1),
-  created_by: z.number(),
-  updated_by: z.number(),
-  created_at: dateString,
-  updated_at: dateString,
-}).strict()
-
 const answerKeySchema = z.enum(['A', 'B', 'C', 'D'])
 const answerSchema = z.union([
   answerKeySchema,
@@ -83,73 +66,6 @@ function questionShapeRules(value: {
   }
 }
 
-export const CategoryCreateSchema = z.object({
-  name: z.string().min(1).max(128),
-  parent_id: positiveInt.nullable().optional(),
-  description: z.string().max(256).nullable().optional(),
-  sort_order: z.number().int().optional(),
-}).strict()
-
-export const CategoryUpdateSchema = z.object({
-  lock_version: positiveInt,
-  name: z.string().min(1).max(128).optional(),
-  parent_id: positiveInt.nullable().optional(),
-  description: z.string().max(256).nullable().optional(),
-  sort_order: z.number().int().optional(),
-}).strict().refine((value) => Object.keys(value).some((key) => key !== 'lock_version'), { message: '至少需要一个分类变更字段' })
-
-export const CategoryStatusUpdateSchema = z.object({
-  status: z.enum(['active', 'disabled']),
-  lock_version: positiveInt,
-}).strict()
-
-export const CategoryImpactQuerySchema = z.object({
-  action: z.enum(['disable', 'move', 'delete']),
-  target_parent_id: positiveInt.nullable().optional(),
-}).strict().superRefine((value, ctx) => {
-  if (value.action !== 'move' && value.target_parent_id !== undefined) {
-    ctx.addIssue({ code: 'custom', path: ['target_parent_id'], message: '仅移动预览允许目标父分类' })
-  }
-})
-
-export const CategoryImpactSchema = z.object({
-  category_id: positiveInt,
-  action: z.enum(['disable', 'move', 'delete']),
-  target_parent_id: positiveInt.nullable(),
-  descendant_category_count: z.number().int().min(0),
-  draft_question_count: z.number().int().min(0),
-  published_question_count: z.number().int().min(0),
-  disabled_question_count: z.number().int().min(0),
-  affected_new_pool_question_count: z.number().int().min(0),
-  history_snapshot_affected: z.literal(false),
-  can_execute: z.boolean(),
-  blocking_reasons: z.array(z.string()),
-  calculated_at: dateString,
-}).strict()
-
-export const QuestionCreateSchema = z.object({
-  category_id: positiveInt,
-  question_type: z.enum(['single_choice', 'multiple_choice', 'judge']),
-  question_text: z.string().min(1).max(1024),
-  options: optionSchema.nullable().optional(),
-  correct_answer: answerSchema.nullable().optional(),
-  explanation: z.string().max(1024).nullable().optional(),
-  image_urls: imageUrlSchema.optional(),
-  option_image_urls: optionImageUrlsSchema.optional(),
-}).strict().superRefine(questionShapeRules)
-
-export const QuestionUpdateSchema = z.object({
-  lock_version: positiveInt,
-  category_id: positiveInt.optional(),
-  question_type: z.enum(['single_choice', 'multiple_choice', 'judge']).optional(),
-  question_text: z.string().min(1).max(1024).optional(),
-  options: optionSchema.nullable().optional(),
-  correct_answer: answerSchema.nullable().optional(),
-  explanation: z.string().max(1024).nullable().optional(),
-  image_urls: imageUrlSchema.optional(),
-  option_image_urls: optionImageUrlsSchema.optional(),
-}).strict().refine((value) => Object.keys(value).some((key) => key !== 'lock_version'), { message: '至少需要一个题目变更字段' }).superRefine(questionShapeRules)
-
 export const VersionRequestSchema = z.object({ lock_version: positiveInt }).strict()
 
 export const BatchRequestSchema = z.object({
@@ -170,28 +86,6 @@ export const JsonImportQuestionSchema = z.object({
 }).strict().superRefine(questionShapeRules)
 
 export const JsonImportRequestSchema = z.object({ library_id: positiveInt.optional(), questions: z.array(JsonImportQuestionSchema).min(1).max(5000) }).strict()
-
-export const QuestionSchema = z.object({
-  id: z.number(),
-  category_id: z.number(),
-  question_type: z.enum(['single_choice', 'multiple_choice', 'judge']),
-  status: z.enum(['draft', 'published', 'disabled']),
-  question_text: z.string(),
-  normalized_question_text: z.string(),
-  options: optionSchema.nullable(),
-  correct_answer: answerSchema.nullable(),
-  explanation: nullableString,
-  image_urls: imageUrlsResponseSchema,
-  option_image_urls: optionImageUrlsResponseSchema,
-  ever_published: z.boolean(),
-  published_at: nullableString,
-  disabled_at: nullableString,
-  lock_version: z.number().min(1),
-  created_by: z.number(),
-  updated_by: z.number(),
-  created_at: dateString,
-  updated_at: dateString,
-}).strict().superRefine(questionShapeRules)
 
 export const QuizV2QuestionSchema = z.object({
   id: positiveInt,

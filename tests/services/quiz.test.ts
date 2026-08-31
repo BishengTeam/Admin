@@ -33,23 +33,6 @@ const question = {
   updated_at: '2026-08-06T00:00:00+08:00',
 }
 
-const category = {
-  id: 12,
-  name: '网络基础',
-  normalized_name: '网络基础',
-  parent_id: 3,
-  depth: 2,
-  description: null,
-  status: 'active',
-  sort_order: 20,
-  ever_had_question: false,
-  lock_version: 4,
-  created_by: 7,
-  updated_by: 7,
-  created_at: '2026-08-06T00:00:00+08:00',
-  updated_at: '2026-08-08T00:00:00+08:00',
-}
-
 describe('quizService frozen admin contract', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -61,13 +44,12 @@ describe('quizService frozen admin contract', () => {
     http.delete.mockResolvedValue(null)
   })
 
-  it('keeps all legacy and V2 management calls on /admin/quiz without a duplicated /api prefix', () => {
+  it('keeps all management calls on /admin/quiz without a duplicated /api prefix', () => {
     const source = readFileSync(resolve(process.cwd(), 'src/services/quiz.ts'), 'utf8')
     expect(source).not.toContain('/api/admin/quiz')
-    expect(source.match(/\/admin\/quiz/g)).toHaveLength(64)
+    expect(source.match(/\/admin\/quiz/g)).toHaveLength(51)
     for (const path of [
       '/admin/quiz/course-options',
-      '/admin/quiz/categories/${id}/impact',
       '/admin/quiz/imports/${id}/source-url',
       '/admin/quiz/imports/${id}/retry',
       '/admin/quiz/stats/overview',
@@ -186,41 +168,6 @@ describe('quizService frozen admin contract', () => {
     expect(http.post).toHaveBeenCalledWith('/admin/quiz/libraries/9/lifecycle', { action: 'reconcile_migration', lock_version: 3 }, { signal: undefined })
   })
 
-  it('uses the new question paths and array-shaped multiple answers', async () => {
-    const { quizService } = await import('@/services/quiz')
-    await quizService.createQuestion({
-      category_id: 1,
-      question_type: 'multiple_choice',
-      question_text: '选择协议',
-      options: { A: 'OSPF', B: 'HTTP', C: 'BGP', D: 'FTP' },
-      correct_answer: ['A', 'C'],
-      image_urls: ['https://example.com/protocol.png'],
-    })
-    expect(http.post).toHaveBeenCalledWith('/admin/quiz/questions', expect.objectContaining({ correct_answer: ['A', 'C'], image_urls: ['https://example.com/protocol.png'] }), { signal: undefined })
-    expect(http.post.mock.calls[0][1]).not.toHaveProperty('category_name')
-
-    await quizService.publishQuestion(101, 2)
-    expect(http.post).toHaveBeenCalledWith('/admin/quiz/questions/101/publish', { lock_version: 2 }, { signal: undefined })
-
-    // Partial updates omit question_type; an answer-only edit must still be
-    // accepted for an existing multiple-choice question.
-    await quizService.updateQuestion(101, { lock_version: 2, correct_answer: ['B', 'D'] })
-    expect(http.put).toHaveBeenCalledWith('/admin/quiz/questions/101', { lock_version: 2, correct_answer: ['B', 'D'] }, { signal: undefined })
-  })
-
-  it('moves and sorts a category through PUT with the current lock version', async () => {
-    const { quizService } = await import('@/services/quiz')
-    http.put.mockResolvedValueOnce(category)
-
-    await quizService.updateCategory(12, { parent_id: 3, sort_order: 20, lock_version: 3 })
-
-    expect(http.put).toHaveBeenCalledWith('/admin/quiz/categories/12', {
-      parent_id: 3,
-      sort_order: 20,
-      lock_version: 3,
-    }, { signal: undefined })
-  })
-
   it('reads task metrics from health and keeps a 503 ready payload usable', async () => {
     const { quizService } = await import('@/services/quiz')
     const snapshot = {
@@ -273,15 +220,8 @@ describe('quizService frozen admin contract', () => {
     expect(http.post).toHaveBeenCalledWith('/admin/quiz/questions/batch-disable', { items: [{ question_id: 101, lock_version: 2 }] }, { signal: undefined })
   })
 
-  it('calls category impact, source/retry and aggregate statistics endpoints including deleted history', async () => {
+  it('calls source/retry and aggregate statistics endpoints including deleted history', async () => {
     const { quizService } = await import('@/services/quiz')
-    const impact = {
-      category_id: 12, action: 'disable', target_parent_id: null,
-      descendant_category_count: 1, draft_question_count: 2,
-      published_question_count: 3, disabled_question_count: 0,
-      affected_new_pool_question_count: 3, history_snapshot_affected: false,
-      can_execute: true, blocking_reasons: [], calculated_at: '2026-08-06T00:00:00+08:00',
-    }
     const signed = { url: 'https://oss.example/signed', expires_at: '2026-08-06T00:05:00+08:00' }
     const job = {
       id: 5, admin_id: 7, source_type: 'csv', status: 'failed', source_size_bytes: 10,
@@ -314,21 +254,18 @@ describe('quizService frozen admin contract', () => {
       exam_correct: 0, exam_accuracy: 0, aggregated_through: null,
     }
     http.get
-      .mockResolvedValueOnce(impact)
       .mockResolvedValueOnce(signed)
       .mockResolvedValueOnce(overview)
       .mockResolvedValueOnce({ items: [statsItem], total: 1, page: 1, page_size: 20 })
     http.post
       .mockResolvedValueOnce(job)
 
-    await expect(quizService.previewCategoryImpact(12, { action: 'disable' })).resolves.toEqual(impact)
-    expect(http.get).toHaveBeenNthCalledWith(1, '/admin/quiz/categories/12/impact', { params: { action: 'disable' }, signal: undefined })
     await expect(quizService.getImportSourceUrl(5)).resolves.toEqual(signed)
-    expect(http.get).toHaveBeenNthCalledWith(2, '/admin/quiz/imports/5/source-url', { signal: undefined })
+    expect(http.get).toHaveBeenNthCalledWith(1, '/admin/quiz/imports/5/source-url', { signal: undefined })
     await expect(quizService.getStatsOverview()).resolves.toEqual(overview)
-    expect(http.get).toHaveBeenNthCalledWith(3, '/admin/quiz/stats/overview', { signal: undefined })
+    expect(http.get).toHaveBeenNthCalledWith(2, '/admin/quiz/stats/overview', { signal: undefined })
     await expect(quizService.listQuestionStats({ library_id: 11, module_id: 21, knowledge_point_id: 31, status: 'deleted', page: 1, page_size: 20 })).resolves.toEqual({ items: [statsItem], total: 1, page: 1, page_size: 20 })
-    expect(http.get).toHaveBeenNthCalledWith(4, '/admin/quiz/stats/questions', { params: { library_id: 11, module_id: 21, knowledge_point_id: 31, status: 'deleted', page: 1, page_size: 20 }, signal: undefined })
+    expect(http.get).toHaveBeenNthCalledWith(3, '/admin/quiz/stats/questions', { params: { library_id: 11, module_id: 21, knowledge_point_id: 31, status: 'deleted', page: 1, page_size: 20 }, signal: undefined })
     await expect(quizService.retryImport(5)).resolves.toEqual(job)
     expect(http.post).toHaveBeenNthCalledWith(1, '/admin/quiz/imports/5/retry', undefined, { signal: undefined })
   })
