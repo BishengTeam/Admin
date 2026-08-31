@@ -7,7 +7,7 @@ import { quizService } from '@/services/quiz'
 import type { QuestionStatsListItem, QuestionType, QuizContentTree, QuizLibrary, StatsOverview, StatsQuestionFilter, StatsQuestionStatus } from '@/types/quiz'
 
 const { Text } = Typography
-const typeLabels: Record<QuestionType, string> = { single_choice: '单选', multiple_choice: '多选', judge: '判断' }
+const typeLabels: Record<QuestionType, string> = { single_choice: '单选', multiple_choice: '多选', judge: '判断', essay: '问答' }
 const statusLabels: Record<StatsQuestionStatus, string> = { draft: '草稿', published: '已发布', disabled: '已停用', deleted: '已删除' }
 const statusColors: Record<StatsQuestionStatus, string> = { draft: 'default', published: 'success', disabled: 'warning', deleted: 'error' }
 

@@ -33,6 +33,7 @@ const QuizImports = lazy(() => import('@/pages/quiz/imports'))
 const QuizAuditLogs = lazy(() => import('@/pages/quiz/audit-logs'))
 const QuizStats = lazy(() => import('@/pages/quiz/stats'))
 const QuizBehavior = lazy(() => import('@/pages/quiz/behavior'))
+const QuizCourseAssignments = lazy(() => import('@/pages/quiz/CourseAssignments'))
 const QuizTaskMonitor = lazy(() => import('@/pages/quiz/tasks'))
 const HomepageManagement = lazy(() => import('@/pages/operations/homepage'))
 const CourseList = lazy(() => import('@/pages/courses/List'))
@@ -40,6 +41,7 @@ const CourseCategories = lazy(() => import('@/pages/courses/Categories'))
 const CourseDetail = lazy(() => import('@/pages/courses/Detail'))
 const CourseStudents = lazy(() => import('@/pages/courses/Students'))
 const CourseAudit = lazy(() => import('@/pages/courses/Audit'))
+const CourseAssignmentReview = lazy(() => import('@/pages/courses/AssignmentReview'))
 const CertificationOverview = lazy(() => import('@/pages/certification'))
 const TypeWorkbench = lazy(() => import('@/pages/certification/TypeWorkbench'))
 const JobManagement = lazy(() => import('@/pages/operations/jobs'))
@@ -112,6 +114,11 @@ export const adminRoutes: AppRoute[] = [
         meta: { title: '内容工作台', icon: 'BookOutlined', permission: 'quiz:list' },
       },
       {
+        path: 'course-assignments',
+        element: <QuizCourseAssignments />,
+        meta: { title: '课程作业', icon: 'FileDoneOutlined', permission: 'quiz:list' },
+      },
+      {
         path: 'legacy-questions',
         element: <QuizManagement />,
         meta: { title: '旧分类兼容（7 天）', permission: 'quiz:list', hidden: true },
@@ -168,6 +175,11 @@ export const adminRoutes: AppRoute[] = [
         path: 'audit',
         element: <CourseAudit />,
         meta: { title: '课程审计', icon: 'AuditOutlined', permission: 'course:read' },
+      },
+      {
+        path: 'assignment-review',
+        element: <CourseAssignmentReview />,
+        meta: { title: '作业评阅', icon: 'FileDoneOutlined', permission: 'course_assignment_review' },
       },
       {
         path: ':courseId',

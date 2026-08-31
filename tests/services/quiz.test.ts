@@ -20,6 +20,7 @@ const question = {
   normalized_question_text: '选择协议',
   options: { A: 'OSPF', B: 'HTTP', C: 'BGP', D: 'FTP' },
   correct_answer: ['A', 'C'],
+  reference_answer: null,
   explanation: null,
   image_urls: [],
   option_image_urls: {},
