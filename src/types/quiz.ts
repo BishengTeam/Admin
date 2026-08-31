@@ -1,4 +1,4 @@
-export type QuestionType = 'single_choice' | 'multiple_choice' | 'judge'
+export type QuestionType = 'single_choice' | 'multiple_choice' | 'judge' | 'essay'
 export type QuestionStatus = 'draft' | 'published' | 'disabled'
 export type StatsQuestionStatus = QuestionStatus | 'deleted'
 export type ImportSourceType = 'csv' | 'json'
@@ -207,6 +207,7 @@ export interface QuizV2Question {
   normalized_question_text: string
   options: Record<string, string> | null
   correct_answer: Answer | null
+  reference_answer: string | null
   explanation: string | null
   image_urls: string[]
   option_image_urls: Record<string, string>
@@ -237,6 +238,7 @@ export interface QuizQuestionRevision {
   normalized_question_text: string
   options: Record<string, string> | null
   correct_answer: Answer | null
+  reference_answer: string | null
   explanation: string | null
   image_urls: string[]
   option_image_urls: Record<string, string>
@@ -251,6 +253,7 @@ export interface QuizV2QuestionCreate {
   question_text: string
   options?: Record<string, string> | null
   correct_answer?: Answer | null
+  reference_answer?: string | null
   explanation?: string | null
   image_urls?: string[]
   option_image_urls?: Record<string, string>
@@ -263,6 +266,7 @@ export interface QuizV2QuestionUpdate {
   question_text?: string
   options?: Record<string, string> | null
   correct_answer?: Answer | null
+  reference_answer?: string | null
   explanation?: string | null
   image_urls?: string[]
   option_image_urls?: Record<string, string>
