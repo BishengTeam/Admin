@@ -116,7 +116,12 @@ async function uploadMultipart(
     uploadedPartNumbers = new Set(detail.parts.map(part => part.part_number))
   }
   if (upload.upload_url) {
-    const response = await fetch(upload.upload_url, { method: 'PUT', body: file })
+    // OSS 预签名 URL 不含 Content-Type，body 必须避免触发浏览器自动设置该头，
+    // 否则 OSS 重算签名会 403 SignatureDoesNotMatch（同 ImageUpload 的处理）。
+    const response = await fetch(upload.upload_url, {
+      method: 'PUT',
+      body: await file.arrayBuffer(),
+    })
     if (!response.ok) throw new Error('封面上传失败')
     const completed = await courseManagementService.completeUpload(upload.id)
     return completed.upload
