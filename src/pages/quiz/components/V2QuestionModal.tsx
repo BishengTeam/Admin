@@ -61,16 +61,13 @@ export default function V2QuestionModal({ open, question, modules, defaultPointI
         ? [{ content: '正确' }, { content: '错误' }]
         : Object.entries(stableOptions(question.options)).map(([key, content]) => ({ content, image_url: question.option_image_urls?.[key] ?? '' })),
       correct_answer: question.question_type === 'multiple_choice' ? answerToArray(question.correct_answer) : question.correct_answer,
-      reference_answer: question.reference_answer ?? undefined,
       explanation: question.explanation ?? undefined,
       image_urls: question.image_urls ?? [],
     })
   }, [defaultPointId, form, open, question])
 
   const handleTypeChange = (next: QuestionType) => {
-    if (next === 'essay') form.setFieldsValue({ options: [], correct_answer: undefined })
-    else if (next === 'judge') form.setFieldsValue({ options: [{ content: '正确' }, { content: '错误' }], correct_answer: undefined })
-    else if (type === 'essay') form.setFieldsValue({ options: [{ content: '' }, { content: '' }, { content: '' }], correct_answer: undefined })
+    if (next === 'judge') form.setFieldsValue({ options: [{ content: '正确' }, { content: '错误' }], correct_answer: undefined })
     else if (type === 'judge') form.setFieldsValue({ options: [{ content: '' }, { content: '' }, { content: '' }], correct_answer: undefined })
     else if (next !== type) form.setFieldValue('correct_answer', undefined)
   }
@@ -90,10 +87,9 @@ export default function V2QuestionModal({ open, question, modules, defaultPointI
         }
       })
       if (questionType === 'judge') { optionRecord.A = '正确'; optionRecord.B = '错误' }
-      const answer = questionType === 'essay' ? null : answerToPayload(values.correct_answer, questionType)
+      const answer = answerToPayload(values.correct_answer, questionType)
       const questionText = String(values.question_text).trim()
       const imageUrls: string[] = (values.image_urls ?? []).map(toAbsoluteMediaUrl)
-      const referenceAnswer = questionType === 'essay' ? values.reference_answer?.trim() || null : null
       if (!question) {
         const payload: QuizV2QuestionCreate = {
           knowledge_point_id: values.knowledge_point_id,
@@ -101,7 +97,6 @@ export default function V2QuestionModal({ open, question, modules, defaultPointI
           question_text: questionText,
           options: Object.keys(optionRecord).length ? optionRecord : null,
           correct_answer: answer,
-          reference_answer: referenceAnswer,
           explanation: values.explanation?.trim() || null,
           image_urls: imageUrls,
           option_image_urls: Object.keys(optionImages).length ? optionImages : undefined,
@@ -116,7 +111,6 @@ export default function V2QuestionModal({ open, question, modules, defaultPointI
       const normalizedOptions = Object.keys(optionRecord).length ? optionRecord : null
       if (!sameValue(stableOptions(question.options), stableOptions(normalizedOptions))) payload.options = normalizedOptions
       if (!sameValue(answer, question.correct_answer)) payload.correct_answer = answer
-      if (!sameValue(referenceAnswer, question.reference_answer)) payload.reference_answer = referenceAnswer
       const explanation = values.explanation?.trim() || null
       if (explanation !== question.explanation) payload.explanation = explanation
       if (!sameValue(imageUrls, question.image_urls ?? [])) payload.image_urls = imageUrls
@@ -150,10 +144,10 @@ export default function V2QuestionModal({ open, question, modules, defaultPointI
       {question?.ever_published && <div style={{ marginBottom: 16, color: '#d46b08' }}>已发布题目的内容编辑会创建新的待发布修订，当前线上版本保持不变，需再次点击“发布修订”才会切换未来会话。</div>}
       <Form form={form} layout="vertical">
         <Form.Item name="knowledge_point_id" label="所属知识点" rules={[{ required: true, message: '请选择知识点；模块和题库不能直接挂题' }]}><Select showSearch optionFilterProp="label" options={points} /></Form.Item>
-        <Form.Item name="question_type" label="题型" rules={[{ required: true }]}><Radio.Group onChange={(event) => handleTypeChange(event.target.value)}><Radio value="single_choice">单选题</Radio><Radio value="multiple_choice">多选题</Radio><Radio value="judge">判断题</Radio><Radio value="essay">问答题</Radio></Radio.Group></Form.Item>
+        <Form.Item name="question_type" label="题型" rules={[{ required: true }]}><Radio.Group onChange={(event) => handleTypeChange(event.target.value)}><Radio value="single_choice">单选题</Radio><Radio value="multiple_choice">多选题</Radio><Radio value="judge">判断题</Radio></Radio.Group></Form.Item>
         <Form.Item name="question_text" label="题干" rules={[{ required: true, message: '请输入题干' }, { max: 1024 }]}><Input.TextArea rows={4} /></Form.Item>
         <Form.Item name="image_urls" label="题干图片（最多 9 张）"><MultiImageUpload purpose='quiz' /></Form.Item>
-        {type !== 'essay' && <Form.List name="options">
+        <Form.List name="options">
           {(fields, { add, remove }) => <div>
             <div style={{ marginBottom: 8 }}>选项（A-D）</div>
             {fields.slice(0, 4).map(({ key, name, ...rest }) => <Space key={key} align="baseline" style={{ display: 'flex', marginBottom: 8 }}>
@@ -164,9 +158,8 @@ export default function V2QuestionModal({ open, question, modules, defaultPointI
             </Space>)}
             {type !== 'judge' && optionCount < 4 && <Button type="dashed" icon={<PlusOutlined />} onClick={() => add({ content: '' })}>添加选项</Button>}
           </div>}
-        </Form.List>}
-        {type !== 'essay' && <Form.Item name="correct_answer" label="正确答案">{type === 'multiple_choice' ? <Checkbox.Group options={keys.map((value) => ({ value, label: value }))} /> : <Radio.Group options={keys.map((value) => ({ value, label: value }))} />}</Form.Item>}
-        {type === 'essay' && <Form.Item name="reference_answer" label="参考答案 / 评分标准"><Input.TextArea rows={4} maxLength={5000} showCount placeholder="选填；仅供管理员人工评阅参考" /></Form.Item>}
+        </Form.List>
+        <Form.Item name="correct_answer" label="正确答案">{type === 'multiple_choice' ? <Checkbox.Group options={keys.map((value) => ({ value, label: value }))} /> : <Radio.Group options={keys.map((value) => ({ value, label: value }))} />}</Form.Item>
         <Form.Item name="explanation" label="解析"><Input.TextArea rows={3} maxLength={1024} showCount /></Form.Item>
       </Form>
     </Modal>

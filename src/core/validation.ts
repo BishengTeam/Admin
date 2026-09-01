@@ -14,9 +14,24 @@ const jsonValueSchema: z.ZodType<JsonValueSchema> = z.lazy(() => z.union([
   z.record(z.string(), jsonValueSchema),
 ]))
 
+export const CategorySchema = z.object({
+  id: z.number(),
+  name: z.string(),
+  normalized_name: z.string(),
+  parent_id: z.number().nullable(),
+  depth: z.number().min(1).max(3),
+  description: nullableString,
+  status: z.enum(['active', 'disabled']),
+  sort_order: z.number(),
+  ever_had_question: z.boolean(),
+  lock_version: z.number().min(1),
+  created_by: z.number(),
+  updated_by: z.number(),
+  created_at: dateString,
+  updated_at: dateString,
+}).strict()
+
 const answerKeySchema = z.enum(['A', 'B', 'C', 'D'])
-const questionTypeSchema = z.enum(['single_choice', 'multiple_choice', 'judge', 'essay'])
-const referenceAnswerSchema = z.string().max(5000).nullable()
 const answerSchema = z.union([
   answerKeySchema,
   z.array(answerKeySchema).min(1).max(4).refine((value) => new Set(value).size === value.length, { message: '答案不能重复' }),
@@ -39,22 +54,10 @@ const optionImageUrlsSchema = z.record(z.string().regex(/^[A-D]$/, '选项键只
 const optionImageUrlsResponseSchema = optionImageUrlsSchema.default({})
 
 function questionShapeRules(value: {
-  question_type?: 'single_choice' | 'multiple_choice' | 'judge' | 'essay'
+  question_type?: 'single_choice' | 'multiple_choice' | 'judge'
   options?: Record<string, string> | null
   correct_answer?: string | string[] | null
-  reference_answer?: string | null
 }, ctx: z.RefinementCtx) {
-  if (value.question_type === 'essay') {
-    if (value.options && Object.keys(value.options).length > 0) {
-      ctx.addIssue({ code: 'custom', path: ['options'], message: '问答题不支持选项' })
-    }
-    if (value.correct_answer !== undefined && value.correct_answer !== null) {
-      ctx.addIssue({ code: 'custom', path: ['correct_answer'], message: '问答题不能配置唯一标准答案' })
-    }
-  }
-  if (value.question_type !== 'essay' && value.reference_answer != null) {
-    ctx.addIssue({ code: 'custom', path: ['reference_answer'], message: '仅问答题支持参考答案或评分标准' })
-  }
   if (value.question_type === 'multiple_choice' && typeof value.correct_answer === 'string') {
     ctx.addIssue({ code: 'custom', path: ['correct_answer'], message: '多选题答案必须使用数组' })
   }
@@ -80,6 +83,73 @@ function questionShapeRules(value: {
   }
 }
 
+export const CategoryCreateSchema = z.object({
+  name: z.string().min(1).max(128),
+  parent_id: positiveInt.nullable().optional(),
+  description: z.string().max(256).nullable().optional(),
+  sort_order: z.number().int().optional(),
+}).strict()
+
+export const CategoryUpdateSchema = z.object({
+  lock_version: positiveInt,
+  name: z.string().min(1).max(128).optional(),
+  parent_id: positiveInt.nullable().optional(),
+  description: z.string().max(256).nullable().optional(),
+  sort_order: z.number().int().optional(),
+}).strict().refine((value) => Object.keys(value).some((key) => key !== 'lock_version'), { message: '至少需要一个分类变更字段' })
+
+export const CategoryStatusUpdateSchema = z.object({
+  status: z.enum(['active', 'disabled']),
+  lock_version: positiveInt,
+}).strict()
+
+export const CategoryImpactQuerySchema = z.object({
+  action: z.enum(['disable', 'move', 'delete']),
+  target_parent_id: positiveInt.nullable().optional(),
+}).strict().superRefine((value, ctx) => {
+  if (value.action !== 'move' && value.target_parent_id !== undefined) {
+    ctx.addIssue({ code: 'custom', path: ['target_parent_id'], message: '仅移动预览允许目标父分类' })
+  }
+})
+
+export const CategoryImpactSchema = z.object({
+  category_id: positiveInt,
+  action: z.enum(['disable', 'move', 'delete']),
+  target_parent_id: positiveInt.nullable(),
+  descendant_category_count: z.number().int().min(0),
+  draft_question_count: z.number().int().min(0),
+  published_question_count: z.number().int().min(0),
+  disabled_question_count: z.number().int().min(0),
+  affected_new_pool_question_count: z.number().int().min(0),
+  history_snapshot_affected: z.literal(false),
+  can_execute: z.boolean(),
+  blocking_reasons: z.array(z.string()),
+  calculated_at: dateString,
+}).strict()
+
+export const QuestionCreateSchema = z.object({
+  category_id: positiveInt,
+  question_type: z.enum(['single_choice', 'multiple_choice', 'judge']),
+  question_text: z.string().min(1).max(1024),
+  options: optionSchema.nullable().optional(),
+  correct_answer: answerSchema.nullable().optional(),
+  explanation: z.string().max(1024).nullable().optional(),
+  image_urls: imageUrlSchema.optional(),
+  option_image_urls: optionImageUrlsSchema.optional(),
+}).strict().superRefine(questionShapeRules)
+
+export const QuestionUpdateSchema = z.object({
+  lock_version: positiveInt,
+  category_id: positiveInt.optional(),
+  question_type: z.enum(['single_choice', 'multiple_choice', 'judge']).optional(),
+  question_text: z.string().min(1).max(1024).optional(),
+  options: optionSchema.nullable().optional(),
+  correct_answer: answerSchema.nullable().optional(),
+  explanation: z.string().max(1024).nullable().optional(),
+  image_urls: imageUrlSchema.optional(),
+  option_image_urls: optionImageUrlsSchema.optional(),
+}).strict().refine((value) => Object.keys(value).some((key) => key !== 'lock_version'), { message: '至少需要一个题目变更字段' }).superRefine(questionShapeRules)
+
 export const VersionRequestSchema = z.object({ lock_version: positiveInt }).strict()
 
 export const BatchRequestSchema = z.object({
@@ -101,18 +171,39 @@ export const JsonImportQuestionSchema = z.object({
 
 export const JsonImportRequestSchema = z.object({ library_id: positiveInt.optional(), questions: z.array(JsonImportQuestionSchema).min(1).max(5000) }).strict()
 
+export const QuestionSchema = z.object({
+  id: z.number(),
+  category_id: z.number(),
+  question_type: z.enum(['single_choice', 'multiple_choice', 'judge']),
+  status: z.enum(['draft', 'published', 'disabled']),
+  question_text: z.string(),
+  normalized_question_text: z.string(),
+  options: optionSchema.nullable(),
+  correct_answer: answerSchema.nullable(),
+  explanation: nullableString,
+  image_urls: imageUrlsResponseSchema,
+  option_image_urls: optionImageUrlsResponseSchema,
+  ever_published: z.boolean(),
+  published_at: nullableString,
+  disabled_at: nullableString,
+  lock_version: z.number().min(1),
+  created_by: z.number(),
+  updated_by: z.number(),
+  created_at: dateString,
+  updated_at: dateString,
+}).strict().superRefine(questionShapeRules)
+
 export const QuizV2QuestionSchema = z.object({
   id: positiveInt,
   category_id: positiveInt.nullable(),
   library_id: positiveInt,
   knowledge_point_id: positiveInt,
-  question_type: questionTypeSchema,
+  question_type: z.enum(['single_choice', 'multiple_choice', 'judge']),
   status: z.enum(['draft', 'published', 'disabled', 'deleted']),
   question_text: z.string(),
   normalized_question_text: z.string(),
   options: optionSchema.nullable(),
   correct_answer: answerSchema.nullable(),
-  reference_answer: referenceAnswerSchema,
   explanation: nullableString,
   image_urls: imageUrlsResponseSchema,
   option_image_urls: optionImageUrlsResponseSchema,
@@ -277,12 +368,11 @@ export const QuizQuestionRevisionSchema = z.object({
   question_id: positiveInt,
   revision_no: positiveInt,
   status: z.enum(['draft', 'published', 'superseded', 'discarded']),
-  question_type: questionTypeSchema,
+  question_type: z.enum(['single_choice', 'multiple_choice', 'judge']),
   question_text: z.string(),
   normalized_question_text: z.string(),
   options: optionSchema.nullable(),
   correct_answer: answerSchema.nullable(),
-  reference_answer: referenceAnswerSchema,
   explanation: nullableString,
   image_urls: imageUrlsResponseSchema,
   option_image_urls: optionImageUrlsResponseSchema,
@@ -324,11 +414,10 @@ export const QuizContentStatusUpdateSchema = z.object({ status: z.enum(['active'
 
 export const QuizV2QuestionCreateSchema = z.object({
   knowledge_point_id: positiveInt,
-  question_type: questionTypeSchema,
+  question_type: z.enum(['single_choice', 'multiple_choice', 'judge']),
   question_text: z.string().min(1).max(1024),
   options: optionSchema.nullable().optional(),
   correct_answer: answerSchema.nullable().optional(),
-  reference_answer: referenceAnswerSchema.optional(),
   explanation: z.string().max(1024).nullable().optional(),
   image_urls: imageUrlSchema.optional(),
   option_image_urls: optionImageUrlsSchema.optional(),
@@ -337,11 +426,10 @@ export const QuizV2QuestionCreateSchema = z.object({
 export const QuizV2QuestionUpdateSchema = z.object({
   lock_version: positiveInt,
   knowledge_point_id: positiveInt.optional(),
-  question_type: questionTypeSchema.optional(),
+  question_type: z.enum(['single_choice', 'multiple_choice', 'judge']).optional(),
   question_text: z.string().min(1).max(1024).optional(),
   options: optionSchema.nullable().optional(),
   correct_answer: answerSchema.nullable().optional(),
-  reference_answer: referenceAnswerSchema.optional(),
   explanation: z.string().max(1024).nullable().optional(),
   image_urls: imageUrlSchema.optional(),
   option_image_urls: optionImageUrlsSchema.optional(),
@@ -396,7 +484,7 @@ export const QuestionStatsListItemSchema = QuestionStatsSchema.omit({ question_i
   module_name: z.string(),
   knowledge_point_id: positiveInt,
   knowledge_point_name: z.string(),
-  question_type: questionTypeSchema,
+  question_type: z.enum(['single_choice', 'multiple_choice', 'judge']),
   status: z.enum(['draft', 'published', 'disabled', 'deleted']),
 }).strict()
 

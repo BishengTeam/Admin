@@ -36,7 +36,6 @@ import { ConfirmButton } from '@/components/ConfirmButton'
 import { usePermission } from '@/hooks/usePermission'
 import { useAuth } from '@/hooks/useAuth'
 import { usePagination } from '@/hooks/usePagination'
-import CourseAssignmentPanel from './CourseAssignmentPanel'
 import {
   courseManagementService,
   readVideoDuration,
@@ -678,11 +677,6 @@ export default function CourseDetailPage() {
           key: 'jobs',
           label: '权益任务',
           children: <CourseJobs courseId={courseId} />,
-        },
-        {
-          key: 'assignments',
-          label: '课程作业',
-          children: <CourseAssignmentPanel courseId={courseId} bindings={bindings} />,
         },
       ]} />
 

@@ -1,6 +1,7 @@
-export type QuestionType = 'single_choice' | 'multiple_choice' | 'judge' | 'essay'
+export type QuestionType = 'single_choice' | 'multiple_choice' | 'judge'
 export type QuestionStatus = 'draft' | 'published' | 'disabled'
 export type StatsQuestionStatus = QuestionStatus | 'deleted'
+export type CategoryStatus = 'active' | 'disabled'
 export type ImportSourceType = 'csv' | 'json'
 export type ImportStatus =
   | 'queued'
@@ -14,6 +15,7 @@ export type ImportStatus =
   | 'expired'
 export type AnswerKey = 'A' | 'B' | 'C' | 'D'
 export type Answer = AnswerKey | AnswerKey[]
+export type CategoryImpactAction = 'disable' | 'move' | 'delete'
 export type JsonPrimitive = string | number | boolean | null
 export type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue }
 
@@ -207,7 +209,6 @@ export interface QuizV2Question {
   normalized_question_text: string
   options: Record<string, string> | null
   correct_answer: Answer | null
-  reference_answer: string | null
   explanation: string | null
   image_urls: string[]
   option_image_urls: Record<string, string>
@@ -238,7 +239,6 @@ export interface QuizQuestionRevision {
   normalized_question_text: string
   options: Record<string, string> | null
   correct_answer: Answer | null
-  reference_answer: string | null
   explanation: string | null
   image_urls: string[]
   option_image_urls: Record<string, string>
@@ -253,7 +253,6 @@ export interface QuizV2QuestionCreate {
   question_text: string
   options?: Record<string, string> | null
   correct_answer?: Answer | null
-  reference_answer?: string | null
   explanation?: string | null
   image_urls?: string[]
   option_image_urls?: Record<string, string>
@@ -266,7 +265,6 @@ export interface QuizV2QuestionUpdate {
   question_text?: string
   options?: Record<string, string> | null
   correct_answer?: Answer | null
-  reference_answer?: string | null
   explanation?: string | null
   image_urls?: string[]
   option_image_urls?: Record<string, string>
@@ -283,6 +281,109 @@ export interface QuizV2QuestionFilter {
   include_deleted?: boolean
   page?: number
   page_size?: number
+}
+
+export interface Category {
+  id: number
+  name: string
+  normalized_name: string
+  parent_id: number | null
+  depth: number
+  description: string | null
+  status: CategoryStatus
+  sort_order: number
+  ever_had_question: boolean
+  lock_version: number
+  created_by: number
+  updated_by: number
+  created_at: string
+  updated_at: string
+  children?: Category[]
+}
+
+export interface CategoryCreate {
+  name: string
+  parent_id?: number | null
+  description?: string | null
+  sort_order?: number
+}
+
+export interface CategoryUpdate {
+  lock_version: number
+  name?: string
+  parent_id?: number | null
+  description?: string | null
+  sort_order?: number
+}
+
+export interface CategoryStatusUpdate {
+  status: CategoryStatus
+  lock_version: number
+}
+
+export interface CategoryImpactQuery {
+  action: CategoryImpactAction
+  target_parent_id?: number | null
+}
+
+export interface CategoryImpact {
+  category_id: number
+  action: CategoryImpactAction
+  target_parent_id: number | null
+  descendant_category_count: number
+  draft_question_count: number
+  published_question_count: number
+  disabled_question_count: number
+  affected_new_pool_question_count: number
+  history_snapshot_affected: false
+  can_execute: boolean
+  blocking_reasons: string[]
+  calculated_at: string
+}
+
+export interface Question {
+  id: number
+  category_id: number
+  question_type: QuestionType
+  status: QuestionStatus
+  question_text: string
+  normalized_question_text: string
+  options: Record<string, string> | null
+  correct_answer: Answer | null
+  explanation: string | null
+  image_urls: string[]
+  option_image_urls: Record<string, string>
+  ever_published: boolean
+  published_at: string | null
+  disabled_at: string | null
+  lock_version: number
+  created_by: number
+  updated_by: number
+  created_at: string
+  updated_at: string
+}
+
+export interface QuestionCreate {
+  category_id: number
+  question_type: QuestionType
+  question_text: string
+  options?: Record<string, string> | null
+  correct_answer?: Answer | null
+  explanation?: string | null
+  image_urls?: string[]
+  option_image_urls?: Record<string, string>
+}
+
+export interface QuestionUpdate {
+  lock_version: number
+  category_id?: number
+  question_type?: QuestionType
+  question_text?: string
+  options?: Record<string, string> | null
+  correct_answer?: Answer | null
+  explanation?: string | null
+  image_urls?: string[]
+  option_image_urls?: Record<string, string>
 }
 
 export interface VersionRequest {
@@ -438,6 +539,16 @@ export interface QuizImageUpload {
   upload_url: string
   public_url: string
   expires_at: string
+}
+
+export interface QuestionFilter {
+  category_id?: number
+  include_descendants?: boolean
+  question_type?: QuestionType
+  status?: QuestionStatus
+  keyword?: string
+  page?: number
+  page_size?: number
 }
 
 export interface CsvImportMetadata {

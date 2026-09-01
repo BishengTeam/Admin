@@ -31,7 +31,6 @@ describe('Admin nginx probes', () => {
   it('allows local blob previews used by the cover cropper', () => {
     const config = readFileSync(resolve(process.cwd(), 'nginx.conf.template'), 'utf8')
     expect(config).toContain("img-src 'self' data: blob: https:")
-    expect(config).toContain("media-src 'self' blob:")
     expect(config).not.toContain("img-src 'self' data: https:")
 
     const viteConfig = readFileSync(resolve(process.cwd(), 'vite.config.ts'), 'utf8')

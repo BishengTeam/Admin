@@ -1,5 +1,5 @@
 import { http } from '@/core/request'
-import type { ContentItem } from '@/types/content'
+import type { ContentItem, Course, CourseAsset, CourseEnrollment, CourseEnrollmentFilter } from '@/types/content'
 import type { PageData, PageParams } from '@/types/api'
 
 export const contentService = {
@@ -28,4 +28,40 @@ export const contentService = {
     return http.put<void>('/admin/zones/sort', updates)
   },
 
+  // Courses
+  async listCourses(params: { keyword?: string; category?: string } & PageParams): Promise<PageData<Course>> {
+    return http.get<PageData<Course>>('/admin/courses', { params })
+  },
+
+  async createCourse(data: Partial<Course>): Promise<Course> {
+    return http.post<Course>('/admin/courses', data)
+  },
+
+  async updateCourse(id: number, data: Partial<Course>): Promise<void> {
+    return http.put<void>(`/admin/courses/${id}`, data)
+  },
+
+  async deleteCourse(id: number): Promise<void> {
+    return http.delete<void>(`/admin/courses/${id}`)
+  },
+
+  async listCourseEnrollments(params: CourseEnrollmentFilter & PageParams): Promise<PageData<CourseEnrollment>> {
+    return http.get<PageData<CourseEnrollment>>('/admin/courses/enrollments', { params })
+  },
+
+  async revokeCourseEnrollment(enrollmentId: number): Promise<CourseEnrollment> {
+    return http.post<CourseEnrollment>(`/admin/courses/enrollments/${enrollmentId}/revoke`)
+  },
+
+  async listCourseAssets(courseId: number): Promise<CourseAsset[]> {
+    return http.get<CourseAsset[]>(`/admin/courses/${courseId}/assets`)
+  },
+
+  async uploadCourseAsset(courseId: number, data: FormData): Promise<CourseAsset> {
+    return http.post<CourseAsset>(`/admin/courses/${courseId}/assets`, data)
+  },
+
+  async deleteCourseAsset(courseId: number, assetId: number): Promise<void> {
+    return http.delete<void>(`/admin/courses/${courseId}/assets/${assetId}`)
+  },
 }

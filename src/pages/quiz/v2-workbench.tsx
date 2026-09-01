@@ -52,7 +52,7 @@ import V2QuestionModal from './components/V2QuestionModal'
 
 const statusLabels = { draft: '草稿', published: '已发布', disabled: '已停用', deleted: '已删除' } as const
 const statusColors = { draft: 'default', published: 'success', disabled: 'warning', deleted: 'error' } as const
-const typeLabels = { single_choice: '单选题', multiple_choice: '多选题', judge: '判断题', essay: '问答题' } as const
+const typeLabels = { single_choice: '单选题', multiple_choice: '多选题', judge: '判断题' } as const
 
 type Selection = { kind: 'all' } | { kind: 'module'; id: number } | { kind: 'point'; id: number }
 type EditingContent = { kind: 'module'; value: QuizModule } | { kind: 'point'; value: QuizKnowledgePoint } | null
