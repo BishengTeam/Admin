@@ -18,6 +18,7 @@ import {
   QuestionStatsSchema,
   QuestionStatsListItemSchema,
   QuizTaskSnapshotSchema,
+  QuizAccessModeConvertResponseSchema,
   QuizContentStatusUpdateSchema,
   QuizContentTreeSchema,
   QuizCourseBindingSchema,
@@ -148,15 +149,18 @@ export const quizService = {
     return parsed(QuizLibrarySchema, await http.get(`/admin/quiz/libraries/${id}`, { signal }))
   },
 
- async getMigrationReport(signal?: AbortSignal): Promise<QuizMigrationReport> {
-   return parsed(QuizMigrationReportSchema, await http.get('/admin/quiz/migration-report', { signal }))
- },
+  async getMigrationReport(signal?: AbortSignal): Promise<QuizMigrationReport> {
+    return parsed(QuizMigrationReportSchema, await http.get('/admin/quiz/migration-report', { signal }))
+  },
 
   async convertAccessMode(libraryId: number, lockVersion: number, targetMode: QuizLibraryAccessMode, reauthToken: string, signal?: AbortSignal): Promise<QuizAccessModeConvertResponse> {
-    return http.post(
-      `/admin/quiz/libraries/${libraryId}/convert-access-mode`,
-      { lock_version: lockVersion, target_mode: targetMode },
-      { headers: { 'X-Reauth-Token': reauthToken }, signal },
+    return parsed(
+      QuizAccessModeConvertResponseSchema,
+      await http.post(
+        `/admin/quiz/libraries/${libraryId}/convert-access-mode`,
+        { lock_version: lockVersion, target_mode: targetMode },
+        { headers: { 'X-Reauth-Token': reauthToken }, signal },
+      ),
     )
   },
 
