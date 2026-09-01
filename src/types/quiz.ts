@@ -1,4 +1,4 @@
-export type QuestionType = 'single_choice' | 'multiple_choice' | 'judge'
+export type QuestionType = 'single_choice' | 'multiple_choice' | 'judge' | 'fill_blank' | 'essay'
 export type QuestionStatus = 'draft' | 'published' | 'disabled'
 export type StatsQuestionStatus = QuestionStatus | 'deleted'
 export type CategoryStatus = 'active' | 'disabled'
@@ -14,7 +14,11 @@ export type ImportStatus =
   | 'cancelled'
   | 'expired'
 export type AnswerKey = 'A' | 'B' | 'C' | 'D'
-export type Answer = AnswerKey | AnswerKey[]
+/** fill_blank: 每空一组候选答案；essay: 参考答案文本 */
+export type FillBlankAnswer = string[][]
+export type Answer = AnswerKey | AnswerKey[] | FillBlankAnswer | string
+export type ReviewVerdict = 'wrong' | 'partial' | 'correct'
+export type ReviewStatus = 'none' | 'pending' | 'in_progress' | 'recalled' | 'completed'
 export type CategoryImpactAction = 'disable' | 'move' | 'delete'
 export type JsonPrimitive = string | number | boolean | null
 export type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue }
@@ -761,7 +765,8 @@ export function answerToArray(answer: Answer | null | undefined): string[] {
   // Multiple-choice answers in the frozen admin contract are arrays.  Do not
   // split a legacy "AC" string here: accepting that shape would hide an old
   // runtime response instead of exposing the contract mismatch.
-  return Array.isArray(answer) ? answer : []
+  if (Array.isArray(answer) && answer.every((item) => typeof item === 'string')) return answer
+  return []
 }
 
 export function answerToPayload(answer: unknown, type: QuestionType): Answer | null {
@@ -771,5 +776,111 @@ export function answerToPayload(answer: unknown, type: QuestionType): Answer | n
     if (answer.length === 0) return null
     return Array.from(new Set(answer.map(String))).sort() as AnswerKey[]
   }
+  if (type === 'fill_blank') {
+    if (!Array.isArray(answer)) return null
+    return (answer as unknown[]).map((group) => {
+      if (!Array.isArray(group)) return [String(group)]
+      const seen = new Set<string>()
+      const candidates: string[] = []
+      for (const candidate of group) {
+        const text = String(candidate)
+        if (text.trim() && !seen.has(text)) {
+          seen.add(text)
+          candidates.push(text)
+        }
+      }
+      return candidates
+    }).filter((group) => group.length > 0)
+  }
+  if (type === 'essay') {
+    return String(answer).trim() || null
+  }
   return (Array.isArray(answer) ? answer[0] ?? null : String(answer)) as AnswerKey | null
+}
+
+export function isFillBlankAnswer(answer: Answer | null | undefined): answer is FillBlankAnswer {
+  return Array.isArray(answer) && answer.length > 0 && answer.every(
+    (group) => Array.isArray(group) && group.every((item) => typeof item === 'string'),
+  )
+}
+
+export function formatAnswerForDisplay(answer: Answer | null | undefined): string {
+  if (answer == null) return '-'
+  if (isFillBlankAnswer(answer)) {
+    return answer
+      .map((group, index) => `空${index + 1}: ${group.join(' / ')}`)
+      .join('；')
+  }
+  if (Array.isArray(answer)) return answer.join(', ')
+  return String(answer)
+}
+
+export const QUESTION_TYPE_LABELS: Record<QuestionType, string> = {
+  single_choice: '单选题',
+  multiple_choice: '多选题',
+  judge: '判断题',
+  fill_blank: '填空题',
+  essay: '问答题',
+}
+
+export function countFillBlankPlaceholders(questionText: string): number {
+  const matches = questionText.match(/_{4,}/g)
+  return matches ? matches.length : 0
+}
+
+export interface AdminQuizReviewListItem {
+  exam_id: number
+  user_id: number
+  status: 'completed' | 'timed_out'
+  review_status: 'pending' | 'in_progress' | 'recalled'
+  review_locked_by: number | null
+  question_count: number
+  submitted_at: string | null
+  timed_out_at: string | null
+}
+
+export interface AdminQuizReviewQuestion {
+  exam_question_id: number
+  position: number
+  question_text: string
+  reference_answer: string
+  explanation: string
+  image_urls: string[]
+  user_answer: string | null
+  answered: boolean
+  verdict: ReviewVerdict | null
+  comment: string | null
+}
+
+export interface AdminQuizReviewDetail {
+  exam_id: number
+  user_id: number
+  status: 'completed' | 'timed_out'
+  review_status: 'pending' | 'in_progress' | 'recalled'
+  question_count: number
+  submitted_at: string | null
+  timed_out_at: string | null
+  questions: AdminQuizReviewQuestion[]
+}
+
+export interface AdminQuizReviewClaimResponse {
+  exam_id: number
+  review_status: ReviewStatus
+  review_locked_by: number | null
+}
+
+export interface AdminQuizReviewCompleteResponse {
+  exam_id: number
+  review_status: 'completed'
+  score: number
+  correct_count: number
+  partial_count: number
+  wrong_count: number
+  unanswered_count: number
+}
+
+export interface AdminQuizReviewVerdictItem {
+  exam_question_id: number
+  verdict: ReviewVerdict
+  comment?: string | null
 }

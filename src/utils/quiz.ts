@@ -1,5 +1,5 @@
 import type { Question } from '@/types/quiz'
-import { QUESTION_OPTION_KEYS } from '@/types/quiz'
+import { QUESTION_OPTION_KEYS, countFillBlankPlaceholders, isFillBlankAnswer } from '@/types/quiz'
 
 export interface QuestionPublishError {
   field: 'question_text' | 'options' | 'correct_answer' | 'explanation'
@@ -18,8 +18,44 @@ export function validateQuestionForPublish(question: Pick<Question, 'question_ty
   if (!question.question_text.trim()) {
     errors.push({ field: 'question_text', message: '发布前必须填写题干' })
   }
-  if (!question.explanation?.trim()) {
+  const requiresExplanation = question.question_type !== 'essay'
+  if (requiresExplanation && !question.explanation?.trim()) {
     errors.push({ field: 'explanation', message: '发布前必须填写解析' })
+  }
+
+  if (question.question_type === 'fill_blank') {
+    const blankCount = countFillBlankPlaceholders(question.question_text)
+    if (blankCount < 1 || blankCount > 5) {
+      errors.push({ field: 'question_text', message: '填空题题干必须包含 1 至 5 个空位（连续 4 个以上下划线）' })
+    }
+    const answer = question.correct_answer
+    if (!Array.isArray(answer) || answer.length === 0) {
+      errors.push({ field: 'correct_answer', message: '发布前必须填写每空的标准答案' })
+    } else {
+      if (answer.length !== blankCount) {
+        errors.push({ field: 'correct_answer', message: '答案空数必须与题干空位数量一致' })
+      }
+      answer.forEach((group, index) => {
+        if (!Array.isArray(group) || group.length === 0 || group.every((item) => typeof item !== 'string' || !item.trim())) {
+          errors.push({ field: 'correct_answer', message: `第 ${index + 1} 空至少填写一个候选答案` })
+        } else if (group.length > 5) {
+          errors.push({ field: 'correct_answer', message: `第 ${index + 1} 空最多 5 个候选答案` })
+        } else if (group.some((item) => typeof item !== 'string' || !item.trim() || item.length > 200)) {
+          errors.push({ field: 'correct_answer', message: `第 ${index + 1} 空候选答案须为 1-200 字` })
+        }
+      })
+    }
+    return errors
+  }
+
+  if (question.question_type === 'essay') {
+    const answer = question.correct_answer
+    if (typeof answer !== 'string' || !answer.trim()) {
+      errors.push({ field: 'correct_answer', message: '发布前必须填写参考答案（阅卷依据）' })
+    } else if (answer.trim().length > 5000) {
+      errors.push({ field: 'correct_answer', message: '参考答案长度不能超过 5000 字' })
+    }
+    return errors
   }
 
   const options = question.options ?? {}
@@ -53,7 +89,7 @@ export function validateQuestionForPublish(question: Pick<Question, 'question_ty
 
   const answer = question.correct_answer
   if (question.question_type === 'multiple_choice') {
-    if (!Array.isArray(answer)) {
+    if (!Array.isArray(answer) || isFillBlankAnswer(answer)) {
       errors.push({ field: 'correct_answer', message: '多选题答案必须使用数组' })
     } else {
       const unique = new Set(answer)

@@ -14,6 +14,7 @@ import type {
   QuestionType,
 } from '@/types/quiz'
 import { answerToArray, answerToPayload, QUESTION_OPTION_KEYS } from '@/types/quiz'
+import { countFillBlankPlaceholders } from '@/types/quiz'
 import { ApiError, isConflictError, isNotFoundError, isValidationError } from '@/core/request'
 
 interface Props {
@@ -45,6 +46,9 @@ export default function V2QuestionModal({ open, question, modules, defaultPointI
   const [form] = Form.useForm()
   const type = Form.useWatch('question_type', form) as QuestionType | undefined
   const options = Form.useWatch('options', form) as OptionValue[] | undefined
+  const questionText = Form.useWatch('question_text', form) as string | undefined
+  const isChoiceType = type === 'single_choice' || type === 'multiple_choice' || type === 'judge' || !type
+  const blankCount = countFillBlankPlaceholders(String(questionText ?? ''))
 
   useEffect(() => {
     if (!open) return
@@ -61,12 +65,23 @@ export default function V2QuestionModal({ open, question, modules, defaultPointI
         ? [{ content: '正确' }, { content: '错误' }]
         : Object.entries(stableOptions(question.options)).map(([key, content]) => ({ content, image_url: question.option_image_urls?.[key] ?? '' })),
       correct_answer: question.question_type === 'multiple_choice' ? answerToArray(question.correct_answer) : question.correct_answer,
+      fill_answers: question.question_type === 'fill_blank' && Array.isArray(question.correct_answer)
+        ? (question.correct_answer as string[][]).map((group) => ({ candidates: [...group] }))
+        : undefined,
       explanation: question.explanation ?? undefined,
       image_urls: question.image_urls ?? [],
     })
   }, [defaultPointId, form, open, question])
 
   const handleTypeChange = (next: QuestionType) => {
+    if (next === 'fill_blank' || next === 'essay') {
+      form.setFieldsValue({ options: undefined, correct_answer: undefined, fill_answers: next === 'fill_blank' ? [{ candidates: [''] }] : undefined })
+      return
+    }
+    if (type === 'fill_blank' || type === 'essay') {
+      form.setFieldsValue({ fill_answers: undefined, correct_answer: undefined, options: [{ content: '' }, { content: '' }, { content: '' }] })
+      return
+    }
     if (next === 'judge') form.setFieldsValue({ options: [{ content: '正确' }, { content: '错误' }], correct_answer: undefined })
     else if (type === 'judge') form.setFieldsValue({ options: [{ content: '' }, { content: '' }, { content: '' }], correct_answer: undefined })
     else if (next !== type) form.setFieldValue('correct_answer', undefined)
@@ -87,7 +102,21 @@ export default function V2QuestionModal({ open, question, modules, defaultPointI
         }
       })
       if (questionType === 'judge') { optionRecord.A = '正确'; optionRecord.B = '错误' }
-      const answer = answerToPayload(values.correct_answer, questionType)
+      let answer = answerToPayload(values.correct_answer, questionType)
+      if (questionType === 'fill_blank') {
+        const groups = ((values.fill_answers ?? []) as Array<{ candidates?: string[] }>).map((group) =>
+          (group.candidates ?? []).map((candidate) => String(candidate ?? '')).filter((candidate) => candidate.trim()),
+        ).filter((group) => group.length > 0)
+        const placeholders = countFillBlankPlaceholders(String(values.question_text ?? ''))
+        if (placeholders < 1 || placeholders > 5) throw new Error('填空题题干必须包含 1 至 5 个空位（____）')
+        if (groups.length !== placeholders) throw new Error(`题干有 ${placeholders} 个空位，请填写 ${placeholders} 组答案`)
+        answer = groups
+      }
+      if (questionType === 'essay') {
+        const reference = String(values.correct_answer ?? '').trim()
+        if (!reference) throw new Error('问答题必须填写参考答案（阅卷依据）')
+        answer = reference
+      }
       const questionText = String(values.question_text).trim()
       const imageUrls: string[] = (values.image_urls ?? []).map(toAbsoluteMediaUrl)
       if (!question) {
@@ -144,22 +173,71 @@ export default function V2QuestionModal({ open, question, modules, defaultPointI
       {question?.ever_published && <div style={{ marginBottom: 16, color: '#d46b08' }}>已发布题目的内容编辑会创建新的待发布修订，当前线上版本保持不变，需再次点击“发布修订”才会切换未来会话。</div>}
       <Form form={form} layout="vertical">
         <Form.Item name="knowledge_point_id" label="所属知识点" rules={[{ required: true, message: '请选择知识点；模块和题库不能直接挂题' }]}><Select showSearch optionFilterProp="label" options={points} /></Form.Item>
-        <Form.Item name="question_type" label="题型" rules={[{ required: true }]}><Radio.Group onChange={(event) => handleTypeChange(event.target.value)}><Radio value="single_choice">单选题</Radio><Radio value="multiple_choice">多选题</Radio><Radio value="judge">判断题</Radio></Radio.Group></Form.Item>
-        <Form.Item name="question_text" label="题干" rules={[{ required: true, message: '请输入题干' }, { max: 1024 }]}><Input.TextArea rows={4} /></Form.Item>
+        <Form.Item name="question_type" label="题型" rules={[{ required: true }]}><Radio.Group onChange={(event) => handleTypeChange(event.target.value)}><Radio value="single_choice">单选题</Radio><Radio value="multiple_choice">多选题</Radio><Radio value="judge">判断题</Radio><Radio value="fill_blank">填空题</Radio><Radio value="essay">问答题</Radio></Radio.Group></Form.Item>
+        <Form.Item
+          name="question_text"
+          label={type === 'fill_blank' ? <span>题干（用连续下划线 <code>____</code> 标记空位，当前 {blankCount} 空）</span> : '题干'}
+          rules={[{ required: true, message: '请输入题干' }, { max: 1024 }]}
+        >
+          <Input.TextArea rows={4} />
+        </Form.Item>
         <Form.Item name="image_urls" label="题干图片（最多 9 张）"><MultiImageUpload purpose='quiz' /></Form.Item>
-        <Form.List name="options">
-          {(fields, { add, remove }) => <div>
-            <div style={{ marginBottom: 8 }}>选项（A-D）</div>
-            {fields.slice(0, 4).map(({ key, name, ...rest }) => <Space key={key} align="baseline" style={{ display: 'flex', marginBottom: 8 }}>
-              <strong style={{ width: 22 }}>{QUESTION_OPTION_KEYS[name]}</strong>
-              <Form.Item {...rest} name={[name, 'content']} style={{ marginBottom: 0 }}><Input disabled={type === 'judge'} style={{ width: 360 }} /></Form.Item>
-              {type !== 'judge' && <Form.Item {...rest} name={[name, 'image_url']} style={{ marginBottom: 0 }}><ImageUpload purpose='quiz' /></Form.Item>}
-              {type !== 'judge' && fields.length > 2 && <MinusCircleOutlined onClick={() => remove(name)} />}
-            </Space>)}
-            {type !== 'judge' && optionCount < 4 && <Button type="dashed" icon={<PlusOutlined />} onClick={() => add({ content: '' })}>添加选项</Button>}
-          </div>}
-        </Form.List>
-        <Form.Item name="correct_answer" label="正确答案">{type === 'multiple_choice' ? <Checkbox.Group options={keys.map((value) => ({ value, label: value }))} /> : <Radio.Group options={keys.map((value) => ({ value, label: value }))} />}</Form.Item>
+        {type === 'fill_blank' && (
+          <Form.List name="fill_answers">
+            {(fields, { add, remove }) => (
+              <div>
+                <div style={{ marginBottom: 8 }}>每空答案（第 N 组对应题干第 N 个空位；每组可填多个候选，学生答案与任一候选完全一致即得分）</div>
+                {fields.map(({ key, name, ...rest }, index) => (
+                  <div key={key} style={{ border: '1px dashed #d9d9d9', padding: '8px 12px', marginBottom: 8 }}>
+                    <Space style={{ marginBottom: 4 }}>
+                      <strong>空 {index + 1}</strong>
+                      {fields.length > 1 && <Button type="link" size="small" onClick={() => remove(name)}>删除该空</Button>}
+                    </Space>
+                    <Form.List name={[name, 'candidates']}>
+                      {(candidateFields, { add: addCandidate, remove: removeCandidate }) => (
+                        <div>
+                          {(candidateFields as Array<{ key: number; name: number }>).map(({ key: cKey, name: cName }) => (
+                            <Space key={cKey} align="baseline" style={{ display: 'flex', marginBottom: 4 }}>
+                              <Form.Item name={cName} style={{ marginBottom: 0 }} rules={[{ required: true, message: '候选答案不能为空' }, { max: 200, message: '候选答案不超过 200 字' }]}>
+                                <Input style={{ width: 420 }} placeholder={`空 ${index + 1} 的候选答案`} />
+                              </Form.Item>
+                              {candidateFields.length > 1 && <MinusCircleOutlined onClick={() => removeCandidate(cName)} />}
+                            </Space>
+                          ))}
+                          {candidateFields.length < 5 && <Button type="dashed" size="small" icon={<PlusOutlined />} onClick={() => addCandidate('')}>添加候选</Button>}
+                        </div>
+                      )}
+                    </Form.List>
+                  </div>
+                ))}
+                {fields.length < 5 && <Button type="dashed" icon={<PlusOutlined />} onClick={() => add({ candidates: [''] })}>添加空</Button>}
+                {fields.length !== blankCount && <div style={{ color: '#d46b08', marginTop: 8 }}>题干检测到 {blankCount} 个空位，当前已配置 {fields.length} 组答案，两者必须一致。</div>}
+              </div>
+            )}
+          </Form.List>
+        )}
+        {type === 'essay' && (
+          <Form.Item name="correct_answer" label="参考答案（必填，阅卷时管理员对照打分的依据）" rules={[{ required: true, message: '请填写参考答案' }, { max: 5000, message: '参考答案不超过 5000 字' }]}>
+            <Input.TextArea rows={6} maxLength={5000} showCount placeholder="参考答案与评分要点" />
+          </Form.Item>
+        )}
+        {isChoiceType && (
+          <>
+            <Form.List name="options">
+              {(fields, { add, remove }) => <div>
+                <div style={{ marginBottom: 8 }}>选项（A-D）</div>
+                {fields.slice(0, 4).map(({ key, name, ...rest }) => <Space key={key} align="baseline" style={{ display: 'flex', marginBottom: 8 }}>
+                  <strong style={{ width: 22 }}>{QUESTION_OPTION_KEYS[name]}</strong>
+                  <Form.Item {...rest} name={[name, 'content']} style={{ marginBottom: 0 }}><Input disabled={type === 'judge'} style={{ width: 360 }} /></Form.Item>
+                  {type !== 'judge' && <Form.Item {...rest} name={[name, 'image_url']} style={{ marginBottom: 0 }}><ImageUpload purpose='quiz' /></Form.Item>}
+                  {type !== 'judge' && fields.length > 2 && <MinusCircleOutlined onClick={() => remove(name)} />}
+                </Space>)}
+                {type !== 'judge' && optionCount < 4 && <Button type="dashed" icon={<PlusOutlined />} onClick={() => add({ content: '' })}>添加选项</Button>}
+              </div>}
+            </Form.List>
+            <Form.Item name="correct_answer" label="正确答案">{type === 'multiple_choice' ? <Checkbox.Group options={keys.map((value) => ({ value, label: value }))} /> : <Radio.Group options={keys.map((value) => ({ value, label: value }))} />}</Form.Item>
+          </>
+        )}
         <Form.Item name="explanation" label="解析"><Input.TextArea rows={3} maxLength={1024} showCount /></Form.Item>
       </Form>
     </Modal>

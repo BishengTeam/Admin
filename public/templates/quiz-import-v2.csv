@@ -1,2 +1,6 @@
-category_path,question_type,question_text,options,correct_answer,explanation,image_urls
-"[""网络基础"",""OSI 模型""]",single_choice,OSI 参考模型共有几层？,"{""A"":""五层"",""B"":""六层"",""C"":""七层""}",C,OSI 参考模型共有七层。,"https://example.com/osi.png"
+category_path,question_type,question_text,options,correct_answer,explanation
+"[""网络基础"",""OSI 模型""]",single_choice,OSI 参考模型共有几层？,"{""A"":""五层"",""B"":""六层"",""C"":""七层""}",C,OSI 参考模型共有七层。
+"[""网络基础"",""传输层""]",fill_blank,TCP 三次握手：____、____、ACK,,SYN;;同步|SYN+ACK;;确认应答,三次握手建立连接。
+"[""网络基础"",""传输层""]",essay,简述 TCP 与 UDP 的区别。,,TCP 面向连接、可靠、有序重传；UDP 无连接、轻量、不保证可靠。,从连接、可靠性、开销三方面作答。
+"[""网络基础"",""传输层""]",fill_blank,TCP 三次握手：____、____、ACK,,SYN;;同步|SYN+ACK;;确认应答,三次握手建立连接。
+"[""网络基础"",""传输层""]",essay,简述 TCP 与 UDP 的区别。,,TCP 面向连接、可靠、有序重传；UDP 无连接、轻量、不保证可靠。,从连接、可靠性、开销三方面作答。

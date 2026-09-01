@@ -12,7 +12,7 @@ import type { DailyStatsItem, QuestionStatsListItem, QuestionType, QuizLibrary, 
 
 const { Text } = Typography
 const { RangePicker } = DatePicker
-const typeLabels: Record<QuestionType, string> = { single_choice: '单选', multiple_choice: '多选', judge: '判断' }
+const typeLabels: Record<QuestionType, string> = { single_choice: '单选', multiple_choice: '多选', judge: '判断', fill_blank: '填空', essay: '问答' }
 
 interface StudentOption {
   value: number
@@ -394,3 +394,4 @@ export default function QuizBehavior() {
     </PageContainer>
   )
 }
+

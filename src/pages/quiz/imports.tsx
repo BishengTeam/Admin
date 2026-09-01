@@ -531,7 +531,7 @@ export default function QuizImports() {
             <Button type="primary" icon={<UploadOutlined />} loading={uploading} disabled={!currentFile || !libraryId} onClick={handleUpload}>提交任务</Button>
             <Button icon={<DownloadOutlined />} href={`/templates/quiz-import-v2.${source}`} download={`quiz-import-v2.${source}`}>下载 v2 模板</Button>
           </Space>
-          <Alert type="info" showIcon message="UTF-8 文件，最大 10 MiB，最多 5,000 行；路径严格为 [模块, 知识点]，不能创建题库或把题挂到模块。缺结构时等待确认；确认后模块、知识点和全部草稿题在同一事务创建，任一错误全部回滚。CSV 表头固定为 category_path、question_type、question_text、options、correct_answer、explanation。" />
+          <Alert type="info" showIcon message="UTF-8 文件，最大 10 MiB，最多 5,000 行；路径严格为 [模块, 知识点]，不能创建题库或把题挂到模块。缺结构时等待确认；确认后模块、知识点和全部草稿题在同一事务创建，任一错误全部回滚。CSV 表头固定为 category_path、question_type、question_text、options、correct_answer、explanation。" description="新题型：题型列可填 fill_blank/填空、essay/问答。填空题答案列用“空|空”分组、同空多候选用“候选;;候选”，如 SYN;;同步|SYN+ACK；题干用连续下划线 ____ 标空。问答题答案列填参考答案（必填，≤5000 字），选项列留空。答案文本本身含 | 或 ;; 时请改用 JSON 导入。" />
         </Space>
       </Card>}
       <Space style={{ marginBottom: 16 }} wrap>

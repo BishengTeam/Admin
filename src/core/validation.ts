@@ -32,9 +32,15 @@ export const CategorySchema = z.object({
 }).strict()
 
 const answerKeySchema = z.enum(['A', 'B', 'C', 'D'])
+export const questionTypeSchema = z.enum(['single_choice', 'multiple_choice', 'judge', 'fill_blank', 'essay'])
+const fillBlankAnswerSchema = z.array(
+  z.array(z.string().min(1).max(200)).min(1).max(5),
+).min(1).max(5)
 const answerSchema = z.union([
   answerKeySchema,
   z.array(answerKeySchema).min(1).max(4).refine((value) => new Set(value).size === value.length, { message: '答案不能重复' }),
+  fillBlankAnswerSchema,
+  z.string().max(5000),
 ])
 const optionSchema = z.record(z.string(), z.string()).superRefine((value, ctx) => {
   const keys = Object.keys(value)
@@ -54,10 +60,22 @@ const optionImageUrlsSchema = z.record(z.string().regex(/^[A-D]$/, '选项键只
 const optionImageUrlsResponseSchema = optionImageUrlsSchema.default({})
 
 function questionShapeRules(value: {
-  question_type?: 'single_choice' | 'multiple_choice' | 'judge'
+  question_type?: 'single_choice' | 'multiple_choice' | 'judge' | 'fill_blank' | 'essay'
   options?: Record<string, string> | null
-  correct_answer?: string | string[] | null
+  correct_answer?: string | string[] | string[][] | null
 }, ctx: z.RefinementCtx) {
+  if (value.question_type === 'fill_blank' || value.question_type === 'essay') {
+    if (value.options && Object.keys(value.options).length > 0) {
+      ctx.addIssue({ code: 'custom', path: ['options'], message: '填空题和问答题不支持选项' })
+    }
+    if (value.question_type === 'fill_blank') {
+      const answer = value.correct_answer
+      if (answer != null && (!Array.isArray(answer) || !answer.every((group) => Array.isArray(group)))) {
+        ctx.addIssue({ code: 'custom', path: ['correct_answer'], message: '填空题答案必须是每空一组候选的二维数组' })
+      }
+    }
+    return
+  }
   if (value.question_type === 'multiple_choice' && typeof value.correct_answer === 'string') {
     ctx.addIssue({ code: 'custom', path: ['correct_answer'], message: '多选题答案必须使用数组' })
   }
@@ -76,7 +94,11 @@ function questionShapeRules(value: {
   }
   if (value.options && value.correct_answer) {
     const optionKeys = new Set(Object.keys(value.options))
-    const answers = Array.isArray(value.correct_answer) ? value.correct_answer : [value.correct_answer]
+    const answers = (
+      Array.isArray(value.correct_answer)
+        ? value.correct_answer.filter((item): item is string => typeof item === 'string')
+        : [value.correct_answer as string]
+    )
     if (answers.some((answer) => !optionKeys.has(answer))) {
       ctx.addIssue({ code: 'custom', path: ['correct_answer'], message: '正确答案必须对应已有选项' })
     }
@@ -129,7 +151,7 @@ export const CategoryImpactSchema = z.object({
 
 export const QuestionCreateSchema = z.object({
   category_id: positiveInt,
-  question_type: z.enum(['single_choice', 'multiple_choice', 'judge']),
+  question_type: questionTypeSchema,
   question_text: z.string().min(1).max(1024),
   options: optionSchema.nullable().optional(),
   correct_answer: answerSchema.nullable().optional(),
@@ -141,7 +163,7 @@ export const QuestionCreateSchema = z.object({
 export const QuestionUpdateSchema = z.object({
   lock_version: positiveInt,
   category_id: positiveInt.optional(),
-  question_type: z.enum(['single_choice', 'multiple_choice', 'judge']).optional(),
+  question_type: questionTypeSchema.optional(),
   question_text: z.string().min(1).max(1024).optional(),
   options: optionSchema.nullable().optional(),
   correct_answer: answerSchema.nullable().optional(),
@@ -160,7 +182,7 @@ export const CsvImportMetadataSchema = z.object({ filename: z.string().min(1).ma
 
 export const JsonImportQuestionSchema = z.object({
   category_path: z.array(z.string().min(1)).min(1).max(3),
-  question_type: z.enum(['single_choice', 'multiple_choice', 'judge']),
+  question_type: questionTypeSchema,
   question_text: z.string().min(1).max(1024),
   options: optionSchema.nullable().optional(),
   correct_answer: answerSchema.nullable().optional(),
@@ -174,7 +196,7 @@ export const JsonImportRequestSchema = z.object({ library_id: positiveInt.option
 export const QuestionSchema = z.object({
   id: z.number(),
   category_id: z.number(),
-  question_type: z.enum(['single_choice', 'multiple_choice', 'judge']),
+  question_type: questionTypeSchema,
   status: z.enum(['draft', 'published', 'disabled']),
   question_text: z.string(),
   normalized_question_text: z.string(),
@@ -198,7 +220,7 @@ export const QuizV2QuestionSchema = z.object({
   category_id: positiveInt.nullable(),
   library_id: positiveInt,
   knowledge_point_id: positiveInt,
-  question_type: z.enum(['single_choice', 'multiple_choice', 'judge']),
+  question_type: questionTypeSchema,
   status: z.enum(['draft', 'published', 'disabled', 'deleted']),
   question_text: z.string(),
   normalized_question_text: z.string(),
@@ -368,7 +390,7 @@ export const QuizQuestionRevisionSchema = z.object({
   question_id: positiveInt,
   revision_no: positiveInt,
   status: z.enum(['draft', 'published', 'superseded', 'discarded']),
-  question_type: z.enum(['single_choice', 'multiple_choice', 'judge']),
+  question_type: questionTypeSchema,
   question_text: z.string(),
   normalized_question_text: z.string(),
   options: optionSchema.nullable(),
@@ -414,7 +436,7 @@ export const QuizContentStatusUpdateSchema = z.object({ status: z.enum(['active'
 
 export const QuizV2QuestionCreateSchema = z.object({
   knowledge_point_id: positiveInt,
-  question_type: z.enum(['single_choice', 'multiple_choice', 'judge']),
+  question_type: questionTypeSchema,
   question_text: z.string().min(1).max(1024),
   options: optionSchema.nullable().optional(),
   correct_answer: answerSchema.nullable().optional(),
@@ -426,7 +448,7 @@ export const QuizV2QuestionCreateSchema = z.object({
 export const QuizV2QuestionUpdateSchema = z.object({
   lock_version: positiveInt,
   knowledge_point_id: positiveInt.optional(),
-  question_type: z.enum(['single_choice', 'multiple_choice', 'judge']).optional(),
+  question_type: questionTypeSchema.optional(),
   question_text: z.string().min(1).max(1024).optional(),
   options: optionSchema.nullable().optional(),
   correct_answer: answerSchema.nullable().optional(),
@@ -484,7 +506,7 @@ export const QuestionStatsListItemSchema = QuestionStatsSchema.omit({ question_i
   module_name: z.string(),
   knowledge_point_id: positiveInt,
   knowledge_point_name: z.string(),
-  question_type: z.enum(['single_choice', 'multiple_choice', 'judge']),
+  question_type: questionTypeSchema,
   status: z.enum(['draft', 'published', 'disabled', 'deleted']),
 }).strict()
 
@@ -680,6 +702,65 @@ export const ImportCancelRequestSchema = z.object({ lock_version: positiveInt })
 
 export const SignedUrlSchema = z.object({ url: z.string().min(1), expires_at: dateString }).strict()
 
+export const AdminQuizReviewListItemSchema = z.object({
+  exam_id: positiveInt,
+  user_id: positiveInt,
+  status: z.enum(['completed', 'timed_out']),
+  review_status: z.enum(['pending', 'in_progress', 'recalled']),
+  review_locked_by: z.number().int().nullable(),
+  question_count: z.number().int().min(10).max(100),
+  submitted_at: nullableString,
+  timed_out_at: nullableString,
+}).strict()
+
+export const AdminQuizReviewQuestionSchema = z.object({
+  exam_question_id: positiveInt,
+  position: z.number().int().min(1),
+  question_text: z.string(),
+  reference_answer: z.string(),
+  explanation: z.string(),
+  image_urls: z.array(z.string()),
+  user_answer: nullableString,
+  answered: z.boolean(),
+  verdict: z.enum(['wrong', 'partial', 'correct']).nullable(),
+  comment: nullableString,
+}).strict()
+
+export const AdminQuizReviewDetailSchema = z.object({
+  exam_id: positiveInt,
+  user_id: positiveInt,
+  status: z.enum(['completed', 'timed_out']),
+  review_status: z.enum(['pending', 'in_progress', 'recalled']),
+  question_count: z.number().int().min(10).max(100),
+  submitted_at: nullableString,
+  timed_out_at: nullableString,
+  questions: z.array(AdminQuizReviewQuestionSchema),
+}).strict()
+
+export const AdminQuizReviewClaimResponseSchema = z.object({
+  exam_id: positiveInt,
+  review_status: z.enum(['none', 'pending', 'in_progress', 'recalled', 'completed']),
+  review_locked_by: z.number().int().nullable(),
+}).strict()
+
+export const AdminQuizReviewCompleteResponseSchema = z.object({
+  exam_id: positiveInt,
+  review_status: z.literal('completed'),
+  score: z.number().min(0).max(100),
+  correct_count: z.number().int().min(0),
+  partial_count: z.number().int().min(0),
+  wrong_count: z.number().int().min(0),
+  unanswered_count: z.number().int().min(0),
+}).strict()
+
+export const AdminQuizReviewSubmitRequestSchema = z.object({
+  verdicts: z.array(z.object({
+    exam_question_id: positiveInt,
+    verdict: z.enum(['wrong', 'partial', 'correct']),
+    comment: z.string().max(512).nullable().optional(),
+  }).strict()).min(1).max(100),
+}).strict()
+
 export const AuditLogSchema = z.object({
   id: z.number(),
   actor_type: z.enum(['admin', 'system']),
@@ -769,3 +850,4 @@ export function validateRequestOrThrow<T>(schema: z.ZodType<T>, data: unknown): 
   if (!result.success) throw new Error(`请求模型校验失败: ${result.error.message}`)
   return result.data
 }
+

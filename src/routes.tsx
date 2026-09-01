@@ -34,6 +34,7 @@ const QuizAuditLogs = lazy(() => import('@/pages/quiz/audit-logs'))
 const QuizStats = lazy(() => import('@/pages/quiz/stats'))
 const QuizBehavior = lazy(() => import('@/pages/quiz/behavior'))
 const QuizTaskMonitor = lazy(() => import('@/pages/quiz/tasks'))
+const QuizReviews = lazy(() => import('@/pages/quiz/reviews'))
 const HomepageManagement = lazy(() => import('@/pages/operations/homepage'))
 const CourseList = lazy(() => import('@/pages/courses/List'))
 const CourseCategories = lazy(() => import('@/pages/courses/Categories'))
@@ -120,6 +121,11 @@ export const adminRoutes: AppRoute[] = [
         path: 'imports',
         element: <QuizImports />,
         meta: { title: '导入任务', icon: 'ImportOutlined', permissions: ['quiz:list', 'quiz:import'] },
+      },
+      {
+        path: 'reviews',
+        element: <QuizReviews />,
+        meta: { title: '考试人工评阅', icon: 'AuditOutlined', permission: 'quiz_review' },
       },
       {
         path: 'stats',

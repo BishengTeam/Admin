@@ -64,7 +64,7 @@ describe('quizService frozen admin contract', () => {
   it('keeps all legacy and V2 management calls on /admin/quiz without a duplicated /api prefix', () => {
     const source = readFileSync(resolve(process.cwd(), 'src/services/quiz.ts'), 'utf8')
     expect(source).not.toContain('/api/admin/quiz')
-    expect(source.match(/\/admin\/quiz/g)).toHaveLength(64)
+    expect(source.match(/\/admin\/quiz/g)).toHaveLength(70)
     for (const path of [
       '/admin/quiz/course-options',
       '/admin/quiz/categories/${id}/impact',
@@ -77,6 +77,11 @@ describe('quizService frozen admin contract', () => {
       '/admin/quiz/libraries/${libraryId}/content-tree',
       '/admin/quiz/questions/${id}/revisions',
       '/admin/quiz/knowledge-points/${id}/undo-delete',
+      '/admin/quiz/reviews',
+      '/admin/quiz/reviews/${examId}/claim',
+      '/admin/quiz/reviews/${examId}/verdicts',
+      '/admin/quiz/reviews/${examId}/complete',
+      '/admin/quiz/reviews/${examId}/recall',
     ]) expect(source).toContain(path)
   })
 

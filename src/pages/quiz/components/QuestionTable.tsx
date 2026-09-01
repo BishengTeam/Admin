@@ -7,6 +7,7 @@ import { useNavigate } from 'react-router-dom'
 import { quizService } from '@/services/quiz'
 import { ApiError, isConflictError, isNotFoundError, isValidationError } from '@/core/request'
 import type { Category, Question, QuestionFilter, QuestionStats, QuestionStatus, QuestionType } from '@/types/quiz'
+import { formatAnswerForDisplay } from '@/types/quiz'
 import { formatQuestionPublishErrors, validateQuestionForPublish } from '@/utils/quiz'
 import { QUIZ_IMPORT_SUCCEEDED_EVENT } from '@/utils/quizEvents'
 import { getCategoryPath, isCategoryEffectivelyDisabled } from './CategoryTree'
@@ -35,7 +36,7 @@ interface SelectedQuestion {
   question: Question
 }
 
-const typeLabels: Record<QuestionType, string> = { single_choice: '单选', multiple_choice: '多选', judge: '判断' }
+const typeLabels: Record<QuestionType, string> = { single_choice: '单选', multiple_choice: '多选', judge: '判断', fill_blank: '填空', essay: '问答' }
 const statusLabels: Record<QuestionStatus, string> = { draft: '草稿', published: '已发布', disabled: '已停用' }
 const statusColors: Record<QuestionStatus, string> = { draft: 'default', published: 'success', disabled: 'warning' }
 
@@ -360,7 +361,7 @@ export default function QuestionTable({ filters, keyword, categories, canWrite, 
           <Descriptions.Item label="选项" span={2}>
             {viewing.options ? Object.entries(viewing.options).map(([key, value]) => <div key={key}><strong>{key}.</strong> {value}</div>) : '-'}
           </Descriptions.Item>
-          <Descriptions.Item label="正确答案" span={2}>{Array.isArray(viewing.correct_answer) ? viewing.correct_answer.join(', ') : viewing.correct_answer || '-'}</Descriptions.Item>
+          <Descriptions.Item label={viewing.question_type === 'essay' ? '参考答案' : '正确答案'} span={2}>{formatAnswerForDisplay(viewing.correct_answer)}</Descriptions.Item>
           <Descriptions.Item label="答案解析" span={2}>{viewing.explanation || '-'}</Descriptions.Item>
           <Descriptions.Item label="曾发布">{viewing.ever_published ? '是' : '否'}</Descriptions.Item>
           <Descriptions.Item label="版本">{viewing.lock_version}</Descriptions.Item>
@@ -393,3 +394,4 @@ export default function QuestionTable({ filters, keyword, categories, canWrite, 
     </div>
   )
 }
+

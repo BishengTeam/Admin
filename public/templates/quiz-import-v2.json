@@ -8,6 +8,22 @@
       "correct_answer": "C",
       "explanation": "OSI 参考模型共有七层。",
       "image_urls": ["https://example.com/osi.png"]
+    },
+    {
+      "category_path": ["网络基础", "传输层"],
+      "question_type": "fill_blank",
+      "question_text": "TCP 三次握手：____、____、ACK",
+      "options": null,
+      "correct_answer": [["SYN", "同步"], ["SYN+ACK", "确认应答"]],
+      "explanation": "三次握手建立连接。"
+    },
+    {
+      "category_path": ["网络基础", "传输层"],
+      "question_type": "essay",
+      "question_text": "简述 TCP 与 UDP 的区别。",
+      "options": null,
+      "correct_answer": "TCP 面向连接、可靠、有序重传；UDP 无连接、轻量、不保证可靠。",
+      "explanation": "从连接、可靠性、开销三方面作答。"
     }
   ]
 }

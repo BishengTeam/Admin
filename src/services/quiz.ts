@@ -47,6 +47,11 @@ import {
   QuizV2QuestionUpdateSchema,
   SignedUrlSchema,
   StatsOverviewSchema,
+  AdminQuizReviewListItemSchema,
+  AdminQuizReviewDetailSchema,
+  AdminQuizReviewClaimResponseSchema,
+  AdminQuizReviewCompleteResponseSchema,
+  AdminQuizReviewSubmitRequestSchema,
   UserStatsPageSchema,
   UserPracticeStatsSchema,
   VersionRequestSchema,
@@ -109,6 +114,11 @@ import type {
   QuizV2QuestionCreate,
   QuizV2QuestionFilter,
   QuizV2QuestionUpdate,
+  AdminQuizReviewListItem,
+  AdminQuizReviewDetail,
+  AdminQuizReviewClaimResponse,
+  AdminQuizReviewCompleteResponse,
+  AdminQuizReviewVerdictItem,
 } from '@/types/quiz'
 import { z } from 'zod'
 
@@ -134,6 +144,7 @@ const QuizLibrariesSchema = z.array(QuizLibrarySchema)
 const QuizCourseBindingsSchema = z.array(QuizCourseBindingSchema)
 const QuizCourseOptionsSchema = z.array(QuizCourseOptionSchema)
 const QuizQuestionRevisionsSchema = z.array(QuizQuestionRevisionSchema)
+const ReviewPageSchema = pageSchema(AdminQuizReviewListItemSchema)
 
 function parsed<T>(schema: z.ZodType<T>, value: unknown): T {
   return validateOrThrow(schema, value)
@@ -162,6 +173,33 @@ function probeUrl(endpoint: 'health' | 'ready') {
 }
 
 export const quizService = {
+  async listReviewExams(params: { status?: 'pending' | 'in_progress' | 'recalled'; page?: number; page_size?: number } = {}, signal?: AbortSignal): Promise<PageData<AdminQuizReviewListItem>> {
+    return parsed(ReviewPageSchema, await http.get('/admin/quiz/reviews', queryConfig(params, signal)))
+  },
+
+  async claimReview(examId: number, signal?: AbortSignal): Promise<AdminQuizReviewClaimResponse> {
+    return parsed(AdminQuizReviewClaimResponseSchema, await http.post(`/admin/quiz/reviews/${examId}/claim`, undefined, { signal }))
+  },
+
+  async getReviewDetail(examId: number, signal?: AbortSignal): Promise<AdminQuizReviewDetail> {
+    return parsed(AdminQuizReviewDetailSchema, await http.get(`/admin/quiz/reviews/${examId}`, { signal }))
+  },
+
+  async submitReviewVerdicts(examId: number, verdicts: AdminQuizReviewVerdictItem[], signal?: AbortSignal): Promise<AdminQuizReviewClaimResponse> {
+    return parsed(
+      AdminQuizReviewClaimResponseSchema,
+      await http.post(`/admin/quiz/reviews/${examId}/verdicts`, requestParsed(AdminQuizReviewSubmitRequestSchema, { verdicts }), { signal }),
+    )
+  },
+
+  async completeReview(examId: number, signal?: AbortSignal): Promise<AdminQuizReviewCompleteResponse> {
+    return parsed(AdminQuizReviewCompleteResponseSchema, await http.post(`/admin/quiz/reviews/${examId}/complete`, undefined, { signal }))
+  },
+
+  async recallReview(examId: number, signal?: AbortSignal): Promise<AdminQuizReviewClaimResponse> {
+    return parsed(AdminQuizReviewClaimResponseSchema, await http.post(`/admin/quiz/reviews/${examId}/recall`, undefined, { signal }))
+  },
+
   async listLibraries(params: QuizLibraryFilter = {}, signal?: AbortSignal): Promise<QuizLibrary[]> {
     return parsed(QuizLibrariesSchema, await http.get('/admin/quiz/libraries', queryConfig(params, signal)))
   },
