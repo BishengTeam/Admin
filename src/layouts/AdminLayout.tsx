@@ -105,6 +105,19 @@ export function buildMenuItems(
       if (!r.meta || r.meta.hidden) return []
       const icon = r.meta?.icon ? iconMap[r.meta.icon] : undefined
       if (r.children) {
+        const hasIndexChild = r.children.some((child) => child.index)
+        const hasVisibleNonIndexChild = r.children.some(
+          (child) => !child.index && !child.meta?.hidden,
+        )
+        // 一个只有 index 子路由的模块是独立页面；隐藏的工作台路由不应让菜单整项消失。
+        if (hasIndexChild && !hasVisibleNonIndexChild) {
+          if (!hasRouteAccess(r, permissions, initialized, role)) return []
+          return [{
+            key: r.path!,
+            icon,
+            label: r.meta?.title,
+          }]
+        }
         const visibleChildren = r.children.filter((c) => c.meta && !c.meta.hidden && hasRouteAccess(c, permissions, initialized, role))
         if (visibleChildren.length === 0) return []
         if (r.meta.roles && (!role || !r.meta.roles.includes(role as AdminRole))) return []

@@ -31,6 +31,32 @@ describe('fixed administrator role navigation', () => {
     expect(quizMenu.map((item) => item.key)).toEqual(['quiz'])
   })
 
+  it('shows classroom management as a direct menu item to super administrator and teacher', () => {
+    type MenuItem = { key: string; label: string; children?: Array<{ key: string }> }
+
+    const superMenu = buildMenuItems(adminRoutes, ['*'], true, 'super_admin') as MenuItem[]
+    const teacherMenu = buildMenuItems(
+      adminRoutes,
+      ['classroom:manage'],
+      true,
+      'teacher',
+    ) as MenuItem[]
+
+    const superClassroom = superMenu.find((item) => item.key === 'classrooms')
+    const teacherClassroom = teacherMenu.find((item) => item.key === 'classrooms')
+
+    expect(superClassroom).toMatchObject({
+      key: 'classrooms',
+      label: '课堂管理',
+    })
+    expect(superClassroom?.children).toBeUndefined()
+    expect(teacherClassroom).toMatchObject({
+      key: 'classrooms',
+      label: '课堂管理',
+    })
+    expect(teacherClassroom?.children).toBeUndefined()
+  })
+
   it('shows the update checker only inside super-admin system management', () => {
     const settings = adminRoutes.find((route) => route.path === 'settings')!
     const updates = settings.children!.find((route) => route.path === 'updates')!
