@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Drawer, Table, Button, Tag, Space, InputNumber, Progress, Typography, message } from 'antd'
+import { Drawer, Table, Button, Tag, Space, InputNumber, Progress, Typography, message, Image } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { classroomService } from '@/services/classroom'
 import { formatDate } from '@/utils/format'
@@ -12,6 +12,10 @@ const { Text } = Typography
 
 const TYPE_LABELS: Record<string, string> = {
   single: '单选', multiple: '多选', judge: '判断', blank: '填空', short: '简答',
+}
+
+function attachmentsOf(sub: ClassroomSubmission, questionId: number) {
+  return (sub.attachments || []).filter((item) => item.question_id === questionId)
 }
 
 interface Props {
@@ -130,6 +134,7 @@ export default function GradingDrawer({ classroom, quiz, onClose }: Props) {
         {detail && questions.map((q) => {
           const studentAnswer = detail.answers[String(q.id)] ?? ''
           const autoScored = ['single', 'multiple', 'judge', 'blank'].includes(q.type)
+          const questionAttachments = attachmentsOf(detail, q.id)
           return (
             <div key={q.id} style={{ marginBottom: 24, padding: 16, background: '#fafafa', borderRadius: 8 }}>
               <Space style={{ marginBottom: 8 }}>
@@ -147,7 +152,56 @@ export default function GradingDrawer({ classroom, quiz, onClose }: Props) {
                 </div>
               )}
               {q.answer && <Text type='secondary' style={{ display: 'block', marginBottom: 4 }}>标准答案：{q.answer}</Text>}
-              <Text style={{ display: 'block', marginBottom: 8 }}>学生答案：{studentAnswer || '（未作答）'}</Text>
+              {q.type === 'short' ? (
+                <>
+                  <Text style={{ display: 'block', marginBottom: 4 }}>学生答案：</Text>
+                  {/* 服务端已按标签白名单消毒；此处渲染 ql-editor 风格富文本 */}
+                  <div
+                    className='ql-editor'
+                    style={{
+                      padding: '8px 12px', marginBottom: 8, background: '#fff',
+                      border: '1px solid #f0f0f0', borderRadius: 6,
+                      fontSize: 14, lineHeight: 1.6, overflowX: 'auto',
+                    }}
+                  >
+                    <style>{`.ql-editor img { max-width: 100%; }`}</style>
+                    <div dangerouslySetInnerHTML={{ __html: studentAnswer || '<p>（未作答）</p>' }} />
+                  </div>
+                </>
+              ) : (
+                <Text style={{ display: 'block', marginBottom: 8 }}>学生答案：{studentAnswer || '（未作答）'}</Text>
+              )}
+              {questionAttachments.length > 0 && (
+                <div style={{ marginBottom: 8 }}>
+                  <Text type='secondary' style={{ display: 'block', marginBottom: 4 }}>
+                    附件（{questionAttachments.length}）
+                  </Text>
+                  <Space wrap size={8}>
+                    {questionAttachments.map((item) =>
+                      item.kind === 'image' ? (
+                        <Image
+                          key={item.id}
+                          src={item.url}
+                          alt={item.filename}
+                          width={72}
+                          height={72}
+                          style={{ objectFit: 'cover', borderRadius: 6 }}
+                        />
+                      ) : (
+                        <Button
+                          key={item.id}
+                          size='small'
+                          href={item.url}
+                          target='_blank'
+                          download={item.filename}
+                        >
+                          {item.kind === 'archive' ? '🗜' : '📄'} {item.filename}
+                        </Button>
+                      ),
+                    )}
+                  </Space>
+                </div>
+              )}
               <Space>
                 <span>给分：</span>
                 <InputNumber

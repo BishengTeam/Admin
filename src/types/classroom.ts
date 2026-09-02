@@ -73,6 +73,19 @@ export interface ClassroomSubmission {
   status: 'pending_review' | 'approved'
   submitted_at: string
   manual_scores: Record<string, number>
+  attachments: ClassroomAttachmentItem[]
+}
+
+export type ClassroomAttachmentKind = 'image' | 'document' | 'archive'
+
+export interface ClassroomAttachmentItem {
+  id: number
+  question_id: number
+  kind: ClassroomAttachmentKind
+  filename: string
+  content_type: string
+  size_bytes: number
+  url: string
 }
 
 export interface ClassroomSubmissionQuestion {
