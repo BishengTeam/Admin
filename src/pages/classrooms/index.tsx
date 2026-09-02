@@ -1,24 +1,19 @@
 import { useState } from 'react'
-import { Button, Input, Modal, Form, Tag, Space, Typography, message } from 'antd'
-import { PlusOutlined, ReloadOutlined, TeamOutlined, VideoCameraOutlined, FileTextOutlined } from '@ant-design/icons'
-import type { ColumnsType } from 'antd/es/table'
-import { Table } from 'antd'
+import { Button, Input, Modal, Form, Tag, Typography, message, Row, Col, Card, Spin } from 'antd'
+import { PlusOutlined, RightOutlined, TeamOutlined } from '@ant-design/icons'
+import { useNavigate } from 'react-router-dom'
 import { PageContainer } from '@/components/PageContainer'
-import { ConfirmButton } from '@/components/ConfirmButton'
 import { usePagination } from '@/hooks/usePagination'
 import { classroomService } from '@/services/classroom'
 import { useAuth } from '@/hooks/useAuth'
-import { formatDate } from '@/utils/format'
-import ClassroomWorkbench from './Workbench'
 import type { Classroom } from '@/types/classroom'
 
 const { Text } = Typography
 
 export default function ClassroomManagement() {
   const { admin } = useAuth()
+  const navigate = useNavigate()
   const [modalOpen, setModalOpen] = useState(false)
-  const [editing, setEditing] = useState<Classroom | null>(null)
-  const [workbench, setWorkbench] = useState<Classroom | null>(null)
   const [form] = Form.useForm<{ name: string }>()
 
   const { data, loading, pagination, refresh } = usePagination(
@@ -27,97 +22,16 @@ export default function ClassroomManagement() {
   )
 
   const handleAdd = () => {
-    setEditing(null)
     form.resetFields()
     setModalOpen(true)
   }
 
   const handleOk = async () => {
     const { name } = await form.validateFields()
-    if (editing) {
-      await classroomService.rename(editing.id, name)
-      message.success('已更新')
-    } else {
-      await classroomService.create(name)
-      message.success('课堂已创建，点击「课堂码」生成加入码')
-    }
+    await classroomService.create(name)
+    message.success('课堂已创建，进入工作台生成课堂码')
     setModalOpen(false)
     refresh()
-  }
-
-  const handleRefreshCode = async (id: number) => {
-    const result = await classroomService.refreshCode(id)
-    message.success(`新课堂码：${result.join_code}（30 分钟内有效）`, 5)
-    refresh()
-  }
-
-  const handleStop = async (id: number) => {
-    await classroomService.stop(id)
-    message.success('课堂已停课，学生访问已冻结')
-    refresh()
-  }
-
-  const columns: ColumnsType<Classroom> = [
-    { title: '课堂', dataIndex: 'name', ellipsis: true },
-    {
-      title: '状态', dataIndex: 'status', width: 90,
-      render: (v: string) => v === 'active'
-        ? <Tag color='green'>进行中</Tag>
-        : <Tag color='default'>已停课</Tag>,
-    },
-    {
-      title: '课堂码', width: 140,
-      render: (_, r) => r.status === 'active'
-        ? r.join_code
-          ? <Text copyable={{ text: r.join_code }} strong style={{ fontSize: 16, letterSpacing: 2 }}>{r.join_code}</Text>
-          : <Text type='secondary'>未生成</Text>
-        : <Text type='secondary'>—</Text>,
-    },
-    {
-      title: '学生', width: 70, align: 'center',
-      render: (_, r) => <span><TeamOutlined /> {r.student_count}</span>,
-    },
-    {
-      title: '内容', width: 120,
-      render: (_, r) => (
-        <Space size={12}>
-          <span><VideoCameraOutlined /> {r.video_count}</span>
-          <span><FileTextOutlined /> {r.question_count}</span>
-        </Space>
-      ),
-    },
-    {
-      title: '测验', width: 90,
-      render: (_, r) => r.ongoing_quiz ? <Tag color='orange'>进行中</Tag> : <Text type='secondary'>—</Text>,
-    },
-    { title: '创建时间', dataIndex: 'created_at', width: 170, render: (t: string) => formatDate(t) },
-    {
-      title: '操作', width: 320,
-      render: (_, r) => (
-        <Space size={4}>
-          <Button type='link' size='small' onClick={() => setWorkbench(r)}>工作台</Button>
-          {r.status === 'active' && (
-            <>
-              <Button type='link' size='small' onClick={() => handleRefreshCode(r.id)}>
-                {r.join_code ? '刷新码' : '生成码'}
-              </Button>
-              <ConfirmButton
-                title='停课'
-                description='停课后学生立即失去访问（视频/测验全部冻结），确认停课？'
-                danger type='link' size='small'
-                onConfirm={() => handleStop(r.id)}
-              >
-                停课
-              </ConfirmButton>
-            </>
-          )}
-        </Space>
-      ),
-    },
-  ]
-
-  if (workbench) {
-    return <ClassroomWorkbench classroom={workbench} onBack={() => { setWorkbench(null); refresh() }} />
   }
 
   return (
@@ -125,14 +39,56 @@ export default function ClassroomManagement() {
       title={admin?.role === 'teacher' ? '我的课堂' : '课堂管理'}
       extra={<Button type='primary' icon={<PlusOutlined />} onClick={handleAdd}>新建课堂</Button>}
     >
-      <Space style={{ marginBottom: 16 }}>
-        <Button icon={<ReloadOutlined />} loading={loading} onClick={refresh}>刷新</Button>
+      <div style={{ marginBottom: 16 }}>
         <Text type='secondary'>共 {data?.total ?? 0} 个课堂</Text>
-      </Space>
-      <Table rowKey='id' columns={columns} dataSource={data?.items} loading={loading} pagination={pagination} />
+      </div>
+
+      <Spin spinning={loading}>
+        <Row gutter={[16, 16]}>
+          {(data?.items ?? []).map((c) => (
+            <Col key={c.id} xs={24} sm={12} lg={8}>
+              <Card
+                hoverable
+                onClick={() => navigate(`/admin/classrooms/${c.id}`)}
+                style={{ height: '100%' }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <Text strong style={{ fontSize: 16, flex: 1, marginRight: 12 }}>{c.name}</Text>
+                  {c.status === 'active'
+                    ? <Tag color='green'>进行中</Tag>
+                    : <Tag color='default'>已停课</Tag>}
+                </div>
+                {admin?.role !== 'teacher' && (
+                  <Text type='secondary' style={{ display: 'block', marginTop: 8 }}>
+                    <TeamOutlined /> {c.teacher_name || '—'}
+                  </Text>
+                )}
+                <div style={{ marginTop: 16, display: 'flex', justifyContent: 'flex-end' }}>
+                  <Text type='secondary'>
+                    进入工作台 <RightOutlined style={{ fontSize: 12 }} />
+                  </Text>
+                </div>
+              </Card>
+            </Col>
+          ))}
+        </Row>
+        {!loading && (data?.items ?? []).length === 0 && (
+          <div style={{ textAlign: 'center', padding: 80, color: '#999' }}>
+            暂无课堂，点击右上角「新建课堂」开始
+          </div>
+        )}
+      </Spin>
+
+      {pagination.total > (data?.page_size ?? 20) && (
+        <div style={{ textAlign: 'center', marginTop: 24 }}>
+          <Button onClick={() => pagination.onChange?.((data?.page ?? 1) + 1, data?.page_size ?? 20)}>
+            加载更多
+          </Button>
+        </div>
+      )}
 
       <Modal
-        title={editing ? '编辑课堂' : '新建课堂'}
+        title='新建课堂'
         open={modalOpen}
         onOk={handleOk}
         onCancel={() => setModalOpen(false)}

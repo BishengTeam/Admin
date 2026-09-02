@@ -1,6 +1,7 @@
 export interface Classroom {
   id: number
   name: string
+  teacher_name?: string
   status: 'active' | 'stopped'
   join_code: string | null
   join_code_expires_at: string | null

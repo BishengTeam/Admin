@@ -48,6 +48,7 @@ const TrainingManagement = lazy(() => import('@/pages/operations/training'))
 const ActivityManagement = lazy(() => import('@/pages/operations/activities'))
 const CompetitionManagement = lazy(() => import('@/pages/operations/competitions'))
 const ClassroomManagement = lazy(() => import('@/pages/classrooms'))
+const ClassroomWorkbench = lazy(() => import('@/pages/classrooms/Workbench'))
 const ReviewManagement = lazy(() => import('@/pages/review'))
 const ChangePassword = lazy(() => import('@/pages/change-password'))
 const AdminAccounts = lazy(() => import('@/pages/settings/admins'))
@@ -185,8 +186,15 @@ export const adminRoutes: AppRoute[] = [
   },
   {
     path: 'classrooms',
-    element: <ClassroomManagement />,
     meta: { title: '我的课堂', icon: 'TeamOutlined', permission: 'classroom:manage' },
+    children: [
+      { index: true, element: <ClassroomManagement /> },
+      {
+        path: ':classroomId',
+        element: <ClassroomWorkbench />,
+        meta: { title: '课堂工作台', icon: 'TeamOutlined', permission: 'classroom:manage', hidden: true },
+      },
+    ],
   },
   {
     path: 'certification',
