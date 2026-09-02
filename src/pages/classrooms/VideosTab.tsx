@@ -4,22 +4,9 @@ import { PlusOutlined, UploadOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import type { UploadFile } from 'antd/es/upload/interface'
 import { classroomService } from '@/services/classroom'
+import { readVideoDuration } from '@/services/courseManagement'
 import { formatDate, formatPrice } from '@/utils/format'
 import type { Classroom, ClassroomVideo } from '@/types/classroom'
-
-function readVideoDuration(file: File): Promise<number> {
-  return new Promise((resolve) => {
-    const url = URL.createObjectURL(file)
-    const video = document.createElement('video')
-    video.preload = 'metadata'
-    video.onloadedmetadata = () => {
-      resolve(Math.max(0, Math.round(video.duration)))
-      URL.revokeObjectURL(url)
-    }
-    video.onerror = () => { resolve(0); URL.revokeObjectURL(url) }
-    video.src = url
-  })
-}
 
 export default function VideosTab({ classroom }: { classroom: Classroom }) {
   const [videos, setVideos] = useState<ClassroomVideo[]>([])
@@ -42,7 +29,12 @@ export default function VideosTab({ classroom }: { classroom: Classroom }) {
   const handleSelect = async (f: File) => {
     setFile(f)
     form.setFieldsValue({ title: f.name.replace(/\.[^.]+$/, '') })
-    setDuration(await readVideoDuration(f))
+    try {
+      setDuration(await readVideoDuration(f))
+    } catch {
+      setDuration(0)
+      message.warning('无法自动读取视频时长，请手动填写')
+    }
   }
 
   const handleUpload = async () => {
@@ -54,7 +46,12 @@ export default function VideosTab({ classroom }: { classroom: Classroom }) {
         classroom.id, {
           filename: file.name, content_type: file.type || 'video/mp4', size_bytes: file.size,
         })
-      await fetch(upload_url, { method: 'PUT', body: file, headers: { 'Content-Type': file.type || 'video/mp4' } })
+      // OSS 预签名 URL 不包含 Content-Type。File 会携带 MIME，切片为空类型可避免浏览器自动加头。
+      const response = await fetch(upload_url, {
+        method: 'PUT',
+        body: file.slice(0, file.size, ''),
+      })
+      if (!response.ok) throw new Error(`视频直传失败（${response.status}）`)
       await classroomService.createVideo(classroom.id, {
         title, storage_key, duration_seconds: duration, size_bytes: file.size,
       })

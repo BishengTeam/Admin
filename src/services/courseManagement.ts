@@ -46,16 +46,32 @@ export async function readVideoDuration(file: File): Promise<number> {
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(file)
     const video = document.createElement('video')
+    let settled = false
+    const finish = (duration: number) => {
+      if (settled) return
+      settled = true
+      URL.revokeObjectURL(url)
+      resolve(Math.max(1, Math.round(duration)))
+    }
+    const fail = () => {
+      if (settled) return
+      settled = true
+      URL.revokeObjectURL(url)
+      reject(new Error('无法读取视频时长，请手动填写'))
+    }
     video.preload = 'metadata'
     video.onloadedmetadata = () => {
-      const duration = Math.max(1, Math.round(video.duration))
-      URL.revokeObjectURL(url)
-      resolve(duration)
+      if (Number.isFinite(video.duration) && video.duration > 0) {
+        finish(video.duration)
+        return
+      }
+      // 部分浏览器对流式录制文件先给 Infinity，跳到末尾后才写回真实时长。
+      video.currentTime = Number.MAX_SAFE_INTEGER
     }
-    video.onerror = () => {
-      URL.revokeObjectURL(url)
-      reject(new Error('无法读取视频时长，请在列表中手动填写'))
+    video.ondurationchange = () => {
+      if (Number.isFinite(video.duration) && video.duration > 0) finish(video.duration)
     }
+    video.onerror = fail
     video.src = url
   })
 }

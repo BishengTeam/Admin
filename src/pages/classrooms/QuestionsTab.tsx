@@ -1,11 +1,12 @@
 import { useState } from 'react'
 import type { Key } from 'react'
-import { Table, Button, Tag, Space, Modal, Input, Typography, message } from 'antd'
-import { PlusOutlined, ImportOutlined } from '@ant-design/icons'
+import { Table, Button, Tag, Space, Modal, Input, Typography, Upload, message } from 'antd'
+import { ImportOutlined, UploadOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import { ConfirmButton } from '@/components/ConfirmButton'
 import { usePagination } from '@/hooks/usePagination'
 import { classroomService } from '@/services/classroom'
+import { readClassroomQuestionImportFile } from '@/utils/classroomQuestionImport'
 import { formatDate } from '@/utils/format'
 import type { Classroom, ClassroomQuestion } from '@/types/classroom'
 
@@ -31,6 +32,7 @@ export default function QuestionsTab({ classroom }: { classroom: Classroom }) {
   const [selected, setSelected] = useState<number[]>([])
   const [importOpen, setImportOpen] = useState(false)
   const [importText, setImportText] = useState('')
+  const [importFile, setImportFile] = useState<File | null>(null)
   const [importing, setImporting] = useState(false)
 
   const { data, loading, pagination, refresh } = usePagination(
@@ -61,11 +63,25 @@ export default function QuestionsTab({ classroom }: { classroom: Classroom }) {
       message.success(`成功导入 ${imported} 题（草稿状态），发布后才能用于测验`)
       setImportOpen(false)
       setImportText('')
+      setImportFile(null)
       refresh()
     } catch (error) {
       message.error(error instanceof Error ? `JSON 格式错误：${error.message}` : '导入失败')
     } finally {
       setImporting(false)
+    }
+  }
+
+  const handleImportFileSelect = async (file: File) => {
+    try {
+      const { text, questionCount } = await readClassroomQuestionImportFile(file)
+      setImportText(text)
+      setImportFile(file)
+      message.success(`已读取 ${questionCount} 道题目，请确认后导入`)
+    } catch (error) {
+      setImportFile(null)
+      setImportText('')
+      message.error(error instanceof Error ? `文件读取失败：${error.message}` : '文件读取失败')
     }
   }
 
@@ -115,7 +131,7 @@ export default function QuestionsTab({ classroom }: { classroom: Classroom }) {
         title='导入题目（JSON 数组）'
         open={importOpen}
         onOk={doImport}
-        onCancel={() => setImportOpen(false)}
+        onCancel={() => { setImportOpen(false); setImportFile(null) }}
         confirmLoading={importing}
         width={640}
         destroyOnClose
@@ -123,6 +139,15 @@ export default function QuestionsTab({ classroom }: { classroom: Classroom }) {
         <Text type='secondary' style={{ display: 'block', marginBottom: 8 }}>
           单选/多选 answer 为选项序号（从 0 开始，多选逗号分隔）；判断 answer 为 true/false；填空 answer 为标准答案；简答无 answer，批改时给分。
         </Text>
+        <Upload
+          accept='.json'
+          maxCount={1}
+          beforeUpload={(file) => { void handleImportFileSelect(file); return false }}
+          onRemove={() => { setImportFile(null); setImportText('') }}
+          fileList={importFile ? [{ uid: 'classroom-import', name: importFile.name, status: 'done' }] : []}
+        >
+          <Button icon={<UploadOutlined />}>选择 JSON 文件</Button>
+        </Upload>
         <TextArea
           rows={12}
           value={importText}

@@ -186,7 +186,7 @@ export const adminRoutes: AppRoute[] = [
   },
   {
     path: 'classrooms',
-    meta: { title: '我的课堂', icon: 'TeamOutlined', permission: 'classroom:manage' },
+    meta: { title: '课堂管理', icon: 'TeamOutlined', permission: 'classroom:manage' },
     children: [
       { index: true, element: <ClassroomManagement /> },
       {
