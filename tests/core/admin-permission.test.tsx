@@ -16,6 +16,7 @@ describe('fixed administrator role navigation', () => {
       { label: '题库管理员', value: 'quiz_admin' },
       { label: '认证管理员', value: 'cert_admin' },
       { label: '课程管理员', value: 'course_admin' },
+      { label: '老师', value: 'teacher' },
     ])
   })
 
