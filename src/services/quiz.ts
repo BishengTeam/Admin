@@ -34,6 +34,7 @@ import {
   QuizKnowledgePointCreateSchema,
   QuizKnowledgePointSchema,
   QuizKnowledgePointUpdateSchema,
+  QuizAccessModeConvertResponseSchema,
   QuizLibraryCreateSchema,
   QuizMigrationReportSchema,
   QuizLibrarySchema,
@@ -213,10 +214,13 @@ export const quizService = {
  },
 
   async convertAccessMode(libraryId: number, lockVersion: number, targetMode: QuizLibraryAccessMode, reauthToken: string, signal?: AbortSignal): Promise<QuizAccessModeConvertResponse> {
-    return http.post(
-      `/admin/quiz/libraries/${libraryId}/convert-access-mode`,
-      { lock_version: lockVersion, target_mode: targetMode },
-      { headers: { 'X-Reauth-Token': reauthToken }, signal },
+    return parsed(
+      QuizAccessModeConvertResponseSchema,
+      await http.post(
+        `/admin/quiz/libraries/${libraryId}/convert-access-mode`,
+        { lock_version: lockVersion, target_mode: targetMode },
+        { headers: { 'X-Reauth-Token': reauthToken }, signal },
+      ),
     )
   },
 

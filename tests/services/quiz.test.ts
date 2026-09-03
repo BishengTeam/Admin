@@ -189,6 +189,30 @@ describe('quizService frozen admin contract', () => {
     expect(http.get).toHaveBeenCalledWith('/admin/quiz/migration-report', { signal: undefined })
     await expect(quizService.transitionLibrary(9, 'reconcile_migration', 3)).resolves.toEqual(library)
     expect(http.post).toHaveBeenCalledWith('/admin/quiz/libraries/9/lifecycle', { action: 'reconcile_migration', lock_version: 3 }, { signal: undefined })
+
+    const convertedLibrary = { ...library, access_mode: 'free', lock_version: 5 }
+    http.post.mockResolvedValueOnce({ library: convertedLibrary, sessions_affected: 2 })
+    await expect(quizService.convertAccessMode(9, 4, 'free', 'reauth-1')).resolves.toEqual({
+      library: convertedLibrary,
+      sessions_affected: 2,
+    })
+    expect(http.post).toHaveBeenCalledWith(
+      '/admin/quiz/libraries/9/convert-access-mode',
+      { lock_version: 4, target_mode: 'free' },
+      { headers: { 'X-Reauth-Token': 'reauth-1' }, signal: undefined },
+    )
+
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      http.post.mockResolvedValueOnce({
+        library: { ...convertedLibrary, unexpected: true },
+        sessions_affected: 2,
+      })
+      await expect(quizService.convertAccessMode(9, 5, 'free', 'reauth-2'))
+        .rejects.toThrow('API response validation failed')
+    } finally {
+      errorSpy.mockRestore()
+    }
   })
 
   it('uses the new question paths and array-shaped multiple answers', async () => {
