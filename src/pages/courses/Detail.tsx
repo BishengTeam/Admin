@@ -508,54 +508,10 @@ export default function CourseDetailPage() {
                 message="支持 MP4 / MOV / MKV，最大 5GB；非 MP4 可能无法在微信小程序播放。"
                 style={{ marginBottom: 12 }}
               />
-              <div style={{ marginBottom: 16, display: 'flex', gap: 12 }}>
-                <Upload
-                  multiple
-                  maxCount={50}
-                  accept=".mp4,.mov,.mkv"
-                  showUploadList={false}
-                  disabled={!canWrite || uploading}
-                  beforeUpload={() => false}
-                  onChange={async ({ fileList }) => {
-                    const current = new Map(stage.map(item => [item.file.name + item.file.size + item.file.lastModified, item]))
-                    const next: StageFile[] = []
-                    for (let index = 0; index < fileList.length; index += 1) {
-                      const uploadFile = fileList[index]
-                      const file = uploadFile.originFileObj
-                      if (!file) continue
-                      const key = `${file.name}${file.size}${file.lastModified}`
-                      if (current.has(key)) {
-                        next.push(current.get(key)!)
-                        continue
-                      }
-                      let duration: number
-                      try {
-                        duration = await readVideoDuration(file)
-                      } catch {
-                        message.error(`无法读取「${file.name}」的视频时长，请更换浏览器或视频文件`)
-                        continue
-                      }
-                      next.push({
-                        key,
-                        file,
-                        title: file.name.replace(/\.[^.]+$/, ''),
-                        duration,
-                        sort_order: chapters.length + index + 1,
-                        status: 'ready',
-                        percent: 0,
-                      })
-                    }
-                    setStage(next.slice(0, 50))
-                    if (next.length > 0) setQueueOpen(true)
-                  }}
-                >
-                  <Button icon={<PlayCircleOutlined />} disabled={!canWrite || uploading}>选择视频</Button>
-                </Upload>
-                {stage.length > 0 && (
-                  <Button type='primary' onClick={startUpload} loading={uploading} disabled={!canWrite}>
-                    上传 {stage.length} 个视频
-                  </Button>
-                )}
+              <div style={{ marginBottom: 16 }}>
+                <Button icon={<UploadOutlined />} disabled={!canWrite} onClick={() => setQueueOpen(true)}>
+                  视频上传 {stage.length > 0 ? `（${stage.length}）` : ''}
+                </Button>
               </div>
 
               <Spin spinning={false}>
@@ -601,15 +557,15 @@ export default function CourseDetailPage() {
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <Text strong ellipsis style={{ display: 'block', fontSize: 14 }}>
                               {ch.sort_order}. {ch.title}
+                              {course && ch.sort_order <= course.preview_chapter_count && (
+                                <Tag color='green' style={{ marginLeft: 8, fontSize: 10, lineHeight: '16px', padding: '0 6px' }}>试看</Tag>
+                              )}
                             </Text>
                             <Text type='secondary' style={{ fontSize: 12 }}>
                               {formatDuration(ch.duration)} · {formatSize(ch.size_bytes)}
                             </Text>
                           </div>
                         </div>
-                        {course && ch.sort_order <= course.preview_chapter_count && (
-                          <Tag color='green' style={{ marginTop: 8 }}>试看</Tag>
-                        )}
                       </Card>
                     </Col>
                   ))}
@@ -620,11 +576,61 @@ export default function CourseDetailPage() {
               </Spin>
 
               <Drawer
-                title={`上传队列（${stage.length}）`}
+                title={`视频上传${stage.length > 0 ? `（${stage.length} 个待上传）` : ''}`}
                 open={queueOpen}
                 onClose={() => setQueueOpen(false)}
-                width={560}
+                width={580}
                 styles={{ body: { paddingTop: 12 } }}
+                extra={
+                  <Space>
+                    <Upload
+                      multiple
+                      maxCount={50}
+                      accept=".mp4,.mov,.mkv"
+                      showUploadList={false}
+                      disabled={!canWrite || uploading}
+                      beforeUpload={() => false}
+                      onChange={async ({ fileList }) => {
+                        const current = new Map(stage.map(item => [item.file.name + item.file.size + item.file.lastModified, item]))
+                        const next: StageFile[] = []
+                        for (let index = 0; index < fileList.length; index += 1) {
+                          const uploadFile = fileList[index]
+                          const file = uploadFile.originFileObj
+                          if (!file) continue
+                          const key = `${file.name}${file.size}${file.lastModified}`
+                          if (current.has(key)) {
+                            next.push(current.get(key)!)
+                            continue
+                          }
+                          let duration: number
+                          try {
+                            duration = await readVideoDuration(file)
+                          } catch {
+                            message.error(`无法读取「${file.name}」的视频时长，请更换浏览器或视频文件`)
+                            continue
+                          }
+                          next.push({
+                            key,
+                            file,
+                            title: file.name.replace(/\.[^.]+$/, ''),
+                            duration,
+                            sort_order: chapters.length + index + 1,
+                            status: 'ready',
+                            percent: 0,
+                          })
+                        }
+                        setStage(next.slice(0, 50))
+                      }}
+                    >
+                      <Button icon={<PlayCircleOutlined />} disabled={!canWrite || uploading}>选择视频</Button>
+                    </Upload>
+                    {stage.length > 0 && (
+                      <Button type="primary" onClick={startUpload} loading={uploading} disabled={!canWrite}>
+                        全部上传
+                      </Button>
+                    )}
+                  </Space>
+                }
               >
                 <Table
                   rowKey='key'
@@ -633,7 +639,7 @@ export default function CourseDetailPage() {
                   dataSource={stage}
                   pagination={false}
                   scroll={{ x: 480 }}
-                  locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description='队列为空，选择视频文件开始' /> }}
+                  locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description='点击右上角「选择视频」添加文件' /> }}
                 />
               </Drawer>
             </>
