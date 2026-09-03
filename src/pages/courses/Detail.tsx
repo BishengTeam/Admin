@@ -5,6 +5,7 @@ import {
   Card,
   Col,
   Descriptions,
+  Drawer,
   Empty,
   Form,
   Image,
@@ -15,6 +16,7 @@ import {
   Row,
   Select,
   Space,
+  Spin,
   Statistic,
   Table,
   Tabs,
@@ -95,6 +97,7 @@ export default function CourseDetailPage() {
   const [chapters, setChapters] = useState<CourseChapter[]>([])
   const [uploads, setUploads] = useState<CourseUpload[]>([])
   const [stage, setStage] = useState<StageFile[]>([])
+  const [queueOpen, setQueueOpen] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [form] = Form.useForm()
   const [bindingOpen, setBindingOpen] = useState(false)
@@ -505,76 +508,134 @@ export default function CourseDetailPage() {
                 message="支持 MP4 / MOV / MKV，最大 5GB；非 MP4 可能无法在微信小程序播放。"
                 style={{ marginBottom: 12 }}
               />
-              <Card
-                size="small"
-                title={`上传队列 (${stage.length})`}
-                extra={(
-                  <Space wrap>
-                    <Upload
-                      multiple
-                      maxCount={50}
-                      accept=".mp4,.mov,.mkv"
-                      showUploadList={false}
-                      disabled={!canWrite || uploading}
-                      beforeUpload={() => false}
-                      onChange={async ({ fileList }) => {
-                        const current = new Map(stage.map(item => [item.file.name + item.file.size + item.file.lastModified, item]))
-                        const next: StageFile[] = []
-                        for (let index = 0; index < fileList.length; index += 1) {
-                          const uploadFile = fileList[index]
-                          const file = uploadFile.originFileObj
-                          if (!file) continue
-                          const key = `${file.name}${file.size}${file.lastModified}`
-                          if (current.has(key)) {
-                            next.push(current.get(key)!)
-                            continue
-                          }
-                          let duration: number
-                          try {
-                            duration = await readVideoDuration(file)
-                          } catch {
-                            message.error(`无法读取「${file.name}」的视频时长，请更换浏览器或视频文件`)
-                            continue
-                          }
-                          next.push({
-                            key,
-                            file,
-                            title: file.name.replace(/\.[^.]+$/, ''),
-            duration,
-            sort_order: chapters.length + index + 1,
-            status: 'ready',
-            percent: 0,
-          })
-                        }
-                        setStage(next.slice(0, 50))
-                      }}
-                    >
-                      <Button icon={<PlayCircleOutlined />} disabled={!canWrite || uploading}>选择视频</Button>
-                    </Upload>
-                    <Button type="primary" onClick={startUpload} loading={uploading} disabled={!canWrite || stage.length === 0}>全部上传</Button>
-                  </Space>
+              <div style={{ marginBottom: 16, display: 'flex', gap: 12 }}>
+                <Upload
+                  multiple
+                  maxCount={50}
+                  accept=".mp4,.mov,.mkv"
+                  showUploadList={false}
+                  disabled={!canWrite || uploading}
+                  beforeUpload={() => false}
+                  onChange={async ({ fileList }) => {
+                    const current = new Map(stage.map(item => [item.file.name + item.file.size + item.file.lastModified, item]))
+                    const next: StageFile[] = []
+                    for (let index = 0; index < fileList.length; index += 1) {
+                      const uploadFile = fileList[index]
+                      const file = uploadFile.originFileObj
+                      if (!file) continue
+                      const key = `${file.name}${file.size}${file.lastModified}`
+                      if (current.has(key)) {
+                        next.push(current.get(key)!)
+                        continue
+                      }
+                      let duration: number
+                      try {
+                        duration = await readVideoDuration(file)
+                      } catch {
+                        message.error(`无法读取「${file.name}」的视频时长，请更换浏览器或视频文件`)
+                        continue
+                      }
+                      next.push({
+                        key,
+                        file,
+                        title: file.name.replace(/\.[^.]+$/, ''),
+                        duration,
+                        sort_order: chapters.length + index + 1,
+                        status: 'ready',
+                        percent: 0,
+                      })
+                    }
+                    setStage(next.slice(0, 50))
+                    if (next.length > 0) setQueueOpen(true)
+                  }}
+                >
+                  <Button icon={<PlayCircleOutlined />} disabled={!canWrite || uploading}>选择视频</Button>
+                </Upload>
+                {stage.length > 0 && (
+                  <Button type='primary' onClick={startUpload} loading={uploading} disabled={!canWrite}>
+                    上传 {stage.length} 个视频
+                  </Button>
                 )}
+              </div>
+
+              <Spin spinning={false}>
+                <Row gutter={[16, 16]}>
+                  {[...chapters].sort((a, b) => a.sort_order - b.sort_order).map((ch) => (
+                    <Col key={ch.id} xs={24} sm={12} lg={8}>
+                      <Card size='small' style={{ height: '100%' }}
+                        actions={canWrite ? [
+                          <Button key='edit' type='text' size='small' onClick={() => {
+                            chapterForm.setFieldsValue({ title: ch.title, sort_order: ch.sort_order })
+                            setEditingChapter(ch)
+                          }}>编辑</Button>,
+                          <Upload key='replace' showUploadList={false} accept='.mp4,.mov,.mkv' beforeUpload={file => {
+                            void (async () => {
+                              setReplaceUpload({ chapterId: ch.id, chapterTitle: ch.title, fileName: file.name, percent: 0, phase: 'uploading' })
+                              try {
+                                const uploaded = await courseManagementService.uploadChapterVideo(courseId, file, ch.sort_order, {
+                                  title: ch.title,
+                                  onProgress: percent => setReplaceUpload(current => current && current.chapterId === ch.id ? { ...current, percent } : current),
+                                })
+                                await courseManagementService.replaceChapterVideo(courseId, ch.id, uploaded.id)
+                                message.success('视频已替换')
+                                await load()
+                                setReplaceUpload(null)
+                              } catch (error) {
+                                const errorMessage = error instanceof Error ? error.message : '替换失败'
+                                message.error(errorMessage)
+                                setReplaceUpload(current => current && current.chapterId === ch.id ? { ...current, phase: 'failed', error: errorMessage } : current)
+                              }
+                            })()
+                            return false
+                          }}>
+                            <Button type='text' size='small'>替换</Button>
+                          </Upload>,
+                          <ConfirmButton key='del' title='删除' description='删除后文件同步清理，确认？' danger type='text' size='small'
+                            onConfirm={async () => { await courseManagementService.deleteChapter(courseId, ch.id); await load() }}>
+                            删除
+                          </ConfirmButton>,
+                        ] : undefined}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                          <PlayCircleOutlined style={{ fontSize: 36, color: course && ch.sort_order <= course.preview_chapter_count ? '#52c41a' : '#1677ff' }} />
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <Text strong ellipsis style={{ display: 'block', fontSize: 14 }}>
+                              {ch.sort_order}. {ch.title}
+                            </Text>
+                            <Text type='secondary' style={{ fontSize: 12 }}>
+                              {formatDuration(ch.duration)} · {formatSize(ch.size_bytes)}
+                            </Text>
+                          </div>
+                        </div>
+                        {course && ch.sort_order <= course.preview_chapter_count && (
+                          <Tag color='green' style={{ marginTop: 8 }}>试看</Tag>
+                        )}
+                      </Card>
+                    </Col>
+                  ))}
+                </Row>
+                {chapters.length === 0 && (
+                  <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description='暂无课程视频，选择视频文件上传' style={{ padding: 40 }} />
+                )}
+              </Spin>
+
+              <Drawer
+                title={`上传队列（${stage.length}）`}
+                open={queueOpen}
+                onClose={() => setQueueOpen(false)}
+                width={560}
+                styles={{ body: { paddingTop: 12 } }}
               >
                 <Table
-                  rowKey="key"
-                  size="small"
+                  rowKey='key'
+                  size='small'
                   columns={stageColumns}
                   dataSource={stage}
                   pagination={false}
-                  scroll={{ x: 720 }}
-                  locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="先选择视频，上传前可调整标题、时长和排序" /> }}
+                  scroll={{ x: 480 }}
+                  locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description='队列为空，选择视频文件开始' /> }}
                 />
-              </Card>
-              <Card size="small" title={`已创建课程名 (${chapters.length})`} style={{ marginTop: 16 }}>
-                <Table
-                  rowKey="id"
-                  columns={chapterColumns}
-                  dataSource={[...chapters].sort((a, b) => a.id - b.id)}
-                  pagination={false}
-                  scroll={{ x: 920 }}
-                  locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无课程名，上传完成后再确认创建" /> }}
-                />
-              </Card>
+              </Drawer>
             </>
           ),
         },
