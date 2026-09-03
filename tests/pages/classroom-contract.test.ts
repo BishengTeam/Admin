@@ -7,8 +7,8 @@ describe('classroom workbench contracts', () => {
     const utility = await readFile('src/utils/classroomQuestionImport.ts', 'utf8')
 
     expect(page).toContain('readClassroomQuestionImportFile')
-    expect(page).toContain("accept='.json'")
-    expect(page).toContain("title='导入题目（JSON 数组）'")
+    expect(page).toContain("accept='.csv,.json'")
+    expect(page).toContain("title='导入题目'")
     expect(page).toContain('importQuestions')
     expect(page).not.toContain('xlsx')
     expect(utility).toContain('MAX_IMPORT_QUESTIONS = 500')

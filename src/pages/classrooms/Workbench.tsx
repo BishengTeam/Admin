@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Button, Tabs, Typography, Space, Statistic, Card, Row, Col, Tag, message } from 'antd'
-import { ArrowLeftOutlined, CopyOutlined, TeamOutlined, VideoCameraOutlined, FileTextOutlined, FieldTimeOutlined } from '@ant-design/icons'
+import { ArrowLeftOutlined, CopyOutlined, ReloadOutlined, StopOutlined, TeamOutlined, VideoCameraOutlined, FileTextOutlined, FieldTimeOutlined } from '@ant-design/icons'
 import { useNavigate, useParams } from 'react-router-dom'
 import { PageContainer } from '@/components/PageContainer'
 import { ConfirmButton } from '@/components/ConfirmButton'
@@ -61,19 +61,14 @@ export default function ClassroomWorkbench() {
       title={classroom.name}
       extra={
         classroom.status === 'active' && (
-          <Space>
-            <Button onClick={refreshCode}>
-              {classroom.join_code ? '刷新课堂码' : '生成课堂码'}
-            </Button>
-            <ConfirmButton
-              title='停课'
-              description='停课后学生立即失去访问（视频/测验全部冻结），确认停课？'
-              danger
-              onConfirm={stop}
-            >
-              停课
-            </ConfirmButton>
-          </Space>
+          <ConfirmButton
+            title='停课'
+            description='停课后学生立即失去访问（视频/测验全部冻结），确认停课？'
+            danger
+            onConfirm={stop}
+          >
+            <Button type='text' danger icon={<StopOutlined />} size='small'>停课</Button>
+          </ConfirmButton>
         )
       }
     >
@@ -92,14 +87,28 @@ export default function ClassroomWorkbench() {
       <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
         <Col xs={12} sm={6} lg={4}>
           <Card size='small'>
-            <Statistic
-              title='课堂码'
-              value={classroom.status === 'active' ? (classroom.join_code || '未生成') : '已停课'}
-              valueStyle={classroom.join_code ? { fontSize: 24, fontWeight: 700, letterSpacing: 3, color: '#1677ff' } : { fontSize: 14 }}
-              prefix={classroom.join_code && classroom.status === 'active' ? <CopyOutlined style={{ cursor: 'pointer', fontSize: 16 }} onClick={() => { navigator.clipboard.writeText(classroom.join_code!); message.success('已复制') }} /> : undefined}
-            />
+            <div style={{ marginBottom: 4 }}>
+              <Text type='secondary' style={{ fontSize: 14 }}>课堂码</Text>
+            </div>
+            {classroom.status === 'active' ? (
+              classroom.join_code ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Text strong copyable={{ text: classroom.join_code, tooltips: ['复制', '已复制'] }} style={{ fontSize: 24, letterSpacing: 3, color: '#1677ff' }}>
+                    {classroom.join_code}
+                  </Text>
+                  <Button type='text' size='small' icon={<ReloadOutlined />} onClick={refreshCode} title='刷新课堂码' />
+                </div>
+              ) : (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Text type='secondary' style={{ fontSize: 14 }}>未生成</Text>
+                  <Button type='text' size='small' icon={<ReloadOutlined />} onClick={refreshCode} title='生成课堂码' />
+                </div>
+              )
+            ) : (
+              <Text type='secondary' style={{ fontSize: 14 }}>已停课</Text>
+            )}
             {classroom.join_code_expires_at && classroom.status === 'active' && (
-              <Text type='secondary' style={{ fontSize: 12 }}>
+              <Text type='secondary' style={{ fontSize: 12, display: 'block' }}>
                 有效期至 {formatDate(classroom.join_code_expires_at)}
               </Text>
             )}

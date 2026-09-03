@@ -41,6 +41,10 @@ export const classroomService = {
   async listVideos(id: number): Promise<ClassroomVideo[]> {
     return http.get(`/admin/classrooms/${id}/videos`)
   },
+  async videoPlayUrl(id: number, videoId: number): Promise<string> {
+    const res = await http.get<{ url: string }>(`/admin/classrooms/${id}/videos/${videoId}/play-url`)
+    return res.url
+  },
   async deleteVideo(id: number, videoId: number): Promise<void> {
     return http.delete(`/admin/classrooms/${id}/videos/${videoId}`)
   },
