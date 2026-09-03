@@ -172,7 +172,7 @@ export default function VideosTab({ classroom }: { classroom: Classroom }) {
         destroyOnClose
       >
         {playUrl && (
-          <video src={playUrl} controls autoPlay style={{ width: '100%', borderRadius: 8 }} />
+          <video src={playUrl} controls autoPlay style={{ width: '100%', aspectRatio: '16 / 9', maxHeight: '70vh', borderRadius: 8, background: '#000' }} />
         )}
       </Modal>
 
