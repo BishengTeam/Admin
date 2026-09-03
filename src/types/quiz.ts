@@ -542,6 +542,7 @@ export interface QuizImageUpload {
   object_key: string
   upload_url: string
   public_url: string
+  content_type: string
   expires_at: string
 }
 

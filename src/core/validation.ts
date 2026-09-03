@@ -585,6 +585,7 @@ export const QuizImageUploadSchema = z.object({
   object_key: z.string().min(1),
   upload_url: z.string().url().max(2048),
   public_url: z.string().url().max(2048),
+  content_type: z.string().min(1).max(128),
   expires_at: dateString,
 }).strict()
 

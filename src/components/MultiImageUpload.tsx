@@ -41,6 +41,7 @@ export function MultiImageUpload({ value = [], onChange, maxCount = 9, maxSize =
         })
         await fetch(target.upload_url, {
           method: 'PUT',
+          headers: { 'Content-Type': target.content_type },
           body: await file.arrayBuffer(),
         })
         onSuccess({ url: target.public_url })

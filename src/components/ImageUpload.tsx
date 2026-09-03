@@ -42,6 +42,7 @@ export function ImageUpload({ value, onChange, maxSize = 5, purpose = 'generic' 
         })
         await fetch(target.upload_url, {
           method: 'PUT',
+          headers: { 'Content-Type': target.content_type },
           body: await file.arrayBuffer(),
         })
         onSuccess({ url: target.public_url })
