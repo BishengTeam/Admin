@@ -242,7 +242,7 @@ export default function CourseDetailPage() {
           }}>
             <Button type="link" size="small">替换视频</Button>
           </Upload>
-          <ConfirmButton title="删除课程视频" description="已有学习进度的课程视频不能删除，删除后文件同步清理。" danger type="link" size="small" onConfirm={async () => {
+          <ConfirmButton title="删除课程视频" description="删除后学习进度和视频文件同步清理，不可恢复。确认删除？" danger type="link" size="small" onConfirm={async () => {
             await courseManagementService.deleteChapter(courseId, record.id)
             await load()
           }}>删除</ConfirmButton>
@@ -546,8 +546,8 @@ export default function CourseDetailPage() {
                           }}>
                             <Button type='text' size='small'>替换</Button>
                           </Upload>,
-                          <ConfirmButton key='del' title='删除' description='删除后文件同步清理，确认？' danger type='text' size='small'
-                            onConfirm={async () => { await courseManagementService.deleteChapter(courseId, ch.id); await load() }}>
+                          <ConfirmButton key='del' title='删除课程视频' description='删除后该视频的学习进度和文件将同步清理，不可恢复。确认删除？' danger type='text' size='small'
+                            onConfirm={async () => { await courseManagementService.deleteChapter(courseId, ch.id, true); await load() }}>
                             删除
                           </ConfirmButton>,
                         ] : undefined}

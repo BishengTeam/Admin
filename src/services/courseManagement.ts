@@ -231,8 +231,8 @@ export const courseManagementService = {
     })
   },
 
-  deleteChapter(courseId: number, chapterId: number): Promise<void> {
-    return http.delete(`/admin/courses/${courseId}/chapters/${chapterId}`)
+  deleteChapter(courseId: number, chapterId: number, force = false): Promise<void> {
+    return http.delete(`/admin/courses/${courseId}/chapters/${chapterId}`, { params: force ? { force: true } : undefined })
   },
 
   listUploads(courseId: number): Promise<CourseUpload[]> {
