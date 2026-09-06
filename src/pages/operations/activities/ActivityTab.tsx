@@ -8,7 +8,7 @@ import { ConfirmButton } from '@/components/ConfirmButton'
 import { ImageUpload } from '@/components/ImageUpload'
 import { usePagination } from '@/hooks/usePagination'
 import { activityService } from '@/services/activity'
-import { certificationService } from '@/services/certification'
+import { certProductService } from '@/services/certProduct'
 import { courseManagementService } from '@/services/courseManagement'
 import { formatDate } from '@/utils/format'
 import { requiredRule } from '@/utils/validator'
@@ -28,7 +28,7 @@ export default function ActivityTab() {
   const [form] = Form.useForm()
 
   useEffect(() => {
-    certificationService
+    certProductService
       .list({ page: 1, page_size: 100 })
       .then((res) => setCertOptions(
         res.items
