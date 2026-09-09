@@ -16,7 +16,7 @@ export default function CertificationOverview() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    certProductService.getStats().then(setStats).finally(() => setLoading(false))
+    certProductService.getStats().then((all) => setStats(all.filter((s) => (CERT_TYPES as readonly string[]).includes(s.type)))).finally(() => setLoading(false))
   }, [])
 
   return (
