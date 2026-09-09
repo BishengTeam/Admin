@@ -39,7 +39,7 @@ describe('Admin nginx probes', () => {
   })
 
   it('allows direct uploads only to the configured private OSS bucket', () => {
-    const ossOrigin = 'https://materials-20260817.oss-cn-chengdu.aliyuncs.com'
+    const ossOrigin = 'https://materials-20260909-1.oss-cn-chengdu.aliyuncs.com'
     for (const file of ['nginx.conf.template', 'nginx.conf', 'vite.config.ts']) {
       const source = readFileSync(resolve(process.cwd(), file), 'utf8')
       expect(source).toContain(`connect-src 'self' ${ossOrigin}`)
