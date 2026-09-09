@@ -55,7 +55,7 @@ const BATCH_STATUS: Record<string, { text: string; color: string }> = {
   cancelled: { text: '已取消', color: 'red' },
 }
 
-export default function BatchOverrides(_props: { type: CertType; productCode: string | null }) {
+export default function BatchOverrides({ productCode }: { type: CertType; productCode: string | null }) {
   const [batchOpen, setBatchOpen] = useState(false)
   const [editingBatch, setEditingBatch] = useState<H3cExamBatch | null>(null)
   const [products, setProducts] = useState<CertProduct[]>([])
@@ -249,7 +249,12 @@ export default function BatchOverrides(_props: { type: CertType; productCode: st
         <Button icon={<ReloadOutlined />} onClick={refresh}>刷新</Button>
         <Button type='primary' icon={<PlusOutlined />} onClick={handleCreate}>新建批次</Button>
       </Space>
-      <Table rowKey='id' columns={columns} dataSource={data?.items ?? []} loading={loading} pagination={pagination} />
+      {!productCode && (
+        <div style={{ textAlign: 'center', padding: 40, color: '#999', background: '#fafafa', borderRadius: 8, marginBottom: 16 }}>
+          请先在上方选择认证产品，再管理对应的考试批次
+        </div>
+      )}
+      {productCode && <Table rowKey='id' columns={columns} dataSource={data?.items ?? []} loading={loading} pagination={pagination} />}
       {reauthDialog}
 
       <Modal

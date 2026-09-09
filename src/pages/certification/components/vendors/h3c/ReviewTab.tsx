@@ -4,6 +4,7 @@ import {
   Checkbox,
   Descriptions,
   Drawer,
+  Image,
   Form,
   Input,
   Modal,
@@ -25,6 +26,26 @@ import type {
   H3cRegistrationStatus,
   H3cRegistrationType,
 } from '@/types/h3c'
+
+const FIELD_LABELS: Record<string, string> = {
+  candidate_name: '姓名',
+  gender: '性别',
+  candidate_idcard: '身份证号',
+  school: '单位/学校',
+  address: '通信地址',
+  phone: '手机号',
+  email: '邮箱',
+  education: '学历',
+  first_name_en: '英文名（名）',
+  last_name_en: '英文名（姓）',
+  coupon_code: '考券号',
+  verify_code: '学信网验证码',
+}
+
+const MATERIAL_LABELS: Record<string, string> = {
+  coupon_proof: '优惠券证明',
+  student_proof: '学生证明',
+}
 
 const TYPE_LABELS: Record<H3cRegistrationType, string> = {
   coupon: '考券报名',
@@ -68,11 +89,15 @@ export default function ReviewTab(_props: { type: CertType }) {
   const submit = async () => {
     if (!selected) return
     const values = await form.validateFields()
-    await h3cService.reviewRegistration(selected.id, values)
-    message.success('审核结果已提交')
-    setReviewOpen(false)
-    setDetailOpen(false)
-    refresh()
+    try {
+      await h3cService.reviewRegistration(selected.id, values)
+      message.success('审核结果已提交')
+      setReviewOpen(false)
+      setDetailOpen(false)
+      refresh()
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '审核提交失败，请重试')
+    }
   }
 
   const columns: ColumnsType<H3cRegistration> = [
@@ -129,14 +154,22 @@ export default function ReviewTab(_props: { type: CertType }) {
           <Space direction='vertical' size={16} style={{ width: '100%' }}>
             <Descriptions bordered size='small' column={1}>
               {Object.entries(selected.candidate_snapshot).map(([key, value]) => (
-                <Descriptions.Item key={key} label={key}>{String(value ?? '-')}</Descriptions.Item>
+                <Descriptions.Item key={key} label={FIELD_LABELS[key] ?? key}>{String(value ?? '-')}</Descriptions.Item>
               ))}
             </Descriptions>
             {selected.materials.map((material) => (
               <div key={material.id}>
-                <div>{material.material_type} v{material.version_no}</div>
+                <div style={{ fontWeight: 500, marginBottom: 8 }}>
+                  {MATERIAL_LABELS[material.material_type] ?? material.material_type}
+                  <span style={{ fontWeight: 400, color: '#999', marginLeft: 8 }}>v{material.version_no}</span>
+                </div>
                 {material.preview_url && (
-                  <img src={material.preview_url} alt={material.material_type} style={{ maxWidth: '100%', maxHeight: 280 }} />
+                  <Image
+                    src={material.preview_url}
+                    alt={material.material_type}
+                    style={{ maxWidth: '100%', maxHeight: 280, borderRadius: 8 }}
+                    fallback="data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs="
+                  />
                 )}
               </div>
             ))}

@@ -21,11 +21,15 @@ export default function RefundTab(_props: { type: CertType }) {
   )
   const { ensureReauthenticated, reauthDialog } = useReauthentication()
   const confirm = async (id: number) => {
-    const token = await ensureReauthenticated()
-    if (!token) throw new Error('请重新验证管理员密码')
-    await h3cService.confirmRefund(id, token)
-    message.success('退款已确认提交')
-    refresh()
+    try {
+      const token = await ensureReauthenticated()
+      if (!token) throw new Error('请重新验证管理员密码')
+      await h3cService.confirmRefund(id, token)
+      message.success('退款已确认提交')
+      refresh()
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '退款确认失败，请重试')
+    }
   }
   const columns: ColumnsType<H3cRefund> = [
     { title: '报名', dataIndex: 'registration_id', width: 90 },

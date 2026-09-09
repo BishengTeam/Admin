@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import {
   Button,
   Form,
@@ -7,16 +6,19 @@ import {
   Select,
   Space,
   Table,
+  Tag,
   message,
 } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { PlusOutlined, ReloadOutlined } from '@ant-design/icons'
+import { useEffect, useState } from 'react'
 import { usePagination } from '@/hooks/usePagination'
 import { useReauthentication } from '@/hooks/useReauthentication'
 import { h3cService } from '@/services/h3c'
 import { formatDate } from '@/utils/format'
 import type { CertType } from '../type-registry'
 import type {
+  H3cExamBatch,
   H3cExportJob,
   H3cRegistrationStatus,
   H3cRegistrationType,
@@ -45,6 +47,7 @@ export default function ExportTab(_props: { type: CertType }) {
     [],
   )
   const [open, setOpen] = useState(false)
+  const [batches, setBatches] = useState<H3cExamBatch[]>([])
   const [form] = Form.useForm<{
     batch_id: number
     registration_type: H3cRegistrationType
@@ -53,18 +56,30 @@ export default function ExportTab(_props: { type: CertType }) {
   }>()
   const { ensureReauthenticated, reauthDialog } = useReauthentication()
 
+  useEffect(() => {
+    h3cService.listBatches({ page: 1, page_size: 100 }).then((result) => setBatches(result.items)).catch(() => setBatches([]))
+  }, [])
+
   const submit = async () => {
     const values = await form.validateFields()
-    await h3cService.createExport(values)
-    message.success('导出任务已创建')
-    setOpen(false)
-    refresh()
+    try {
+      await h3cService.createExport(values)
+      message.success('导出任务已创建')
+      setOpen(false)
+      refresh()
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '创建导出失败')
+    }
   }
   const download = async (id: number) => {
-    const token = await ensureReauthenticated()
-    if (!token) throw new Error('请重新验证管理员密码')
-    const result = await h3cService.getExportUrl(id, token)
-    window.open(result.url, '_blank', 'noopener,noreferrer')
+    try {
+      const token = await ensureReauthenticated()
+      if (!token) throw new Error('请重新验证管理员密码')
+      const result = await h3cService.getExportUrl(id, token)
+      window.open(result.url, '_blank', 'noopener,noreferrer')
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '获取下载链接失败')
+    }
   }
   const columns: ColumnsType<H3cExportJob> = [
     { title: '任务', dataIndex: 'id', width: 80 },
@@ -72,7 +87,16 @@ export default function ExportTab(_props: { type: CertType }) {
     { title: '类型', dataIndex: 'registration_type', width: 100, render: (value: H3cRegistrationType) => TYPE_LABELS[value] },
     { title: '产物', dataIndex: 'artifact_type', width: 110, render: (value: string) => (value === 'embedded_xlsx' ? '内嵌 Excel' : '图片 ZIP') },
     { title: '数量', dataIndex: 'registration_count', width: 80 },
-    { title: '状态', dataIndex: 'status', width: 100 },
+    { title: '状态', dataIndex: 'status', width: 100, render: (value: string) => {
+      const map: Record<string, { text: string; color: string }> = {
+        pending: { text: '排队中', color: 'orange' },
+        processing: { text: '处理中', color: 'processing' },
+        succeeded: { text: '已完成', color: 'green' },
+        failed: { text: '失败', color: 'red' },
+      }
+      const item = map[value] ?? { text: value, color: 'default' }
+      return <Tag color={item.color}>{item.text}</Tag>
+    } },
     { title: '完成时间', dataIndex: 'finished_at', width: 165, render: (value: string | null) => value ? formatDate(value) : '-' },
     {
       title: '操作',
@@ -96,8 +120,16 @@ export default function ExportTab(_props: { type: CertType }) {
       <Table rowKey='id' columns={columns} dataSource={data?.items ?? []} loading={loading} pagination={pagination} />
       <Modal title='新建 H3C 导出' open={open} onOk={submit} onCancel={() => setOpen(false)}>
         <Form form={form} layout='vertical'>
-          <Form.Item name='batch_id' label='批次 ID' rules={[{ required: true }]}>
-            <InputNumber style={{ width: '100%' }} />
+          <Form.Item name='batch_id' label='考试批次' rules={[{ required: true, message: '请选择批次' }]}>
+            <Select
+              placeholder='选择考试批次'
+              showSearch
+              optionFilterProp='label'
+              options={batches.map((b) => ({
+                label: `${b.name}（ID: ${b.id}）`,
+                value: b.id,
+              }))}
+            />
           </Form.Item>
           <Form.Item name='registration_type' label='报名类型' rules={[{ required: true }]}>
             <Select options={Object.entries(TYPE_LABELS).map(([value, label]) => ({ value, label }))} />
