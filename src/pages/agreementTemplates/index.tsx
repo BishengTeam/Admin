@@ -6,6 +6,7 @@ import { usePermission } from '@/hooks/usePermission'
 import { usePagination } from '@/hooks/usePagination'
 import { agreementTemplateService } from '@/services/agreementTemplate'
 import { formatDate } from '@/utils/format'
+import RichEditor from '@/components/RichEditor'
 import type {
   AgreementTemplateItem,
   AgreementTemplateType,
@@ -186,7 +187,7 @@ export default function AgreementTemplateManagement() {
         onOk={() => void submit()}
         okText={editing ? '保存并生成新版本' : '创建并生效'}
         okButtonProps={{ loading: saving }}
-        width={720}
+        width={860}
         destroyOnClose
       >
         <Form form={form} layout="vertical" preserve={false}>
@@ -217,7 +218,7 @@ export default function AgreementTemplateManagement() {
             rules={[{ required: true, message: '请输入协议正文' }]}
             extra={editing ? '保存后旧版本自动归档，生成新版本号；已签署用户不受影响' : undefined}
           >
-            <Input.TextArea rows={12} placeholder="粘贴协议全文；支持多段文本" />
+            <RichEditor height={360} />
           </Form.Item>
         </Form>
       </Modal>
