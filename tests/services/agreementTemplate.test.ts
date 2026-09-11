@@ -26,6 +26,27 @@ describe('agreementTemplateService', () => {
     })
   })
 
+  it('returns cover_url as part of template items', async () => {
+    const { agreementTemplateService } = await import('@/services/agreementTemplate')
+
+    const item = {
+      id: 7,
+      type: 'privacy' as const,
+      title: '隐私政策',
+      content: '<p>正文</p>',
+      version: 2,
+      status: 'active' as const,
+      cover_url: '/api/media/cover.jpg',
+      created_at: '2026-09-11T08:00:00+08:00',
+      updated_at: '2026-09-11T08:00:00+08:00',
+    }
+    http.get.mockResolvedValueOnce({ items: [item], total: 1, page: 1, page_size: 20 })
+
+    const page = await agreementTemplateService.list({ status: 'active', page: 1, page_size: 20 })
+
+    expect(page.items[0].cover_url).toBe('/api/media/cover.jpg')
+  })
+
   it('creates a template via POST', async () => {
     const { agreementTemplateService } = await import('@/services/agreementTemplate')
 

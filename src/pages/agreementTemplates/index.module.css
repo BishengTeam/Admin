@@ -1,0 +1,354 @@
+.shelf {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 24px;
+}
+
+.protocolCard {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 18px;
+  background: linear-gradient(160deg, #1f2937 0%, #111827 58%, #0b1220 100%);
+  box-shadow: 0 18px 42px rgba(15, 23, 42, 0.22);
+  color: #f8fafc;
+  transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+}
+
+.protocolCard:hover,
+.protocolCard:focus-within {
+  transform: translateY(-4px);
+  border-color: rgba(96, 165, 250, 0.42);
+  box-shadow: 0 24px 54px rgba(15, 23, 42, 0.32);
+}
+
+.coverRegion {
+  position: relative;
+  aspect-ratio: 3 / 4;
+  overflow: hidden;
+  background: #e5e7eb;
+}
+
+.coverButton {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  background: #e5e7eb;
+  cursor: pointer;
+}
+
+.coverButton:disabled {
+  cursor: default;
+}
+
+.coverButton:focus-visible {
+  outline: 3px solid #60a5fa;
+  outline-offset: -4px;
+}
+
+.coverButton img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.coverPlaceholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  height: 100%;
+  padding: 24px;
+  background: linear-gradient(155deg, #f8fafc 0%, #dbeafe 52%, #c7d2fe 100%);
+  color: #334155;
+  text-align: center;
+}
+
+.coverPlaceholder > :first-child {
+  color: #64748b;
+  font-size: 38px;
+}
+
+.coverPlaceholder strong {
+  color: #1e293b;
+  font-size: 16px;
+}
+
+.coverPlaceholder span {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.statusBadge {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 3;
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: rgba(16, 185, 129, 0.94);
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.2;
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.28);
+}
+
+.inactiveBadge {
+  background: rgba(100, 116, 139, 0.96);
+}
+
+.coverActions {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
+  padding: 18px;
+  background: rgba(2, 6, 23, 0.76);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 160ms ease;
+}
+
+.coverActions :global(.ant-btn) {
+  width: 116px;
+  margin: 0;
+  color: #f8fafc;
+  background: rgba(15, 23, 42, 0.72);
+  border-color: rgba(148, 163, 184, 0.36);
+}
+
+.coverActions :global(.ant-btn:hover) {
+  color: #ffffff;
+  background: rgba(37, 99, 235, 0.9);
+  border-color: #60a5fa;
+}
+
+.cardInfo {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 9px;
+  padding: 16px;
+  background: rgba(15, 23, 42, 0.5);
+}
+
+.cardTags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.typeTag,
+.signTag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.typeTag {
+  background: rgba(59, 130, 246, 0.98);
+  color: #ffffff;
+}
+
+.signTag {
+  background: rgba(148, 163, 184, 0.18);
+  color: #cbd5e1;
+}
+
+.cardTitle {
+  display: -webkit-box;
+  overflow: hidden;
+  min-height: 44px;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  margin: 0;
+  color: #f8fafc;
+  font-size: 16px;
+  font-weight: 650;
+  line-height: 22px;
+}
+
+.cardMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  margin: 0;
+  color: #94a3b8;
+  font-size: 12px;
+}
+
+.persistentActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: auto;
+  padding-top: 4px;
+}
+
+.persistentActions :global(.ant-btn) {
+  padding: 0 8px;
+  color: #cbd5e1;
+  font-size: 12px;
+}
+
+.historyGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+}
+
+.historyCard {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #ffffff;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.historyCard:hover,
+.historyCard:focus-visible {
+  border-color: #93c5fd;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.12);
+  transform: translateY(-2px);
+  outline: none;
+}
+
+.historyCover {
+  position: relative;
+  aspect-ratio: 3 / 4;
+  overflow: hidden;
+  background: #e2e8f0;
+}
+
+.historyCover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.historyEmptyCover {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(155deg, #f8fafc, #dbeafe);
+  color: #64748b;
+  font-size: 26px;
+}
+
+.archivedBadge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: rgba(71, 85, 105, 0.94);
+  color: #ffffff;
+  font-size: 11px;
+}
+
+.historyInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 10px;
+}
+
+.historyTitle {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  margin: 0;
+  color: #1e293b;
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 18px;
+}
+
+.historyMeta {
+  margin: 0;
+  color: #64748b;
+  font-size: 11px;
+}
+
+.previewContent {
+  max-height: min(68vh, 720px);
+  overflow: auto;
+  padding: 18px 20px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #ffffff;
+  color: rgba(15, 23, 42, 0.88);
+  line-height: 1.7;
+}
+
+.historyDrawerBody {
+  padding: 16px 20px;
+}
+
+.drawerPagination {
+  margin-top: 16px;
+  text-align: right;
+}
+
+.emptyHistory {
+  padding: 42px 0;
+}
+
+@media (min-width: 640px) {
+  .historyGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 768px) {
+  .shelf {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1280px) {
+  .shelf {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1280px) and (hover: hover) and (pointer: fine) {
+  .persistentActions {
+    display: none;
+  }
+
+  .coverActions {
+    display: flex;
+  }
+
+  .protocolCard:hover .coverActions,
+  .protocolCard:focus-within .coverActions {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}

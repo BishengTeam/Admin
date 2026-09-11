@@ -1,25 +1,42 @@
 import { useEffect, useState } from 'react'
-import { Button, Card, Col, Collapse, Empty, Form, Input, Modal, Popconfirm, Row, Select, Space, Spin, Tag, Typography, message } from 'antd'
-import { EditOutlined, FileTextOutlined, HistoryOutlined, PlusOutlined } from '@ant-design/icons'
+import {
+  Drawer,
+  Empty,
+  Form,
+  Input,
+  Modal,
+  Pagination,
+  Select,
+  Space,
+  Spin,
+  Tag,
+  Typography,
+  message,
+} from 'antd'
+import { PictureOutlined } from '@ant-design/icons'
 import { PageContainer } from '@/components/PageContainer'
 import { usePermission } from '@/hooks/usePermission'
 import { agreementTemplateService } from '@/services/agreementTemplate'
 import { formatDate } from '@/utils/format'
 import RichEditor from '@/components/RichEditor'
+import ProtocolCard from './ProtocolCard'
+import styles from './index.module.css'
 import type {
   AgreementTemplateItem,
   AgreementTemplateType,
 } from '@/types/agreementTemplate'
 
-const { Text, Title } = Typography
+const { Text } = Typography
 
 const TYPE_ORDER: AgreementTemplateType[] = ['user_terms', 'privacy', 'identity_auth']
 
-const TYPE_CONFIG: Record<string, { text: string; color: string; desc: string }> = {
-  user_terms: { text: '用户服务协议', color: 'blue', desc: '用户登录时签署' },
-  privacy: { text: '隐私政策', color: 'purple', desc: '用户登录时签署' },
-  identity_auth: { text: '实名信息授权', color: 'cyan', desc: '实名认证前签署' },
+const TYPE_CONFIG: Record<AgreementTemplateType, { text: string; desc: string }> = {
+  user_terms: { text: '用户服务协议', desc: '用户登录时签署' },
+  privacy: { text: '隐私政策', desc: '用户登录时签署' },
+  identity_auth: { text: '实名信息授权', desc: '实名认证前签署' },
 }
+
+const HISTORY_PAGE_SIZE = 8
 
 interface FormValues {
   type: AgreementTemplateType
@@ -29,22 +46,56 @@ interface FormValues {
 
 export default function AgreementTemplateManagement() {
   const canWrite = usePermission('content:write')
-  const [allItems, setAllItems] = useState<AgreementTemplateItem[]>([])
+  const [activeItems, setActiveItems] = useState<AgreementTemplateItem[]>([])
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState<AgreementTemplateItem | null>(null)
   const [creating, setCreating] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [previewing, setPreviewing] = useState<AgreementTemplateItem | null>(null)
+  const [historyType, setHistoryType] = useState<AgreementTemplateType | null>(null)
+  const [historyOpen, setHistoryOpen] = useState(false)
+  const [historyLoading, setHistoryLoading] = useState(false)
+  const [historyItems, setHistoryItems] = useState<AgreementTemplateItem[]>([])
+  const [historyTotal, setHistoryTotal] = useState(0)
+  const [historyPage, setHistoryPage] = useState(1)
   const [form] = Form.useForm<FormValues>()
 
   const load = () => {
     setLoading(true)
-    agreementTemplateService.list({ page: 1, page_size: 100 })
-      .then((page) => setAllItems(page.items))
-      .catch(() => setAllItems([]))
+    agreementTemplateService
+      .list({ status: 'active', page: 1, page_size: 20 })
+      .then((page) => setActiveItems(page.items))
+      .catch(() => setActiveItems([]))
       .finally(() => setLoading(false))
   }
 
   useEffect(load, [])
+
+  const loadHistory = async (type: AgreementTemplateType, page = 1) => {
+    setHistoryLoading(true)
+    try {
+      const result = await agreementTemplateService.list({
+        type,
+        status: 'archived',
+        page,
+        page_size: HISTORY_PAGE_SIZE,
+      })
+      setHistoryItems(result.items)
+      setHistoryTotal(result.total)
+      setHistoryPage(page)
+    } catch {
+      setHistoryItems([])
+      setHistoryTotal(0)
+    } finally {
+      setHistoryLoading(false)
+    }
+  }
+
+  const openHistory = async (type: AgreementTemplateType) => {
+    setHistoryType(type)
+    setHistoryOpen(true)
+    await loadHistory(type)
+  }
 
   const openCreate = (type: AgreementTemplateType) => {
     form.resetFields()
@@ -53,7 +104,11 @@ export default function AgreementTemplateManagement() {
   }
 
   const openEdit = (record: AgreementTemplateItem) => {
-    form.setFieldsValue({ type: record.type, title: record.title, content: record.content })
+    form.setFieldsValue({
+      type: record.type,
+      title: record.title,
+      content: record.content,
+    })
     setEditing(record)
   }
 
@@ -72,10 +127,18 @@ export default function AgreementTemplateManagement() {
           title: values.title,
           content: values.content,
         })
-        message.success(`已生成新版本 v${created.version}，旧版本已归档`)
+        message.success(
+          created.cover_url
+            ? `已生成新版本 v${created.version}，并更新协议封面`
+            : `已生成新版本 v${created.version}；封面生成稍后可通过回填命令修复`,
+        )
       } else {
         const created = await agreementTemplateService.create(values)
-        message.success(`模板已创建并生效（v${created.version}）`)
+        message.success(
+          created.cover_url
+            ? `模板已创建并生效（v${created.version}）`
+            : `模板已创建并生效（v${created.version}）；封面生成失败，已显示占位`,
+        )
       }
       closeModals()
       load()
@@ -103,159 +166,112 @@ export default function AgreementTemplateManagement() {
       </Text>
 
       <Spin spinning={loading}>
-        <Row gutter={[24, 24]}>
+        <div className={styles.shelf}>
           {TYPE_ORDER.map((type) => {
             const config = TYPE_CONFIG[type]
-            const items = allItems.filter((item) => item.type === type)
-            const active = items.find((item) => item.status === 'active')
-            const archived = items.filter((item) => item.status !== 'active')
+            const active = activeItems.find((item) => item.type === type)
 
             return (
-              <Col key={type} xs={24} lg={12}>
-                <Card
-                  style={{ height: '100%' }}
-                  title={
-                    <Space>
-                      <FileTextOutlined style={{ color: config.color === 'blue' ? '#1677ff' : config.color === 'purple' ? '#722ed1' : '#13c2c2' }} />
-                      <span>{config.text}</span>
-                      <Tag color={config.color}>{config.desc}</Tag>
-                    </Space>
-                  }
-                  extra={
-                    canWrite && (
-                      <Space size={4}>
-                        {active ? (
-                          <>
-                            <Button
-                              type='text' size='small' icon={<EditOutlined />}
-                              onClick={() => openEdit(active)}
-                            >
-                              编辑
-                            </Button>
-                            <Popconfirm
-                              title="归档后该类型无生效模板，对应业务拦截自动放行。确定归档？"
-                              onConfirm={() => void archive(active)}
-                            >
-                              <Button type='text' size='small' danger>归档</Button>
-                            </Popconfirm>
-                          </>
-                        ) : (
-                          <Button
-                            type='link' size='small' icon={<PlusOutlined />}
-                            onClick={() => openCreate(type)}
-                          >
-                            新建
-                          </Button>
-                        )}
-                      </Space>
-                    )
-                  }
-                >
-                  {active ? (
-                    <>
-                      <Title level={5} style={{ marginBottom: 8 }}>{active.title}</Title>
-                      <Space size={16} wrap style={{ marginBottom: 12 }}>
-                        <Tag color="green">生效中</Tag>
-                        <Text type="secondary">版本 v{active.version}</Text>
-                        <Text type="secondary">更新于 {formatDate(active.updated_at)}</Text>
-                      </Space>
-                      <div
-                        style={{
-                          maxHeight: 120,
-                          overflow: 'hidden',
-                          lineHeight: 1.6,
-                          fontSize: 13,
-                          color: '#666',
-                          position: 'relative',
-                        }}
-                        dangerouslySetInnerHTML={{ __html: active.content }}
-                      />
-                      <Text
-                        type="secondary"
-                        style={{
-                          display: 'block',
-                          marginTop: 8,
-                          fontSize: 12,
-                          textAlign: 'center',
-                          cursor: 'pointer',
-                        }}
-                        onClick={() => openEdit(active)}
-                      >
-                        点击编辑查看完整内容
-                      </Text>
-                    </>
-                  ) : (
-                    <Empty
-                      image={Empty.PRESENTED_IMAGE_SIMPLE}
-                      description={
-                        <span>
-                          暂无生效版本
-                          {canWrite && (
-                            <Button
-                              type='link' size='small'
-                              onClick={() => openCreate(type)}
-                            >
-                              点击创建
-                            </Button>
-                          )}
-                        </span>
-                      }
-                      style={{ padding: '20px 0' }}
-                    />
-                  )}
-
-                  {archived.length > 0 && (
-                    <Collapse
-                      ghost
-                      size="small"
-                      style={{ marginTop: 12, borderTop: '1px solid #f0f0f0' }}
-                      items={[
-                        {
-                          key: 'history',
-                          label: (
-                            <Space size={4}>
-                              <HistoryOutlined />
-                              <Text type="secondary" style={{ fontSize: 12 }}>
-                                历史版本（{archived.length}）
-                              </Text>
-                            </Space>
-                          ),
-                          children: (
-                            <Space direction="vertical" size={4} style={{ width: '100%' }}>
-                              {archived.map((item) => (
-                                <div
-                                  key={item.id}
-                                  style={{
-                                    display: 'flex',
-                                    justifyContent: 'space-between',
-                                    alignItems: 'center',
-                                    padding: '4px 8px',
-                                    background: '#fafafa',
-                                    borderRadius: 4,
-                                    fontSize: 12,
-                                  }}
-                                >
-                                  <Space size={8}>
-                                    <Tag style={{ fontSize: 11 }}>v{item.version}</Tag>
-                                    <Text type="secondary" ellipsis style={{ maxWidth: 200 }}>{item.title}</Text>
-                                  </Space>
-                                  <Text type="secondary" style={{ fontSize: 11 }}>
-                                    {formatDate(item.updated_at)}
-                                  </Text>
-                                </div>
-                              ))}
-                            </Space>
-                          ),
-                        },
-                      ]}
-                    />
-                  )}
-                </Card>
-              </Col>
+              <ProtocolCard
+                key={type}
+                type={type}
+                typeText={config.text}
+                signDesc={config.desc}
+                item={active}
+                canWrite={canWrite}
+                onPreview={setPreviewing}
+                onCreate={openCreate}
+                onEdit={openEdit}
+                onArchive={(record) => void archive(record)}
+                onHistory={(value) => void openHistory(value)}
+              />
             )
           })}
-        </Row>
+        </div>
       </Spin>
+
+      <Modal
+        title={previewing?.title}
+        open={previewing !== null}
+        onCancel={() => setPreviewing(null)}
+        footer={null}
+        width={860}
+        destroyOnHidden
+      >
+        {previewing && (
+          <>
+            <Space wrap style={{ marginBottom: 14 }}>
+              <Tag color={previewing.status === 'active' ? 'green' : 'default'}>
+                {previewing.status === 'active' ? '生效中' : '已归档'}
+              </Tag>
+              <Text type="secondary">版本 v{previewing.version}</Text>
+              <Text type="secondary">更新于 {formatDate(previewing.updated_at)}</Text>
+            </Space>
+            <div
+              className={styles.previewContent}
+              dangerouslySetInnerHTML={{ __html: previewing.content }}
+            />
+          </>
+        )}
+      </Modal>
+
+      <Drawer
+        title={`${historyType ? TYPE_CONFIG[historyType].text : ''}历史版本`}
+        open={historyOpen}
+        onClose={() => setHistoryOpen(false)}
+        width="min(720px, 100%)"
+        destroyOnHidden
+      >
+        <div className={styles.historyDrawerBody}>
+          <Spin spinning={historyLoading}>
+            {historyItems.length === 0 && !historyLoading ? (
+              <Empty className={styles.emptyHistory} description="暂无历史版本" />
+            ) : (
+              <div className={styles.historyGrid}>
+                {historyItems.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    className={styles.historyCard}
+                    onClick={() => setPreviewing(item)}
+                    aria-label={`预览 ${item.title} 第 ${item.version} 版全文`}
+                  >
+                    <span className={styles.historyCover}>
+                      {item.cover_url ? (
+                        <img src={item.cover_url} alt={`${item.title}内容缩略图`} loading="lazy" />
+                      ) : (
+                        <span className={styles.historyEmptyCover}>
+                          <PictureOutlined />
+                        </span>
+                      )}
+                      <span className={styles.archivedBadge}>已归档</span>
+                    </span>
+                    <span className={styles.historyInfo}>
+                      <span className={styles.historyTitle}>{item.title}</span>
+                      <span className={styles.historyMeta}>
+                        v{item.version} · {formatDate(item.updated_at)}
+                      </span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </Spin>
+
+          {historyTotal > HISTORY_PAGE_SIZE && (
+            <Pagination
+              className={styles.drawerPagination}
+              current={historyPage}
+              pageSize={HISTORY_PAGE_SIZE}
+              total={historyTotal}
+              showSizeChanger={false}
+              onChange={(page) => {
+                if (historyType) void loadHistory(historyType, page)
+              }}
+            />
+          )}
+        </div>
+      </Drawer>
 
       <Modal
         title={editing ? `编辑模板（当前 v${editing.version}）` : '新建协议模板'}
@@ -265,14 +281,10 @@ export default function AgreementTemplateManagement() {
         okText={editing ? '保存并生成新版本' : '创建并生效'}
         okButtonProps={{ loading: saving }}
         width={860}
-        destroyOnClose
+        destroyOnHidden
       >
         <Form form={form} layout="vertical" preserve={false}>
-          <Form.Item
-            name="type"
-            label="协议类型"
-            rules={[{ required: true }]}
-          >
+          <Form.Item name="type" label="协议类型" rules={[{ required: true }]}>
             <Select
               disabled={editing !== null}
               options={TYPE_ORDER.map((type) => ({
