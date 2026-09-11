@@ -15,7 +15,7 @@ vi.mock('@/services/agreementTemplate', () => ({
   },
 }))
 
-const now = '2026-09-11T10:00:00+08:00'
+const now = '2026-09-11 10:00:00'
 
 function template(overrides: Partial<AgreementTemplateItem> = {}): AgreementTemplateItem {
   return {
