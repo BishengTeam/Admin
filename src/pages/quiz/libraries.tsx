@@ -59,6 +59,7 @@ const accessLabels: Record<QuizLibraryAccessMode, string> = {
   access_mode_pending: '待确认',
   free: '免费题库',
   course_entitlement: '课程购买赠送',
+  paid: '付费题库',
 }
 
 const migrationIssueLabels: Record<string, string> = {
@@ -82,9 +83,10 @@ function errorText(error: unknown) {
 }
 
 const ALLOWED_TRANSITIONS: Record<QuizLibraryAccessMode, QuizLibraryAccessMode[]> = {
-  access_mode_pending: ['free', 'course_entitlement'],
-  free: ['course_entitlement'],
-  course_entitlement: ['free'],
+  access_mode_pending: ['free', 'course_entitlement', 'paid'],
+  free: ['course_entitlement', 'paid'],
+  course_entitlement: ['free', 'paid'],
+  paid: ['free', 'course_entitlement'],
 }
 
 function convertWarning(_current: QuizLibraryAccessMode, target: QuizLibraryAccessMode): string {
@@ -189,7 +191,7 @@ export default function QuizLibraries() {
   const openCreate = () => {
     setEditing(null)
     form.resetFields()
-    form.setFieldsValue({ access_mode: 'access_mode_pending', sort_order: 0 })
+    form.setFieldsValue({ access_mode: 'access_mode_pending', sort_order: 0, price_cents: 0 })
     setModalOpen(true)
   }
 
@@ -201,6 +203,7 @@ export default function QuizLibraries() {
       cover_url: library.cover_url ?? undefined,
       details: library.details ?? undefined,
       access_mode: library.access_mode,
+      price_cents: library.price_cents ?? 0,
       sort_order: library.sort_order,
     })
     setModalOpen(true)
@@ -484,7 +487,14 @@ export default function QuizLibraries() {
           <Form.Item name="access_mode" label="访问模式" rules={[{ required: true }]}>
             <Select options={Object.entries(accessLabels).map(([value, label]) => ({ value, label }))} />
           </Form.Item>
-          <Form.Item name="sort_order" label="排序"><InputNumber precision={0} style={{ width: '100%' }} /></Form.Item>
+          <Form.Item noStyle shouldUpdate={(prev, cur) => prev.access_mode !== cur.access_mode}>
+              {({ getFieldValue }) => getFieldValue('access_mode') === 'paid' ? (
+                <Form.Item name="price_cents" label="价格（分）" rules={[{ required: true, message: '付费题库必须设置价格' }]}>
+                  <InputNumber min={1} precision={0} style={{ width: '100%' }} placeholder="如 4900 = ¥49" />
+                </Form.Item>
+              ) : null}
+            </Form.Item>
+            <Form.Item name="sort_order" label="排序"><InputNumber precision={0} style={{ width: '100%' }} /></Form.Item>
         </Form>
       </Modal>
 

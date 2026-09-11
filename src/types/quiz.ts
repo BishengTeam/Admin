@@ -24,7 +24,7 @@ export type JsonPrimitive = string | number | boolean | null
 export type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue }
 
 export type QuizLibraryStatus = 'draft' | 'published' | 'suspended' | 'archived' | 'deleted'
-export type QuizLibraryAccessMode = 'access_mode_pending' | 'free' | 'course_entitlement'
+export type QuizLibraryAccessMode = 'access_mode_pending' | 'free' | 'course_entitlement' | 'paid'
 export type QuizContentStatus = 'active' | 'disabled' | 'deleted'
 export type QuizLibraryLifecycleAction = 'publish' | 'suspend' | 'restore' | 'archive' | 'delete' | 'undo_delete' | 'reconcile_migration'
 
@@ -37,6 +37,7 @@ export interface QuizLibrary {
   cover_url: string | null
   details: string | null
   access_mode: QuizLibraryAccessMode
+  price_cents: number
   system_kind: 'none' | 'migration_quarantine'
   migration_state: 'pending_review' | 'needs_organization' | 'ready'
   status: QuizLibraryStatus

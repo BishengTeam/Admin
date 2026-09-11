@@ -247,7 +247,7 @@ export const QuizV2QuestionSchema = z.object({
 }).strict().superRefine(questionShapeRules)
 
 const libraryStatusSchema = z.enum(['draft', 'published', 'suspended', 'archived', 'deleted'])
-const libraryAccessModeSchema = z.enum(['access_mode_pending', 'free', 'course_entitlement'])
+const libraryAccessModeSchema = z.enum(['access_mode_pending', 'free', 'course_entitlement', 'paid'])
 const contentStatusSchema = z.enum(['active', 'disabled', 'deleted'])
 
 export const QuizLibrarySchema = z.object({
@@ -259,6 +259,7 @@ export const QuizLibrarySchema = z.object({
   cover_url: nullableString,
   details: nullableString,
   access_mode: libraryAccessModeSchema,
+  price_cents: z.number().int().min(0),
   system_kind: z.enum(['none', 'migration_quarantine']),
   migration_state: z.enum(['pending_review', 'needs_organization', 'ready']),
   status: libraryStatusSchema,

@@ -164,6 +164,7 @@ describe('quizService frozen admin contract', () => {
       cover_url: null,
       details: null,
       access_mode: 'access_mode_pending',
+      price_cents: 0,
       system_kind: 'none',
       migration_state: 'ready',
       status: 'draft',
