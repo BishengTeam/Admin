@@ -21,6 +21,7 @@ import { useNavigate } from 'react-router-dom'
 import { BookOutlined, LinkOutlined, PlusOutlined, ReloadOutlined, SearchOutlined, SwapOutlined } from '@ant-design/icons'
 import { PageContainer } from '@/components/PageContainer'
 import { quizService } from '@/services/quiz'
+import { ImageUpload } from '@/components/ImageUpload'
 import { usePermission } from '@/hooks/usePermission'
 import { useAuthStore } from '@/stores/authStore'
 import { useReauthentication } from '@/hooks/useReauthentication'
@@ -482,7 +483,7 @@ export default function QuizLibraries() {
         <Form form={form} layout="vertical">
           <Form.Item name="name" label="题库名称" rules={[{ required: true, message: '请输入题库名称' }, { max: 128 }]}><Input autoFocus /></Form.Item>
           <Form.Item name="description" label="简介" rules={[{ max: 512 }]}><Input.TextArea rows={2} showCount maxLength={512} /></Form.Item>
-          <Form.Item name="cover_url" label="封面 URL" rules={[{ max: 512 }]}><Input placeholder="发布前必填" /></Form.Item>
+          <Form.Item name="cover_url" label="题库封面"><ImageUpload purpose="quiz" /></Form.Item>
           <Form.Item name="details" label="详细说明" rules={[{ max: 10000 }]}><Input.TextArea rows={5} showCount maxLength={10000} /></Form.Item>
           <Form.Item name="access_mode" label="访问模式" rules={[{ required: true }]}>
             <Select options={Object.entries(accessLabels).map(([value, label]) => ({ value, label }))} />
