@@ -1,4 +1,8 @@
-export type AgreementTemplateType = 'user_terms' | 'privacy' | 'identity_auth'
+export type AgreementTemplateType =
+  | 'user_terms'
+  | 'privacy'
+  | 'identity_auth'
+  | 'cert_registration'
 export type AgreementTemplateStatus = 'active' | 'archived'
 
 export interface AgreementTemplateItem {

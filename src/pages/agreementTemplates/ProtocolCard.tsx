@@ -83,14 +83,6 @@ export default function ProtocolCard({
   return (
     <article className={styles.protocolCard} data-type={type}>
       <div className={styles.coverRegion}>
-        <span
-          className={
-            item ? styles.statusBadge : `${styles.statusBadge} ${styles.inactiveBadge}`
-          }
-        >
-          {item ? '生效中' : '未配置'}
-        </span>
-
         <button
           type="button"
           className={styles.coverButton}
@@ -116,13 +108,18 @@ export default function ProtocolCard({
             </span>
           )}
         </button>
-
-        <div className={styles.coverActions}>{actionButtons}</div>
       </div>
 
       <div className={styles.cardInfo}>
         <div className={styles.cardTags}>
           <span className={styles.typeTag}>{typeText}</span>
+          <span
+            className={
+              item ? styles.statusBadge : `${styles.statusBadge} ${styles.inactiveBadge}`
+            }
+          >
+            {item ? '生效中' : '未配置'}
+          </span>
           <span className={styles.signTag}>
             <FileTextOutlined />
             {signDesc}

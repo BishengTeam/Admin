@@ -1,33 +1,37 @@
 .shelf {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 24px;
+  gap: 14px;
 }
 
 .protocolCard {
   display: flex;
-  flex-direction: column;
+  align-items: stretch;
   min-width: 0;
+  padding: 10px;
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 14px;
   background: linear-gradient(160deg, #1f2937 0%, #111827 58%, #0b1220 100%);
-  box-shadow: 0 18px 42px rgba(15, 23, 42, 0.22);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.16);
   color: #f8fafc;
-  transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+  transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
 }
 
 .protocolCard:hover,
 .protocolCard:focus-within {
-  transform: translateY(-4px);
+  transform: translateY(-2px);
   border-color: rgba(96, 165, 250, 0.42);
-  box-shadow: 0 24px 54px rgba(15, 23, 42, 0.32);
+  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.24);
 }
 
 .coverRegion {
   position: relative;
+  flex: 0 0 88px;
+  align-self: center;
   aspect-ratio: 3 / 4;
   overflow: hidden;
+  border-radius: 9px;
   background: #e5e7eb;
 }
 
@@ -64,10 +68,10 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 4px;
   width: 100%;
   height: 100%;
-  padding: 24px;
+  padding: 8px 6px;
   background: linear-gradient(155deg, #f8fafc 0%, #dbeafe 52%, #c7d2fe 100%);
   color: #334155;
   text-align: center;
@@ -75,74 +79,46 @@
 
 .coverPlaceholder > :first-child {
   color: #64748b;
-  font-size: 38px;
+  font-size: 18px;
 }
 
 .coverPlaceholder strong {
   color: #1e293b;
-  font-size: 16px;
+  font-size: 11px;
+  line-height: 1.25;
 }
 
 .coverPlaceholder span {
   color: #64748b;
-  font-size: 12px;
+  font-size: 10px;
+  line-height: 1.25;
 }
 
 .statusBadge {
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  z-index: 3;
-  padding: 4px 9px;
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
   border-radius: 999px;
   background: rgba(16, 185, 129, 0.94);
   color: #ffffff;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
-  line-height: 1.2;
-  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.28);
+  line-height: 1.4;
+  white-space: nowrap;
 }
 
 .inactiveBadge {
   background: rgba(100, 116, 139, 0.96);
 }
 
-.coverActions {
-  position: absolute;
-  inset: 0;
-  z-index: 2;
-  display: none;
-  flex-direction: column;
-  justify-content: center;
-  gap: 8px;
-  padding: 18px;
-  background: rgba(2, 6, 23, 0.76);
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 160ms ease;
-}
-
-.coverActions :global(.ant-btn) {
-  width: 116px;
-  margin: 0;
-  color: #f8fafc;
-  background: rgba(15, 23, 42, 0.72);
-  border-color: rgba(148, 163, 184, 0.36);
-}
-
-.coverActions :global(.ant-btn:hover) {
-  color: #ffffff;
-  background: rgba(37, 99, 235, 0.9);
-  border-color: #60a5fa;
-}
-
 .cardInfo {
   display: flex;
   flex: 1;
   flex-direction: column;
-  gap: 9px;
-  padding: 16px;
-  background: rgba(15, 23, 42, 0.5);
+  gap: 6px;
+  min-width: 0;
+  padding: 2px 2px 2px 12px;
+  background: transparent;
 }
 
 .cardTags {
@@ -157,9 +133,9 @@
   align-items: center;
   gap: 4px;
   max-width: 100%;
-  padding: 3px 8px;
+  padding: 2px 7px;
   border-radius: 999px;
-  font-size: 11px;
+  font-size: 10px;
   line-height: 1.35;
 }
 
@@ -176,37 +152,39 @@
 .cardTitle {
   display: -webkit-box;
   overflow: hidden;
-  min-height: 44px;
+  min-height: 20px;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
+  -webkit-line-clamp: 1;
   margin: 0;
   color: #f8fafc;
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 650;
-  line-height: 22px;
+  line-height: 20px;
 }
 
 .cardMeta {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px 12px;
+  gap: 3px 10px;
   margin: 0;
   color: #94a3b8;
-  font-size: 12px;
+  font-size: 11px;
+  line-height: 16px;
 }
 
 .persistentActions {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 2px;
   margin-top: auto;
-  padding-top: 4px;
+  padding-top: 2px;
 }
 
 .persistentActions :global(.ant-btn) {
-  padding: 0 8px;
+  height: 24px;
+  padding: 0 6px;
   color: #cbd5e1;
-  font-size: 12px;
+  font-size: 11px;
 }
 
 .historyGrid {
@@ -327,28 +305,18 @@
 
 @media (min-width: 768px) {
   .shelf {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 380px));
   }
 }
 
-@media (min-width: 1280px) {
+@media (min-width: 1024px) {
   .shelf {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 350px));
   }
 }
 
-@media (min-width: 1280px) and (hover: hover) and (pointer: fine) {
-  .persistentActions {
-    display: none;
-  }
-
-  .coverActions {
-    display: flex;
-  }
-
-  .protocolCard:hover .coverActions,
-  .protocolCard:focus-within .coverActions {
-    opacity: 1;
-    pointer-events: auto;
+@media (min-width: 1440px) {
+  .shelf {
+    grid-template-columns: repeat(4, minmax(0, 330px));
   }
 }

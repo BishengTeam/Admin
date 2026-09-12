@@ -77,6 +77,7 @@ describe('AgreementTemplates book shelf', () => {
     expect(await screen.findByRole('img', { name: '用户服务协议内容缩略图' })).toBeInTheDocument()
     expect(screen.getAllByText('用户服务协议').length).toBeGreaterThan(0)
     expect(screen.getAllByText('版本 v3').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('认证报名授权').length).toBeGreaterThan(0)
     expect(screen.getByText(/更新于 2026-09-11 10:00:00/)).toBeInTheDocument()
     expect(agreementTemplateService.list).toHaveBeenCalledWith({
       status: 'active',

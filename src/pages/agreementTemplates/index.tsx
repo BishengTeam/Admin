@@ -28,12 +28,18 @@ import type {
 
 const { Text } = Typography
 
-const TYPE_ORDER: AgreementTemplateType[] = ['user_terms', 'privacy', 'identity_auth']
+const TYPE_ORDER: AgreementTemplateType[] = [
+  'user_terms',
+  'privacy',
+  'identity_auth',
+  'cert_registration',
+]
 
 const TYPE_CONFIG: Record<AgreementTemplateType, { text: string; desc: string }> = {
   user_terms: { text: '用户服务协议', desc: '用户登录时签署' },
   privacy: { text: '隐私政策', desc: '用户登录时签署' },
   identity_auth: { text: '实名信息授权', desc: '实名认证前签署' },
+  cert_registration: { text: '认证报名授权', desc: '认证报名前签署' },
 }
 
 const HISTORY_PAGE_SIZE = 8
@@ -161,7 +167,7 @@ export default function AgreementTemplateManagement() {
 
   return (
     <PageContainer title="协议模板管理">
-      <Text type="secondary" style={{ display: 'block', marginBottom: 20 }}>
+      <Text type="secondary" style={{ display: 'block', marginBottom: 12 }}>
         同一类型仅一条生效版本；编辑保存会自动生成新版本并归档旧版，已签署用户保留其签署时的内容快照。
       </Text>
 
