@@ -13,7 +13,6 @@ import {
   Typography,
   message,
 } from 'antd'
-import { PictureOutlined } from '@ant-design/icons'
 import { PageContainer } from '@/components/PageContainer'
 import { usePermission } from '@/hooks/usePermission'
 import { agreementTemplateService } from '@/services/agreementTemplate'
@@ -133,18 +132,10 @@ export default function AgreementTemplateManagement() {
           title: values.title,
           content: values.content,
         })
-        message.success(
-          created.cover_url
-            ? `已生成新版本 v${created.version}，并更新协议封面`
-            : `已生成新版本 v${created.version}；封面生成稍后可通过回填命令修复`,
-        )
+        message.success(`已生成新版本 v${created.version}，旧版本已自动归档`)
       } else {
         const created = await agreementTemplateService.create(values)
-        message.success(
-          created.cover_url
-            ? `模板已创建并生效（v${created.version}）`
-            : `模板已创建并生效（v${created.version}）；封面生成失败，已显示占位`,
-        )
+        message.success(`模板已创建并生效（v${created.version}）`)
       }
       closeModals()
       load()
@@ -242,14 +233,10 @@ export default function AgreementTemplateManagement() {
                     onClick={() => setPreviewing(item)}
                     aria-label={`预览 ${item.title} 第 ${item.version} 版全文`}
                   >
-                    <span className={styles.historyCover}>
-                      {item.cover_url ? (
-                        <img src={item.cover_url} alt={`${item.title}内容缩略图`} loading="lazy" />
-                      ) : (
-                        <span className={styles.historyEmptyCover}>
-                          <PictureOutlined />
-                        </span>
-                      )}
+                    <span className={styles.historyCover} data-type={item.type}>
+                      <span className={styles.bookSpine} aria-hidden="true" />
+                      <strong className={styles.historyBookTitle}>{item.title}</strong>
+                      <span className={styles.historyBookFoot}>v{item.version}</span>
                       <span className={styles.archivedBadge}>已归档</span>
                     </span>
                     <span className={styles.historyInfo}>

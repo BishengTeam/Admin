@@ -25,7 +25,6 @@ function template(overrides: Partial<AgreementTemplateItem> = {}): AgreementTemp
     content: '<p>协议全文</p>',
     version: 3,
     status: 'active',
-    cover_url: '/api/media/user-terms.jpg',
     created_at: now,
     updated_at: now,
     ...overrides,
@@ -71,10 +70,14 @@ describe('AgreementTemplates book shelf', () => {
     Modal.destroyAll()
   })
 
-  it('loads only active templates and renders book covers', async () => {
-    render(<AgreementTemplates />)
+  it('loads only active templates and renders CSS title covers', async () => {
+    const { container } = render(<AgreementTemplates />)
 
-    expect(await screen.findByRole('img', { name: '用户服务协议内容缩略图' })).toBeInTheDocument()
+    expect(
+      await screen.findByRole('button', { name: '预览 用户服务协议 第 3 版全文' }),
+    ).toBeInTheDocument()
+    expect(screen.getByText('v3')).toBeInTheDocument()
+    expect(container.querySelectorAll('img')).toHaveLength(0)
     expect(screen.getAllByText('用户服务协议').length).toBeGreaterThan(0)
     expect(screen.getAllByText('版本 v3').length).toBeGreaterThan(0)
     expect(screen.getAllByText('认证报名授权').length).toBeGreaterThan(0)
@@ -98,26 +101,12 @@ describe('AgreementTemplates book shelf', () => {
     expect(screen.queryByRole('button', { name: /保存并生成新版本/ })).not.toBeInTheDocument()
   })
 
-  it('renders a placeholder when the active cover is missing', async () => {
-    vi.mocked(agreementTemplateService.list).mockResolvedValueOnce({
-      items: [template({ cover_url: null })],
-      total: 1,
-      page: 1,
-      page_size: 20,
-    })
-
-    render(<AgreementTemplates />)
-
-    expect(await screen.findByText('封面暂不可用')).toBeInTheDocument()
-    expect(screen.getByText('可点击查看协议全文')).toBeInTheDocument()
-  })
-
   it('keeps write actions away from read-only admins and leaves create disabled', async () => {
     useAuthStore.setState({ permissions: ['content:list'], initialized: true })
 
     render(<AgreementTemplates />)
 
-    await screen.findByRole('img', { name: '用户服务协议内容缩略图' })
+    await screen.findByRole('button', { name: '预览 用户服务协议 第 3 版全文' })
     const cover = screen.getByRole('button', { name: '隐私政策暂无生效版本' })
     expect(cover).toBeDisabled()
     expect(screen.queryByRole('button', { name: '编辑' })).not.toBeInTheDocument()
@@ -127,7 +116,7 @@ describe('AgreementTemplates book shelf', () => {
   it('opens the create modal from an empty protocol slot', async () => {
     render(<AgreementTemplates />)
 
-    await screen.findByRole('img', { name: '用户服务协议内容缩略图' })
+    await screen.findByRole('button', { name: '预览 用户服务协议 第 3 版全文' })
     fireEvent.click(screen.getByRole('button', { name: '创建隐私政策' }))
 
     expect(await screen.findByText('新建协议模板')).toBeInTheDocument()
@@ -163,7 +152,6 @@ describe('AgreementTemplates book shelf', () => {
           id: 10,
           version: 2,
           status: 'archived',
-          cover_url: null,
           title: '用户服务协议 v2',
         })],
         total: 1,
@@ -174,7 +162,7 @@ describe('AgreementTemplates book shelf', () => {
     render(<AgreementTemplates />)
     fireEvent.click((await screen.findAllByRole('button', { name: /历史/ }))[0])
 
-    expect(await screen.findByText('用户服务协议 v2')).toBeInTheDocument()
+    expect((await screen.findAllByText('用户服务协议 v2')).length).toBeGreaterThan(0)
     expect(screen.getByText('已归档')).toBeInTheDocument()
     await waitFor(() => {
       expect(agreementTemplateService.list).toHaveBeenLastCalledWith({

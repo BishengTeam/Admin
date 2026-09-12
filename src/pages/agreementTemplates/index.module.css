@@ -56,11 +56,84 @@
   outline-offset: -4px;
 }
 
-.coverButton img {
-  display: block;
+.bookCover,
+.historyCover {
+  --book-accent: #64748b;
+}
+
+.protocolCard[data-type='user_terms'] .bookCover,
+.historyCover[data-type='user_terms'] {
+  --book-accent: #2563eb;
+}
+
+.protocolCard[data-type='privacy'] .bookCover,
+.historyCover[data-type='privacy'] {
+  --book-accent: #7c3aed;
+}
+
+.protocolCard[data-type='identity_auth'] .bookCover,
+.historyCover[data-type='identity_auth'] {
+  --book-accent: #0d9488;
+}
+
+.protocolCard[data-type='cert_registration'] .bookCover,
+.historyCover[data-type='cert_registration'] {
+  --book-accent: #c2410c;
+}
+
+.bookCover {
+  position: relative;
+  display: flex;
+  flex-direction: column;
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  background: linear-gradient(155deg, #fbfaf7 0%, #f4f2ec 58%, #eae6db 100%);
+}
+
+.bookCover::before {
+  content: '';
+  flex: none;
+  width: 14px;
+  height: 2px;
+  margin: 10px auto 0;
+  border-radius: 999px;
+  background: var(--book-accent);
+}
+
+.bookSpine {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 6px;
+  background: var(--book-accent);
+  box-shadow: inset -1px 0 0 rgba(15, 23, 42, 0.18);
+}
+
+.bookTitle {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  margin: 8px 0 auto;
+  padding: 0 8px 0 13px;
+  color: #1f2937;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.45;
+  letter-spacing: 0.01em;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.bookFoot {
+  flex: none;
+  margin: 0 0 7px;
+  padding-left: 6px;
+  color: #78716c;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-align: center;
 }
 
 .coverPlaceholder {
@@ -215,26 +288,39 @@
 
 .historyCover {
   position: relative;
+  display: flex;
+  flex-direction: column;
   aspect-ratio: 3 / 4;
   overflow: hidden;
-  background: #e2e8f0;
+  background: linear-gradient(155deg, #fbfaf7 0%, #f4f2ec 58%, #eae6db 100%);
 }
 
-.historyCover img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+.historyBookTitle {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  overflow: hidden;
+  margin: 18px 0 auto;
+  padding: 0 14px 0 22px;
+  color: #1f2937;
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.5;
+  text-align: center;
+  overflow-wrap: anywhere;
 }
 
-.historyEmptyCover {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(155deg, #f8fafc, #dbeafe);
-  color: #64748b;
-  font-size: 26px;
+.historyBookFoot {
+  margin: 0 0 10px;
+  padding-left: 6px;
+  color: #78716c;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-align: center;
+}
+
+.historyCover .bookSpine {
+  width: 6px;
 }
 
 .archivedBadge {

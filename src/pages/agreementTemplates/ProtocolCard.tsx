@@ -1,4 +1,3 @@
-import { useEffect, useState } from 'react'
 import { Button, Popconfirm } from 'antd'
 import {
   EditOutlined,
@@ -7,7 +6,6 @@ import {
   FileTextOutlined,
   HistoryOutlined,
   InboxOutlined,
-  PictureOutlined,
 } from '@ant-design/icons'
 import type { AgreementTemplateItem, AgreementTemplateType } from '@/types/agreementTemplate'
 import { formatDate } from '@/utils/format'
@@ -38,14 +36,6 @@ export default function ProtocolCard({
   onArchive,
   onHistory,
 }: ProtocolCardProps) {
-  const [coverFailed, setCoverFailed] = useState(false)
-  const coverUrl = item?.cover_url ?? null
-
-  useEffect(() => {
-    setCoverFailed(false)
-  }, [coverUrl])
-
-  const showCover = Boolean(coverUrl && !coverFailed)
   const coverLabel = item
     ? `预览 ${item.title} 第 ${item.version} 版全文`
     : canWrite
@@ -93,18 +83,17 @@ export default function ProtocolCard({
           disabled={!item && !canWrite}
           aria-label={coverLabel}
         >
-          {showCover ? (
-            <img
-              src={coverUrl ?? undefined}
-              alt={`${item?.title ?? typeText}内容缩略图`}
-              loading="lazy"
-              onError={() => setCoverFailed(true)}
-            />
+          {item ? (
+            <span className={styles.bookCover}>
+              <span className={styles.bookSpine} aria-hidden="true" />
+              <strong className={styles.bookTitle}>{item.title}</strong>
+              <span className={styles.bookFoot}>v{item.version}</span>
+            </span>
           ) : (
             <span className={styles.coverPlaceholder}>
-              {item ? <PictureOutlined /> : <FileAddOutlined />}
-              <strong>{item ? '封面暂不可用' : canWrite ? '点击创建' : '暂无生效版本'}</strong>
-              <span>{item ? '可点击查看协议全文' : `${typeText}尚未配置`}</span>
+              {canWrite ? <FileAddOutlined /> : <FileTextOutlined />}
+              <strong>{canWrite ? '点击创建' : '暂无生效版本'}</strong>
+              <span>{`${typeText}尚未配置`}</span>
             </span>
           )}
         </button>

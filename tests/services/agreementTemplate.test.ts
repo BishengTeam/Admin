@@ -26,7 +26,7 @@ describe('agreementTemplateService', () => {
     })
   })
 
-  it('returns cover_url as part of template items', async () => {
+  it('returns template items without legacy cover fields', async () => {
     const { agreementTemplateService } = await import('@/services/agreementTemplate')
 
     const item = {
@@ -36,7 +36,6 @@ describe('agreementTemplateService', () => {
       content: '<p>正文</p>',
       version: 2,
       status: 'active' as const,
-      cover_url: '/api/media/cover.jpg',
       created_at: '2026-09-11T08:00:00+08:00',
       updated_at: '2026-09-11T08:00:00+08:00',
     }
@@ -44,7 +43,8 @@ describe('agreementTemplateService', () => {
 
     const page = await agreementTemplateService.list({ status: 'active', page: 1, page_size: 20 })
 
-    expect(page.items[0].cover_url).toBe('/api/media/cover.jpg')
+    expect(page.items[0].title).toBe('隐私政策')
+    expect('cover_url' in page.items[0]).toBe(false)
   })
 
   it('creates a template via POST', async () => {
