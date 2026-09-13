@@ -1,7 +1,7 @@
 .shelf {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(176px, 260px));
-  gap: 26px 22px;
+  grid-template-columns: repeat(auto-fill, minmax(88px, 130px));
+  gap: 18px 16px;
 }
 
 .protocolCard {
@@ -14,7 +14,7 @@
   position: relative;
   aspect-ratio: 3 / 4;
   overflow: hidden;
-  border-radius: 14px;
+  border-radius: 10px;
   background: #e5e7eb;
   box-shadow: 0 14px 30px rgba(2, 6, 23, 0.38);
   transition: transform 170ms ease, box-shadow 170ms ease;
@@ -84,9 +84,9 @@
 .bookCover::before {
   content: '';
   flex: none;
-  width: 24px;
-  height: 3px;
-  margin: 34px auto 0;
+  width: 14px;
+  height: 2px;
+  margin: 12px auto 0;
   border-radius: 999px;
   background: var(--book-accent);
 }
@@ -96,7 +96,7 @@
   top: 0;
   bottom: 0;
   left: 0;
-  width: 8px;
+  width: 5px;
   background: var(--book-accent);
   box-shadow: inset -1px 0 0 rgba(15, 23, 42, 0.18);
 }
@@ -105,13 +105,13 @@
   display: -webkit-box;
   overflow: hidden;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 5;
-  margin: 18px 0 auto;
-  padding: 0 20px 0 26px;
+  -webkit-line-clamp: 4;
+  margin: 9px 0 auto;
+  padding: 0 9px 0 13px;
   color: #1f2937;
-  font-size: 17px;
+  font-size: 11px;
   font-weight: 700;
-  line-height: 1.55;
+  line-height: 1.45;
   letter-spacing: 0.02em;
   text-align: center;
   overflow-wrap: anywhere;
@@ -119,11 +119,11 @@
 
 .bookFoot {
   flex: none;
-  margin: 0 0 18px;
-  padding-left: 8px;
+  margin: 0 0 9px;
+  padding-left: 5px;
   color: #78716c;
-  font-size: 11px;
-  letter-spacing: 0.12em;
+  font-size: 9px;
+  letter-spacing: 0.08em;
   text-align: center;
 }
 
@@ -132,10 +132,10 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 5px;
   width: 100%;
   height: 100%;
-  padding: 22px;
+  padding: 12px;
   background: linear-gradient(155deg, #f8fafc 0%, #dbeafe 52%, #c7d2fe 100%);
   color: #334155;
   text-align: center;
@@ -143,33 +143,33 @@
 
 .coverPlaceholder > :first-child {
   color: #64748b;
-  font-size: 30px;
+  font-size: 20px;
 }
 
 .coverPlaceholder strong {
   color: #1e293b;
-  font-size: 14px;
+  font-size: 12px;
 }
 
 .coverPlaceholder span {
   color: #64748b;
-  font-size: 12px;
+  font-size: 10px;
 }
 
 .statusBadge {
   position: absolute;
-  top: 12px;
-  right: 12px;
+  top: 7px;
+  right: 7px;
   z-index: 3;
-  padding: 4px 9px;
+  padding: 2px 7px;
   border-radius: 999px;
   background: rgba(16, 185, 129, 0.94);
   color: #ffffff;
-  font-size: 12px;
+  font-size: 10px;
   font-weight: 600;
   line-height: 1.2;
   white-space: nowrap;
-  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.28);
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.28);
 }
 
 .inactiveBadge {
