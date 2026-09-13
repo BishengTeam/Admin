@@ -293,7 +293,6 @@ export default function AgreementTemplateManagement() {
                     aria-label={`预览 ${item.title} 第 ${item.version} 版全文`}
                   >
                     <span className={styles.historyCover} data-type={item.type}>
-                      <span className={styles.bookSpine} aria-hidden="true" />
                       <strong className={styles.historyBookTitle}>{item.title}</strong>
                       <span className={styles.historyBookFoot}>v{item.version}</span>
                       <span className={styles.archivedBadge}>已归档</span>

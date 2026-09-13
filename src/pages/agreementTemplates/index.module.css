@@ -1,7 +1,7 @@
 .shelf {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(88px, 130px));
-  gap: 18px 16px;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 180px));
+  gap: 24px 20px;
 }
 
 .protocolCard {
@@ -14,7 +14,7 @@
   position: relative;
   aspect-ratio: 3 / 4;
   overflow: hidden;
-  border-radius: 10px;
+  border-radius: 0;
   background: #e5e7eb;
   box-shadow: 0 14px 30px rgba(2, 6, 23, 0.38);
   transition: transform 170ms ease, box-shadow 170ms ease;
@@ -47,83 +47,40 @@
   outline-offset: -4px;
 }
 
-.bookCover,
-.historyCover {
-  --book-accent: #64748b;
-}
-
-.protocolCard[data-type='user_terms'] .bookCover,
-.historyCover[data-type='user_terms'] {
-  --book-accent: #2563eb;
-}
-
-.protocolCard[data-type='privacy'] .bookCover,
-.historyCover[data-type='privacy'] {
-  --book-accent: #7c3aed;
-}
-
-.protocolCard[data-type='identity_auth'] .bookCover,
-.historyCover[data-type='identity_auth'] {
-  --book-accent: #0d9488;
-}
-
-.protocolCard[data-type='cert_registration'] .bookCover,
-.historyCover[data-type='cert_registration'] {
-  --book-accent: #c2410c;
-}
-
 .bookCover {
   position: relative;
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   width: 100%;
   height: 100%;
   background: linear-gradient(155deg, #fbfaf7 0%, #f4f2ec 58%, #eae6db 100%);
-}
-
-.bookCover::before {
-  content: '';
-  flex: none;
-  width: 14px;
-  height: 2px;
-  margin: 12px auto 0;
-  border-radius: 999px;
-  background: var(--book-accent);
-}
-
-.bookSpine {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 0;
-  width: 5px;
-  background: var(--book-accent);
-  box-shadow: inset -1px 0 0 rgba(15, 23, 42, 0.18);
 }
 
 .bookTitle {
   display: -webkit-box;
   overflow: hidden;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 4;
-  margin: 9px 0 auto;
-  padding: 0 9px 0 13px;
+  -webkit-line-clamp: 5;
+  margin: 0;
+  padding: 0 16px;
   color: #1f2937;
-  font-size: 11px;
+  font-size: 14px;
   font-weight: 700;
-  line-height: 1.45;
-  letter-spacing: 0.02em;
+  line-height: 1.55;
   text-align: center;
   overflow-wrap: anywhere;
 }
 
 .bookFoot {
-  flex: none;
-  margin: 0 0 9px;
-  padding-left: 5px;
+  position: absolute;
+  right: 0;
+  bottom: 10px;
+  left: 0;
+  margin: 0;
   color: #78716c;
-  font-size: 9px;
-  letter-spacing: 0.08em;
+  font-size: 10px;
+  letter-spacing: 0.1em;
   text-align: center;
 }
 
@@ -132,40 +89,40 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 5px;
+  gap: 7px;
   width: 100%;
   height: 100%;
-  padding: 12px;
-  background: linear-gradient(155deg, #f8fafc 0%, #dbeafe 52%, #c7d2fe 100%);
+  padding: 18px 14px;
+  background: linear-gradient(155deg, #fafafa 0%, #f0f0ef 55%, #e4e4e2 100%);
   color: #334155;
   text-align: center;
 }
 
 .coverPlaceholder > :first-child {
-  color: #64748b;
-  font-size: 20px;
+  color: #94a3b8;
+  font-size: 26px;
 }
 
 .coverPlaceholder strong {
   color: #1e293b;
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .coverPlaceholder span {
-  color: #64748b;
-  font-size: 10px;
+  color: #94a3b8;
+  font-size: 11px;
 }
 
 .statusBadge {
   position: absolute;
-  top: 7px;
-  right: 7px;
+  top: 8px;
+  right: 8px;
   z-index: 3;
-  padding: 2px 7px;
-  border-radius: 999px;
+  padding: 3px 8px;
+  border-radius: 2px;
   background: rgba(16, 185, 129, 0.94);
   color: #ffffff;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 600;
   line-height: 1.2;
   white-space: nowrap;
@@ -202,7 +159,7 @@
   flex-direction: column;
   overflow: hidden;
   border: 1px solid #e2e8f0;
-  border-radius: 12px;
+  border-radius: 0;
   background: #ffffff;
   text-align: left;
   cursor: pointer;
@@ -220,7 +177,8 @@
 .historyCover {
   position: relative;
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   aspect-ratio: 3 / 4;
   overflow: hidden;
   background: linear-gradient(155deg, #fbfaf7 0%, #f4f2ec 58%, #eae6db 100%);
@@ -231,8 +189,8 @@
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 4;
   overflow: hidden;
-  margin: 18px 0 auto;
-  padding: 0 14px 0 22px;
+  margin: 0;
+  padding: 0 14px;
   color: #1f2937;
   font-size: 14px;
   font-weight: 650;
@@ -242,16 +200,15 @@
 }
 
 .historyBookFoot {
-  margin: 0 0 10px;
-  padding-left: 6px;
+  position: absolute;
+  right: 0;
+  bottom: 8px;
+  left: 0;
+  margin: 0;
   color: #78716c;
   font-size: 11px;
   letter-spacing: 0.1em;
   text-align: center;
-}
-
-.historyCover .bookSpine {
-  width: 6px;
 }
 
 .archivedBadge {
@@ -259,7 +216,7 @@
   top: 8px;
   right: 8px;
   padding: 3px 7px;
-  border-radius: 999px;
+  border-radius: 2px;
   background: rgba(71, 85, 105, 0.94);
   color: #ffffff;
   font-size: 11px;

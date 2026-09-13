@@ -50,7 +50,6 @@ export default function ProtocolCard({
         >
           {item ? (
             <span className={styles.bookCover}>
-              <span className={styles.bookSpine} aria-hidden="true" />
               <strong className={styles.bookTitle}>{item.title}</strong>
               <span className={styles.bookFoot}>
                 {typeText} · v{item.version}
