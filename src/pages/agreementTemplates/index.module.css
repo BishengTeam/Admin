@@ -258,6 +258,25 @@
   line-height: 1.7;
 }
 
+.previewContent :global(table) {
+  width: 100%;
+  max-width: 100%;
+  margin: 12px 0;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.previewContent :global(th),
+.previewContent :global(td) {
+  padding: 8px 10px;
+  border: 1px solid #d0d0d0;
+  word-break: break-word;
+}
+
+.previewContent :global(img) {
+  max-width: 100%;
+}
+
 .historyDrawerBody {
   padding: 16px 20px;
 }
