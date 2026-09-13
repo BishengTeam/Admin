@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react'
 import {
+  Button,
   Drawer,
   Empty,
   Form,
   Input,
   Modal,
   Pagination,
+  Popconfirm,
   Select,
   Space,
   Spin,
@@ -13,6 +15,7 @@ import {
   Typography,
   message,
 } from 'antd'
+import { EditOutlined, HistoryOutlined, InboxOutlined } from '@ant-design/icons'
 import { PageContainer } from '@/components/PageContainer'
 import { usePermission } from '@/hooks/usePermission'
 import { agreementTemplateService } from '@/services/agreementTemplate'
@@ -173,13 +176,10 @@ export default function AgreementTemplateManagement() {
                 key={type}
                 type={type}
                 typeText={config.text}
-                signDesc={config.desc}
                 item={active}
                 canWrite={canWrite}
                 onPreview={setPreviewing}
                 onCreate={openCreate}
-                onEdit={openEdit}
-                onArchive={(record) => void archive(record)}
                 onHistory={(value) => void openHistory(value)}
               />
             )
@@ -191,7 +191,66 @@ export default function AgreementTemplateManagement() {
         title={previewing?.title}
         open={previewing !== null}
         onCancel={() => setPreviewing(null)}
-        footer={null}
+        footer={
+          previewing ? (
+            previewing.status === 'active' ? (
+              <Space wrap>
+                {canWrite && (
+                  <Button
+                    type="primary"
+                    icon={<EditOutlined />}
+                    onClick={() => {
+                      const record = previewing
+                      setPreviewing(null)
+                      openEdit(record)
+                    }}
+                  >
+                    编辑协议
+                  </Button>
+                )}
+                {canWrite && (
+                  <Popconfirm
+                    title="归档后该类型无生效模板，对应业务拦截自动放行。确定归档？"
+                    onConfirm={() => {
+                      const record = previewing
+                      setPreviewing(null)
+                      void archive(record)
+                    }}
+                  >
+                    <Button danger icon={<InboxOutlined />}>
+                      归档
+                    </Button>
+                  </Popconfirm>
+                )}
+                <Button
+                  icon={<HistoryOutlined />}
+                  onClick={() => {
+                    const recordType = previewing.type
+                    setPreviewing(null)
+                    void openHistory(recordType)
+                  }}
+                >
+                  历史版本
+                </Button>
+                <Button onClick={() => setPreviewing(null)}>关闭</Button>
+              </Space>
+            ) : (
+              <Space>
+                <Button
+                  icon={<HistoryOutlined />}
+                  onClick={() => {
+                    const recordType = previewing.type
+                    setPreviewing(null)
+                    void openHistory(recordType)
+                  }}
+                >
+                  历史版本
+                </Button>
+                <Button onClick={() => setPreviewing(null)}>关闭</Button>
+              </Space>
+            )
+          ) : null
+        }
         width={860}
         destroyOnHidden
       >

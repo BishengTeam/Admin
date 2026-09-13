@@ -76,12 +76,10 @@ describe('AgreementTemplates book shelf', () => {
     expect(
       await screen.findByRole('button', { name: '预览 用户服务协议 第 3 版全文' }),
     ).toBeInTheDocument()
-    expect(screen.getByText('v3')).toBeInTheDocument()
+    expect(screen.getByText('用户服务协议 · v3')).toBeInTheDocument()
     expect(container.querySelectorAll('img')).toHaveLength(0)
     expect(screen.getAllByText('用户服务协议').length).toBeGreaterThan(0)
-    expect(screen.getAllByText('版本 v3').length).toBeGreaterThan(0)
-    expect(screen.getAllByText('认证报名授权').length).toBeGreaterThan(0)
-    expect(screen.getByText(/更新于 2026-09-11 10:00:00/)).toBeInTheDocument()
+    expect(screen.getByText('认证报名授权尚未配置')).toBeInTheDocument()
     expect(agreementTemplateService.list).toHaveBeenCalledWith({
       status: 'active',
       page: 1,
@@ -110,7 +108,13 @@ describe('AgreementTemplates book shelf', () => {
     const cover = screen.getByRole('button', { name: '隐私政策暂无生效版本' })
     expect(cover).toBeDisabled()
     expect(screen.queryByRole('button', { name: '编辑' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /归档/ })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: '预览 用户服务协议 第 3 版全文' }))
+    expect(await screen.findByText('协议全文')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /编辑协议/ })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '归档' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /历史版本/ })).toBeInTheDocument()
   })
 
   it('opens the create modal from an empty protocol slot', async () => {
@@ -125,7 +129,10 @@ describe('AgreementTemplates book shelf', () => {
   it('opens the edit modal from a write-authorized card', async () => {
     render(<AgreementTemplates />)
 
-    fireEvent.click((await screen.findAllByRole('button', { name: /编辑/ }))[0])
+    fireEvent.click(
+      await screen.findByRole('button', { name: '预览 用户服务协议 第 3 版全文' }),
+    )
+    fireEvent.click(await screen.findByRole('button', { name: /编辑协议/ }))
 
     expect(await screen.findByText('编辑模板（当前 v3）')).toBeInTheDocument()
   })
@@ -136,7 +143,10 @@ describe('AgreementTemplates book shelf', () => {
     )
 
     render(<AgreementTemplates />)
-    fireEvent.click((await screen.findAllByRole('button', { name: /归档/ }))[0])
+    fireEvent.click(
+      await screen.findByRole('button', { name: '预览 用户服务协议 第 3 版全文' }),
+    )
+    fireEvent.click(await screen.findByRole('button', { name: /归档/ }))
     fireEvent.click(await screen.findByRole('button', { name: /OK|确定/ }))
 
     await waitFor(() => {
@@ -160,7 +170,10 @@ describe('AgreementTemplates book shelf', () => {
       })
 
     render(<AgreementTemplates />)
-    fireEvent.click((await screen.findAllByRole('button', { name: /历史/ }))[0])
+    fireEvent.click(
+      await screen.findByRole('button', { name: '预览 用户服务协议 第 3 版全文' }),
+    )
+    fireEvent.click(await screen.findByRole('button', { name: /历史版本/ }))
 
     expect((await screen.findAllByText('用户服务协议 v2')).length).toBeGreaterThan(0)
     expect(screen.getByText('已归档')).toBeInTheDocument()
