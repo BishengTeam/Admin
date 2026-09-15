@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { Upload, message } from 'antd'
-import { PlusOutlined, LoadingOutlined } from '@ant-design/icons'
+import { Tooltip, Upload, message } from 'antd'
+import { PlusOutlined, LoadingOutlined, QuestionCircleOutlined } from '@ant-design/icons'
 import type { UploadFile, RcFile } from 'antd/es/upload/interface'
 import { http } from '@/core/request'
 import { toAbsoluteMediaUrl } from '@/utils/mediaUrl'
@@ -10,9 +10,11 @@ interface ImageUploadProps {
   onChange?: (url: string) => void
   maxSize?: number
   purpose?: 'generic' | 'quiz'
+  /** 悬浮提示：说明该图片在小程序端的显示尺寸与上传格式要求 */
+  hint?: string
 }
 
-export function ImageUpload({ value, onChange, maxSize = 5, purpose = 'generic' }: ImageUploadProps) {
+export function ImageUpload({ value, onChange, maxSize = 5, purpose = 'generic', hint }: ImageUploadProps) {
   const [loading, setLoading] = useState(false)
 
   const beforeUpload = (file: RcFile) => {
@@ -72,17 +74,24 @@ export function ImageUpload({ value, onChange, maxSize = 5, purpose = 'generic' 
   )
 
   return (
-    <Upload
-      listType="picture-card"
-      showUploadList={false}
-      beforeUpload={beforeUpload}
-      customRequest={customRequest as never}
-    >
-      {value ? (
-        <img src={value} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-      ) : (
-        uploadButton
+    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+      <Upload
+        listType="picture-card"
+        showUploadList={false}
+        beforeUpload={beforeUpload}
+        customRequest={customRequest as never}
+      >
+        {value ? (
+          <img src={value} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        ) : (
+          uploadButton
+        )}
+      </Upload>
+      {hint && (
+        <Tooltip title={<div style={{ whiteSpace: 'pre-line' }}>{hint}</div>}>
+          <QuestionCircleOutlined style={{ marginTop: 4, color: '#8c8c8c', fontSize: 16, cursor: 'help' }} aria-label="图片要求说明" />
+        </Tooltip>
       )}
-    </Upload>
+    </div>
   )
 }

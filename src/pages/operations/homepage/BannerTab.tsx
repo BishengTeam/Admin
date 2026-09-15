@@ -427,7 +427,7 @@ export default function BannerTab() {
       >
         <Form form={form} layout="vertical">
           <Form.Item name="image_url" label="封面图（每条 Banner 独立上传）" rules={[requiredRule('封面图')]}>
-            <ImageUpload />
+            <ImageUpload hint={'小程序首页轮播图\n显示区域：702 × 320 rpx（约 2.2 : 1）\n推荐切图：1404 × 640 px（2 倍图）\n格式：JPG / PNG / WebP，单张 ≤ 5MB\n图片按 cover 模式裁剪铺满，重要内容请放在中间'} />
           </Form.Item>
 
           <Form.Item name="jump_mode" label="点击跳转" initialValue="none">

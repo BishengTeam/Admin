@@ -181,7 +181,9 @@ export default function V2QuestionModal({ open, question, modules, defaultPointI
         >
           <Input.TextArea rows={4} />
         </Form.Item>
-        <Form.Item name="image_urls" label="题干图片（最多 9 张）"><MultiImageUpload purpose='quiz' /></Form.Item>
+        <Form.Item name="image_urls" label="题干图片（最多 9 张）">
+          <MultiImageUpload purpose='quiz' hint={'题干插图：宽度自适应、高度等比缩放（widthFix）\n显示宽度约 702 rpx，推荐宽度 ≥ 1400 px、高度等比\n格式：JPG / PNG / WebP，单张 ≤ 5MB，最多 9 张'} />
+        </Form.Item>
         {type === 'fill_blank' && (
           <Form.List name="fill_answers">
             {(fields, { add, remove }) => (
@@ -229,7 +231,7 @@ export default function V2QuestionModal({ open, question, modules, defaultPointI
                 {fields.slice(0, 4).map(({ key, name, ...rest }) => <Space key={key} align="baseline" style={{ display: 'flex', marginBottom: 8 }}>
                   <strong style={{ width: 22 }}>{QUESTION_OPTION_KEYS[name]}</strong>
                   <Form.Item {...rest} name={[name, 'content']} style={{ marginBottom: 0 }}><Input disabled={type === 'judge'} style={{ width: 360 }} /></Form.Item>
-                  {type !== 'judge' && <Form.Item {...rest} name={[name, 'image_url']} style={{ marginBottom: 0 }}><ImageUpload purpose='quiz' /></Form.Item>}
+                  {type !== 'judge' && <Form.Item {...rest} name={[name, 'image_url']} style={{ marginBottom: 0 }}><ImageUpload purpose='quiz' hint={'选项配图：按宽度 60% 展示，可点击放大\n推荐宽度 ≥ 840 px、高度等比\n格式：JPG / PNG / WebP，单张 ≤ 5MB'} /></Form.Item>}
                   {type !== 'judge' && fields.length > 2 && <MinusCircleOutlined onClick={() => remove(name)} />}
                 </Space>)}
                 {type !== 'judge' && optionCount < 4 && <Button type="dashed" icon={<PlusOutlined />} onClick={() => add({ content: '' })}>添加选项</Button>}

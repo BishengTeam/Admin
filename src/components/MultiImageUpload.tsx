@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { Upload, message } from 'antd'
-import { PlusOutlined, LoadingOutlined } from '@ant-design/icons'
+import { Tooltip, Upload, message } from 'antd'
+import { PlusOutlined, LoadingOutlined, QuestionCircleOutlined } from '@ant-design/icons'
 import type { RcFile, UploadFile } from 'antd/es/upload/interface'
 import { http } from '@/core/request'
 import { toAbsoluteMediaUrl } from '@/utils/mediaUrl'
@@ -11,9 +11,11 @@ interface MultiImageUploadProps {
   maxCount?: number
   maxSize?: number
   purpose?: 'generic' | 'quiz'
+  /** 悬浮提示：说明该图片在小程序端的显示尺寸与上传格式要求 */
+  hint?: string
 }
 
-export function MultiImageUpload({ value = [], onChange, maxCount = 9, maxSize = 5, purpose = 'generic' }: MultiImageUploadProps) {
+export function MultiImageUpload({ value = [], onChange, maxCount = 9, maxSize = 5, purpose = 'generic', hint }: MultiImageUploadProps) {
   const [loading, setLoading] = useState(false)
 
   const beforeUpload = (file: RcFile) => {
@@ -73,16 +75,23 @@ export function MultiImageUpload({ value = [], onChange, maxCount = 9, maxSize =
   )
 
   return (
-    <Upload
-      listType="picture-card"
-      fileList={fileList}
-      maxCount={maxCount}
-      beforeUpload={beforeUpload}
-      customRequest={customRequest as never}
-      onRemove={(file) => onChange?.(value.filter((url) => url !== file.url))}
-      accept="image/*"
-    >
-      {value.length >= maxCount ? null : uploadButton}
-    </Upload>
+    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+      <Upload
+        listType="picture-card"
+        fileList={fileList}
+        maxCount={maxCount}
+        beforeUpload={beforeUpload}
+        customRequest={customRequest as never}
+        onRemove={(file) => onChange?.(value.filter((url) => url !== file.url))}
+        accept="image/*"
+      >
+        {value.length >= maxCount ? null : uploadButton}
+      </Upload>
+      {hint && (
+        <Tooltip title={<div style={{ whiteSpace: 'pre-line' }}>{hint}</div>}>
+          <QuestionCircleOutlined style={{ marginTop: 4, color: '#8c8c8c', fontSize: 16, cursor: 'help' }} aria-label="图片要求说明" />
+        </Tooltip>
+      )}
+    </div>
   )
 }

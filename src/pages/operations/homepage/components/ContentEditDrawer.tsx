@@ -77,7 +77,7 @@ export default function ContentEditDrawer({ open, item, defaultValues, hideZoneT
         </Form.Item>
 
         <Form.Item name="cover_url" label="封面图">
-          <ImageUpload />
+          <ImageUpload hint={'专区列表卡片封面（横向条幅）\n显示区域：约 667 × 180 rpx（约 3.7 : 1）\n推荐切图：1334 × 360 px（2 倍图）\n格式：JPG / PNG / WebP，单张 ≤ 5MB\n按 cover 模式裁剪，重要内容请放在中间'} />
         </Form.Item>
 
         {!hideZoneType && (

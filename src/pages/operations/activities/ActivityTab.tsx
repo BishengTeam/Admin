@@ -237,7 +237,7 @@ export default function ActivityTab() {
             <Input placeholder="请输入活动名称" />
           </Form.Item>
           <Form.Item name="cover_url" label="封面图">
-            <ImageUpload />
+            <ImageUpload hint={'活动封面（列表卡片 + 详情页大图）\n详情页显示区域：702 × 320 rpx（约 2.2 : 1）\n推荐切图：1404 × 640 px（2 倍图）\n格式：JPG / PNG / WebP，单张 ≤ 5MB\n按 cover 模式裁剪，重要内容请放在中间'} />
           </Form.Item>
           <Form.Item name="description" label="活动介绍">
             <Input.TextArea rows={3} placeholder="活动内容、亮点、嘉宾等" maxLength={2000} showCount />
@@ -288,7 +288,7 @@ export default function ActivityTab() {
                 name="group_qrcode_url" label='答疑群二维码'
                 tooltip='详情页展示二维码图片，用户长按识别进群'
               >
-                <ImageUpload />
+                <ImageUpload hint={'详情页以 320 × 320 rpx 正方形展示\n推荐：≥ 640 × 640 px 正方形，PNG 格式最清晰\n单张 ≤ 5MB\n二维码请留白边、保持高对比度，便于用户长按识别'} />
               </Form.Item>
             </Col>
           </Row>

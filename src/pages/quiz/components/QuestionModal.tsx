@@ -232,7 +232,7 @@ export default function QuestionModal({ open, question, categories, canWrite, on
           <Input.TextArea rows={4} placeholder="草稿允许暂不填写选项，发布时会执行完整校验" />
         </Form.Item>
         <Form.Item name="image_urls" label="题干图片（最多 9 张）">
-          <MultiImageUpload purpose='quiz' />
+          <MultiImageUpload purpose='quiz' hint={'题干插图：宽度自适应、高度等比缩放（widthFix）\n显示宽度约 702 rpx，推荐宽度 ≥ 1400 px、高度等比\n格式：JPG / PNG / WebP，单张 ≤ 5MB，最多 9 张'} />
         </Form.Item>
         {type === 'fill_blank' && (
           <Form.List name="fill_answers">
@@ -287,7 +287,7 @@ export default function QuestionModal({ open, question, categories, canWrite, on
                   </Form.Item>
                   {type !== 'judge' && (
                     <Form.Item {...rest} name={[name, 'image_url']} style={{ marginBottom: 0 }}>
-                      <ImageUpload purpose='quiz' />
+                      <ImageUpload purpose='quiz' hint={'选项配图：按宽度 60% 展示，可点击放大\n推荐宽度 ≥ 840 px、高度等比\n格式：JPG / PNG / WebP，单张 ≤ 5MB'} />
                     </Form.Item>
                   )}
                   {type !== 'judge' && fields.length > 2 && <MinusCircleOutlined onClick={() => remove(name)} />}

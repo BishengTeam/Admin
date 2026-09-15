@@ -199,7 +199,7 @@ export default function TrainingManagement() {
             <Input placeholder="请输入培训名称" />
           </Form.Item>
           <Form.Item name="cover_url" label="封面图">
-            <ImageUpload />
+            <ImageUpload hint={'培训列表卡片封面（横向小图）\n显示区域：180 × 130 rpx（约 1.4 : 1）\n推荐切图：720 × 520 px（4 倍图，保证高清）\n格式：JPG / PNG / WebP，单张 ≤ 5MB'} />
           </Form.Item>
           <Form.Item name="description" label="培训描述">
             <Input.TextArea rows={3} placeholder="培训简介" />
