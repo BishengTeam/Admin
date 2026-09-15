@@ -446,7 +446,7 @@ export default function QuizLibraries() {
         onClose={() => { setMigrationLibrary(null); setMigrationReport(null) }}
         width={860}
         extra={migrationLibrary && <Space>
-          <Button onClick={() => navigate(`/admin/quiz/questions?library_id=${migrationLibrary.id}`)}>前往内容工作台</Button>
+          <Button onClick={() => navigate(`/admin/quiz/questions?tab=content&library_id=${migrationLibrary.id}`)}>前往内容工作台</Button>
           {canManage && <Button type="primary" loading={migrationLoading} disabled={migrationLibrary.status !== 'draft'} onClick={() => transition(migrationLibrary, 'reconcile_migration')}>重新检查</Button>}
         </Space>}
       >

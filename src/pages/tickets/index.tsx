@@ -58,7 +58,7 @@ export default function TicketManagement() {
       }
       message.success(`工单 #${ticket.id} 已标记为处理中，正在定位题目 #${questionId}`)
       setDetail(current => (current?.id === ticket.id ? null : current))
-      navigate(`/admin/quiz/questions?question_id=${questionId}&include_deleted=true`)
+      navigate(`/admin/quiz/questions?tab=content&question_id=${questionId}&include_deleted=true`)
     } catch (error) {
       message.error(error instanceof Error ? error.message : '更新失败，请重试')
     } finally {

@@ -1,5 +1,5 @@
 import { lazy } from 'react'
-import { Navigate, type RouteObject } from 'react-router-dom'
+import { Navigate, useLocation, type RouteObject } from 'react-router-dom'
 import { useAuthStore } from '@/stores/authStore'
 import { getAdminLandingPath } from '@/core/permission'
 import type { AdminRole } from '@/types/admin'
@@ -28,13 +28,10 @@ const OrderList = lazy(() => import('@/pages/orders'))
 const TicketManagement = lazy(() => import('@/pages/tickets'))
 const AgreementTemplates = lazy(() => import('@/pages/agreementTemplates'))
 const QuizManagement = lazy(() => import('@/pages/quiz'))
-const QuizLibraries = lazy(() => import('@/pages/quiz/libraries'))
-const QuizV2Workbench = lazy(() => import('@/pages/quiz/v2-workbench'))
-const QuizImports = lazy(() => import('@/pages/quiz/imports'))
+const QuizWorkbench = lazy(() => import('@/pages/quiz/workbench'))
+const QuizImportCenter = lazy(() => import('@/pages/quiz/import-center'))
 const QuizAuditLogs = lazy(() => import('@/pages/quiz/audit-logs'))
-const QuizStats = lazy(() => import('@/pages/quiz/stats'))
-const QuizBehavior = lazy(() => import('@/pages/quiz/behavior'))
-const QuizTaskMonitor = lazy(() => import('@/pages/quiz/tasks'))
+const QuizAnalytics = lazy(() => import('@/pages/quiz/analytics'))
 const QuizReviews = lazy(() => import('@/pages/quiz/reviews'))
 const HomepageManagement = lazy(() => import('@/pages/operations/homepage'))
 const CourseList = lazy(() => import('@/pages/courses/List'))
@@ -62,6 +59,15 @@ import LoginLayout from '@/layouts/LoginLayout'
 function AdminLandingRedirect() {
   const role = useAuthStore((state) => state.admin?.role)
   return <Navigate to={getAdminLandingPath(role)} replace />
+}
+
+function QuizTabRedirect({ path, tab }: { path: 'questions' | 'imports' | 'stats'; tab: string }) {
+  const { search } = useLocation()
+  const nextSearch = new URLSearchParams({ tab })
+  new URLSearchParams(search).forEach((value, key) => {
+    if (key !== 'tab') nextSearch.set(key, value)
+  })
+  return <Navigate to={{ pathname: `/admin/quiz/${path}`, search: `?${nextSearch.toString()}` }} replace />
 }
 
 export const adminRoutes: AppRoute[] = [
@@ -107,18 +113,18 @@ export const adminRoutes: AppRoute[] = [
       { index: true, element: <Navigate to="questions" replace /> },
       {
         path: 'libraries',
-        element: <QuizLibraries />,
-        meta: { title: '题库', icon: 'BookOutlined', permission: 'quiz:list' },
+        element: <QuizTabRedirect path="questions" tab="libraries" />,
+        meta: { title: '题库（已合并）', permission: 'quiz:list', hidden: true },
       },
       {
         path: 'categories',
-        element: <Navigate to="../questions" replace />,
+        element: <QuizTabRedirect path="questions" tab="content" />,
         meta: { title: '分类管理（已合并）', permission: 'quiz:list', hidden: true },
       },
       {
         path: 'questions',
-        element: <QuizV2Workbench />,
-        meta: { title: '内容工作台', icon: 'BookOutlined', permission: 'quiz:list' },
+        element: <QuizWorkbench />,
+        meta: { title: '题库工作台', icon: 'BookOutlined', permission: 'quiz:list' },
       },
       {
         path: 'legacy-questions',
@@ -127,8 +133,8 @@ export const adminRoutes: AppRoute[] = [
       },
       {
         path: 'imports',
-        element: <QuizImports />,
-        meta: { title: '导入任务', icon: 'ImportOutlined', permissions: ['quiz:list', 'quiz:import'] },
+        element: <QuizImportCenter />,
+        meta: { title: '导入与任务', icon: 'ImportOutlined', permission: 'quiz:list' },
       },
       {
         path: 'reviews',
@@ -137,13 +143,13 @@ export const adminRoutes: AppRoute[] = [
       },
       {
         path: 'stats',
-        element: <QuizStats />,
-        meta: { title: '聚合统计', icon: 'BarChartOutlined', permission: 'quiz:list' },
+        element: <QuizAnalytics />,
+        meta: { title: '题库数据', icon: 'BarChartOutlined', permission: 'quiz:list' },
       },
       {
         path: 'behavior',
-        element: <QuizBehavior />,
-        meta: { title: '用户行为', icon: 'LineChartOutlined', permission: 'quiz:list' },
+        element: <QuizTabRedirect path="stats" tab="behavior" />,
+        meta: { title: '用户行为（已合并）', permission: 'quiz:list', hidden: true },
       },
       {
         path: 'audit-logs',
@@ -152,8 +158,8 @@ export const adminRoutes: AppRoute[] = [
       },
       {
         path: 'tasks',
-        element: <QuizTaskMonitor />,
-        meta: { title: '任务监控', icon: 'MonitorOutlined', permission: 'quiz:list' },
+        element: <QuizTabRedirect path="imports" tab="tasks" />,
+        meta: { title: '任务监控（已合并）', permission: 'quiz:list', hidden: true },
       },
     ],
   },

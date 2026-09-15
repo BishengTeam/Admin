@@ -336,7 +336,7 @@ export default function QuestionTable({ filters, keyword, categories, canWrite, 
             <Button onClick={() => handleBatch('publish')} disabled={!canWrite}>批量发布 ({Object.keys(selected).length})</Button>
             <Button onClick={() => handleBatch('disable')} disabled={!canWrite}>批量停用已发布题目 ({selectedPublishedCount})</Button>
           </>}
-          {canImport && <Button icon={<UploadOutlined />} onClick={() => navigate('/admin/quiz/imports')}>导入任务</Button>}
+          {canImport && <Button icon={<UploadOutlined />} onClick={() => navigate('/admin/quiz/imports?tab=imports')}>导入任务</Button>}
           <Button icon={<ReloadOutlined />} onClick={() => { setSelected({}); load(page, pageSize) }}>刷新</Button>
           {canWrite && <Button type="primary" icon={<PlusOutlined />} onClick={() => { setEditing(null); setModalOpen(true) }}>新增题目</Button>}
         </Space>

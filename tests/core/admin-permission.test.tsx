@@ -114,4 +114,26 @@ describe('fixed administrator role navigation', () => {
     expect(hasRouteAccess(users, ['quiz:list'], true, 'quiz_admin')).toBe(false)
     expect(hasRouteAccess(quizQuestions, ['quiz:list'], true, 'quiz_admin')).toBe(true)
   })
+
+  it('consolidates quiz navigation without hiding task monitoring from list-only admins', () => {
+    const quiz = adminRoutes.find((route) => route.path === 'quiz')!
+    const visibleChildren = quiz.children!.filter((route) => route.meta && !route.meta.hidden)
+    const imports = quiz.children!.find((route) => route.path === 'imports')!
+
+    expect(visibleChildren.map((route) => route.path)).toEqual([
+      'questions',
+      'imports',
+      'reviews',
+      'stats',
+      'audit-logs',
+    ])
+    expect(visibleChildren.map((route) => route.meta!.title)).toEqual([
+      '题库工作台',
+      '导入与任务',
+      '考试人工评阅',
+      '题库数据',
+      '审计日志',
+    ])
+    expect(hasRouteAccess(imports, ['quiz:list'], true, 'quiz_admin')).toBe(true)
+  })
 })

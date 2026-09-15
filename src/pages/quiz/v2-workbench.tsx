@@ -433,7 +433,7 @@ export default function QuizV2Workbench() {
               </Space>
               <Space wrap>
                 {Object.keys(selectedRows).length > 0 && <><Button disabled={!canPublish} onClick={() => batch('publish')}>批量发布修订 ({Object.keys(selectedRows).length})</Button><Button danger disabled={!canPublish} onClick={() => batch('disable')}>批量停用</Button></>}
-                {canImport && <Tooltip title={importBlocked ? '只有未归档、未删除的题库可以创建导入任务' : '导入文件需包含完整的“模块 / 知识点”路径'}><Button icon={<UploadOutlined />} disabled={importBlocked} onClick={() => navigate(`/admin/quiz/imports?library_id=${selectedLibraryId}`)}>导入</Button></Tooltip>}
+                {canImport && <Tooltip title={importBlocked ? '只有未归档、未删除的题库可以创建导入任务' : '导入文件需包含完整的“模块 / 知识点”路径'}><Button icon={<UploadOutlined />} disabled={importBlocked} onClick={() => navigate(`/admin/quiz/imports?tab=imports&library_id=${selectedLibraryId}`)}>导入</Button></Tooltip>}
                 {canWrite && <Tooltip title={!selectedPoint ? '题目只能挂到知识点，请先选择知识点' : undefined}><Button type="primary" icon={<PlusOutlined />} disabled={!selectedPoint || selectedPoint.status !== 'active'} onClick={() => openQuestion()}>新增题目</Button></Tooltip>}
               </Space>
             </Space>

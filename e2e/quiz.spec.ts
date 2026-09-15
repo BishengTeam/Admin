@@ -30,6 +30,7 @@ const library = {
   cover_url: 'https://example.invalid/quiz.png',
   details: null,
   access_mode: 'course_entitlement',
+  price_cents: 0,
   system_kind: 'none',
   migration_state: 'ready',
   status: 'published',
@@ -249,6 +250,16 @@ test.describe('题库五页面新版契约冒烟', () => {
     expect(businessCalled).toBe(false)
   })
 
+  test('合并前的行为和任务旧入口同步到新链路并保留查询参数', async ({ page }) => {
+    await page.goto('/admin/quiz/behavior?library_id=11')
+    await expect(page).toHaveURL(/\/admin\/quiz\/stats\?tab=behavior&library_id=11$/)
+    await expect(page.getByRole('tab', { name: '用户行为' })).toHaveAttribute('aria-selected', 'true')
+
+    await page.goto('/admin/quiz/tasks?library_id=11')
+    await expect(page).toHaveURL(/\/admin\/quiz\/imports\?tab=tasks&library_id=11$/)
+    await expect(page.getByRole('tab', { name: '任务监控' })).toHaveAttribute('aria-selected', 'true')
+  })
+
   test('题库生命周期展示高风险告警并支持课程绑定状态切换', async ({ page }) => {
     let currentLibrary: Record<string, unknown> = { ...library }
     const lifecycleBodies: object[] = []
@@ -296,6 +307,7 @@ test.describe('题库五页面新版契约冒烟', () => {
     })
 
     await page.goto('/admin/quiz/libraries')
+    await expect(page).toHaveURL(/\/admin\/quiz\/questions\?tab=libraries$/)
     await page.getByRole('button', { name: '课程绑定' }).click()
     const bindingDrawer = page.getByRole('dialog', { name: '课程绑定 · 网络工程师题库' })
     await expect(bindingDrawer.getByText('绑定只影响课程购买完成后的题库权益发放')).toBeVisible()
@@ -505,7 +517,7 @@ test.describe('题库五页面新版契约冒烟', () => {
     await mockV2Workbench(page)
 
     await page.goto('/admin/quiz/categories')
-    await expect(page).toHaveURL(/\/admin\/quiz\/questions\?library_id=11$/)
+    await expect(page).toHaveURL(/\/admin\/quiz\/questions\?tab=content&library_id=11$/)
     await expect(page.getByText('固定层级：题库 → 模块 → 知识点 → 题目')).toBeVisible()
     await expect(page.getByRole('tree').getByText('网络基础', { exact: true })).toBeVisible()
     await expect(page.getByRole('tree').getByText('HTTP 协议', { exact: true })).toBeVisible()
@@ -540,7 +552,7 @@ test.describe('题库五页面新版契约冒烟', () => {
     await expect(importButton).toBeEnabled()
     await expect(page.getByText('当前展示整库题目；新增单题仍需选择知识点，导入可直接选择当前题库。')).toBeVisible()
     await importButton.click()
-    await expect(page).toHaveURL(/\/admin\/quiz\/imports\?library_id=11$/)
+    await expect(page).toHaveURL(/\/admin\/quiz\/imports\?tab=imports&library_id=11$/)
   })
 
   test('发布题库停用模块和题目时显示最后有效内容路径告警', async ({ page }) => {
@@ -838,7 +850,7 @@ test.describe('题库五页面新版契约冒烟', () => {
     }))
 
     await page.goto('/admin/quiz/stats')
-    await expect(page.getByText('管理端统计最多延迟 1 分钟，不提供用户下钻或导出。')).toBeVisible()
+    await expect(page.getByText('管理端统计最多延迟 1 分钟，不提供用户下载或导出。')).toBeVisible()
     await expect(page.getByText('题库', { exact: true }).first()).toBeVisible()
     await expect(page.getByText('模块', { exact: true }).first()).toBeVisible()
     await expect(page.getByText('知识点', { exact: true }).first()).toBeVisible()
