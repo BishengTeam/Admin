@@ -10,6 +10,8 @@ export interface VendorTab {
 
 export interface VendorProfile {
   type: CertType
+  /** 批次管理是否需要按认证产品筛选（如人社按产品查批次） */
+  requiresProductFilter?: boolean
   batchOverrides?: LazyExoticComponent<ComponentType<any>>
   batchFormExtra?: LazyExoticComponent<ComponentType<any>>
   tabs: VendorTab[]
@@ -43,6 +45,7 @@ const vendorRegistry: VendorProfile[] = [
   },
   {
     type: 'renshe',
+    requiresProductFilter: true,
     batchOverrides: lazy(() => import('./renshe/BatchOverrides')),
     tabs: [
       {

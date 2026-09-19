@@ -55,19 +55,19 @@ const BATCH_STATUS: Record<string, { text: string; color: string }> = {
   cancelled: { text: '已取消', color: 'red' },
 }
 
-export default function BatchOverrides({ productCode }: { type: CertType; productCode: string | null }) {
+export default function BatchOverrides(_props: { type: CertType; productCode: string | null }) {
   const [batchOpen, setBatchOpen] = useState(false)
   const [editingBatch, setEditingBatch] = useState<H3cExamBatch | null>(null)
   const [products, setProducts] = useState<CertProduct[]>([])
   const [form] = Form.useForm()
 
   useEffect(() => {
-    if (!batchOpen || products.length > 0) return
+    if (products.length > 0) return
     certProductService
       .list({ type: 'h3c', page: 1, page_size: 100 })
       .then((page) => setProducts(page.items.filter((item) => item.is_active)))
       .catch(() => setProducts([]))
-  }, [batchOpen, products.length])
+  }, [products.length])
 
   const { data, loading, pagination, refresh } = usePagination(
     (page) => h3cService.listBatches(page),
@@ -190,6 +190,11 @@ export default function BatchOverrides({ productCode }: { type: CertType; produc
 
   const columns: ColumnsType<H3cExamBatch> = [
     { title: '批次', dataIndex: 'name', ellipsis: true },
+    {
+      title: '认证',
+      width: 130,
+      render: (_, row) => products.find((p) => p.code === row.certification_code)?.chinese_name ?? row.certification_code,
+    },
     { title: '考试代码', dataIndex: 'exam_code', width: 120 },
     {
       title: '状态',
@@ -249,12 +254,7 @@ export default function BatchOverrides({ productCode }: { type: CertType; produc
         <Button icon={<ReloadOutlined />} onClick={refresh}>刷新</Button>
         <Button type='primary' icon={<PlusOutlined />} onClick={handleCreate}>新建批次</Button>
       </Space>
-      {!productCode && (
-        <div style={{ textAlign: 'center', padding: 40, color: '#999', background: '#fafafa', borderRadius: 8, marginBottom: 16 }}>
-          请先在上方选择认证产品，再管理对应的考试批次
-        </div>
-      )}
-      {productCode && <Table rowKey='id' columns={columns} dataSource={data?.items ?? []} loading={loading} pagination={pagination} />}
+      <Table rowKey='id' columns={columns} dataSource={data?.items ?? []} loading={loading} pagination={pagination} />
       {reauthDialog}
 
       <Modal

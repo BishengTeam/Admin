@@ -21,16 +21,18 @@ export default function TypeWorkbench({ type: typeProp }: { type?: string }) {
   const [selectedProduct, setSelectedProduct] = useState<string | null>(null)
   const [products, setProducts] = useState<CertProduct[]>([])
   const canWrite = usePermission('content:write')
+  const needsProductFilter = profile?.requiresProductFilter === true
 
   useEffect(() => {
+    if (!needsProductFilter) return
     certProductService
       .list({ type: type as string, page: 1, page_size: 100 })
       .then((page) => setProducts(page.items))
       .catch(() => setProducts([]))
-  }, [type])
+  }, [type, needsProductFilter])
 
   // 批次 Tab 需要选择产品
-  const productFilter = canWrite ? (
+  const productFilter = needsProductFilter && canWrite ? (
     <Select
       placeholder='选择产品查看批次'
       allowClear
