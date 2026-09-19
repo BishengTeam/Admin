@@ -193,8 +193,12 @@ export default function BatchOverrides(_props: { type: CertType; productCode: st
     { title: '批次', dataIndex: 'name', ellipsis: true },
     {
       title: '认证',
-      width: 130,
-      render: (_, row) => products.find((p) => p.code === row.certification_code)?.chinese_name ?? row.certification_code,
+      width: 150,
+      ellipsis: { showTitle: true },
+      render: (_, row) => {
+        const label = products.find((p) => p.code === row.certification_code)?.chinese_name ?? row.certification_code
+        return <Typography.Text ellipsis={{ tooltip: label }} style={{ maxWidth: 140 }}>{label}</Typography.Text>
+      },
     },
     { title: '考试代码', dataIndex: 'exam_code', width: 120 },
     {
@@ -211,10 +215,17 @@ export default function BatchOverrides(_props: { type: CertType; productCode: st
     {
       title: '价格',
       dataIndex: 'prices',
-      width: 240,
-      render: (prices: H3cExamBatch['prices']) => prices
-        .map((price) => `${TYPE_LABELS[price.registration_type]} ${formatPrice(price.price_cents)}`)
-        .join(' / '),
+      width: 150,
+      render: (prices: H3cExamBatch['prices']) => (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2, lineHeight: '20px' }}>
+          {prices.map((price) => (
+            <div key={price.registration_type} style={{ display: 'flex', justifyContent: 'space-between', whiteSpace: 'nowrap' }}>
+              <span style={{ color: '#666' }}>{TYPE_LABELS[price.registration_type]}</span>
+              <span style={{ fontWeight: 500 }}>{formatPrice(price.price_cents)}</span>
+            </div>
+          ))}
+        </div>
+      ),
     },
     {
       title: '操作',
