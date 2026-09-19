@@ -59,6 +59,7 @@ export default function BatchOverrides(_props: { type: CertType; productCode: st
   const [batchOpen, setBatchOpen] = useState(false)
   const [editingBatch, setEditingBatch] = useState<H3cExamBatch | null>(null)
   const [products, setProducts] = useState<CertProduct[]>([])
+  const [productFilter, setProductFilter] = useState<string | undefined>(undefined)
   const [form] = Form.useForm()
 
   useEffect(() => {
@@ -70,8 +71,8 @@ export default function BatchOverrides(_props: { type: CertType; productCode: st
   }, [products.length])
 
   const { data, loading, pagination, refresh } = usePagination(
-    (page) => h3cService.listBatches(page),
-    [],
+    (page) => h3cService.listBatches({ ...page, certification_code: productFilter }),
+    [productFilter],
   )
   const { ensureReauthenticated, reauthDialog } = useReauthentication()
 
@@ -250,7 +251,17 @@ export default function BatchOverrides(_props: { type: CertType; productCode: st
 
   return (
     <>
-      <Space style={{ marginBottom: 16 }}>
+      <Space style={{ marginBottom: 16 }} wrap>
+        <Select
+          placeholder='按认证产品筛选'
+          allowClear
+          showSearch
+          optionFilterProp='label'
+          style={{ minWidth: 220 }}
+          value={productFilter}
+          onChange={(value) => setProductFilter(value)}
+          options={products.map((p) => ({ value: p.code, label: p.chinese_name || p.code }))}
+        />
         <Button icon={<ReloadOutlined />} onClick={refresh}>刷新</Button>
         <Button type='primary' icon={<PlusOutlined />} onClick={handleCreate}>新建批次</Button>
       </Space>

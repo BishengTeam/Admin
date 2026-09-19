@@ -15,7 +15,7 @@ function reauthHeaders(token: string) {
 }
 
 export const h3cService = {
-  listBatches(params: PageParams & { status?: string }): Promise<PageData<H3cExamBatch>> {
+  listBatches(params: PageParams & { status?: string; certification_code?: string }): Promise<PageData<H3cExamBatch>> {
     return http.get('/admin/cert-products/h3c/batches', { params })
   },
   createBatch(data: H3cExamBatchPayload): Promise<H3cExamBatch> {
