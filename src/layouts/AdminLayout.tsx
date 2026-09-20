@@ -231,7 +231,7 @@ export default function AdminLayout({ children }: { children?: ReactNode }) {
         width={240}
         style={{
           overflow: 'auto',
-          height: '100vh',
+          height: 'calc(100vh / var(--admin-root-zoom, 1))',
           position: 'fixed',
           left: 0,
           top: 0,

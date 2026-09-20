@@ -6,6 +6,10 @@
   padding: 0;
 }
 
+:root {
+  --admin-root-zoom: 0.9;
+}
+
 html, body {
   height: 100%;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
@@ -19,7 +23,7 @@ html, body {
 
 #root {
   height: 100%;
-  zoom: 0.9;
+  zoom: var(--admin-root-zoom);
 }
 
 ::-webkit-scrollbar {
