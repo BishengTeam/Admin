@@ -222,7 +222,7 @@ export default function AdminLayout({ children }: { children?: ReactNode }) {
   }
 
   return (
-    <Layout style={{ minHeight: '100vh' }}>
+    <Layout className="admin-main-layout" style={{ minHeight: '100vh' }}>
       <Sider
         trigger={null}
         collapsible
@@ -231,7 +231,7 @@ export default function AdminLayout({ children }: { children?: ReactNode }) {
         width={240}
         style={{
           overflow: 'auto',
-          height: 'calc(100vh / var(--admin-root-zoom, 1))',
+          height: 'calc(100vh / var(--admin-shell-zoom, 1))',
           position: 'fixed',
           left: 0,
           top: 0,
