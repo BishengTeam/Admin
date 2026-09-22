@@ -47,6 +47,7 @@ const ActivityManagement = lazy(() => import('@/pages/operations/activities'))
 const CompetitionManagement = lazy(() => import('@/pages/operations/competitions'))
 const ClassroomManagement = lazy(() => import('@/pages/classrooms'))
 const ClassroomWorkbench = lazy(() => import('@/pages/classrooms/Workbench'))
+const PointsMallManagement = lazy(() => import('@/pages/pointsMall'))
 const ReviewManagement = lazy(() => import('@/pages/review'))
 const ChangePassword = lazy(() => import('@/pages/change-password'))
 const AdminAccounts = lazy(() => import('@/pages/settings/admins'))
@@ -207,6 +208,11 @@ export const adminRoutes: AppRoute[] = [
         meta: { title: '课堂工作台', icon: 'TeamOutlined', permission: 'classroom:manage', hidden: true },
       },
     ],
+  },
+  {
+    path: 'points-mall',
+    element: <PointsMallManagement />,
+    meta: { title: '积分商城', permission: 'points:manage' },
   },
   {
     path: 'certification',
