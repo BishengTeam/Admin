@@ -44,6 +44,24 @@ const vendorRegistry: VendorProfile[] = [
     ],
   },
   {
+    type: 'nisp',
+    batchOverrides: lazy(() => import('./nisp/BatchOverrides')),
+    tabs: [
+      {
+        key: 'review',
+        label: '报名审核',
+        permission: 'nisp:review',
+        component: lazy(() => import('./nisp/ReviewTab')),
+      },
+      {
+        key: 'export',
+        label: '导出',
+        permission: 'nisp:export',
+        component: lazy(() => import('./nisp/ExportTab')),
+      },
+    ],
+  },
+  {
     type: 'renshe',
     requiresProductFilter: true,
     batchOverrides: lazy(() => import('./renshe/BatchOverrides')),

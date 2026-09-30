@@ -1,0 +1,97 @@
+import { http } from '@/core/request'
+import type { PageData, PageParams } from '@/types/api'
+
+export interface NispBatch {
+  id: number
+  plan_id: number
+  level: '1' | '2'
+  plan_name: string
+  plan_status: string
+  apply_start: string | null
+  apply_end: string | null
+  exam_date: string | null
+  exam_location: string | null
+  capacity: number
+  occupied_count: number
+  training_org: string | null
+  training_teacher: string | null
+  training_address: string | null
+  training_start: string | null
+  training_end: string | null
+  level1_price_cents: number
+  level2_price_cents: number
+  created_at: string
+  updated_at: string
+}
+
+export interface NispRegistration {
+  id: number
+  registration_no: string
+  batch_id: number
+  level: '1' | '2'
+  status: string
+  candidate_snapshot: Record<string, unknown>
+  order_status: string
+  price_cents: number
+  resubmission_count: number
+  rejection_count: number
+  created_at: string
+  latest_review: {
+    decision: string
+    reason_code: string | null
+    reason_detail: string | null
+    reviewed_at: string
+  } | null
+}
+
+export const nispService = {
+  listBatches(params: PageParams): Promise<PageData<NispBatch>> {
+    return http.get('/admin/nisp/batches', { params })
+  },
+
+  createBatch(data: {
+    plan_id: number
+    level: '1' | '2'
+    training_org?: string
+    training_teacher?: string
+    training_address?: string
+    training_start?: string
+    training_end?: string
+    level1_price_cents: number
+    level2_price_cents: number
+  }): Promise<NispBatch> {
+    return http.post('/admin/nisp/batches', data)
+  },
+
+  publishBatch(id: number): Promise<NispBatch> {
+    return http.post(`/admin/nisp/batches/${id}/publish`)
+  },
+
+  closeRegistration(id: number): Promise<NispBatch> {
+    return http.post(`/admin/nisp/batches/${id}/close-registration`)
+  },
+
+  cancelBatch(id: number): Promise<NispBatch> {
+    return http.post(`/admin/nisp/batches/${id}/cancel`)
+  },
+
+  listRegistrations(params: PageParams & {
+    batch_id?: number
+    level?: string
+    status?: string
+  }): Promise<PageData<NispRegistration>> {
+    return http.get('/admin/nisp/registrations', { params })
+  },
+
+  reviewRegistration(id: number, data: {
+    decision: 'approved' | 'rejected'
+    reason_code?: string
+    reason_detail?: string
+  }): Promise<NispRegistration> {
+    return http.post(`/admin/nisp/registrations/${id}/review`, data)
+  },
+
+  getExportUrl(batchId: number, level: string, status: string = 'approved'): string {
+    return `/admin/nisp/export?batch_id=${batchId}&level=${level}&status=${status}`
+  },
+}
