@@ -75,6 +75,7 @@ describe('fixed administrator role navigation', () => {
       'certification',
       'certification/h3c',
       'certification/renshe',
+      'certification/nisp',
     ])
 
     const certAdminPermissions = [

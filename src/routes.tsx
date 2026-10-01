@@ -233,6 +233,11 @@ export const adminRoutes: AppRoute[] = [
         element: <TypeWorkbench type='renshe' />,
         meta: { title: '人社认证', icon: 'AuditOutlined', permission: 'user:list' },
       },
+      {
+        path: 'nisp',
+        element: <TypeWorkbench type='nisp' />,
+        meta: { title: 'NISP认证', icon: 'FileSearchOutlined', permission: 'nisp:review' },
+      },
     ],
   },
   {
