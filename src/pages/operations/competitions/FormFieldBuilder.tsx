@@ -68,7 +68,8 @@ interface FormFieldBuilderProps {
 
 export default function FormFieldBuilder({ value = [], onChange }: FormFieldBuilderProps) {
   const [editing, setEditing] = useState<FormField | null>(null)
-  const [editIndex, setEditIndex] = useState<number>(-1)
+  const [editIndex, setEditIndex] = useState<number>(-2)
+  const [editOpen, setEditOpen] = useState(false)
   const [presetOpen, setPresetOpen] = useState(false)
 
   const emitChange = (fields: FormField[]) => {
@@ -133,7 +134,7 @@ export default function FormFieldBuilder({ value = [], onChange }: FormFieldBuil
         <Space size={0}>
           <Button type='text' size='small' icon={<ArrowUpOutlined />} disabled={index === 0} onClick={() => moveUp(index)} />
           <Button type='text' size='small' icon={<ArrowDownOutlined />} disabled={index === value.length - 1} onClick={() => moveDown(index)} />
-          <Button type='text' size='small' icon={<EditOutlined />} onClick={() => { setEditing(value[index]); setEditIndex(index) }} />
+          <Button type='text' size='small' icon={<EditOutlined />} onClick={() => { setEditing(value[index]); setEditIndex(index); setEditOpen(true) }} />
           <Button type='text' danger size='small' icon={<MinusCircleOutlined />} onClick={() => remove(index)} />
         </Space>
       ),
@@ -150,7 +151,7 @@ export default function FormFieldBuilder({ value = [], onChange }: FormFieldBuil
           <Button size='small' icon={<SettingOutlined />} onClick={() => setPresetOpen(true)}>
             预设字段
           </Button>
-          <Button size='small' type='primary' ghost icon={<PlusOutlined />} onClick={() => { setEditing(null); setEditIndex(-1) }}>
+          <Button size='small' type='primary' ghost icon={<PlusOutlined />} onClick={() => { setEditing(null); setEditIndex(-1); setEditOpen(true) }}>
             自定义字段
           </Button>
         </Space>
@@ -173,10 +174,10 @@ export default function FormFieldBuilder({ value = [], onChange }: FormFieldBuil
       )}
 
       <FieldEditModal
-        open={!!editing || editIndex === -1}
+        open={editOpen}
         field={editing}
         existingKeys={value.map(f => f.key)}
-        onCancel={() => { setEditing(null); setEditIndex(-2) }}
+        onCancel={() => { setEditing(null); setEditIndex(-2); setEditOpen(false) }}
         onSave={(field) => {
           const next = [...value]
           if (editIndex >= 0) {
@@ -187,6 +188,7 @@ export default function FormFieldBuilder({ value = [], onChange }: FormFieldBuil
           emitChange(next)
           setEditing(null)
           setEditIndex(-2)
+          setEditOpen(false)
         }}
       />
 
