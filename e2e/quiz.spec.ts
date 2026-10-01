@@ -30,6 +30,7 @@ const library = {
   cover_url: 'https://example.invalid/quiz.png',
   details: null,
   access_mode: 'course_entitlement',
+  vendor_tag: 'h3c',
   price_cents: 0,
   system_kind: 'none',
   migration_state: 'ready',

@@ -63,6 +63,13 @@ const accessLabels: Record<QuizLibraryAccessMode, string> = {
   paid: '付费题库',
 }
 
+const vendorLabels: Record<QuizLibrary['vendor_tag'], string> = {
+  h3c: 'H3C',
+  nisp: 'NISP',
+  sangfor: '深信服',
+  none: '其他',
+}
+
 const migrationIssueLabels: Record<string, string> = {
   question_attached_to_library: '题目原来直接挂在一级分类',
   question_attached_to_module: '题目原来直接挂在二级分类',
@@ -192,7 +199,7 @@ export default function QuizLibraries() {
   const openCreate = () => {
     setEditing(null)
     form.resetFields()
-    form.setFieldsValue({ access_mode: 'access_mode_pending', sort_order: 0, price_cents: 0 })
+    form.setFieldsValue({ access_mode: 'access_mode_pending', vendor_tag: 'none', sort_order: 0, price_cents: 0 })
     setModalOpen(true)
   }
 
@@ -204,6 +211,7 @@ export default function QuizLibraries() {
       cover_url: library.cover_url ?? undefined,
       details: library.details ?? undefined,
       access_mode: library.access_mode,
+      vendor_tag: library.vendor_tag,
       price_cents: library.price_cents ?? 0,
       sort_order: library.sort_order,
     })
@@ -220,6 +228,7 @@ export default function QuizLibraries() {
           cover_url: values.cover_url?.trim() || null,
           details: values.details?.trim() || null,
           access_mode: values.access_mode,
+          vendor_tag: values.vendor_tag ?? 'none',
           sort_order: values.sort_order ?? 0,
         }
         await quizService.createLibrary(payload)
@@ -235,6 +244,7 @@ export default function QuizLibraries() {
         if (nextCover !== editing.cover_url) payload.cover_url = nextCover
         if (nextDetails !== editing.details) payload.details = nextDetails
         if (values.access_mode !== editing.access_mode) payload.access_mode = values.access_mode
+        if (values.vendor_tag !== editing.vendor_tag) payload.vendor_tag = values.vendor_tag
         if ((values.sort_order ?? 0) !== editing.sort_order) payload.sort_order = values.sort_order ?? 0
         if (Object.keys(payload).length === 1) { setModalOpen(false); return }
         await quizService.updateLibrary(editing.id, payload)
@@ -409,6 +419,7 @@ export default function QuizLibraries() {
   const columns: ColumnsType<QuizLibrary> = [
     { title: '题库', key: 'library', width: 240, render: (_, item) => <Space direction="vertical" size={0}><strong>{item.name}</strong><span style={{ color: '#8c8c8c' }}>{item.library_code}</span></Space> },
     { title: '访问模式', dataIndex: 'access_mode', width: 140, render: (value: QuizLibraryAccessMode) => <Tag color={value === 'free' ? 'green' : value === 'course_entitlement' ? 'blue' : 'default'}>{accessLabels[value]}</Tag> },
+    { title: '厂商标签', dataIndex: 'vendor_tag', width: 110, render: (value: QuizLibrary['vendor_tag']) => <Tag color={value === 'none' ? 'default' : 'geekblue'}>{vendorLabels[value]}</Tag> },
     { title: '状态', dataIndex: 'status', width: 100, render: (value: QuizLibrary['status']) => <Tag color={statusColors[value]}>{statusLabels[value]}</Tag> },
     { title: 'V2 用户入口', key: 'v2', width: 130, render: (_, item) => <Tooltip title={item.status !== 'published' ? '仅已发布题库可以开启' : undefined}><Switch checked={item.v2_enabled} disabled={!canManage || (item.status !== 'published' && !item.v2_enabled)} onChange={(checked) => toggleV2(item, checked)} /></Tooltip> },
     { title: '内容', key: 'content', width: 190, render: (_, item) => `${item.module_count} 模块 / ${item.knowledge_point_count} 知识点 / ${item.question_count} 题` },
@@ -489,6 +500,9 @@ export default function QuizLibraries() {
           <Form.Item name="details" label="详细说明" rules={[{ max: 10000 }]}><Input.TextArea rows={5} showCount maxLength={10000} /></Form.Item>
           <Form.Item name="access_mode" label="访问模式" rules={[{ required: true }]}>
             <Select options={Object.entries(accessLabels).map(([value, label]) => ({ value, label }))} />
+          </Form.Item>
+          <Form.Item name="vendor_tag" label="厂商标签" tooltip="小程序练习助手按厂商标签筛选题库；未匹配厂商的题库归入「其他」">
+            <Select options={Object.entries(vendorLabels).map(([value, label]) => ({ value, label }))} />
           </Form.Item>
           <Form.Item noStyle shouldUpdate={(prev, cur) => prev.access_mode !== cur.access_mode}>
               {({ getFieldValue }) => getFieldValue('access_mode') === 'paid' ? (

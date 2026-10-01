@@ -248,6 +248,7 @@ export const QuizV2QuestionSchema = z.object({
 
 const libraryStatusSchema = z.enum(['draft', 'published', 'suspended', 'archived', 'deleted'])
 const libraryAccessModeSchema = z.enum(['access_mode_pending', 'free', 'course_entitlement', 'paid'])
+const libraryVendorTagSchema = z.enum(['h3c', 'nisp', 'sangfor', 'none'])
 const contentStatusSchema = z.enum(['active', 'disabled', 'deleted'])
 
 export const QuizLibrarySchema = z.object({
@@ -259,6 +260,7 @@ export const QuizLibrarySchema = z.object({
   cover_url: nullableString,
   details: nullableString,
   access_mode: libraryAccessModeSchema,
+  vendor_tag: libraryVendorTagSchema,
   price_cents: z.number().int().min(0),
   system_kind: z.enum(['none', 'migration_quarantine']),
   migration_state: z.enum(['pending_review', 'needs_organization', 'ready']),
@@ -315,6 +317,7 @@ export const QuizLibraryCreateSchema = z.object({
   cover_url: z.string().max(512).nullable().optional(),
   details: z.string().max(10000).nullable().optional(),
   access_mode: libraryAccessModeSchema.optional(),
+  vendor_tag: libraryVendorTagSchema.optional(),
   sort_order: z.number().int().optional(),
 }).strict()
 
@@ -325,6 +328,7 @@ export const QuizLibraryUpdateSchema = z.object({
   cover_url: z.string().max(512).nullable().optional(),
   details: z.string().max(10000).nullable().optional(),
   access_mode: libraryAccessModeSchema.optional(),
+  vendor_tag: libraryVendorTagSchema.optional(),
   v2_enabled: z.boolean().optional(),
   sort_order: z.number().int().optional(),
 }).strict().refine((value) => Object.keys(value).some((key) => key !== 'lock_version'), { message: '至少需要一个题库变更字段' })

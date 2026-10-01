@@ -47,6 +47,7 @@ const library = {
   cover_url: null,
   details: null,
   access_mode: 'course_entitlement',
+  vendor_tag: 'none',
   price_cents: 0,
   system_kind: 'none',
   migration_state: 'ready',
