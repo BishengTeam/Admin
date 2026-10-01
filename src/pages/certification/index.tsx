@@ -19,43 +19,49 @@ export default function CertificationOverview() {
     certProductService.getStats().then((all) => setStats(all.filter((s) => (CERT_TYPES as readonly string[]).includes(s.type)))).finally(() => setLoading(false))
   }, [])
 
+  // Find types that have stats and types that don't
+  const typesWithStats = new Set(stats.map((s) => s.type))
+  const typesWithoutStats = CERT_TYPES.filter((t) => !typesWithStats.has(t))
+
   return (
     <PageContainer title='认证管理'>
       <Spin spinning={loading}>
         <Row gutter={[24, 24]}>
-          {stats.length > 0
-            ? stats.map((s) => (
-                <TypeStatCard
-                  key={s.type}
-                  stats={s}
-                  onEnter={() => navigate(s.type)}
-                />
-              ))
-            : CERT_TYPES.map((t) => {
-                const meta = CERT_TYPE_META[t]
-                return (
-                  <Col xs={24} lg={12} xl={8} key={t}>
-                    <Card hoverable onClick={() => navigate(t)}>
-                      <Card.Meta
-                        avatar={
-                          <div style={{
-                            fontSize: 24, backgroundColor: `${meta.color}10`, width: 48, height: 48,
-                            lineHeight: '48px', textAlign: 'center', borderRadius: 10,
-                            color: meta.color, fontWeight: 700,
-                          }}>{meta.icon}</div>
-                        }
-                        title={
-                          <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <span style={{ fontSize: 16 }}>{meta.label}</span>
-                            <RightOutlined style={{ fontSize: 12, color: '#999' }} />
-                          </span>
-                        }
-                        description={<Text type='secondary'>暂无数据，点击进入管理</Text>}
-                      />
-                    </Card>
-                  </Col>
-                )
-              })}
+          {/* Types with data — show stat cards */}
+          {stats.map((s) => (
+            <TypeStatCard
+              key={s.type}
+              stats={s}
+              onEnter={() => navigate(s.type)}
+            />
+          ))}
+
+          {/* Types without data — show placeholder cards */}
+          {typesWithoutStats.map((t) => {
+            const meta = CERT_TYPE_META[t]
+            return (
+              <Col xs={24} lg={12} xl={8} key={t}>
+                <Card hoverable onClick={() => navigate(t)}>
+                  <Card.Meta
+                    avatar={
+                      <div style={{
+                        fontSize: 24, backgroundColor: `${meta.color}10`, width: 48, height: 48,
+                        lineHeight: '48px', textAlign: 'center', borderRadius: 10,
+                        color: meta.color, fontWeight: 700,
+                      }}>{meta.icon}</div>
+                    }
+                    title={
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ fontSize: 16 }}>{meta.label}</span>
+                        <RightOutlined style={{ fontSize: 12, color: '#999' }} />
+                      </span>
+                    }
+                    description={<Text type='secondary'>暂无数据，点击进入管理</Text>}
+                  />
+                </Card>
+              </Col>
+            )
+          })}
         </Row>
       </Spin>
     </PageContainer>
