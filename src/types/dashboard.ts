@@ -1,3 +1,18 @@
+export interface TrendPoint {
+  date: string
+  value: number
+}
+
+export interface PieDataItem {
+  name: string
+  value: number
+}
+
+export interface CertStatusData {
+  h3c: { pending_review: number; approved: number }
+  nisp: { pending_review: number; approved: number }
+}
+
 export interface DashboardData {
   // Core
   total_users: number
@@ -29,4 +44,11 @@ export interface DashboardData {
 
   // Classroom
   classrooms_active?: number
+
+  // Trends (30 days)
+  revenue_trend?: TrendPoint[]
+  user_trend?: TrendPoint[]
+  quiz_trend?: TrendPoint[]
+  order_type_distribution?: PieDataItem[]
+  cert_status?: CertStatusData
 }
