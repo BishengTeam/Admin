@@ -54,16 +54,16 @@ const vendorRegistry: VendorProfile[] = [
         component: lazy(() => import('./nisp/ReviewTab')),
       },
       {
-        key: 'export',
-        label: '导出',
-        permission: 'nisp:export',
-        component: lazy(() => import('./nisp/ExportTab')),
-      },
-      {
         key: 'refund',
         label: '退款',
         permission: 'nisp:refund',
         component: lazy(() => import('./nisp/RefundTab')),
+      },
+      {
+        key: 'export',
+        label: '导出',
+        permission: 'nisp:export',
+        component: lazy(() => import('./nisp/ExportTab')),
       },
     ],
   },
