@@ -15,6 +15,7 @@ import { competitionAdminService } from '@/services/competition'
 import { formatDate } from '@/utils/format'
 import { requiredRule } from '@/utils/validator'
 import type { Competition } from '@/types/competition'
+import FormFieldBuilder, { type FormField } from './FormFieldBuilder'
 
 const { RangePicker } = DatePicker
 const { Text } = Typography
@@ -27,6 +28,7 @@ type FormValues = {
   registration_deadline?: dayjs.Dayjs | null
   is_active?: boolean
   tracks?: { name: string; max_participants: number; sort_order: number }[]
+  custom_fields?: FormField[]
 }
 
 export default function CompetitionTab() {
@@ -66,6 +68,7 @@ export default function CompetitionTab() {
         max_participants: t.max_participants,
         sort_order: t.sort_order,
       })),
+      custom_fields: (item as any).custom_fields || [],
     })
     setModalOpen(true)
   }
@@ -100,6 +103,7 @@ export default function CompetitionTab() {
         max_participants: t.max_participants ?? 0,
         sort_order: t.sort_order ?? i,
       })),
+      custom_fields: values.custom_fields ?? [],
     }
     if (editingItem) {
       await competitionAdminService.update(editingItem.id, payload)
@@ -294,6 +298,14 @@ export default function CompetitionTab() {
               </>
             )}
           </Form.List>
+
+          <Divider orientation='left' orientationMargin={0} style={{ margin: '8px 0 16px' }}>
+            <Text type='secondary' style={{ fontSize: 13 }}>报名表单配置</Text>
+          </Divider>
+
+          <Form.Item name='custom_fields' label={null}>
+            <FormFieldBuilder />
+          </Form.Item>
 
           <Form.Item name='is_active' label='发布状态' valuePropName='checked' initialValue={true} style={{ marginTop: 16 }}>
             <Switch checkedChildren='发布' unCheckedChildren='下架' />
