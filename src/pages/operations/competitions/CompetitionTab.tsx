@@ -68,6 +68,7 @@ export default function CompetitionTab() {
         max_participants: t.max_participants,
         sort_order: t.sort_order,
       })),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       custom_fields: (item as any).custom_fields || [],
     })
     setModalOpen(true)

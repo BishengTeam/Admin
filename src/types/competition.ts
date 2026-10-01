@@ -19,7 +19,9 @@ export interface Competition {
   tracks: CompetitionTrack[]
   total_enrolled?: number
   created_at: string
+  custom_fields?: unknown[] | null
 }
+
 
 export interface CompetitionTrackInput {
   name: string
