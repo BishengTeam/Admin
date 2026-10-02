@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import { Button, Select, Space, Table, Typography } from 'antd'
+import { Button, Select, Space, Table, Typography, message } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
-import { ReloadOutlined } from '@ant-design/icons'
+import { DownloadOutlined, ReloadOutlined } from '@ant-design/icons'
 import { usePagination } from '@/hooks/usePagination'
 import { competitionAdminService } from '@/services/competition'
 import { formatDate } from '@/utils/format'
@@ -21,6 +21,7 @@ const emptyPage: PageData<CompetitionRegistration> = {
 export default function RegistrationsTab({ competitions }: RegistrationsTabProps) {
   const [competitionId, setCompetitionId] = useState<number | null>(null)
   const [trackId, setTrackId] = useState<number | null>(null)
+  const [exporting, setExporting] = useState(false)
 
   const selected = competitions.find((c) => c.id === competitionId)
 
@@ -43,6 +44,32 @@ export default function RegistrationsTab({ competitions }: RegistrationsTabProps
     { title: '赛道', dataIndex: 'track', width: 130, render: (v: string | null) => v || '-' },
     { title: '报名时间', dataIndex: 'created_at', width: 170, render: (t: string | null) => (t ? formatDate(t) : '-') },
   ]
+
+  const handleExport = async () => {
+    if (!competitionId) return
+    setExporting(true)
+    try {
+      const blob = await competitionAdminService.exportRegistrations(
+        competitionId,
+        trackId ?? undefined,
+      )
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      const date = new Date().toISOString().slice(0, 10)
+      const trackLabel = selected?.tracks.find((t) => t.id === trackId)?.name
+      link.href = url
+      link.download = `竞赛报名_${selected?.name ?? competitionId}${trackLabel ? `_${trackLabel}` : ''}_${date}.csv`
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(url)
+      message.success('导出成功')
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '导出失败')
+    } finally {
+      setExporting(false)
+    }
+  }
 
   return (
     <>
@@ -72,6 +99,14 @@ export default function RegistrationsTab({ competitions }: RegistrationsTabProps
           />
           <Button icon={<ReloadOutlined />} loading={loading} onClick={refresh} disabled={!competitionId}>
             刷新
+          </Button>
+          <Button
+            icon={<DownloadOutlined />}
+            loading={exporting}
+            onClick={handleExport}
+            disabled={!competitionId}
+          >
+            导出 CSV
           </Button>
         </Space>
         <Text type='secondary'>共 {data?.total ?? 0} 条报名</Text>

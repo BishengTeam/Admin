@@ -28,4 +28,16 @@ export const competitionAdminService = {
       { params },
     )
   },
+
+  /** 按赛事导出报名 CSV（可按赛道筛选），返回 Blob 供浏览器下载 */
+  async exportRegistrations(competitionId: number, trackId?: number): Promise<Blob> {
+    return http.get<Blob>(
+      `/admin/competitions/${competitionId}/registrations/export`,
+      {
+        params: { track_id: trackId },
+        responseType: 'blob',
+        timeout: 60000,
+      },
+    )
+  },
 }
