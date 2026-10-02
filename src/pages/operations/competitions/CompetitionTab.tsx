@@ -153,14 +153,14 @@ export default function CompetitionTab() {
       },
     },
     {
-      title: '报名截止', width: 180,
+      title: '报名截止', width: 215,
       render: (_, r) => {
         if (!r.registration_deadline) {
           return <Tag color='green'>不限（赛前可报）</Tag>
         }
         const passed = dayjs(r.registration_deadline).isBefore(dayjs())
         return (
-          <Space size={4}>
+          <Space size={4} style={{ whiteSpace: 'nowrap' }}>
             <span>{formatDate(r.registration_deadline, 'YYYY-MM-DD HH:mm')}</span>
             {passed
               ? <Tag>已截止</Tag>
