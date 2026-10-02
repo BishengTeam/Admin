@@ -24,6 +24,8 @@ export interface Competition {
 
 
 export interface CompetitionTrackInput {
+  /** 更新时携带原赛道 id，保留已有报名关联 */
+  id?: number | null
   name: string
   max_participants: number
   sort_order: number
@@ -38,6 +40,7 @@ export interface CompetitionPayload {
   registration_deadline?: string | null
   is_active?: boolean
   tracks?: CompetitionTrackInput[]
+  custom_fields?: unknown[] | null
 }
 
 export interface CompetitionRegistration {

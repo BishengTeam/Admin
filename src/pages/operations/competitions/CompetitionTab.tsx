@@ -27,7 +27,7 @@ type FormValues = {
   time_range?: [dayjs.Dayjs | null, dayjs.Dayjs | null]
   registration_deadline?: dayjs.Dayjs | null
   is_active?: boolean
-  tracks?: { name: string; max_participants: number; sort_order: number }[]
+  tracks?: { id?: number | null; name: string; max_participants: number; sort_order: number }[]
   custom_fields?: FormField[]
 }
 
@@ -64,6 +64,7 @@ export default function CompetitionTab() {
       registration_deadline: item.registration_deadline ? dayjs(item.registration_deadline) : undefined,
       is_active: item.is_active,
       tracks: item.tracks.map((t) => ({
+        id: t.id,
         name: t.name,
         max_participants: t.max_participants,
         sort_order: t.sort_order,
@@ -100,6 +101,7 @@ export default function CompetitionTab() {
         : null,
       is_active: values.is_active ?? true,
       tracks: (values.tracks ?? []).map((t, i) => ({
+        id: t.id ?? null,
         name: t.name,
         max_participants: t.max_participants ?? 0,
         sort_order: t.sort_order ?? i,
@@ -148,6 +150,23 @@ export default function CompetitionTab() {
         const s = r.start_time?.slice(0, 10) || '-'
         const e = r.end_time?.slice(0, 10) || '-'
         return `${s} ~ ${e}`
+      },
+    },
+    {
+      title: '报名截止', width: 180,
+      render: (_, r) => {
+        if (!r.registration_deadline) {
+          return <Tag color='green'>不限（赛前可报）</Tag>
+        }
+        const passed = dayjs(r.registration_deadline).isBefore(dayjs())
+        return (
+          <Space size={4}>
+            <span>{formatDate(r.registration_deadline, 'YYYY-MM-DD HH:mm')}</span>
+            {passed
+              ? <Tag>已截止</Tag>
+              : <Tag color='green'>报名中</Tag>}
+          </Space>
+        )
       },
     },
     {
