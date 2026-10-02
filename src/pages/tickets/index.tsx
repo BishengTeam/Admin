@@ -1,16 +1,22 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Modal, Space, Table, Tabs, Tag, Typography, message } from 'antd'
+import { Image, Modal, Space, Table, Tabs, Tag, Typography, message } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { PageContainer } from '@/components/PageContainer'
 import { usePermission } from '@/hooks/usePermission'
 import { usePagination } from '@/hooks/usePagination'
 import { ticketService } from '@/services/tickets'
-import { parseQuizFeedbackQuestionId } from '@/utils/tickets'
+import { parseQuizFeedbackQuestionId, parseTicketImages, stripTicketImageLine } from '@/utils/tickets'
 import { formatDate } from '@/utils/format'
 import type { Ticket, TicketStatus } from '@/types/ticket'
 
 const { Paragraph, Text } = Typography
+
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '')
+
+function resolveMediaUrl(url: string): string {
+  return `${API_BASE_URL}${url}`
+}
 
 const STATUS_CONFIG: Record<string, { text: string; color: string }> = {
   waiting_manual: { text: '待处理', color: 'orange' },
@@ -27,6 +33,7 @@ export default function TicketManagement() {
   const [statusFilter, setStatusFilter] = useState<string>('')
   const [detail, setDetail] = useState<Ticket | null>(null)
   const [updating, setUpdating] = useState<number | null>(null)
+  const detailImages = detail ? parseTicketImages(detail.content) : []
 
   const { data, loading, pagination, refresh } = usePagination(
     (page) => ticketService.list({ status: statusFilter || undefined, ...page }),
@@ -82,7 +89,7 @@ export default function TicketManagement() {
       title: '内容',
       dataIndex: 'content',
       ellipsis: true,
-      render: (value: string | null) => value || '-',
+      render: (value: string | null) => stripTicketImageLine(value) || '-',
     },
     { title: '创建时间', dataIndex: 'created_at', width: 180, render: (value: string) => formatDate(value) },
     { title: '更新时间', dataIndex: 'updated_at', width: 180, render: (value: string) => formatDate(value) },
@@ -150,8 +157,23 @@ export default function TicketManagement() {
               {detail.teacher_id !== null && <Text type="secondary">处理人 ID：{detail.teacher_id}</Text>}
             </Space>
             <Paragraph style={{ whiteSpace: 'pre-wrap', marginBottom: 0 }}>
-              {detail.content || '（无内容）'}
+              {stripTicketImageLine(detail.content) || '（无内容）'}
             </Paragraph>
+            {detailImages.length > 0 && (
+              <Image.PreviewGroup>
+                <Space size={8} wrap>
+                  {detailImages.map(url => (
+                    <Image
+                      key={url}
+                      width={80}
+                      height={80}
+                      src={resolveMediaUrl(url)}
+                      style={{ objectFit: 'cover', borderRadius: 8 }}
+                    />
+                  ))}
+                </Space>
+              </Image.PreviewGroup>
+            )}
             <Space>
               <Text type="secondary">创建：{formatDate(detail.created_at)}</Text>
               <Text type="secondary">更新：{formatDate(detail.updated_at)}</Text>
