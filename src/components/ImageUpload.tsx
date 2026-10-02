@@ -3,7 +3,6 @@ import { Tooltip, Upload, message } from 'antd'
 import { PlusOutlined, LoadingOutlined, QuestionCircleOutlined } from '@ant-design/icons'
 import type { UploadFile, RcFile } from 'antd/es/upload/interface'
 import { http } from '@/core/request'
-import { toAbsoluteMediaUrl } from '@/utils/mediaUrl'
 
 interface ImageUploadProps {
   value?: string
@@ -56,7 +55,9 @@ export function ImageUpload({ value, onChange, maxSize = 5, purpose = 'generic',
           headers: { 'Content-Type': 'multipart/form-data' },
         })
         onSuccess({ url: res.url })
-        onChange?.(toAbsoluteMediaUrl(res.url))
+        // 后端规范地址为 /api/media/{file_id} 相对路径；管理端预览走同源代理，
+        // 小程序端按 API 域名解析，避免把管理端域名固化进数据库。
+        onChange?.(res.url)
       }
     } catch (err) {
       onError(err instanceof Error ? err : new Error('上传失败'))

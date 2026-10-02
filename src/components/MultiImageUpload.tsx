@@ -3,7 +3,6 @@ import { Tooltip, Upload, message } from 'antd'
 import { PlusOutlined, LoadingOutlined, QuestionCircleOutlined } from '@ant-design/icons'
 import type { RcFile, UploadFile } from 'antd/es/upload/interface'
 import { http } from '@/core/request'
-import { toAbsoluteMediaUrl } from '@/utils/mediaUrl'
 
 interface MultiImageUploadProps {
   value?: string[]
@@ -55,7 +54,8 @@ export function MultiImageUpload({ value = [], onChange, maxCount = 9, maxSize =
           headers: { 'Content-Type': 'multipart/form-data' },
         })
         onSuccess({ url: res.url })
-        onChange?.([...value, toAbsoluteMediaUrl(res.url)].slice(0, maxCount))
+        // 与 ImageUpload 一致：存储后端规范的 /api/media/ 相对路径。
+        onChange?.([...value, res.url].slice(0, maxCount))
       }
     } catch (err) {
       onError(err instanceof Error ? err : new Error('上传失败'))
