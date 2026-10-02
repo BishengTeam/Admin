@@ -14,6 +14,7 @@ vi.mock('@/services/h3c', () => ({
     publishBatch: vi.fn(),
     closeBatchRegistration: vi.fn(),
     finalizeBatch: vi.fn(),
+    archiveBatch: vi.fn(),
     cancelBatch: vi.fn(),
   },
 }))
@@ -145,5 +146,20 @@ describe('H3C BatchOverrides', () => {
     expect(screen.getByText('H3C网络工程师')).toBeInTheDocument()
     expect(screen.getByText('LEGACY-X')).toBeInTheDocument()
     expect(certProductService.list).toHaveBeenCalledWith({ type: 'h3c', page: 1, page_size: 100 })
+  })
+
+  it('shows archive action for finished batches', async () => {
+    vi.mocked(h3cService.listBatches).mockResolvedValue({
+      items: [batch({ id: 3, status: 'finalized', name: '已结束批次' })],
+      total: 1,
+      page: 1,
+      page_size: 20,
+    })
+    vi.mocked(h3cService.archiveBatch).mockResolvedValue(batch({ status: 'archived' }))
+
+    render(<BatchOverrides type='h3c' productCode={null} />)
+
+    await screen.findByText('已结束批次')
+    expect(screen.getByRole('button', { name: /归\s*档/ })).toBeInTheDocument()
   })
 })

@@ -33,6 +33,9 @@ export const h3cService = {
   finalizeBatch(id: number): Promise<H3cExamBatch> {
     return http.post(`/admin/cert-products/h3c/batches/${id}/finalize`)
   },
+  archiveBatch(id: number): Promise<H3cExamBatch> {
+    return http.post(`/admin/cert-products/h3c/batches/${id}/archive`)
+  },
   cancelBatch(id: number, reauthToken: string): Promise<H3cExamBatch> {
     return http.post(`/admin/cert-products/h3c/batches/${id}/cancel`, {}, reauthHeaders(reauthToken))
   },

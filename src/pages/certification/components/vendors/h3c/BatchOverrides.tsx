@@ -255,6 +255,15 @@ export default function BatchOverrides(_props: { type: CertType; productCode: st
               </Popconfirm>
             </>
           )}
+          {(row.status === 'finalized' || row.status === 'cancelled') && (
+            <Popconfirm
+              trigger='click'
+              title='归档后用户端不再显示该批次，确认归档？'
+              onConfirm={() => h3cService.archiveBatch(row.id).then(refresh)}
+            >
+              <Button size='small'>归档</Button>
+            </Popconfirm>
+          )}
         </Space>
       ),
     },
