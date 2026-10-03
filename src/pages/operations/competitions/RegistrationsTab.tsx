@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Button, Select, Space, Table, Typography, message } from 'antd'
+import { Button, Descriptions, Select, Space, Table, Typography, message } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { DownloadOutlined, ReloadOutlined } from '@ant-design/icons'
 import { usePagination } from '@/hooks/usePagination'
@@ -14,8 +14,22 @@ interface RegistrationsTabProps {
   competitions: Competition[]
 }
 
+/** Format custom field values for display */
+function formatCustomFields(values: Record<string, unknown> | null | undefined): Array<{ key: string; value: string }> {
+  if (!values) return []
+  return Object.entries(values).map(([key, value]) => ({
+    key,
+    value: Array.isArray(value) ? value.join('、') : String(value ?? '-'),
+  }))
+}
+
 const emptyPage: PageData<CompetitionRegistration> = {
   items: [], total: 0, page: 1, page_size: 20,
+}
+
+// Extend CompetitionRegistration to include custom fields
+interface RegistrationWithCustom extends CompetitionRegistration {
+  custom_field_values?: Record<string, unknown> | null
 }
 
 export default function RegistrationsTab({ competitions }: RegistrationsTabProps) {
@@ -25,18 +39,18 @@ export default function RegistrationsTab({ competitions }: RegistrationsTabProps
 
   const selected = competitions.find((c) => c.id === competitionId)
 
-  const { data, loading, pagination, refresh } = usePagination(
+  const { data, loading, pagination, refresh } = usePagination<RegistrationWithCustom>(
     (page) =>
       competitionId
         ? competitionAdminService.listRegistrations(competitionId, {
             track_id: trackId ?? undefined,
             ...page,
-          })
-        : Promise.resolve(emptyPage),
+          }) as Promise<PageData<RegistrationWithCustom>>
+        : Promise.resolve(emptyPage as PageData<RegistrationWithCustom>),
     [competitionId, trackId],
   )
 
-  const columns: ColumnsType<CompetitionRegistration> = [
+  const columns: ColumnsType<RegistrationWithCustom> = [
     { title: 'ID', dataIndex: 'id', width: 70 },
     { title: '姓名', dataIndex: 'real_name', width: 110, render: (v: string | null) => v || '-' },
     { title: '学校', dataIndex: 'school', ellipsis: true },
@@ -111,13 +125,38 @@ export default function RegistrationsTab({ competitions }: RegistrationsTabProps
         </Space>
         <Text type='secondary'>共 {data?.total ?? 0} 条报名</Text>
       </div>
-      <Table<CompetitionRegistration>
+      <Table<RegistrationWithCustom>
         rowKey='id'
         columns={columns}
         dataSource={data?.items}
         loading={loading}
         pagination={competitionId ? pagination : false}
         locale={{ emptyText: competitionId ? '暂无报名记录' : '请先选择赛事' }}
+        expandable={{
+          expandedRowRender: (record) => {
+            const fields = formatCustomFields(record.custom_field_values)
+            if (fields.length === 0) {
+              return <Text type='secondary'>无自定义字段</Text>
+            }
+            return (
+              <Descriptions
+                title='自定义字段'
+                size='small'
+                column={3}
+                bordered
+                items={fields.map((f) => ({
+                  key: f.key,
+                  label: f.key,
+                  children: f.value,
+                }))}
+              />
+            )
+          },
+          rowExpandable: (record) => {
+            const fields = formatCustomFields(record.custom_field_values)
+            return fields.length > 0
+          },
+        }}
       />
     </>
   )
