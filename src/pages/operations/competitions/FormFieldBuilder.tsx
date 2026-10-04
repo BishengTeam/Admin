@@ -256,6 +256,12 @@ function FieldEditModal({ open, field, existingKeys, onCancel, onSave }: FieldEd
 
   const handleSave = async () => {
     const values = await form.validateFields()
+
+    // Double-check duplicate key (in case validation was bypassed)
+    if (values.key && existingKeys.includes(values.key) && field?.key !== values.key) {
+      form.setFields([{ name: 'key', errors: ['该键名已存在'] }])
+      return
+    }
     const options = values.options
       ? (values.options as string).split('\n').map(s => s.trim()).filter(Boolean)
       : null
@@ -299,6 +305,14 @@ function FieldEditModal({ open, field, existingKeys, onCancel, onSave }: FieldEd
               rules={[
                 { required: true, message: '必填' },
                 { pattern: /^[a-z][a-z0-9_]*$/, message: '小写字母开头，仅含字母数字下划线' },
+                {
+                  validator: (_: unknown, value: string) => {
+                    if (value && existingKeys.includes(value) && field?.key !== value) {
+                      return Promise.reject(new Error('该键名已存在'))
+                    }
+                    return Promise.resolve()
+                  },
+                },
               ]}
               tooltip='存储用键名，如 student_id'
             >
