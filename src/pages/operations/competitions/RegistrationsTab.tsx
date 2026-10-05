@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Button, Descriptions, Select, Space, Table, Typography, message } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { DownloadOutlined, ReloadOutlined } from '@ant-design/icons'
@@ -50,14 +50,42 @@ export default function RegistrationsTab({ competitions }: RegistrationsTabProps
     [competitionId, trackId],
   )
 
-  const columns: ColumnsType<RegistrationWithCustom> = [
-    { title: 'ID', dataIndex: 'id', width: 70 },
-    { title: '姓名', dataIndex: 'real_name', width: 110, render: (v: string | null) => v || '-' },
-    { title: '学校', dataIndex: 'school', ellipsis: true },
-    { title: '手机号', dataIndex: 'phone', width: 130, render: (v: string | null) => v || '-' },
-    { title: '赛道', dataIndex: 'track', width: 130, render: (v: string | null) => v || '-' },
-    { title: '报名时间', dataIndex: 'created_at', width: 170, render: (t: string | null) => (t ? formatDate(t) : '-') },
-  ]
+  // Get custom field definitions from the selected competition
+  const customFieldDefs = useMemo(() => {
+    if (!selected) return []
+    const raw = (selected as { custom_fields?: Array<{ key: string; label: string }> }).custom_fields
+    return Array.isArray(raw) ? raw : []
+  }, [selected])
+
+  // Build columns: static + dynamic custom field columns
+  const columns: ColumnsType<RegistrationWithCustom> = useMemo(() => {
+    const staticCols: ColumnsType<RegistrationWithCustom> = [
+      { title: 'ID', dataIndex: 'id', width: 70 },
+      { title: '姓名', dataIndex: 'real_name', width: 110, render: (v: string | null) => v || '-' },
+      { title: '学校', dataIndex: 'school', ellipsis: true },
+      { title: '手机号', dataIndex: 'phone', width: 130, render: (v: string | null) => v || '-' },
+      { title: '赛道', dataIndex: 'track', width: 130, render: (v: string | null) => v || '-' },
+    ]
+
+    // Generate a column for each custom field
+    const customCols: ColumnsType<RegistrationWithCustom> = customFieldDefs.map((field) => ({
+      title: field.label,
+      key: `custom_${field.key}`,
+      width: 120,
+      ellipsis: true,
+      render: (_: unknown, record: RegistrationWithCustom) => {
+        const val = record.custom_field_values?.[field.key]
+        if (val === undefined || val === null) return '-'
+        return Array.isArray(val) ? val.join('、') : String(val)
+      },
+    }))
+
+    const timeCol: ColumnsType<RegistrationWithCustom> = [
+      { title: '报名时间', dataIndex: 'created_at', width: 170, render: (t: string | null) => (t ? formatDate(t) : '-') },
+    ]
+
+    return [...staticCols, ...customCols, ...timeCol]
+  }, [customFieldDefs])
 
   const handleExport = async () => {
     if (!competitionId) return
