@@ -234,7 +234,7 @@ export default function CompetitionTab() {
         onCancel={() => setModalOpen(false)}
         okText={editingItem ? '保存' : '创建'}
         cancelText='取消'
-        destroyOnClose
+        forceRender
         width={680}
       >
         <Form form={form} layout='vertical' style={{ marginTop: 20 }} requiredMark='optional'>
