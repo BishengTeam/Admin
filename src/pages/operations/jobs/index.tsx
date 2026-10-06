@@ -121,6 +121,7 @@ export default function JobManagement() {
         />
         <Button type="primary" onClick={() => setSearchText(keyword)}>查询</Button>
         <Button onClick={() => { setKeyword(''); setSearchText(''); }}>重置</Button>
+        <Button type="primary" icon={<PlusOutlined />} onClick={handleAdd}>新增岗位</Button>
       </Space>
 
       <Table
