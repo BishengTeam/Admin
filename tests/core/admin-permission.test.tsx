@@ -76,6 +76,7 @@ describe('fixed administrator role navigation', () => {
       'certification/h3c',
       'certification/renshe',
       'certification/nisp',
+      'certification/sangfor',
     ])
 
     const certAdminPermissions = [
@@ -101,6 +102,7 @@ describe('fixed administrator role navigation', () => {
       'certification',
       'certification/h3c',
       'certification/renshe',
+      'certification/sangfor',
     ])
 
     const quizMenu = buildMenuItems(adminRoutes, ['quiz:list'], true, 'quiz_admin') as Array<{ key: string }>

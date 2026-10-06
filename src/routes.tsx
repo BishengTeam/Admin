@@ -238,6 +238,11 @@ export const adminRoutes: AppRoute[] = [
         element: <TypeWorkbench type='nisp' />,
         meta: { title: 'NISP认证', icon: 'FileSearchOutlined', permission: 'nisp:review' },
       },
+      {
+        path: 'sangfor',
+        element: <TypeWorkbench type='sangfor' />,
+        meta: { title: '深信服认证', icon: 'SafetyCertificateOutlined', permission: 'content:list' },
+      },
     ],
   },
   {

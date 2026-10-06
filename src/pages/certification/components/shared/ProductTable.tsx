@@ -212,8 +212,8 @@ export default function ProductTable({ type }: ProductTableProps) {
           {!editingItem && (
             <Row gutter={16}>
               <Col span={12}>
-                <Form.Item name='type' label='认证类型'>
-                  <Input disabled />
+                <Form.Item label='认证类型'>
+                  <Input value={typeMeta.label} disabled />
                 </Form.Item>
               </Col>
               <Col span={12}>
@@ -223,6 +223,7 @@ export default function ProductTable({ type }: ProductTableProps) {
               </Col>
             </Row>
           )}
+          {!editingItem && <Form.Item name='type' hidden><Input /></Form.Item>}
 
           {editingItem && (
             <Row gutter={16}>

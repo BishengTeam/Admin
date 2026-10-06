@@ -92,6 +92,11 @@ const vendorRegistry: VendorProfile[] = [
       },
     ],
   },
+  {
+    type: 'sangfor',
+    requiresProductFilter: true,
+    tabs: [],
+  },
 ]
 
 export function getVendorProfile(type: CertType): VendorProfile | undefined {
