@@ -8,7 +8,6 @@ import type { ContentItem } from '@/types/content'
 const ZONE_OPTIONS = [
   { label: '认证专区', value: 'cert' },
   { label: '学习专区', value: 'study' },
-  { label: '竞赛专区', value: 'competition' },
   { label: '活动专区', value: 'activity' },
   { label: '就业专区', value: 'employment' },
   { label: '培训专区', value: 'training' },
