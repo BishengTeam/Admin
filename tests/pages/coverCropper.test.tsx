@@ -10,11 +10,18 @@ describe('cover cropper', () => {
 
     expect(source).toContain('onPointerDown={handlePointerDown}')
     expect(source).toContain('onPointerMove={handlePointerMove}')
+    expect(source).toContain('data-handle="move"')
+    expect(source).toContain("key: 'n'")
+    expect(source).toContain("key: 'e'")
+    expect(source).toContain("key: 'se'")
+    expect(source).toContain('function resizeCropRect')
+    expect(source).toContain('Math.min(imageSize.width, imageSize.height * cropRatio)')
+    expect(source).toContain('const nextHeight = nextWidth / cropRatio')
     expect(source).toContain('canvas.width = crop.width')
     expect(source).toContain('canvas.height = crop.height')
     expect(source).toContain("canvas.toBlob(resolve, 'image/jpeg', quality)")
     expect(source).toContain('blob.size <= 5 * 1024 * 1024')
-    expect(source).toContain('拖动图片调整位置，拖动滑杆缩放')
+    expect(source).toContain('拖动中间移动位置，拖动边缘/四角按固定比例等比调整大小')
   })
 
   it('routes all cover ImageUpload fields through fixed-size manual cropping', () => {
