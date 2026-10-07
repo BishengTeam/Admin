@@ -427,7 +427,10 @@ export default function BannerTab() {
       >
         <Form form={form} layout="vertical">
           <Form.Item name="image_url" label="封面图（每条 Banner 独立上传）" rules={[requiredRule('封面图')]}>
-            <ImageUpload hint={'小程序首页轮播图\n显示区域：702 × 320 rpx（约 2.2 : 1）\n推荐切图：1404 × 640 px（2 倍图）\n格式：JPG / PNG / WebP，单张 ≤ 5MB\n图片按 cover 模式裁剪铺满，重要内容请放在中间'} />
+            <ImageUpload
+              crop={{ width: 1404, height: 640, title: '首页 Banner' }}
+              hint={'小程序首页轮播图\n固定裁剪输出：1404 × 640 px（约 2.2 : 1）\n上传后可拖动/缩放调整裁剪区域\n输出 JPG，单张 ≤ 5MB'}
+            />
           </Form.Item>
 
           <Form.Item name="jump_mode" label="点击跳转" initialValue="none">

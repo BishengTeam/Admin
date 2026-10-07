@@ -246,7 +246,10 @@ export default function CompetitionTab() {
             <Input placeholder='如：网络技术大赛' maxLength={128} />
           </Form.Item>
           <Form.Item name='cover_url' label='封面图'>
-            <ImageUpload hint={'赛事封面（列表卡片 + 详情页大图）\n详情页显示区域：702 × 320 rpx（约 2.2 : 1）\n推荐切图：1404 × 640 px（2 倍图）\n格式：JPG / PNG / WebP，单张 ≤ 5MB\n按 cover 模式裁剪，重要内容请放在中间'} />
+            <ImageUpload
+              crop={{ width: 1404, height: 640, title: '赛事封面' }}
+              hint={'赛事封面（列表卡片 + 详情页大图）\n固定裁剪输出：1404 × 640 px（约 2.2 : 1）\n上传后可拖动/缩放调整裁剪区域\n输出 JPG，单张 ≤ 5MB'}
+            />
           </Form.Item>
           <Form.Item name='description' label='赛事介绍'>
             <Input.TextArea rows={3} placeholder='赛事说明、参赛要求等' maxLength={2000} showCount />

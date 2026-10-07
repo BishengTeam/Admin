@@ -495,7 +495,11 @@ export default function QuizLibraries() {
           <Form.Item name="name" label="题库名称" rules={[{ required: true, message: '请输入题库名称' }, { max: 128 }]}><Input autoFocus /></Form.Item>
           <Form.Item name="description" label="简介" rules={[{ max: 512 }]}><Input.TextArea rows={2} showCount maxLength={512} /></Form.Item>
           <Form.Item name="cover_url" label="题库封面">
-            <ImageUpload purpose="quiz" hint={'题库列表小封面\n显示区域：112 × 88 rpx（约 1.27 : 1）\n推荐切图：560 × 440 px（5 倍图，保证清晰）\n格式：JPG / PNG / WebP，单张 ≤ 5MB'} />
+            <ImageUpload
+              purpose="quiz"
+              crop={{ width: 560, height: 440, title: '题库封面' }}
+              hint={'题库列表小封面\n固定裁剪输出：560 × 440 px（约 1.27 : 1）\n上传后可拖动/缩放调整裁剪区域\n输出 JPG，单张 ≤ 5MB'}
+            />
           </Form.Item>
           <Form.Item name="details" label="详细说明" rules={[{ max: 10000 }]}><Input.TextArea rows={5} showCount maxLength={10000} /></Form.Item>
           <Form.Item name="access_mode" label="访问模式" rules={[{ required: true }]}>

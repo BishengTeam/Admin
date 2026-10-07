@@ -5,6 +5,7 @@ import type { ColumnsType } from 'antd/es/table'
 import { useNavigate } from 'react-router-dom'
 import { PageContainer } from '@/components/PageContainer'
 import { ConfirmButton } from '@/components/ConfirmButton'
+import { CoverCropper } from '@/components/CoverCropper'
 import { usePagination } from '@/hooks/usePagination'
 import { usePermission } from '@/hooks/usePermission'
 import { useAuth } from '@/hooks/useAuth'
@@ -42,6 +43,7 @@ export default function CourseListPage() {
   const [cover, setCover] = useState<CourseUpload | null>(null)
   const [coverUploading, setCoverUploading] = useState(false)
   const [coverPreview, setCoverPreview] = useState('')
+  const [coverCropFile, setCoverCropFile] = useState<File | null>(null)
   const { data, loading, pagination, refresh } = usePagination(
     (page, signal) => courseManagementService.listCourses({ ...filters, ...page } as CourseFilter, signal),
     [JSON.stringify(filters)],
@@ -130,23 +132,14 @@ export default function CourseListPage() {
               <Select options={categories.filter(item => item.is_active).map(item => ({ value: item.name, label: item.name }))} />
             </Form.Item>
           </Space>
-          <Form.Item label="课程封面（强制 16:9，自动裁剪）" required>
+          <Form.Item label="课程封面（强制 16:9，手动裁剪）" required>
             <Space direction="vertical">
               <Upload
                 maxCount={1}
                 accept=".jpg,.jpeg,.png,.webp"
                 showUploadList={false}
-                beforeUpload={async file => {
-                  setCoverUploading(true)
-                  try {
-                    setCover(await courseManagementService.uploadCover(file))
-                    setCoverPreview(URL.createObjectURL(file))
-                    message.success('封面上传完成')
-                  } catch (error) {
-                    message.error(error instanceof Error ? error.message : '封面上传失败')
-                  } finally {
-                    setCoverUploading(false)
-                  }
+                beforeUpload={file => {
+                  setCoverCropFile(file)
                   return false
                 }}
               >
@@ -166,8 +159,26 @@ export default function CourseListPage() {
             <Form.Item name="teacher_name" label="讲师"><Input style={{ width: 160 }} /></Form.Item>
             <Form.Item name="teacher_contact" label="联系方式"><Input style={{ width: 160 }} /></Form.Item>
           </Space>
-        </Form>
+          </Form>
       </Modal>
+      <CoverCropper
+        open={Boolean(coverCropFile)}
+        file={coverCropFile}
+        crop={{ width: 1280, height: 720, title: '课程封面' }}
+        onCancel={() => setCoverCropFile(null)}
+        onCropped={async croppedFile => {
+          setCoverUploading(true)
+          try {
+            setCover(await courseManagementService.uploadCover(croppedFile))
+            setCoverPreview(URL.createObjectURL(croppedFile))
+            message.success('封面上传完成')
+          } catch (error) {
+            message.error(error instanceof Error ? error.message : '封面上传失败')
+          } finally {
+            setCoverUploading(false)
+          }
+        }}
+      />
     </PageContainer>
   )
 }

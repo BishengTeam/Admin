@@ -1,20 +1,31 @@
 import { useState } from 'react'
 import { Tooltip, Upload, message } from 'antd'
 import { PlusOutlined, LoadingOutlined, QuestionCircleOutlined } from '@ant-design/icons'
-import type { UploadFile, RcFile } from 'antd/es/upload/interface'
+import type { RcFile } from 'antd/es/upload/interface'
 import { http } from '@/core/request'
+import { CoverCropper, type CoverCropConfig } from '@/components/CoverCropper'
 
 interface ImageUploadProps {
   value?: string
   onChange?: (url: string) => void
   maxSize?: number
   purpose?: 'generic' | 'quiz'
+  /** 传入后先进入固定尺寸手动裁剪，再上传裁剪结果 */
+  crop?: CoverCropConfig
   /** 悬浮提示：说明该图片在小程序端的显示尺寸与上传格式要求 */
   hint?: string
 }
 
-export function ImageUpload({ value, onChange, maxSize = 5, purpose = 'generic', hint }: ImageUploadProps) {
+export function ImageUpload({
+  value,
+  onChange,
+  maxSize = 5,
+  purpose = 'generic',
+  hint,
+  crop,
+}: ImageUploadProps) {
   const [loading, setLoading] = useState(false)
+  const [pendingFile, setPendingFile] = useState<File | null>(null)
 
   const beforeUpload = (file: RcFile) => {
     const isImage = file.type.startsWith('image/')
@@ -25,6 +36,10 @@ export function ImageUpload({ value, onChange, maxSize = 5, purpose = 'generic',
     const isLtLimit = file.size / 1024 / 1024 < maxSize
     if (!isLtLimit) {
       message.error(`图片大小不能超过 ${maxSize}MB`)
+      return false
+    }
+    if (crop) {
+      setPendingFile(file)
       return false
     }
     return true // 允许通过 antd Upload 组件上传
@@ -67,6 +82,38 @@ export function ImageUpload({ value, onChange, maxSize = 5, purpose = 'generic',
     }
   }
 
+  const uploadCropped = async (croppedFile: File) => {
+    setLoading(true)
+    try {
+      if (purpose === 'quiz') {
+        const { quizService } = await import('@/services/quiz')
+        const target = await quizService.createImageUpload({
+          filename: croppedFile.name,
+          content_type: croppedFile.type,
+          size_bytes: croppedFile.size,
+        })
+        await fetch(target.upload_url, {
+          method: 'PUT',
+          headers: { 'Content-Type': target.content_type },
+          body: await croppedFile.arrayBuffer(),
+        })
+        onChange?.(target.public_url)
+      } else {
+        const formData = new FormData()
+        formData.append('file', croppedFile)
+        const res = await http.post<{ url: string }>('/admin/upload', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        })
+        onChange?.(res.url)
+      }
+      message.success('封面上传完成')
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : '上传失败，请重试')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const uploadButton = (
     <div>
       {loading ? <LoadingOutlined /> : <PlusOutlined />}
@@ -92,6 +139,15 @@ export function ImageUpload({ value, onChange, maxSize = 5, purpose = 'generic',
         <Tooltip title={<div style={{ whiteSpace: 'pre-line' }}>{hint}</div>}>
           <QuestionCircleOutlined style={{ marginTop: 4, color: '#8c8c8c', fontSize: 16, cursor: 'help' }} aria-label="图片要求说明" />
         </Tooltip>
+      )}
+      {crop && (
+        <CoverCropper
+          open={Boolean(pendingFile)}
+          file={pendingFile}
+          crop={crop}
+          onCancel={() => setPendingFile(null)}
+          onCropped={uploadCropped}
+        />
       )}
     </div>
   )

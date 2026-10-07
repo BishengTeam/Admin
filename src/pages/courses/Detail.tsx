@@ -35,6 +35,7 @@ import type { ColumnsType } from 'antd/es/table'
 import { useNavigate, useParams } from 'react-router-dom'
 import { PageContainer } from '@/components/PageContainer'
 import { ConfirmButton } from '@/components/ConfirmButton'
+import { CoverCropper } from '@/components/CoverCropper'
 import { usePermission } from '@/hooks/usePermission'
 import { useAuth } from '@/hooks/useAuth'
 import { usePagination } from '@/hooks/usePagination'
@@ -98,6 +99,7 @@ export default function CourseDetailPage() {
   const [uploads, setUploads] = useState<CourseUpload[]>([])
   const [stage, setStage] = useState<StageFile[]>([])
   const [queueOpen, setQueueOpen] = useState(false)
+  const [coverCropFile, setCoverCropFile] = useState<File | null>(null)
   const [uploading, setUploading] = useState(false)
   const [form] = Form.useForm()
   const [bindingOpen, setBindingOpen] = useState(false)
@@ -483,14 +485,11 @@ export default function CourseDetailPage() {
                     message.success('课程信息已保存')
                     await load()
                   }}>保存基本信息</Button>
-                  <Upload showUploadList={false} accept=".jpg,.jpeg,.png,.webp" beforeUpload={async file => {
-                    const uploaded = await courseManagementService.uploadCover(file)
-                    await courseManagementService.updateCourse(courseId, { cover_upload_id: uploaded.id })
-                    message.success('封面已替换')
-                    await load()
+                  <Upload showUploadList={false} accept=".jpg,.jpeg,.png,.webp" beforeUpload={file => {
+                    setCoverCropFile(file)
                     return false
                   }}>
-                    <Button icon={<UploadOutlined />}>替换 16:9 封面</Button>
+                    <Button icon={<UploadOutlined />}>替换 16:9 封面（手动裁剪）</Button>
                   </Upload>
                 </Space>
               </Form>
@@ -569,7 +568,19 @@ export default function CourseDetailPage() {
                       </Card>
                     </Col>
                   ))}
-                </Row>
+      </Row>
+      <CoverCropper
+        open={Boolean(coverCropFile)}
+        file={coverCropFile}
+        crop={{ width: 1280, height: 720, title: '课程封面' }}
+        onCancel={() => setCoverCropFile(null)}
+        onCropped={async croppedFile => {
+          const uploaded = await courseManagementService.uploadCover(croppedFile)
+          await courseManagementService.updateCourse(courseId, { cover_upload_id: uploaded.id })
+          message.success('封面已替换')
+          await load()
+        }}
+      />
                 {chapters.length === 0 && (
                   <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description='暂无课程视频，选择视频文件上传' style={{ padding: 40 }} />
                 )}
