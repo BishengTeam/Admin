@@ -45,6 +45,7 @@ const JobManagement = lazy(() => import('@/pages/operations/jobs'))
 const TrainingManagement = lazy(() => import('@/pages/operations/training'))
 const ActivityManagement = lazy(() => import('@/pages/operations/activities'))
 const CompetitionManagement = lazy(() => import('@/pages/operations/competitions'))
+const DocumentManagement = lazy(() => import('@/pages/operations/documents'))
 const ClassroomManagement = lazy(() => import('@/pages/classrooms'))
 const ClassroomWorkbench = lazy(() => import('@/pages/classrooms/Workbench'))
 const PointsMallManagement = lazy(() => import('@/pages/pointsMall'))
@@ -274,6 +275,11 @@ export const adminRoutes: AppRoute[] = [
         path: 'competitions',
         element: <CompetitionManagement />,
         meta: { title: '竞赛管理', icon: 'TrophyOutlined', permission: 'competition:list' },
+      },
+      {
+        path: 'documents',
+        element: <DocumentManagement />,
+        meta: { title: '文档管理', icon: 'FileTextOutlined', permission: 'document:read' },
       },
     ],
   },
