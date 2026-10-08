@@ -16,7 +16,7 @@ describe('certification review materials', () => {
     expect(page).toContain("MaterialPreview")
     expect(page).toContain("'身份证双面'")
     expect(page).toContain("'寸照'")
-    expect(page).toContain("'学籍报告'")
+    expect(page).toContain("'学籍验证报告'")
     expect(page).toContain("'NISP二级考试报名申请表'")
   })
 
