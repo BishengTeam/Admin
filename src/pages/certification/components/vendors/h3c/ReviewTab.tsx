@@ -2,8 +2,6 @@ import { useState } from 'react'
 import {
   Button,
   Checkbox,
-  Descriptions,
-  Drawer,
   Form,
   Input,
   Modal,
@@ -26,6 +24,7 @@ import type {
   H3cRegistrationType,
 } from '@/types/h3c'
 import MaterialPreview from '../renshe/MaterialPreview'
+import ReviewDetailDrawer from '../../shared/ReviewDetailDrawer'
 
 const FIELD_LABELS: Record<string, string> = {
   candidate_name: '姓名',
@@ -142,6 +141,9 @@ export default function ReviewTab(_props: { type: CertType }) {
     },
   ]
 
+  const current = detail ?? selected
+  const currentMaterials = (current?.materials ?? []).filter((material) => material.is_current)
+
   return (
     <>
       <Space style={{ marginBottom: 16 }} wrap>
@@ -165,34 +167,66 @@ export default function ReviewTab(_props: { type: CertType }) {
       </Space>
       <Table rowKey='id' columns={columns} dataSource={data?.items ?? []} loading={loading} pagination={pagination} />
 
-      <Drawer title='H3C 报名详情' width={720} open={detailOpen} onClose={() => setDetailOpen(false)}>
-        {selected && (
-          <Space direction='vertical' size={16} style={{ width: '100%' }}>
-            <Descriptions bordered size='small' column={1}>
-              {Object.entries(selected.candidate_snapshot).map(([key, value]) => (
-                <Descriptions.Item key={key} label={FIELD_LABELS[key] ?? key}>{String(value ?? '-')}</Descriptions.Item>
-              ))}
-            </Descriptions>
-            {(detail?.materials ?? selected.materials).map((material) => (
-              <div key={material.id}>
-                <div style={{ fontWeight: 500, marginBottom: 8 }}>
-                  {MATERIAL_LABELS[material.material_type] ?? material.material_type}
-                  <span style={{ fontWeight: 400, color: '#999', marginLeft: 8 }}>v{material.version_no}</span>
-                </div>
-                <MaterialPreview
-                  available={material.is_current && Boolean(material.preview_url)}
-                  filename={material.original_filename}
-                  getSignedUrl={async () => {
-                    if (!material.preview_url) throw new Error('材料预览地址不可用')
-                    return { url: material.preview_url, expires_in: 3600 }
-                  }}
-                />
-              </div>
-            ))}
-            {detailLoading && <div>材料加载中...</div>}
-          </Space>
-        )}
-      </Drawer>
+      {current && (
+        <ReviewDetailDrawer
+          registrationNo={current.registration_no}
+          open={detailOpen}
+          onClose={() => setDetailOpen(false)}
+          materialLoading={detailLoading}
+          statusItems={[
+            { label: '报名类型', content: TYPE_LABELS[current.registration_type] },
+            { label: '状态', content: statusTag(current.status) },
+            { label: '金额', content: formatPrice(current.price_cents) },
+            { label: '补交次数', content: current.resubmission_count },
+          ]}
+          informationItems={Object.entries(current.candidate_snapshot)
+            .filter(([key]) => FIELD_LABELS[key])
+            .map(([key, value]) => ({
+              label: FIELD_LABELS[key],
+              content: String(value ?? '-'),
+            }))}
+          materialItems={currentMaterials.map((material) => ({
+            label: (
+              <Space size={4}>
+                {MATERIAL_LABELS[material.material_type] ?? material.material_type}
+                <Tag>v{material.version_no}</Tag>
+              </Space>
+            ),
+            content: (
+              <MaterialPreview
+                available={Boolean(material.preview_url)}
+                filename={material.original_filename}
+                getSignedUrl={async () => {
+                  if (!material.preview_url) throw new Error('材料预览地址不可用')
+                  return { url: material.preview_url, expires_in: 3600 }
+                }}
+              />
+            ),
+          }))}
+          latestReviewItems={current.latest_review ? [
+            {
+              label: '结果',
+              content: current.latest_review.decision === 'approved' ? '通过' : '驳回',
+            },
+            {
+              label: '审核时间',
+              content: formatDate(current.latest_review.reviewed_at),
+            },
+            ...(current.latest_review.reason_detail ? [{
+              label: '原因',
+              content: current.latest_review.reason_detail,
+              span: 2,
+            }] : []),
+            ...(current.latest_review.rejected_material_types?.length ? [{
+              label: '驳回材料',
+              content: current.latest_review.rejected_material_types
+                .map((item) => MATERIAL_LABELS[item] ?? item)
+                .join('、'),
+              span: 2,
+            }] : []),
+          ] : undefined}
+        />
+      )}
 
       <Modal title='H3C 审核' open={reviewOpen} onOk={submit} onCancel={() => setReviewOpen(false)}>
         <Form form={form} layout='vertical'>

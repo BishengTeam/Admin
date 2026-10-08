@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import {
-  Button, Card, Descriptions, Drawer, Input, Modal,
-  Select, Space, Table, Tag, Typography, message,
+  Button, Card, Input, Modal,
+  Select, Space, Table, Tag, message,
 } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { usePagination } from '@/hooks/usePagination'
@@ -9,6 +9,7 @@ import { nispService } from '@/services/nisp'
 import type { NispMaterial, NispRegistration } from '@/services/nisp'
 import { formatPrice, formatDate } from '@/utils/format'
 import MaterialPreview from '../renshe/MaterialPreview'
+import ReviewDetailDrawer from '../../shared/ReviewDetailDrawer'
 
 const STATUS_CONFIG: Record<string, { text: string; color: string }> = {
   pending_payment: { text: '待支付', color: 'orange' },
@@ -28,6 +29,7 @@ const FIELD_LABELS: Record<string, string> = {
   id_card: '身份证号', phone: '手机号码', email: '邮箱', province: '报考省份',
   training_type: '培训种类', gender: '性别', age: '年龄', education: '最高学历',
   address: '地址', zip_code: '邮编', institution: '培训机构',
+  birth_date: '出生日期', exam_date: '考试日期', exam_location: '考试地点',
 }
 
 const MATERIAL_LABELS: Record<NispMaterial['material_type'], string> = {
@@ -136,6 +138,10 @@ export default function NispReviewTab() {
     },
   ]
 
+  const current = detail ?? selected
+  const currentMaterials = (current?.materials ?? [])
+    .filter((material) => material.is_current)
+
   return (
     <>
       <Card>
@@ -152,69 +158,74 @@ export default function NispReviewTab() {
         <Table rowKey='id' columns={columns} dataSource={data?.items ?? []} loading={loading} pagination={pagination} />
       </Card>
 
-      <Drawer
-        title={`报名详情 - ${selected?.registration_no ?? ''}`}
-        open={!!selected}
-        onClose={() => setSelected(null)}
-        width={480}
-      >
-        {selected && (
-          <>
-            <Descriptions title="状态" column={1} bordered size='small'>
-              <Descriptions.Item label="级别">{LEVEL_LABELS[selected.level]}</Descriptions.Item>
-              <Descriptions.Item label="状态">
-                <Tag color={STATUS_CONFIG[selected.status]?.color}>
-                  {STATUS_CONFIG[selected.status]?.text ?? selected.status}
+      {current && (
+        <ReviewDetailDrawer
+          registrationNo={current.registration_no}
+          open={!!selected}
+          onClose={() => setSelected(null)}
+          materialLoading={detailLoading}
+          statusItems={[
+            { label: '级别', content: LEVEL_LABELS[current.level] },
+            {
+              label: '状态',
+              content: (
+                <Tag color={STATUS_CONFIG[current.status]?.color}>
+                  {STATUS_CONFIG[current.status]?.text ?? current.status}
                 </Tag>
-              </Descriptions.Item>
-              <Descriptions.Item label="金额">{formatPrice(selected.price_cents)}</Descriptions.Item>
-              <Descriptions.Item label="补交次数">{selected.resubmission_count}</Descriptions.Item>
-            </Descriptions>
-            <Descriptions title="报名信息" column={1} bordered size='small' style={{ marginTop: 16 }}>
-              {Object.entries(selected.candidate_snapshot)
-                .filter(([key]) => FIELD_LABELS[key])
-                .map(([key, value]) => (
-                  <Descriptions.Item key={key} label={FIELD_LABELS[key]}>
-                    {String(value ?? '-')}
-                  </Descriptions.Item>
-                ))}
-            </Descriptions>
-            <Descriptions title="报名材料" column={1} bordered size='small' style={{ marginTop: 16 }}>
-              {(detail?.materials ?? [])
-                .filter((material) => material.is_current)
-                .map((material) => (
-                  <Descriptions.Item
-                    key={material.id}
-                    label={MATERIAL_LABELS[material.material_type]}
-                  >
-                    <MaterialPreview
-                      available
-                      filename={material.original_filename || MATERIAL_LABELS[material.material_type]}
-                      isPdf={material.material_type !== 'portrait_photo'}
-                      getSignedUrl={async () => {
-                        if (!material.preview_url) throw new Error('材料预览地址不可用')
-                        return { url: material.preview_url, expires_in: 3600 }
-                      }}
-                    />
-                  </Descriptions.Item>
-                ))}
-              {!detailLoading && (detail?.materials ?? []).filter((material) => material.is_current).length === 0 && (
-                <Descriptions.Item label="材料">暂无材料</Descriptions.Item>
-              )}
-            </Descriptions>
-            {detail?.latest_review && (
-              <Descriptions title="最新审核" column={1} bordered size='small' style={{ marginTop: 16 }}>
-                <Descriptions.Item label="结果">
-                  {detail.latest_review.decision === 'approved' ? '通过' : '驳回'}
-                </Descriptions.Item>
-                {detail.latest_review.reason_detail && (
-                  <Descriptions.Item label="原因">{detail.latest_review.reason_detail}</Descriptions.Item>
-                )}
-              </Descriptions>
-            )}
-          </>
-        )}
-      </Drawer>
+              ),
+            },
+            { label: '金额', content: formatPrice(current.price_cents) },
+            { label: '补交次数', content: current.resubmission_count },
+          ]}
+          informationItems={Object.entries(current.candidate_snapshot)
+            .filter(([key]) => FIELD_LABELS[key])
+            .map(([key, value]) => ({
+              label: FIELD_LABELS[key],
+              content: String(value ?? '-'),
+            }))}
+          materialItems={currentMaterials.map((material) => ({
+            label: (
+              <Space size={4}>
+                {MATERIAL_LABELS[material.material_type]}
+                {material.version_no ? <Tag>v{material.version_no}</Tag> : null}
+              </Space>
+            ),
+            content: (
+              <MaterialPreview
+                available={Boolean(material.preview_url)}
+                filename={material.original_filename || MATERIAL_LABELS[material.material_type]}
+                isPdf={material.material_type !== 'portrait_photo'}
+                getSignedUrl={async () => {
+                  if (!material.preview_url) throw new Error('材料预览地址不可用')
+                  return { url: material.preview_url, expires_in: 3600 }
+                }}
+              />
+            ),
+          }))}
+          latestReviewItems={current.latest_review ? [
+            {
+              label: '结果',
+              content: current.latest_review.decision === 'approved' ? '通过' : '驳回',
+            },
+            {
+              label: '审核时间',
+              content: formatDate(current.latest_review.reviewed_at),
+            },
+            ...(current.latest_review.reason_detail ? [{
+              label: '原因',
+              content: current.latest_review.reason_detail,
+              span: 2,
+            }] : []),
+            ...(current.latest_review.rejected_material_types?.length ? [{
+              label: '驳回材料',
+              content: current.latest_review.rejected_material_types
+                .map((item) => MATERIAL_LABELS[item as NispMaterial['material_type']] ?? item)
+                .join('、'),
+              span: 2,
+            }] : []),
+          ] : undefined}
+        />
+      )}
 
       <Modal
         title="驳回报名"

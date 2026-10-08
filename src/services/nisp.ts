@@ -40,6 +40,7 @@ export interface NispRegistration {
     decision: string
     reason_code: string | null
     reason_detail: string | null
+    rejected_material_types?: string[] | null
     reviewed_at: string
   } | null
   materials: NispMaterial[]
