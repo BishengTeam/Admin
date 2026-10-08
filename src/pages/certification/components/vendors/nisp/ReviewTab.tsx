@@ -6,8 +6,9 @@ import {
 import type { ColumnsType } from 'antd/es/table'
 import { usePagination } from '@/hooks/usePagination'
 import { nispService } from '@/services/nisp'
-import type { NispRegistration } from '@/services/nisp'
+import type { NispMaterial, NispRegistration } from '@/services/nisp'
 import { formatPrice, formatDate } from '@/utils/format'
+import MaterialPreview from '../renshe/MaterialPreview'
 
 const STATUS_CONFIG: Record<string, { text: string; color: string }> = {
   pending_payment: { text: '待支付', color: 'orange' },
@@ -29,9 +30,18 @@ const FIELD_LABELS: Record<string, string> = {
   address: '地址', zip_code: '邮编', institution: '培训机构',
 }
 
+const MATERIAL_LABELS: Record<NispMaterial['material_type'], string> = {
+  id_card_both_sides: '身份证双面',
+  portrait_photo: '寸照',
+  xuexin_report: '学籍报告',
+  application_form: 'NISP二级考试报名申请表',
+}
+
 export default function NispReviewTab() {
   const [statusFilter, setStatusFilter] = useState<string>('pending_review')
   const [selected, setSelected] = useState<NispRegistration | null>(null)
+  const [detail, setDetail] = useState<NispRegistration | null>(null)
+  const [detailLoading, setDetailLoading] = useState(false)
   const [rejectOpen, setRejectOpen] = useState(false)
   const [rejectReason, setRejectReason] = useState('')
   const { data, loading, pagination, refresh } = usePagination(
@@ -46,6 +56,19 @@ export default function NispReviewTab() {
       refresh()
     } catch (error) {
       message.error(error instanceof Error ? error.message : '操作失败')
+    }
+  }
+
+  const openDetail = async (reg: NispRegistration) => {
+    setSelected(reg)
+    setDetail(null)
+    setDetailLoading(true)
+    try {
+      setDetail(await nispService.getRegistration(reg.id))
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '加载报名详情失败')
+    } finally {
+      setDetailLoading(false)
     }
   }
 
@@ -101,7 +124,7 @@ export default function NispReviewTab() {
       width: 160,
       render: (_, row) => (
         <Space size={4}>
-          <Button size='small' onClick={() => setSelected(row)}>详情</Button>
+          <Button size='small' onClick={() => void openDetail(row)}>详情</Button>
           {row.status === 'pending_review' && (
             <>
               <Button size='small' type='primary' onClick={() => approve(row)}>通过</Button>
@@ -156,13 +179,36 @@ export default function NispReviewTab() {
                   </Descriptions.Item>
                 ))}
             </Descriptions>
-            {selected.latest_review && (
+            <Descriptions title="报名材料" column={1} bordered size='small' style={{ marginTop: 16 }}>
+              {(detail?.materials ?? [])
+                .filter((material) => material.is_current)
+                .map((material) => (
+                  <Descriptions.Item
+                    key={material.id}
+                    label={MATERIAL_LABELS[material.material_type]}
+                  >
+                    <MaterialPreview
+                      available
+                      filename={material.original_filename || MATERIAL_LABELS[material.material_type]}
+                      isPdf={material.material_type !== 'portrait_photo'}
+                      getSignedUrl={async () => {
+                        if (!material.preview_url) throw new Error('材料预览地址不可用')
+                        return { url: material.preview_url, expires_in: 3600 }
+                      }}
+                    />
+                  </Descriptions.Item>
+                ))}
+              {!detailLoading && (detail?.materials ?? []).filter((material) => material.is_current).length === 0 && (
+                <Descriptions.Item label="材料">暂无材料</Descriptions.Item>
+              )}
+            </Descriptions>
+            {detail?.latest_review && (
               <Descriptions title="最新审核" column={1} bordered size='small' style={{ marginTop: 16 }}>
                 <Descriptions.Item label="结果">
-                  {selected.latest_review.decision === 'approved' ? '通过' : '驳回'}
+                  {detail.latest_review.decision === 'approved' ? '通过' : '驳回'}
                 </Descriptions.Item>
-                {selected.latest_review.reason_detail && (
-                  <Descriptions.Item label="原因">{selected.latest_review.reason_detail}</Descriptions.Item>
+                {detail.latest_review.reason_detail && (
+                  <Descriptions.Item label="原因">{detail.latest_review.reason_detail}</Descriptions.Item>
                 )}
               </Descriptions>
             )}

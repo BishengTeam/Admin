@@ -4,7 +4,6 @@ import {
   Checkbox,
   Descriptions,
   Drawer,
-  Image,
   Form,
   Input,
   Modal,
@@ -26,6 +25,7 @@ import type {
   H3cRegistrationStatus,
   H3cRegistrationType,
 } from '@/types/h3c'
+import MaterialPreview from '../renshe/MaterialPreview'
 
 const FIELD_LABELS: Record<string, string> = {
   candidate_name: '姓名',
@@ -73,6 +73,8 @@ export default function ReviewTab(_props: { type: CertType }) {
   const [type, setType] = useState<H3cRegistrationType>()
   const [status, setStatus] = useState<H3cRegistrationStatus>()
   const [selected, setSelected] = useState<H3cRegistration | null>(null)
+  const [detail, setDetail] = useState<H3cRegistration | null>(null)
+  const [detailLoading, setDetailLoading] = useState(false)
   const [detailOpen, setDetailOpen] = useState(false)
   const [reviewOpen, setReviewOpen] = useState(false)
   const [form] = Form.useForm<{
@@ -100,6 +102,20 @@ export default function ReviewTab(_props: { type: CertType }) {
     }
   }
 
+  const openDetail = async (registration: H3cRegistration) => {
+    setSelected(registration)
+    setDetail(null)
+    setDetailLoading(true)
+    setDetailOpen(true)
+    try {
+      setDetail(await h3cService.getRegistration(registration.id))
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '加载报名详情失败')
+    } finally {
+      setDetailLoading(false)
+    }
+  }
+
   const columns: ColumnsType<H3cRegistration> = [
     { title: '报名号', dataIndex: 'registration_no', width: 175 },
     { title: '类型', dataIndex: 'registration_type', width: 100, render: (value: H3cRegistrationType) => TYPE_LABELS[value] },
@@ -112,7 +128,7 @@ export default function ReviewTab(_props: { type: CertType }) {
       width: 150,
       render: (_, row) => (
         <Space>
-          <Button size='small' onClick={() => { setSelected(row); setDetailOpen(true) }}>详情</Button>
+          <Button size='small' onClick={() => void openDetail(row)}>详情</Button>
           {row.status === 'pending_review' && (
             <Button size='small' type='primary' onClick={() => {
               setSelected(row)
@@ -157,22 +173,23 @@ export default function ReviewTab(_props: { type: CertType }) {
                 <Descriptions.Item key={key} label={FIELD_LABELS[key] ?? key}>{String(value ?? '-')}</Descriptions.Item>
               ))}
             </Descriptions>
-            {selected.materials.map((material) => (
+            {(detail?.materials ?? selected.materials).map((material) => (
               <div key={material.id}>
                 <div style={{ fontWeight: 500, marginBottom: 8 }}>
                   {MATERIAL_LABELS[material.material_type] ?? material.material_type}
                   <span style={{ fontWeight: 400, color: '#999', marginLeft: 8 }}>v{material.version_no}</span>
                 </div>
-                {material.preview_url && (
-                  <Image
-                    src={material.preview_url}
-                    alt={material.material_type}
-                    style={{ maxWidth: '100%', maxHeight: 280, borderRadius: 8 }}
-                    fallback="data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs="
-                  />
-                )}
+                <MaterialPreview
+                  available={material.is_current && Boolean(material.preview_url)}
+                  filename={material.original_filename}
+                  getSignedUrl={async () => {
+                    if (!material.preview_url) throw new Error('材料预览地址不可用')
+                    return { url: material.preview_url, expires_in: 3600 }
+                  }}
+                />
               </div>
             ))}
+            {detailLoading && <div>材料加载中...</div>}
           </Space>
         )}
       </Drawer>

@@ -46,6 +46,10 @@ export const h3cService = {
   }): Promise<PageData<H3cRegistration>> {
     return http.get('/admin/cert-products/h3c/registrations', { params })
   },
+
+  getRegistration(id: number): Promise<H3cRegistration> {
+    return http.get(`/admin/cert-products/h3c/registrations/${id}`)
+  },
   reviewRegistration(id: number, data: {
     decision: 'approved' | 'rejected'
     reason_code?: string

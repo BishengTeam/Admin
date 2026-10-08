@@ -8,21 +8,9 @@ import { usePagination } from '@/hooks/usePagination'
 import { http } from '@/core/request'
 import { formatDate } from '@/utils/format'
 import type { PageData } from '@/types/api'
+import type { NispExportJob } from '@/services/nisp'
 
 const { Text } = Typography
-
-interface NispExportJob {
-  id: number
-  batch_id: number
-  level: '1' | '2'
-  status: 'queued' | 'running' | 'succeeded' | 'failed'
-  registration_count: number
-  storage_key: string | null
-  artifact_bytes: number | null
-  expires_at: string | null
-  last_error: string | null
-  created_at: string
-}
 
 const STATUS_CONFIG: Record<string, { text: string; color: string }> = {
   queued: { text: '排队中', color: 'default' },
@@ -97,6 +85,16 @@ export default function NispExportTab() {
     },
     { title: '记录数', dataIndex: 'registration_count', width: 80 },
     {
+      title: '产物',
+      dataIndex: 'artifact_type',
+      width: 110,
+      render: (value: NispExportJob['artifact_type']) => (
+        <Tag color={value === 'full_package' ? 'geekblue' : 'default'}>
+          {value === 'full_package' ? '完整资料包' : 'Excel'}
+        </Tag>
+      ),
+    },
+    {
       title: '状态',
       dataIndex: 'status',
       width: 90,
@@ -109,7 +107,11 @@ export default function NispExportTab() {
       title: '文件大小',
       dataIndex: 'artifact_bytes',
       width: 90,
-      render: (v: number | null) => v ? `${(v / 1024).toFixed(0)} KB` : '-',
+      render: (v: number | null) => v
+        ? v >= 1024 * 1024
+          ? `${(v / 1024 / 1024).toFixed(2)} MB`
+          : `${(v / 1024).toFixed(0)} KB`
+        : '-',
     },
     { title: '过期时间', dataIndex: 'expires_at', width: 110, render: (v: string | null) => v ? formatDate(v) : '-' },
     { title: '创建时间', dataIndex: 'created_at', width: 110, render: (v: string) => formatDate(v) },
@@ -137,10 +139,37 @@ export default function NispExportTab() {
           新建导出
         </Button>
       </Space>
-      <Table rowKey='id' columns={columns} dataSource={data?.items ?? []} loading={loading} pagination={pagination} />
+      <Table
+        rowKey='id'
+        columns={columns}
+        dataSource={data?.items ?? []}
+        loading={loading}
+        pagination={pagination}
+        expandable={{
+          expandedRowRender: row => (
+            <Space direction='vertical' size={4}>
+              {row.result_summary?.packages?.map(item => (
+                <Text key={item.registration_no}>
+                  {item.name}（{item.registration_no}）：{item.filename}
+                </Text>
+              ))}
+              {row.result_summary?.missing_materials?.map(item => (
+                <Text type='danger' key={item.registration_no}>
+                  {item.name}（{item.registration_no}）缺少：
+                  {item.missing_materials.join('、')}
+                </Text>
+              ))}
+              {row.last_error && <Text type='danger'>{row.last_error}</Text>}
+              {!row.result_summary?.packages?.length
+                && !row.result_summary?.missing_materials?.length
+                && !row.last_error && <Text type='secondary'>暂无导出明细</Text>}
+            </Space>
+          ),
+        }}
+      />
 
       <Modal
-        title="新建 NISP 导出任务"
+        title="导出 NISP 完整资料包"
         open={open}
         onCancel={() => setOpen(false)}
         onOk={createJob}
@@ -170,13 +199,13 @@ export default function NispExportTab() {
               onChange={setLevel}
               style={{ width: '100%' }}
               options={[
-                { value: '1', label: 'NISP一级（12列）' },
-                { value: '2', label: 'NISP二级（20列）' },
+                { value: '1', label: 'NISP一级（汇总表 + 身份证/寸照）' },
+                { value: '2', label: 'NISP二级（汇总表 + 四类材料）' },
               ]}
             />
           </div>
           <Text type='secondary' style={{ fontSize: 12 }}>
-            仅导出状态为「审核通过」的报名记录。导出文件保存72小时。
+            仅导出状态为「审核通过」的报名记录；产物为汇总 Excel 和每位考生独立 ZIP 组成的总 ZIP。导出文件保存72小时。
           </Text>
         </Space>
       </Modal>

@@ -42,6 +42,44 @@ export interface NispRegistration {
     reason_detail: string | null
     reviewed_at: string
   } | null
+  materials: NispMaterial[]
+}
+
+export interface NispMaterial {
+  id: number
+  material_type: 'id_card_both_sides' | 'portrait_photo' | 'xuexin_report' | 'application_form'
+  version_no: number | null
+  storage_key: string
+  original_filename: string | null
+  content_type: string | null
+  size_bytes: number | null
+  sha256: string | null
+  is_current: boolean
+  preview_url: string | null
+  uploaded_at: string | null
+}
+
+export interface NispExportJob {
+  id: number
+  batch_id: number
+  level: '1' | '2'
+  status: 'queued' | 'running' | 'succeeded' | 'failed'
+  artifact_type: 'excel' | 'full_package'
+  registration_count: number
+  storage_key: string | null
+  artifact_bytes: number | null
+  expires_at: string | null
+  last_error: string | null
+  result_summary: {
+    missing_count?: number
+    missing_materials?: Array<{
+      registration_no: string
+      name: string
+      missing_materials: string[]
+    }>
+    packages?: Array<{ registration_no: string; name: string; filename: string }>
+  } | null
+  created_at: string
 }
 
 export const nispService = {
@@ -81,6 +119,10 @@ export const nispService = {
     status?: string
   }): Promise<PageData<NispRegistration>> {
     return http.get('/admin/nisp/registrations', { params })
+  },
+
+  getRegistration(id: number): Promise<NispRegistration> {
+    return http.get(`/admin/nisp/registrations/${id}`)
   },
 
   reviewRegistration(id: number, data: {
