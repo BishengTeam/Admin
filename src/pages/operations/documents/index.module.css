@@ -1,0 +1,179 @@
+.section {
+  margin-bottom: 32px;
+}
+
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  color: #1f2937;
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.shelf {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 190px));
+  gap: 24px 20px;
+}
+
+.documentCard {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.coverRegion {
+  position: relative;
+  aspect-ratio: 3 / 4;
+  overflow: hidden;
+  background: #e5e7eb;
+  box-shadow: 0 14px 30px rgba(2, 6, 23, 0.38);
+  transition: transform 170ms ease, box-shadow 170ms ease;
+}
+
+.documentCard:hover .coverRegion,
+.documentCard:focus-within .coverRegion {
+  transform: translateY(-3px);
+  box-shadow: 0 20px 42px rgba(2, 6, 23, 0.46);
+}
+
+.coverButton {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  background: #e5e7eb;
+  cursor: pointer;
+}
+
+.coverButton:disabled {
+  cursor: default;
+}
+
+.coverButton:focus-visible {
+  outline: 3px solid #60a5fa;
+  outline-offset: -4px;
+}
+
+.bookCover {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(155deg, #fbfaf7 0%, #f4f2ec 58%, #eae6db 100%);
+}
+
+.bookTitle {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 5;
+  margin: 0;
+  padding: 0 16px;
+  color: #1f2937;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.55;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.bookFoot {
+  position: absolute;
+  right: 0;
+  bottom: 10px;
+  left: 0;
+  margin: 0;
+  color: #78716c;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-align: center;
+}
+
+.coverPlaceholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  width: 100%;
+  height: 100%;
+  padding: 18px 14px;
+  background: linear-gradient(155deg, #fafafa 0%, #f0f0ef 55%, #e4e4e2 100%);
+  color: #334155;
+  text-align: center;
+}
+
+.coverPlaceholder > :first-child {
+  color: #94a3b8;
+  font-size: 26px;
+}
+
+.coverPlaceholder strong {
+  color: #1e293b;
+  font-size: 13px;
+}
+
+.coverPlaceholder span {
+  color: #94a3b8;
+  font-size: 11px;
+}
+
+.statusBadge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 3;
+  padding: 3px 8px;
+  border-radius: 2px;
+  background: rgba(16, 185, 129, 0.94);
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.28);
+}
+
+.inactiveBadge {
+  background: rgba(100, 116, 139, 0.96);
+}
+
+.cardMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 108px;
+  padding: 10px 2px 0;
+}
+
+.entryText {
+  color: #1f2937;
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.metaText {
+  overflow: hidden;
+  color: #64748b;
+  font-size: 11px;
+  line-height: 16px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.actions {
+  margin-top: 2px;
+}
+
+.pagination {
+  margin-top: 18px;
+  text-align: right;
+}

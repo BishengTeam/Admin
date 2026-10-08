@@ -75,4 +75,25 @@ describe('admin-managed operational documents', () => {
     expect(service).toContain("'/admin/documents'")
     expect(service).toContain('`/admin/documents/${id}/file`')
   })
+
+  it('shows fixed mini-program scenes in agreement-template-style cards', () => {
+    const page = readFileSync(
+      resolve(process.cwd(), 'src/pages/operations/documents/index.tsx'),
+      'utf8',
+    )
+    const stylesheet = readFileSync(
+      resolve(process.cwd(), 'src/pages/operations/documents/index.module.css'),
+      'utf8',
+    )
+
+    expect(page).toContain("H3C_XUEXIN_GUIDE_SCENE = 'h3c_student_xuexin_guide'")
+    expect(page).toContain('H3C报名表单 / 学生材料')
+    expect(page).toContain('小程序固定入口')
+    expect(page).toContain('小程序入口文案')
+    expect(page).toContain('小程序入口会保留并提示联系管理员')
+    expect(stylesheet).toContain('.shelf')
+    expect(stylesheet).toContain('.coverRegion')
+    expect(stylesheet).toContain('aspect-ratio: 3 / 4')
+    expect(page).not.toContain('<Table')
+  })
 })

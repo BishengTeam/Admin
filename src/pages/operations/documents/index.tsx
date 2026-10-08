@@ -1,25 +1,28 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   Button,
+  Empty,
   Form,
   Input,
   Modal,
+  Pagination,
+  Select,
   Space,
+  Spin,
   Switch,
-  Table,
-  Tag,
   Typography,
   Upload,
   message,
 } from 'antd'
 import {
+  EditOutlined,
+  FileAddOutlined,
   FilePdfOutlined,
   PlusOutlined,
   SearchOutlined,
   SyncOutlined,
 } from '@ant-design/icons'
 import type { UploadFile } from 'antd'
-import type { ColumnsType } from 'antd/es/table'
 import { PageContainer } from '@/components/PageContainer'
 import { useAuth } from '@/hooks/useAuth'
 import { usePagination } from '@/hooks/usePagination'
@@ -27,9 +30,30 @@ import { checkPermission } from '@/core/permission'
 import { documentService } from '@/services/document'
 import { formatDate } from '@/utils/format'
 import type { DocumentResource } from '@/types/document'
+import styles from './index.module.css'
 
 const { Text } = Typography
 const MAX_PDF_BYTES = 20 * 1024 * 1024
+const H3C_XUEXIN_GUIDE_SCENE = 'h3c_student_xuexin_guide'
+
+const SCENE_OPTIONS = [
+  {
+    value: H3C_XUEXIN_GUIDE_SCENE,
+    label: 'H3C报名表单 / 学生材料',
+    defaultDocumentKey: 'h3c.xuexin_verification_guide',
+    defaultTitle: '如何查询学籍在线验证码',
+    defaultEntryText: '查看《如何查询学籍在线验证码》PDF',
+  },
+]
+
+interface FormValues {
+  scene?: string
+  document_key: string
+  title: string
+  entry_text?: string
+  description?: string
+  is_active: boolean
+}
 
 function isPdfFile(file: File) {
   return file.name.toLowerCase().endsWith('.pdf') || file.type === 'application/pdf'
@@ -56,13 +80,16 @@ function getOriginFile(file: UploadFile): File {
 export default function DocumentManagement() {
   const [keyword, setKeyword] = useState('')
   const [searchText, setSearchText] = useState('')
+  const [sceneItem, setSceneItem] = useState<DocumentResource | null>(null)
+  const [sceneLoading, setSceneLoading] = useState(true)
   const [modalOpen, setModalOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<DocumentResource | null>(null)
   const [fileList, setFileList] = useState<UploadFile[]>([])
   const [replacingItem, setReplacingItem] = useState<DocumentResource | null>(null)
   const [replaceFileList, setReplaceFileList] = useState<UploadFile[]>([])
   const [saving, setSaving] = useState(false)
-  const [form] = Form.useForm()
+  const [form] = Form.useForm<FormValues>()
+  const selectedScene = Form.useWatch('scene', form)
   const { permissions } = useAuth()
   const canWrite = useMemo(
     () => checkPermission(permissions, 'document:write'),
@@ -72,18 +99,45 @@ export default function DocumentManagement() {
   const { data, loading, pagination, refresh } = usePagination((page) =>
     documentService.list({ keyword: searchText || undefined, ...page }), [searchText])
 
-  const openCreate = () => {
+  const loadSceneDocument = () => {
+    setSceneLoading(true)
+    documentService
+      .list({ scene: H3C_XUEXIN_GUIDE_SCENE, page: 1, page_size: 1 })
+      .then((page) => setSceneItem(page.items[0] || null))
+      .catch(() => setSceneItem(null))
+      .finally(() => setSceneLoading(false))
+  }
+
+  useEffect(loadSceneDocument, [])
+
+  const unboundItems = (data?.items || []).filter(
+    (item) => item.scene !== H3C_XUEXIN_GUIDE_SCENE,
+  )
+
+  const openCreate = (scene?: string) => {
+    const config = SCENE_OPTIONS.find((item) => item.value === scene)
     setEditingItem(null)
     setFileList([])
     form.resetFields()
-    form.setFieldsValue({ is_active: true })
+    form.setFieldsValue({
+      scene,
+      document_key: config?.defaultDocumentKey,
+      title: config?.defaultTitle,
+      entry_text: config?.defaultEntryText,
+      is_active: true,
+    })
     setModalOpen(true)
   }
 
   const openEdit = (item: DocumentResource) => {
     setEditingItem(item)
     setFileList([])
-    form.setFieldsValue(item)
+    form.setFieldsValue({
+      ...item,
+      scene: item.scene || undefined,
+      entry_text: item.entry_text || undefined,
+      description: item.description || undefined,
+    })
     setModalOpen(true)
   }
 
@@ -102,7 +156,9 @@ export default function DocumentManagement() {
     try {
       if (editingItem) {
         await documentService.update(editingItem.id, {
+          scene: values.scene || null,
           title: values.title,
+          entry_text: values.scene ? values.entry_text : null,
           description: values.description ?? null,
           is_active: values.is_active,
         })
@@ -110,8 +166,10 @@ export default function DocumentManagement() {
       } else {
         await documentService.create(
           {
+            scene: values.scene,
             document_key: values.document_key,
             title: values.title,
+            entry_text: values.scene ? values.entry_text : undefined,
             description: values.description ?? null,
             is_active: values.is_active,
           },
@@ -120,6 +178,7 @@ export default function DocumentManagement() {
         message.success('创建成功，新 PDF 已生效')
       }
       closeModal()
+      loadSceneDocument()
       refresh()
     } finally {
       setSaving(false)
@@ -140,6 +199,7 @@ export default function DocumentManagement() {
       message.success(`新 PDF 已生效（当前 v${updated.version_no}）`)
       setReplacingItem(null)
       setReplaceFileList([])
+      loadSceneDocument()
       refresh()
     } finally {
       setSaving(false)
@@ -149,6 +209,7 @@ export default function DocumentManagement() {
   const handleToggle = async (item: DocumentResource, checked: boolean) => {
     await documentService.update(item.id, { is_active: checked })
     message.success(checked ? '文档已启用' : '文档已停用')
+    loadSceneDocument()
     refresh()
   }
 
@@ -174,123 +235,163 @@ export default function DocumentManagement() {
     },
   }
 
-  const columns: ColumnsType<DocumentResource> = [
-    {
-      title: '文档',
-      dataIndex: 'title',
-      render: (title: string, record) => (
-        <Space direction="vertical" size={2}>
-          <Space>
-            <FilePdfOutlined style={{ color: '#F5222D' }} />
-            <Text strong>{title}</Text>
-          </Space>
-          <Text type="secondary" copyable style={{ fontSize: 12 }}>
-            {record.document_key}
-          </Text>
-        </Space>
-      ),
-    },
-    {
-      title: '当前文件',
-      dataIndex: 'original_filename',
-      ellipsis: true,
-      render: (filename: string, record) => (
-        <Space direction="vertical" size={2}>
-          <Text>{filename}</Text>
-          <Text type="secondary" style={{ fontSize: 12 }}>
-            v{record.version_no} · {formatSize(record.size_bytes)}
-          </Text>
-        </Space>
-      ),
-    },
-    {
-      title: '状态',
-      dataIndex: 'is_active',
-      width: 110,
-      render: (active: boolean, record) =>
-        canWrite ? (
-          <Switch
-            checked={active}
-            checkedChildren="启用"
-            unCheckedChildren="停用"
-            onChange={(checked) => handleToggle(record, checked)}
-          />
-        ) : (
-          <Tag color={active ? 'green' : 'default'}>{active ? '启用' : '停用'}</Tag>
-        ),
-    },
-    {
-      title: '更新时间',
-      dataIndex: 'updated_at',
-      width: 170,
-      render: (value: string) => formatDate(value),
-    },
-    {
-      title: '操作',
-      width: 220,
-      render: (_, record) => (
-        <Space>
-          <Button type="link" size="small" onClick={() => preview(record)}>
-            预览
-          </Button>
-          {canWrite && (
-            <>
-              <Button type="link" size="small" onClick={() => openEdit(record)}>
-                编辑
-              </Button>
-              <Button
-                type="link"
-                size="small"
-                icon={<SyncOutlined />}
-                onClick={() => {
-                  setReplacingItem(record)
-                  setReplaceFileList([])
-                }}
-              >
-                替换PDF
-              </Button>
-            </>
+  const renderCover = (
+    item: DocumentResource | null,
+    location: string,
+    onCreate?: () => void,
+  ) => (
+    <article className={styles.documentCard} key={item?.id || location}>
+      <div className={styles.coverRegion}>
+        <span
+          className={
+            item?.is_active
+              ? styles.statusBadge
+              : `${styles.statusBadge} ${styles.inactiveBadge}`
+          }
+        >
+          {item ? (item.is_active ? '已启用' : '已停用') : '未配置'}
+        </span>
+        <button
+          type="button"
+          className={styles.coverButton}
+          onClick={() => {
+            if (item) void preview(item)
+            else if (canWrite) onCreate?.()
+          }}
+          disabled={!item && !canWrite}
+          aria-label={item
+            ? `预览 ${item.title} 第 ${item.version_no} 版 PDF`
+            : canWrite ? `配置${location}文档` : `${location}尚未配置`}
+        >
+          {item ? (
+            <span className={styles.bookCover}>
+              <strong className={styles.bookTitle}>{item.title}</strong>
+              <span className={styles.bookFoot}>
+                {location} · v{item.version_no}
+              </span>
+            </span>
+          ) : (
+            <span className={styles.coverPlaceholder}>
+              {canWrite ? <FileAddOutlined /> : <FilePdfOutlined />}
+              <strong>{canWrite ? '点击配置' : '暂无生效版本'}</strong>
+              <span>{`${location}尚未配置`}</span>
+            </span>
           )}
-        </Space>
-      ),
-    },
-  ]
+        </button>
+      </div>
+
+      <div className={styles.cardMeta}>
+        {item ? (
+          <>
+            <Text strong className={styles.entryText}>{item.entry_text || item.title}</Text>
+            <Text type="secondary" className={styles.metaText}>{item.document_key}</Text>
+            <Text type="secondary" className={styles.metaText}>
+              {formatSize(item.size_bytes)} · {formatDate(item.updated_at)}
+            </Text>
+            {canWrite && (
+              <Space size={4} wrap className={styles.actions}>
+                <Button type="link" size="small" icon={<EditOutlined />} onClick={() => openEdit(item)}>
+                  编辑
+                </Button>
+                <Button
+                  type="link"
+                  size="small"
+                  icon={<SyncOutlined />}
+                  onClick={() => {
+                    setReplacingItem(item)
+                    setReplaceFileList([])
+                  }}
+                >
+                  替换
+                </Button>
+                <Switch
+                  checked={item.is_active}
+                  checkedChildren="启用"
+                  unCheckedChildren="停用"
+                  onChange={(checked) => void handleToggle(item, checked)}
+                />
+              </Space>
+            )}
+          </>
+        ) : (
+          <>
+            <Text strong className={styles.entryText}>{location}</Text>
+            <Text type="secondary" className={styles.metaText}>小程序入口会保留并提示联系管理员</Text>
+          </>
+        )}
+      </div>
+    </article>
+  )
 
   return (
     <PageContainer title="文档管理">
-      <Space style={{ marginBottom: 16 }} wrap>
-        <Input
-          placeholder="搜索文档标题 / 键名 / 文件名"
-          prefix={<SearchOutlined />}
-          value={keyword}
-          onChange={(event) => setKeyword(event.target.value)}
-          onPressEnter={() => setSearchText(keyword)}
-          allowClear
-          style={{ width: 280 }}
-        />
-        <Button type="primary" onClick={() => setSearchText(keyword)}>查询</Button>
-        <Button onClick={() => { setKeyword(''); setSearchText('') }}>重置</Button>
-        {canWrite && (
-          <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
-            新增文档
-          </Button>
-        )}
-      </Space>
-
-      <Table
-        rowKey="id"
-        columns={columns}
-        dataSource={data?.items}
-        loading={loading}
-        pagination={pagination}
-      />
-
-      <Text type="secondary" style={{ display: 'block', marginTop: 12 }}>
-        文档保存到私有 OSS，上传/替换后立即生效；小程序需登录后获取短期签名链接。
+      <Text type="secondary" style={{ display: 'block', marginBottom: 12 }}>
+        固定入口由小程序页面预置；后台控制当前绑定的 PDF、入口文案、启用状态和版本。
       </Text>
 
+      <section className={styles.section}>
+        <div className={styles.sectionHeader}>
+          <span>小程序固定入口</span>
+          {canWrite && (
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={() => openCreate(H3C_XUEXIN_GUIDE_SCENE)}
+              disabled={!!sceneItem}
+            >
+              配置H3C教程
+            </Button>
+          )}
+        </div>
+        <Spin spinning={sceneLoading}>
+          <div className={styles.shelf}>
+            {renderCover(
+              sceneItem,
+              'H3C报名 / 学信网教程',
+              () => openCreate(H3C_XUEXIN_GUIDE_SCENE),
+            )}
+          </div>
+        </Spin>
+      </section>
+
+      <section className={styles.section}>
+        <div className={styles.sectionHeader}>
+          <span>未绑定固定入口的文档</span>
+          {canWrite && (
+            <Button icon={<PlusOutlined />} onClick={() => openCreate()}>
+              新增通用PDF
+            </Button>
+          )}
+        </div>
+        <Space style={{ marginBottom: 16 }} wrap>
+          <Input
+            placeholder="搜索文档标题 / 键名 / 文件名"
+            prefix={<SearchOutlined />}
+            value={keyword}
+            onChange={(event) => setKeyword(event.target.value)}
+            onPressEnter={() => setSearchText(keyword)}
+            allowClear
+            style={{ width: 280 }}
+          />
+          <Button type="primary" onClick={() => setSearchText(keyword)}>查询</Button>
+          <Button onClick={() => { setKeyword(''); setSearchText('') }}>重置</Button>
+        </Space>
+        <Spin spinning={loading}>
+          {unboundItems.length ? (
+            <div className={styles.shelf}>
+              {unboundItems.map((item) => renderCover(item, '通用文档'))}
+            </div>
+          ) : (
+            <Empty description="暂无通用PDF文档" />
+          )}
+        </Spin>
+        {data && data.total > data.page_size && (
+          <Pagination {...pagination} className={styles.pagination} />
+        )}
+      </section>
+
       <Modal
-        title={editingItem ? `编辑文档 · ${editingItem.title}` : '新增文档'}
+        title={editingItem ? `编辑文档 · ${editingItem.title}` : '配置文档'}
         open={modalOpen}
         onOk={submitModal}
         onCancel={closeModal}
@@ -298,9 +399,23 @@ export default function DocumentManagement() {
         okText={editingItem ? '保存' : '创建并生效'}
         cancelText="取消"
         destroyOnClose
-        width={640}
+        width={680}
       >
         <Form form={form} layout="vertical" style={{ marginTop: 20 }}>
+          <Form.Item
+            name="scene"
+            label="小程序展示位置"
+            tooltip="固定入口必须由小程序版本预置；通用文档不会出现在固定入口"
+          >
+            <Select
+              options={[
+                ...SCENE_OPTIONS.map(({ value, label }) => ({ value, label })),
+                { value: '', label: '不绑定固定入口' },
+              ]}
+              allowClear
+              placeholder="不绑定固定入口"
+            />
+          </Form.Item>
           <Form.Item
             name="document_key"
             label="文档键名"
@@ -322,6 +437,18 @@ export default function DocumentManagement() {
           >
             <Input placeholder="如何查询学籍在线验证码" maxLength={128} />
           </Form.Item>
+          {selectedScene && (
+            <Form.Item
+              name="entry_text"
+              label="小程序入口文案"
+              rules={[
+                { required: true, message: '请输入小程序入口文案' },
+                { max: 30, message: '入口文案不能超过30个字符' },
+              ]}
+            >
+              <Input maxLength={30} showCount placeholder="查看教程PDF" />
+            </Form.Item>
+          )}
           <Form.Item name="description" label="描述">
             <Input.TextArea rows={3} maxLength={512} showCount placeholder="文档用途说明" />
           </Form.Item>
