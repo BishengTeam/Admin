@@ -35,6 +35,7 @@ import {
   SyncOutlined,
   SettingOutlined,
   CloudServerOutlined,
+  FilePdfOutlined,
   LockOutlined,
 } from '@ant-design/icons'
 import { useAppStore } from '@/stores/appStore'
@@ -82,6 +83,7 @@ const iconMap: Record<string, ReactNode> = {
   SyncOutlined: <SyncOutlined />,
   SettingOutlined: <SettingOutlined />,
   CloudServerOutlined: <CloudServerOutlined />,
+  FilePdfOutlined: <FilePdfOutlined />,
 }
 
 export function hasRouteAccess(

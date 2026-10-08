@@ -95,8 +95,25 @@ export const adminRoutes: AppRoute[] = [
   },
   {
     path: 'agreement-templates',
-    element: <AgreementTemplates />,
-    meta: { title: '协议模板', icon: 'FileTextOutlined', permission: 'content:list' },
+    element: <Navigate to="/admin/content/agreement-templates" replace />,
+    meta: { title: '协议模板', hidden: true },
+  },
+  {
+    path: 'content',
+    meta: { title: '内容管理', icon: 'FileTextOutlined' },
+    children: [
+      { index: true, element: <Navigate to="agreement-templates" replace /> },
+      {
+        path: 'agreement-templates',
+        element: <AgreementTemplates />,
+        meta: { title: '协议模板', icon: 'AuditOutlined', permission: 'content:list' },
+      },
+      {
+        path: 'documents',
+        element: <DocumentManagement />,
+        meta: { title: '文档管理', icon: 'FilePdfOutlined', permission: 'document:read' },
+      },
+    ],
   },
   {
     path: 'orders',
@@ -278,8 +295,8 @@ export const adminRoutes: AppRoute[] = [
       },
       {
         path: 'documents',
-        element: <DocumentManagement />,
-        meta: { title: '文档管理', icon: 'FileTextOutlined', permission: 'document:read' },
+        element: <Navigate to="/admin/content/documents" replace />,
+        meta: { title: '文档管理', hidden: true },
       },
     ],
   },
