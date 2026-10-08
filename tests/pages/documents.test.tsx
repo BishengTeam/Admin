@@ -86,8 +86,12 @@ describe('admin-managed operational documents', () => {
       'utf8',
     )
 
-    expect(page).toContain("H3C_XUEXIN_GUIDE_SCENE = 'h3c_student_xuexin_guide'")
+    expect(page).toContain("value: 'h3c_student_xuexin_guide'")
     expect(page).toContain('H3C报名表单 / 学生材料')
+    expect(page).toContain("value: 'nisp_education_report_guide'")
+    expect(page).toContain('NISP报名表单 / 二级学籍报告')
+    expect(page).toContain("value: 'nisp_level2_application_form'")
+    expect(page).toContain('NISP报名表单 / 二级申请表')
     expect(page).toContain('小程序固定入口')
     expect(page).toContain('小程序入口文案')
     expect(page).toContain('小程序入口会保留并提示联系管理员')

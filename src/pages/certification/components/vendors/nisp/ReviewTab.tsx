@@ -35,7 +35,7 @@ const FIELD_LABELS: Record<string, string> = {
 const MATERIAL_LABELS: Record<NispMaterial['material_type'], string> = {
   id_card_both_sides: '身份证双面',
   portrait_photo: '寸照',
-  xuexin_report: '学籍报告',
+  xuexin_report: '学籍验证报告',
   application_form: 'NISP二级考试报名申请表',
 }
 

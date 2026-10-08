@@ -34,15 +34,28 @@ import styles from './index.module.css'
 
 const { Text } = Typography
 const MAX_PDF_BYTES = 20 * 1024 * 1024
-const H3C_XUEXIN_GUIDE_SCENE = 'h3c_student_xuexin_guide'
 
 const SCENE_OPTIONS = [
   {
-    value: H3C_XUEXIN_GUIDE_SCENE,
+    value: 'h3c_student_xuexin_guide',
     label: 'H3C报名表单 / 学生材料',
     defaultDocumentKey: 'h3c.xuexin_verification_guide',
     defaultTitle: '如何查询学籍在线验证码',
     defaultEntryText: '查看《如何查询学籍在线验证码》PDF',
+  },
+  {
+    value: 'nisp_education_report_guide',
+    label: 'NISP报名表单 / 二级学籍报告',
+    defaultDocumentKey: 'nisp.education_report_guide',
+    defaultTitle: '《学历证书电子注册备案表》查询步骤',
+    defaultEntryText: '查看《学历证书电子注册备案表》查询步骤PDF',
+  },
+  {
+    value: 'nisp_level2_application_form',
+    label: 'NISP报名表单 / 二级申请表',
+    defaultDocumentKey: 'nisp.level2_application_form',
+    defaultTitle: 'NISP二级考试报名申请表',
+    defaultEntryText: '下载《NISP二级考试报名申请表》PDF',
   },
 ]
 
@@ -80,7 +93,7 @@ function getOriginFile(file: UploadFile): File {
 export default function DocumentManagement() {
   const [keyword, setKeyword] = useState('')
   const [searchText, setSearchText] = useState('')
-  const [sceneItem, setSceneItem] = useState<DocumentResource | null>(null)
+  const [sceneItems, setSceneItems] = useState<Record<string, DocumentResource | null>>({})
   const [sceneLoading, setSceneLoading] = useState(true)
   const [modalOpen, setModalOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<DocumentResource | null>(null)
@@ -99,19 +112,30 @@ export default function DocumentManagement() {
   const { data, loading, pagination, refresh } = usePagination((page) =>
     documentService.list({ keyword: searchText || undefined, ...page }), [searchText])
 
-  const loadSceneDocument = () => {
+  const loadSceneDocuments = () => {
     setSceneLoading(true)
-    documentService
-      .list({ scene: H3C_XUEXIN_GUIDE_SCENE, page: 1, page_size: 1 })
-      .then((page) => setSceneItem(page.items[0] || null))
-      .catch(() => setSceneItem(null))
+    Promise.all(
+      SCENE_OPTIONS.map(async (scene) => {
+        try {
+          const page = await documentService.list({
+            scene: scene.value,
+            page: 1,
+            page_size: 1,
+          })
+          return [scene.value, page.items[0] || null] as const
+        } catch {
+          return [scene.value, null] as const
+        }
+      }),
+    )
+      .then(entries => setSceneItems(Object.fromEntries(entries)))
       .finally(() => setSceneLoading(false))
   }
 
-  useEffect(loadSceneDocument, [])
+  useEffect(loadSceneDocuments, [])
 
   const unboundItems = (data?.items || []).filter(
-    (item) => item.scene !== H3C_XUEXIN_GUIDE_SCENE,
+    (item) => !SCENE_OPTIONS.some((scene) => scene.value === item.scene),
   )
 
   const openCreate = (scene?: string) => {
@@ -178,7 +202,7 @@ export default function DocumentManagement() {
         message.success('创建成功，新 PDF 已生效')
       }
       closeModal()
-      loadSceneDocument()
+      loadSceneDocuments()
       refresh()
     } finally {
       setSaving(false)
@@ -199,7 +223,7 @@ export default function DocumentManagement() {
       message.success(`新 PDF 已生效（当前 v${updated.version_no}）`)
       setReplacingItem(null)
       setReplaceFileList([])
-      loadSceneDocument()
+        loadSceneDocuments()
       refresh()
     } finally {
       setSaving(false)
@@ -209,7 +233,7 @@ export default function DocumentManagement() {
   const handleToggle = async (item: DocumentResource, checked: boolean) => {
     await documentService.update(item.id, { is_active: checked })
     message.success(checked ? '文档已启用' : '文档已停用')
-    loadSceneDocument()
+      loadSceneDocuments()
     refresh()
   }
 
@@ -332,24 +356,14 @@ export default function DocumentManagement() {
       <section className={styles.section}>
         <div className={styles.sectionHeader}>
           <span>小程序固定入口</span>
-          {canWrite && (
-            <Button
-              type="primary"
-              icon={<PlusOutlined />}
-              onClick={() => openCreate(H3C_XUEXIN_GUIDE_SCENE)}
-              disabled={!!sceneItem}
-            >
-              配置H3C教程
-            </Button>
-          )}
         </div>
         <Spin spinning={sceneLoading}>
           <div className={styles.shelf}>
-            {renderCover(
-              sceneItem,
-              'H3C报名 / 学信网教程',
-              () => openCreate(H3C_XUEXIN_GUIDE_SCENE),
-            )}
+            {SCENE_OPTIONS.map(scene => renderCover(
+              sceneItems[scene.value] ?? null,
+              scene.label,
+              () => openCreate(scene.value),
+            ))}
           </div>
         </Spin>
       </section>
