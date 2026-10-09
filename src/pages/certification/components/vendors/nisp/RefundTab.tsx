@@ -113,7 +113,7 @@ export default function NispRefundTab() {
               确认退款
             </Button>
           )}
-          {row.status === 'processing' && (
+          {['approved', 'processing', 'failed'].includes(row.status) && (
             <Button size='small' onClick={() => reconcileRefund(row)}>对账</Button>
           )}
         </Space>

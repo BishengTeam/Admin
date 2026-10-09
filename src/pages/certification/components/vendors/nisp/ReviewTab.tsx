@@ -17,6 +17,9 @@ const STATUS_CONFIG: Record<string, { text: string; color: string }> = {
   rejected_awaiting_resubmission: { text: '待补交材料', color: 'red' },
   approved: { text: '审核通过', color: 'green' },
   cancelled: { text: '已取消', color: 'default' },
+  pending_refund_confirmation: { text: '待退款确认', color: 'orange' },
+  refund_processing: { text: '退款中', color: 'cyan' },
+  refunded_closed: { text: '已退款关闭', color: 'default' },
 }
 
 const LEVEL_LABELS: Record<string, string> = {
@@ -46,6 +49,7 @@ export default function NispReviewTab() {
   const [detailLoading, setDetailLoading] = useState(false)
   const [rejectOpen, setRejectOpen] = useState(false)
   const [rejectReason, setRejectReason] = useState('')
+  const [rejectedTypes, setRejectedTypes] = useState<NispMaterial['material_type'][]>([])
   const { data, loading, pagination, refresh } = usePagination(
     (page) => nispService.listRegistrations({ ...page, status: statusFilter || undefined }),
     [statusFilter],
@@ -76,14 +80,20 @@ export default function NispReviewTab() {
 
   const reject = async () => {
     if (!selected || !rejectReason.trim()) return
+    if (!rejectedTypes.length) {
+      message.warning('请选择需要补交的材料')
+      return
+    }
     try {
       await nispService.reviewRegistration(selected.id, {
         decision: 'rejected',
         reason_detail: rejectReason.trim(),
+        rejected_material_types: rejectedTypes,
       })
       message.success('已驳回')
       setRejectOpen(false)
       setRejectReason('')
+      setRejectedTypes([])
       setSelected(null)
       refresh()
     } catch (error) {
@@ -130,7 +140,7 @@ export default function NispReviewTab() {
           {row.status === 'pending_review' && (
             <>
               <Button size='small' type='primary' onClick={() => approve(row)}>通过</Button>
-              <Button size='small' danger onClick={() => { setSelected(row); setRejectOpen(true) }}>驳回</Button>
+              <Button size='small' danger onClick={() => { setSelected(row); setRejectReason(''); setRejectedTypes([]); setRejectOpen(true) }}>驳回</Button>
             </>
           )}
         </Space>
@@ -233,6 +243,17 @@ export default function NispReviewTab() {
         onCancel={() => { setRejectOpen(false); setRejectReason('') }}
         onOk={reject}
       >
+        <Select
+          mode="multiple"
+          placeholder="选择需要补交的材料"
+          aria-label="需要补交的材料"
+          style={{ width: '100%', marginBottom: 12 }}
+          value={rejectedTypes}
+          onChange={setRejectedTypes}
+          options={Object.entries(MATERIAL_LABELS)
+            .filter(([key]) => selected?.level === '2' || ['id_card_both_sides', 'portrait_photo'].includes(key))
+            .map(([value, label]) => ({ value, label }))}
+        />
         <Input.TextArea
           rows={4}
           value={rejectReason}

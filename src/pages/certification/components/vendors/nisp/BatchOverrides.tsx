@@ -26,6 +26,7 @@ const STATUS_CONFIG: Record<string, { text: string; color: string }> = {
 
 export default function NispBatchOverrides() {
   const [batchOpen, setBatchOpen] = useState(false)
+  const [exporting, setExporting] = useState<number | null>(null)
   const [form] = Form.useForm()
   const { data, loading, pagination, refresh } = usePagination(
     (page) => nispService.listBatches(page),
@@ -50,6 +51,28 @@ export default function NispBatchOverrides() {
       refresh()
     } catch (error) {
       message.error(error instanceof Error ? error.message : '创建失败')
+    }
+  }
+
+  const exportBatch = async (batch: NispBatch) => {
+    setExporting(batch.id)
+    try {
+      await nispService.createExport(batch.id, batch.level)
+      message.success('导出任务已创建，请在材料导出页查看并下载')
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '创建导出任务失败')
+    } finally {
+      setExporting(null)
+    }
+  }
+
+  const cancelBatch = async (id: number) => {
+    try {
+      await nispService.cancelBatch(id)
+      message.success('批次已取消，已付款报名请在退款管理中确认退款')
+      refresh()
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '取消失败')
     }
   }
 
@@ -108,10 +131,21 @@ export default function NispBatchOverrides() {
           )}
           <Button
             size='small'
-            onClick={() => window.open(nispService.getExportUrl(row.id, row.level), '_blank')}
+            loading={exporting === row.id}
+            disabled={exporting !== null}
+            onClick={() => void exportBatch(row)}
           >
             导出
           </Button>
+          {['published', 'registration_closed'].includes(row.plan_status) && (
+            <Popconfirm
+              title="取消批次并关闭报名？"
+              description="未付款报名将关闭，已付款报名将进入待退款确认。"
+              onConfirm={() => cancelBatch(row.id)}
+            >
+              <Button size="small" danger>取消批次</Button>
+            </Popconfirm>
+          )}
         </Space>
       ),
     },

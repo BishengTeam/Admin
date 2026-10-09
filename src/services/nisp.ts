@@ -130,11 +130,14 @@ export const nispService = {
     decision: 'approved' | 'rejected'
     reason_code?: string
     reason_detail?: string
+    rejected_material_types?: NispMaterial['material_type'][]
   }): Promise<NispRegistration> {
     return http.post(`/admin/nisp/registrations/${id}/review`, data)
   },
 
-  getExportUrl(batchId: number, level: string, status: string = 'approved'): string {
-    return `/admin/nisp/export?batch_id=${batchId}&level=${level}&status=${status}`
+  createExport(batchId: number, level: string): Promise<NispExportJob> {
+    return http.post('/admin/nisp/export', {
+      batch_id: batchId, level, include_statuses: ['approved'],
+    })
   },
 }
