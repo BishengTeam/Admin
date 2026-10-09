@@ -39,6 +39,7 @@ const CourseCategories = lazy(() => import('@/pages/courses/Categories'))
 const CourseDetail = lazy(() => import('@/pages/courses/Detail'))
 const CourseStudents = lazy(() => import('@/pages/courses/Students'))
 const CourseAudit = lazy(() => import('@/pages/courses/Audit'))
+const VideoWebCodes = lazy(() => import('@/pages/courses/Codes'))
 const CertificationOverview = lazy(() => import('@/pages/certification'))
 const TypeWorkbench = lazy(() => import('@/pages/certification/TypeWorkbench'))
 const JobManagement = lazy(() => import('@/pages/operations/jobs'))
@@ -202,6 +203,11 @@ export const adminRoutes: AppRoute[] = [
         path: 'students',
         element: <CourseStudents />,
         meta: { title: '报名学员', icon: 'TeamOutlined', permission: 'course:read' },
+      },
+      {
+        path: 'codes',
+        element: <VideoWebCodes />,
+        meta: { title: '课程兑换码', icon: 'KeyOutlined', permission: 'course:read' },
       },
       {
         path: 'audit',
