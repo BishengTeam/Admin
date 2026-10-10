@@ -188,7 +188,6 @@ export default function NispReviewTab() {
           {row.status === 'pending_review' && (
             <>
               <Button size='small' type='primary' onClick={() => approve(row)}>通过</Button>
-              <Button size='small' danger onClick={() => { setSelected(row); setRejectReason(''); setRejectedTypes([]); setRejectOpen(true) }}>驳回</Button>
             </>
           )}
           {['pending_review', 'approved'].includes(row.status) && (
