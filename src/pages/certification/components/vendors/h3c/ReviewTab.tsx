@@ -15,6 +15,7 @@ import {
 import type { ColumnsType } from 'antd/es/table'
 import { ReloadOutlined } from '@ant-design/icons'
 import { usePagination } from '@/hooks/usePagination'
+import { useReauthentication } from '@/hooks/useReauthentication'
 import { h3cService } from '@/services/h3c'
 import { formatDate, formatPrice } from '@/utils/format'
 import type { CertType } from '../type-registry'
@@ -76,11 +77,15 @@ export default function ReviewTab(_props: { type: CertType }) {
   const [detailLoading, setDetailLoading] = useState(false)
   const [detailOpen, setDetailOpen] = useState(false)
   const [reviewOpen, setReviewOpen] = useState(false)
+  const [refundOpen, setRefundOpen] = useState(false)
+  const [refundReason, setRefundReason] = useState('')
+  const { ensureReauthenticated, reauthDialog } = useReauthentication()
   const [form] = Form.useForm<{
     decision: 'approved' | 'rejected'
     reason_code?: string
     reason_detail?: string
     rejected_material_types?: string[]
+    allowed_fields?: string[]
   }>()
   const { data, loading, pagination, refresh } = usePagination(
     (page) => h3cService.listRegistrations({ ...page, registration_type: type, status }),
@@ -90,6 +95,13 @@ export default function ReviewTab(_props: { type: CertType }) {
   const submit = async () => {
     if (!selected) return
     const values = await form.validateFields()
+    if (
+      values.decision === 'rejected'
+      && !(values.allowed_fields?.length || values.rejected_material_types?.length)
+    ) {
+      form.setFields([{ name: 'allowed_fields', errors: ['请选择至少一项补正内容'] }])
+      throw new Error('请选择至少一项补正内容')
+    }
     try {
       await h3cService.reviewRegistration(selected.id, values)
       message.success('审核结果已提交')
@@ -98,6 +110,25 @@ export default function ReviewTab(_props: { type: CertType }) {
       refresh()
     } catch (error) {
       message.error(error instanceof Error ? error.message : '审核提交失败，请重试')
+    }
+  }
+
+  const submitRefund = async () => {
+    if (!selected || !refundReason.trim()) return
+    try {
+      const token = await ensureReauthenticated()
+      if (!token) throw new Error('请重新验证管理员密码')
+      await h3cService.rejectAndRefund(selected.id, {
+        reason_code: 'review_rejected',
+        reason_detail: refundReason.trim(),
+      }, token)
+      message.success('已授权退款，等待微信处理')
+      setRefundOpen(false)
+      setRefundReason('')
+      setDetailOpen(false)
+      refresh()
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '拒绝并退款失败')
     }
   }
 
@@ -128,13 +159,18 @@ export default function ReviewTab(_props: { type: CertType }) {
       render: (_, row) => (
         <Space>
           <Button size='small' onClick={() => void openDetail(row)}>详情</Button>
-          {row.status === 'pending_review' && (
+          {['pending_review', 'approved'].includes(row.status) && (
             <Button size='small' type='primary' onClick={() => {
               setSelected(row)
               form.resetFields()
               form.setFieldsValue({ decision: 'approved' })
               setReviewOpen(true)
             }}>审核</Button>
+          )}
+          {['pending_review', 'approved', 'rejected_awaiting_resubmission'].includes(row.status) && (
+            <Button size='small' danger onClick={() => { setSelected(row); setRefundOpen(true) }}>
+              拒绝并退款
+            </Button>
           )}
         </Space>
       ),
@@ -248,7 +284,18 @@ export default function ReviewTab(_props: { type: CertType }) {
                     { label: '疑似伪造材料', value: 'suspected_forged_material' },
                   ]} />
                 </Form.Item>
-                <Form.Item name='rejected_material_types' label='被拒绝材料' rules={[{ required: true }]}>
+                <Form.Item name='allowed_fields' label='允许补正字段'>
+                  <Checkbox.Group
+                    options={[
+                      { label: '手机号', value: 'phone' },
+                      { label: '邮箱', value: 'email' },
+                      { label: '学校/单位', value: 'school' },
+                      { label: '通信地址', value: 'address' },
+                      { label: '学籍验证码', value: 'verify_code' },
+                    ]}
+                  />
+                </Form.Item>
+                <Form.Item name='rejected_material_types' label='允许补正材料'>
                   <Checkbox.Group
                     options={(selected?.materials ?? [])
                       .filter((material) => material.is_current)
@@ -263,6 +310,25 @@ export default function ReviewTab(_props: { type: CertType }) {
           </Form.Item>
         </Form>
       </Modal>
+
+      <Modal
+        title='拒绝并退款'
+        open={refundOpen}
+        onOk={submitRefund}
+        onCancel={() => setRefundOpen(false)}
+        okText='授权退款'
+        okButtonProps={{ danger: true }}
+      >
+        <Input.TextArea
+          rows={4}
+          value={refundReason}
+          onChange={(event) => setRefundReason(event.target.value)}
+          placeholder='请填写用户可见的拒绝与退款原因'
+          maxLength={1000}
+          showCount
+        />
+      </Modal>
+      {reauthDialog}
     </>
   )
 }

@@ -131,8 +131,18 @@ export const nispService = {
     reason_code?: string
     reason_detail?: string
     rejected_material_types?: NispMaterial['material_type'][]
+    allowed_fields?: string[]
   }): Promise<NispRegistration> {
     return http.post(`/admin/nisp/registrations/${id}/review`, data)
+  },
+  rejectAndRefund(
+    id: number,
+    data: { reason_code: string; reason_detail: string },
+    reauthToken: string,
+  ): Promise<NispRegistration> {
+    return http.post(`/admin/nisp/registrations/${id}/reject-refund`, data, {
+      headers: { 'X-Reauth-Token': reauthToken },
+    })
   },
 
   createExport(batchId: number, level: string): Promise<NispExportJob> {

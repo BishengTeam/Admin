@@ -5,6 +5,7 @@ import {
 } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { usePagination } from '@/hooks/usePagination'
+import { useReauthentication } from '@/hooks/useReauthentication'
 import { nispService } from '@/services/nisp'
 import type { NispMaterial, NispRegistration } from '@/services/nisp'
 import { formatPrice, formatDate } from '@/utils/format'
@@ -49,7 +50,11 @@ export default function NispReviewTab() {
   const [detailLoading, setDetailLoading] = useState(false)
   const [rejectOpen, setRejectOpen] = useState(false)
   const [rejectReason, setRejectReason] = useState('')
-  const [rejectedTypes, setRejectedTypes] = useState<NispMaterial['material_type'][]>([])
+  const [rejectFields, setRejectFields] = useState<string[]>([])
+  const [rejectMaterials, setRejectMaterials] = useState<NispMaterial['material_type'][]>([])
+  const [refundOpen, setRefundOpen] = useState(false)
+  const [refundReason, setRefundReason] = useState('')
+  const { ensureReauthenticated, reauthDialog } = useReauthentication()
   const { data, loading, pagination, refresh } = usePagination(
     (page) => nispService.listRegistrations({ ...page, status: statusFilter || undefined }),
     [statusFilter],
@@ -80,24 +85,45 @@ export default function NispReviewTab() {
 
   const reject = async () => {
     if (!selected || !rejectReason.trim()) return
-    if (!rejectedTypes.length) {
-      message.warning('请选择需要补交的材料')
+    if (!rejectFields.length && !rejectMaterials.length) {
+      message.warning('请选择至少一项补正内容')
       return
     }
     try {
       await nispService.reviewRegistration(selected.id, {
         decision: 'rejected',
         reason_detail: rejectReason.trim(),
-        rejected_material_types: rejectedTypes,
+        allowed_fields: rejectFields,
+        rejected_material_types: rejectMaterials,
       })
       message.success('已驳回')
       setRejectOpen(false)
       setRejectReason('')
-      setRejectedTypes([])
+      setRejectFields([])
+      setRejectMaterials([])
       setSelected(null)
       refresh()
     } catch (error) {
       message.error(error instanceof Error ? error.message : '操作失败')
+    }
+  }
+
+  const submitRefund = async () => {
+    if (!selected || !refundReason.trim()) return
+    try {
+      const token = await ensureReauthenticated()
+      if (!token) throw new Error('请重新验证管理员密码')
+      await nispService.rejectAndRefund(selected.id, {
+        reason_code: 'review_rejected',
+        reason_detail: refundReason.trim(),
+      }, token)
+      message.success('已授权退款，等待微信处理')
+      setRefundOpen(false)
+      setRefundReason('')
+      setSelected(null)
+      refresh()
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '拒绝并退款失败')
     }
   }
 
@@ -142,6 +168,20 @@ export default function NispReviewTab() {
               <Button size='small' type='primary' onClick={() => approve(row)}>通过</Button>
               <Button size='small' danger onClick={() => { setSelected(row); setRejectReason(''); setRejectedTypes([]); setRejectOpen(true) }}>驳回</Button>
             </>
+          )}
+          {['pending_review', 'approved'].includes(row.status) && (
+            <Button size='small' danger onClick={() => {
+              setSelected(row)
+              setRejectReason('')
+              setRejectFields([])
+              setRejectMaterials([])
+              setRejectOpen(true)
+            }}>打回</Button>
+          )}
+          {['pending_review', 'approved', 'rejected_awaiting_resubmission'].includes(row.status) && (
+            <Button size='small' danger onClick={() => { setSelected(row); setRefundOpen(true) }}>
+              拒绝并退款
+            </Button>
           )}
         </Space>
       ),
@@ -245,14 +285,39 @@ export default function NispReviewTab() {
       >
         <Select
           mode="multiple"
-          placeholder="选择需要补交的材料"
-          aria-label="需要补交的材料"
+          placeholder="选择允许补正的字段"
+          aria-label="允许补正的字段"
           style={{ width: '100%', marginBottom: 12 }}
-          value={rejectedTypes}
-          onChange={setRejectedTypes}
-          options={Object.entries(MATERIAL_LABELS)
-            .filter(([key]) => selected?.level === '2' || ['id_card_both_sides', 'portrait_photo'].includes(key))
-            .map(([value, label]) => ({ value, label }))}
+          value={rejectFields}
+          onChange={setRejectFields}
+          options={[
+            { value: 'pinyin', label: '拼音' },
+            { value: 'phone', label: '手机号' },
+            { value: 'email', label: '邮箱' },
+            { value: 'school', label: '学校/单位' },
+            { value: 'major', label: '专业' },
+            { value: 'province', label: '报考省份' },
+            { value: 'gender', label: '性别' },
+            { value: 'age', label: '年龄' },
+            { value: 'education', label: '最高学历' },
+            { value: 'address', label: '地址' },
+            { value: 'zip_code', label: '邮编' },
+          ]}
+        />
+        <Select
+          mode="multiple"
+          placeholder="选择允许补交的材料"
+          aria-label="允许补交的材料"
+          style={{ width: '100%', marginBottom: 12 }}
+          value={rejectMaterials}
+          onChange={setRejectMaterials}
+          options={(selected?.materials ?? [])
+            .filter(material => material.is_current)
+            .filter(material => selected?.level === '2' || ['id_card_both_sides', 'portrait_photo'].includes(material.material_type))
+            .map(material => ({
+              value: material.material_type,
+              label: MATERIAL_LABELS[material.material_type],
+            }))}
         />
         <Input.TextArea
           rows={4}
@@ -260,6 +325,25 @@ export default function NispReviewTab() {
           onChange={(e) => setRejectReason(e.target.value)}
           placeholder="请填写驳回原因（用户可见）"
           maxLength={2000}
+        />
+      </Modal>
+      {reauthDialog}
+
+      <Modal
+        title='拒绝并退款'
+        open={refundOpen}
+        onOk={submitRefund}
+        onCancel={() => setRefundOpen(false)}
+        okText='授权退款'
+        okButtonProps={{ danger: true }}
+      >
+        <Input.TextArea
+          rows={4}
+          value={refundReason}
+          onChange={(event) => setRefundReason(event.target.value)}
+          placeholder='请填写用户可见的拒绝与退款原因'
+          maxLength={2000}
+          showCount
         />
       </Modal>
     </>

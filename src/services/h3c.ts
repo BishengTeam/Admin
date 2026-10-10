@@ -55,8 +55,20 @@ export const h3cService = {
     reason_code?: string
     reason_detail?: string
     rejected_material_types?: string[]
+    allowed_fields?: string[]
   }): Promise<H3cRegistration> {
     return http.post(`/admin/cert-products/h3c/registrations/${id}/review`, data)
+  },
+  rejectAndRefund(
+    id: number,
+    data: { reason_code: string; reason_detail: string },
+    reauthToken: string,
+  ): Promise<H3cRegistration> {
+    return http.post(
+      `/admin/cert-products/h3c/registrations/${id}/reject-refund`,
+      data,
+      reauthHeaders(reauthToken),
+    )
   },
   closeRegistration(id: number, reason: string, reauthToken: string): Promise<H3cRegistration> {
     return http.post(
