@@ -1,11 +1,13 @@
 import { useState } from 'react'
 import {
-  Button, Card, Modal, Select, Space, Table, Tag, Typography, message,
+  Button, Card, Input, Modal, Select, Space, Table, Tag, Typography, message,
 } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { DownloadOutlined, PlusOutlined, ReloadOutlined } from '@ant-design/icons'
 import { usePagination } from '@/hooks/usePagination'
+import { useReauthentication } from '@/hooks/useReauthentication'
 import { http } from '@/core/request'
+import { nispService } from '@/services/nisp'
 import { formatDate } from '@/utils/format'
 import type { PageData } from '@/types/api'
 import type { NispExportJob } from '@/services/nisp'
@@ -30,6 +32,9 @@ export default function NispExportTab() {
   const [batchId, setBatchId] = useState<number>()
   const [level, setLevel] = useState<string>('1')
   const [creating, setCreating] = useState(false)
+  const [batchFinalJob, setBatchFinalJob] = useState<NispExportJob | null>(null)
+  const [batchFinalIds, setBatchFinalIds] = useState('')
+  const { ensureReauthenticated, reauthDialog } = useReauthentication()
 
   const { data, loading, pagination, refresh } = usePagination<NispExportJob>(
     (page) => http.get<PageData<NispExportJob>>('/admin/nisp/export/jobs', { params: page }),
@@ -69,6 +74,29 @@ export default function NispExportTab() {
       window.open(result.url, '_blank')
     } catch (error) {
       message.error(error instanceof Error ? error.message : '下载失败')
+    }
+  }
+
+  const submitBatchFinal = async () => {
+    if (!batchFinalJob) return
+    const ids = batchFinalIds
+      .split(/[\s,，]+/)
+      .map((value) => Number(value))
+      .filter((value) => Number.isInteger(value) && value > 0)
+    if (!ids.length) {
+      message.warning('请输入要终审的报名 ID')
+      return
+    }
+    try {
+      const token = await ensureReauthenticated()
+      if (!token) throw new Error('请重新验证管理员密码')
+      const result = await nispService.batchFinalReview(batchFinalJob.id, ids, token)
+      const successCount = result.items.filter((item) => item.success).length
+      message.success(`批量终审完成：成功 ${successCount} / ${result.items.length}`)
+      setBatchFinalJob(null)
+      setBatchFinalIds('')
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '批量终审失败')
     }
   }
 
@@ -132,6 +160,7 @@ export default function NispExportTab() {
   ]
 
   return (
+    <>
     <Card>
       <Space style={{ marginBottom: 16 }}>
         <Button icon={<ReloadOutlined />} onClick={refresh}>刷新</Button>
@@ -210,5 +239,21 @@ export default function NispExportTab() {
         </Space>
       </Modal>
     </Card>
+
+      <Modal
+        title={`批量终审任务 ${batchFinalJob?.id ?? ''}`}
+        open={!!batchFinalJob}
+        onOk={submitBatchFinal}
+        onCancel={() => { setBatchFinalJob(null); setBatchFinalIds('') }}
+      >
+        <Input.TextArea
+          rows={4}
+          value={batchFinalIds}
+          onChange={(event) => setBatchFinalIds(event.target.value)}
+          placeholder="输入报名 ID，用逗号或换行分隔"
+        />
+      </Modal>
+      {reauthDialog}
+    </>
   )
 }

@@ -60,6 +60,7 @@ const STATUS_LABELS: Record<H3cRegistrationStatus, { text: string; color: string
   pending_refund_confirmation: { text: '待确认退款', color: 'volcano' },
   refund_processing: { text: '退款中', color: 'processing' },
   approved: { text: '审核通过', color: 'green' },
+  final_approved: { text: '终审通过', color: 'cyan' },
   refunded_closed: { text: '已退款关闭', color: 'default' },
   cancelled: { text: '已取消', color: 'default' },
 }
@@ -132,6 +133,28 @@ export default function ReviewTab(_props: { type: CertType }) {
     }
   }
 
+  const submitFinalReview = async (row: H3cRegistration) => {
+    if (!row.final_export_item_id) {
+      message.warning('请先为当前版本生成有效导出')
+      return
+    }
+    try {
+      const token = await ensureReauthenticated()
+      if (!token) throw new Error('请重新验证管理员密码')
+      await h3cService.finalReview(
+        row.id,
+        row.final_export_item_id,
+        '已核对有效导出版本',
+        token,
+      )
+      message.success('终审通过')
+      setDetailOpen(false)
+      refresh()
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '终审失败')
+    }
+  }
+
   const openDetail = async (registration: H3cRegistration) => {
     setSelected(registration)
     setDetail(null)
@@ -170,6 +193,11 @@ export default function ReviewTab(_props: { type: CertType }) {
           {['pending_review', 'approved', 'rejected_awaiting_resubmission'].includes(row.status) && (
             <Button size='small' danger onClick={() => { setSelected(row); setRefundOpen(true) }}>
               拒绝并退款
+            </Button>
+          )}
+          {row.status === 'approved' && row.final_export_item_id && (
+            <Button size='small' type='primary' onClick={() => void submitFinalReview(row)}>
+              终审
             </Button>
           )}
         </Space>

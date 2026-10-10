@@ -44,6 +44,7 @@ export interface NispRegistration {
     reviewed_at: string
   } | null
   materials: NispMaterial[]
+  final_export_item_id?: number | null
 }
 
 export interface NispMaterial {
@@ -143,6 +144,28 @@ export const nispService = {
     return http.post(`/admin/nisp/registrations/${id}/reject-refund`, data, {
       headers: { 'X-Reauth-Token': reauthToken },
     })
+  },
+  finalReview(
+    id: number,
+    exportItemId: number,
+    reasonDetail: string,
+    reauthToken: string,
+  ): Promise<NispRegistration> {
+    return http.post(`/admin/nisp/registrations/${id}/final-review`, {
+      decision: 'approved',
+      export_item_id: exportItemId,
+      reason_detail: reasonDetail,
+    }, { headers: { 'X-Reauth-Token': reauthToken } })
+  },
+  batchFinalReview(
+    exportJobId: number,
+    registrationIds: number[],
+    reauthToken: string,
+  ): Promise<{ items: Array<{ registration_id: number; success: boolean; reason: string | null }> }> {
+    return http.post('/admin/nisp/final-reviews/batch', {
+      export_job_id: exportJobId,
+      registration_ids: registrationIds,
+    }, { headers: { 'X-Reauth-Token': reauthToken } })
   },
 
   createExport(batchId: number, level: string): Promise<NispExportJob> {

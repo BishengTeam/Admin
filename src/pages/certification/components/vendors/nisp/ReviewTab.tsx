@@ -17,6 +17,7 @@ const STATUS_CONFIG: Record<string, { text: string; color: string }> = {
   pending_review: { text: '待审核', color: 'blue' },
   rejected_awaiting_resubmission: { text: '待补交材料', color: 'red' },
   approved: { text: '审核通过', color: 'green' },
+  final_approved: { text: '终审通过', color: 'cyan' },
   cancelled: { text: '已取消', color: 'default' },
   pending_refund_confirmation: { text: '待退款确认', color: 'orange' },
   refund_processing: { text: '退款中', color: 'cyan' },
@@ -127,6 +128,27 @@ export default function NispReviewTab() {
     }
   }
 
+  const submitFinalReview = async (row: NispRegistration) => {
+    if (!row.final_export_item_id) {
+      message.warning('请先为当前版本生成有效导出')
+      return
+    }
+    try {
+      const token = await ensureReauthenticated()
+      if (!token) throw new Error('请重新验证管理员密码')
+      await nispService.finalReview(
+        row.id,
+        row.final_export_item_id,
+        '已核对有效导出版本',
+        token,
+      )
+      message.success('终审通过')
+      refresh()
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '终审失败')
+    }
+  }
+
   const columns: ColumnsType<NispRegistration> = [
     { title: '报名编号', dataIndex: 'registration_no', width: 160 },
     {
@@ -181,6 +203,11 @@ export default function NispReviewTab() {
           {['pending_review', 'approved', 'rejected_awaiting_resubmission'].includes(row.status) && (
             <Button size='small' danger onClick={() => { setSelected(row); setRefundOpen(true) }}>
               拒绝并退款
+            </Button>
+          )}
+          {row.status === 'approved' && row.final_export_item_id && (
+            <Button size='small' type='primary' onClick={() => void submitFinalReview(row)}>
+              终审
             </Button>
           )}
         </Space>

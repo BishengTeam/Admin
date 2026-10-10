@@ -1,6 +1,7 @@
 import {
   Button,
   Form,
+  Input,
   InputNumber,
   Modal,
   Select,
@@ -37,6 +38,7 @@ const STATUS_LABELS: Record<H3cRegistrationStatus, { text: string; color: string
   pending_refund_confirmation: { text: '待确认退款', color: 'volcano' },
   refund_processing: { text: '退款中', color: 'processing' },
   approved: { text: '审核通过', color: 'green' },
+  final_approved: { text: '终审通过', color: 'cyan' },
   refunded_closed: { text: '已退款关闭', color: 'default' },
   cancelled: { text: '已取消', color: 'default' },
 }
@@ -47,6 +49,8 @@ export default function ExportTab(_props: { type: CertType }) {
     [],
   )
   const [open, setOpen] = useState(false)
+  const [batchFinalJob, setBatchFinalJob] = useState<H3cExportJob | null>(null)
+  const [batchFinalIds, setBatchFinalIds] = useState('')
   const [batches, setBatches] = useState<H3cExamBatch[]>([])
   const [form] = Form.useForm<{
     batch_id: number
@@ -81,6 +85,28 @@ export default function ExportTab(_props: { type: CertType }) {
       message.error(error instanceof Error ? error.message : '获取下载链接失败')
     }
   }
+  const submitBatchFinal = async () => {
+    if (!batchFinalJob) return
+    const ids = batchFinalIds
+      .split(/[\s,，]+/)
+      .map((value) => Number(value))
+      .filter((value) => Number.isInteger(value) && value > 0)
+    if (!ids.length) {
+      message.warning('请输入要终审的报名 ID')
+      return
+    }
+    try {
+      const token = await ensureReauthenticated()
+      if (!token) throw new Error('请重新验证管理员密码')
+      const result = await h3cService.batchFinalReview(batchFinalJob.id, ids, token)
+      const successCount = result.items.filter((item) => item.success).length
+      message.success(`批量终审完成：成功 ${successCount} / ${result.items.length}`)
+      setBatchFinalJob(null)
+      setBatchFinalIds('')
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '批量终审失败')
+    }
+  }
   const columns: ColumnsType<H3cExportJob> = [
     { title: '任务', dataIndex: 'id', width: 80 },
     { title: '批次', dataIndex: 'batch_id', width: 90 },
@@ -100,9 +126,14 @@ export default function ExportTab(_props: { type: CertType }) {
     { title: '完成时间', dataIndex: 'finished_at', width: 165, render: (value: string | null) => value ? formatDate(value) : '-' },
     {
       title: '操作',
-      width: 100,
+      width: 150,
       render: (_, row) => row.status === 'succeeded' && row.storage_key ? (
-        <Button size='small' onClick={() => download(row.id)}>下载</Button>
+        <Space>
+          <Button size='small' onClick={() => download(row.id)}>下载</Button>
+          <Button size='small' type='primary' onClick={() => setBatchFinalJob(row)}>
+            批量终审
+          </Button>
+        </Space>
       ) : '-',
     },
   ]
@@ -144,6 +175,19 @@ export default function ExportTab(_props: { type: CertType }) {
             <Select mode='multiple' options={Object.entries(STATUS_LABELS).map(([value, item]) => ({ value, label: item.text }))} />
           </Form.Item>
         </Form>
+      </Modal>
+      <Modal
+        title={`批量终审任务 ${batchFinalJob?.id ?? ''}`}
+        open={!!batchFinalJob}
+        onOk={submitBatchFinal}
+        onCancel={() => { setBatchFinalJob(null); setBatchFinalIds('') }}
+      >
+        <Input.TextArea
+          rows={4}
+          value={batchFinalIds}
+          onChange={(event) => setBatchFinalIds(event.target.value)}
+          placeholder='输入报名 ID，用逗号或换行分隔'
+        />
       </Modal>
       {reauthDialog}
     </>

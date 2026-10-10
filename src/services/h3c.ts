@@ -70,6 +70,29 @@ export const h3cService = {
       reauthHeaders(reauthToken),
     )
   },
+  finalReview(
+    id: number,
+    exportItemId: number,
+    reasonDetail: string,
+    reauthToken: string,
+  ): Promise<H3cRegistration> {
+    return http.post(
+      `/admin/cert-products/h3c/registrations/${id}/final-review`,
+      { decision: 'approved', export_item_id: exportItemId, reason_detail: reasonDetail },
+      reauthHeaders(reauthToken),
+    )
+  },
+  batchFinalReview(
+    exportJobId: number,
+    registrationIds: number[],
+    reauthToken: string,
+  ): Promise<{ items: Array<{ registration_id: number; success: boolean; reason: string | null }> }> {
+    return http.post(
+      '/admin/cert-products/h3c/final-reviews/batch',
+      { export_job_id: exportJobId, registration_ids: registrationIds },
+      reauthHeaders(reauthToken),
+    )
+  },
   closeRegistration(id: number, reason: string, reauthToken: string): Promise<H3cRegistration> {
     return http.post(
       `/admin/cert-products/h3c/registrations/${id}/close`,

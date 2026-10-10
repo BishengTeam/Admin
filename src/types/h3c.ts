@@ -6,6 +6,7 @@ export type H3cRegistrationStatus =
   | 'pending_refund_confirmation'
   | 'refund_processing'
   | 'approved'
+  | 'final_approved'
   | 'refunded_closed'
   | 'cancelled'
 
@@ -96,6 +97,7 @@ export interface H3cRegistration {
   approved_at: string | null
   materials: H3cMaterial[]
   latest_review: H3cReview | null
+  final_export_item_id?: number | null
   created_at: string
   updated_at: string
 }
