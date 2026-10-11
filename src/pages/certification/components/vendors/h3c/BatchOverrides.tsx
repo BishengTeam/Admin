@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import dayjs from 'dayjs'
+import { useNavigate } from 'react-router-dom'
 import {
   Button,
   Col,
@@ -56,6 +57,7 @@ const BATCH_STATUS: Record<string, { text: string; color: string }> = {
 }
 
 export default function BatchOverrides(_props: { type: CertType; productCode: string | null }) {
+  const navigate = useNavigate()
   const [batchOpen, setBatchOpen] = useState(false)
   const [editingBatch, setEditingBatch] = useState<H3cExamBatch | null>(null)
   const [products, setProducts] = useState<CertProduct[]>([])
@@ -229,9 +231,12 @@ export default function BatchOverrides(_props: { type: CertType; productCode: st
     },
     {
       title: '操作',
-      width: 310,
+      width: 385,
       render: (_, row) => (
         <Space>
+          <Button size='small' type='primary' ghost onClick={() => navigate(`/admin/certification/h3c/export/${row.id}`)}>
+            报名与导出
+          </Button>
           {row.status === 'draft' && (
             <Button size='small' onClick={() => handleEdit(row)}>编辑</Button>
           )}

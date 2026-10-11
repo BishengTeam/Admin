@@ -42,6 +42,7 @@ const CourseAudit = lazy(() => import('@/pages/courses/Audit'))
 const VideoWebCodes = lazy(() => import('@/pages/courses/Codes'))
 const CertificationOverview = lazy(() => import('@/pages/certification'))
 const TypeWorkbench = lazy(() => import('@/pages/certification/TypeWorkbench'))
+const H3cBatchExportWorkbench = lazy(() => import('@/pages/certification/components/vendors/h3c/BatchExportWorkbench'))
 const JobManagement = lazy(() => import('@/pages/operations/jobs'))
 const TrainingManagement = lazy(() => import('@/pages/operations/training'))
 const ActivityManagement = lazy(() => import('@/pages/operations/activities'))
@@ -251,6 +252,11 @@ export const adminRoutes: AppRoute[] = [
         path: 'h3c',
         element: <TypeWorkbench type='h3c' />,
         meta: { title: '新华三认证', icon: 'ClusterOutlined', permission: 'h3c:review' },
+      },
+      {
+        path: 'h3c/export/:batchId',
+        element: <H3cBatchExportWorkbench />,
+        meta: { title: 'H3C 报名与导出', icon: 'FileZipOutlined', permission: 'h3c:export', hidden: true },
       },
       {
         path: 'renshe',

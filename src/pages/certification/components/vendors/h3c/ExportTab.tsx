@@ -1,29 +1,13 @@
-import {
-  Button,
-  Form,
-  Input,
-  InputNumber,
-  Modal,
-  Select,
-  Space,
-  Table,
-  Tag,
-  message,
-} from 'antd'
+import { Button, Space, Table, Tag, message } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
-import { PlusOutlined, ReloadOutlined } from '@ant-design/icons'
-import { useEffect, useState } from 'react'
+import { ReloadOutlined } from '@ant-design/icons'
+import { useNavigate } from 'react-router-dom'
 import { usePagination } from '@/hooks/usePagination'
 import { useReauthentication } from '@/hooks/useReauthentication'
 import { h3cService } from '@/services/h3c'
 import { formatDate } from '@/utils/format'
 import type { CertType } from '../type-registry'
-import type {
-  H3cExamBatch,
-  H3cExportJob,
-  H3cRegistrationStatus,
-  H3cRegistrationType,
-} from '@/types/h3c'
+import type { H3cExportJob, H3cRegistrationType } from '@/types/h3c'
 
 const TYPE_LABELS: Record<H3cRegistrationType, string> = {
   coupon: '考券报名',
@@ -31,50 +15,14 @@ const TYPE_LABELS: Record<H3cRegistrationType, string> = {
   full: '全额报名',
 }
 
-const STATUS_LABELS: Record<H3cRegistrationStatus, { text: string; color: string }> = {
-  pending_payment: { text: '待支付', color: 'orange' },
-  pending_review: { text: '待审核', color: 'blue' },
-  rejected_awaiting_resubmission: { text: '等待补交', color: 'red' },
-  pending_refund_confirmation: { text: '待确认退款', color: 'volcano' },
-  refund_processing: { text: '退款中', color: 'processing' },
-  approved: { text: '审核通过', color: 'green' },
-  final_approved: { text: '终审通过', color: 'cyan' },
-  refunded_closed: { text: '已退款关闭', color: 'default' },
-  cancelled: { text: '已取消', color: 'default' },
-}
-
 export default function ExportTab(_props: { type: CertType }) {
+  const navigate = useNavigate()
   const { data, loading, pagination, refresh } = usePagination(
     (page) => h3cService.listExports(page),
     [],
   )
-  const [open, setOpen] = useState(false)
-  const [batchFinalJob, setBatchFinalJob] = useState<H3cExportJob | null>(null)
-  const [batchFinalIds, setBatchFinalIds] = useState('')
-  const [batches, setBatches] = useState<H3cExamBatch[]>([])
-  const [form] = Form.useForm<{
-    batch_id: number
-    registration_type: H3cRegistrationType
-    artifact_type: 'embedded_xlsx' | 'images_zip'
-    include_statuses: H3cRegistrationStatus[]
-  }>()
   const { ensureReauthenticated, reauthDialog } = useReauthentication()
 
-  useEffect(() => {
-    h3cService.listBatches({ page: 1, page_size: 100 }).then((result) => setBatches(result.items)).catch(() => setBatches([]))
-  }, [])
-
-  const submit = async () => {
-    const values = await form.validateFields()
-    try {
-      await h3cService.createExport(values)
-      message.success('导出任务已创建')
-      setOpen(false)
-      refresh()
-    } catch (error) {
-      message.error(error instanceof Error ? error.message : '创建导出失败')
-    }
-  }
   const download = async (id: number) => {
     try {
       const token = await ensureReauthenticated()
@@ -85,56 +33,64 @@ export default function ExportTab(_props: { type: CertType }) {
       message.error(error instanceof Error ? error.message : '获取下载链接失败')
     }
   }
-  const submitBatchFinal = async () => {
-    if (!batchFinalJob) return
-    const ids = batchFinalIds
-      .split(/[\s,，]+/)
-      .map((value) => Number(value))
-      .filter((value) => Number.isInteger(value) && value > 0)
-    if (!ids.length) {
-      message.warning('请输入要终审的报名 ID')
-      return
-    }
-    try {
-      const token = await ensureReauthenticated()
-      if (!token) throw new Error('请重新验证管理员密码')
-      const result = await h3cService.batchFinalReview(batchFinalJob.id, ids, token)
-      const successCount = result.items.filter((item) => item.success).length
-      message.success(`批量终审完成：成功 ${successCount} / ${result.items.length}`)
-      setBatchFinalJob(null)
-      setBatchFinalIds('')
-    } catch (error) {
-      message.error(error instanceof Error ? error.message : '批量终审失败')
-    }
-  }
+
   const columns: ColumnsType<H3cExportJob> = [
     { title: '任务', dataIndex: 'id', width: 80 },
     { title: '批次', dataIndex: 'batch_id', width: 90 },
-    { title: '类型', dataIndex: 'registration_type', width: 100, render: (value: H3cRegistrationType) => TYPE_LABELS[value] },
-    { title: '产物', dataIndex: 'artifact_type', width: 110, render: (value: string) => (value === 'embedded_xlsx' ? '内嵌 Excel' : '图片 ZIP') },
+    {
+      title: '类型',
+      dataIndex: 'registration_type',
+      width: 100,
+      render: (value: string) => value === 'mixed' ? '混合' : TYPE_LABELS[value as H3cRegistrationType],
+    },
+    {
+      title: '产物',
+      dataIndex: 'artifact_type',
+      width: 110,
+      render: (value: string) => (
+        value === 'full_package' ? '完整资料包' : value === 'embedded_xlsx' ? '内嵌 Excel' : '图片 ZIP'
+      ),
+    },
     { title: '数量', dataIndex: 'registration_count', width: 80 },
-    { title: '状态', dataIndex: 'status', width: 100, render: (value: string) => {
-      const map: Record<string, { text: string; color: string }> = {
-        pending: { text: '排队中', color: 'orange' },
-        processing: { text: '处理中', color: 'processing' },
-        succeeded: { text: '已完成', color: 'green' },
-        failed: { text: '失败', color: 'red' },
-      }
-      const item = map[value] ?? { text: value, color: 'default' }
-      return <Tag color={item.color}>{item.text}</Tag>
-    } },
-    { title: '完成时间', dataIndex: 'finished_at', width: 165, render: (value: string | null) => value ? formatDate(value) : '-' },
+    {
+      title: '状态',
+      dataIndex: 'status',
+      width: 100,
+      render: (value: string) => {
+        const map: Record<string, { text: string; color: string }> = {
+          queued: { text: '排队中', color: 'orange' },
+          running: { text: '生成中', color: 'processing' },
+          succeeded: { text: '已完成', color: 'green' },
+          failed: { text: '失败', color: 'red' },
+        }
+        const item = map[value] ?? { text: value, color: 'default' }
+        return <Tag color={item.color}>{item.text}</Tag>
+      },
+    },
+    {
+      title: '完成时间',
+      dataIndex: 'finished_at',
+      width: 165,
+      render: (value: string | null) => value ? formatDate(value) : '-',
+    },
     {
       title: '操作',
-      width: 150,
-      render: (_, row) => row.status === 'succeeded' && row.storage_key ? (
+      width: 190,
+      render: (_, row) => (
         <Space>
-          <Button size='small' onClick={() => download(row.id)}>下载</Button>
-          <Button size='small' type='primary' onClick={() => setBatchFinalJob(row)}>
-            批量终审
+          {row.status === 'succeeded' && row.storage_key && (
+            <Button size='small' onClick={() => download(row.id)}>下载</Button>
+          )}
+          <Button
+            size='small'
+            type='primary'
+            ghost
+            onClick={() => navigate(`/admin/certification/h3c/export/${row.batch_id}`)}
+          >
+            报名与导出
           </Button>
         </Space>
-      ) : '-',
+      ),
     },
   ]
 
@@ -142,53 +98,8 @@ export default function ExportTab(_props: { type: CertType }) {
     <>
       <Space style={{ marginBottom: 16 }}>
         <Button icon={<ReloadOutlined />} onClick={refresh}>刷新</Button>
-        <Button type='primary' icon={<PlusOutlined />} onClick={() => {
-          form.resetFields()
-          form.setFieldsValue({ artifact_type: 'embedded_xlsx', include_statuses: ['approved'] })
-          setOpen(true)
-        }}>新建导出</Button>
       </Space>
       <Table rowKey='id' columns={columns} dataSource={data?.items ?? []} loading={loading} pagination={pagination} />
-      <Modal title='新建 H3C 导出' open={open} onOk={submit} onCancel={() => setOpen(false)}>
-        <Form form={form} layout='vertical'>
-          <Form.Item name='batch_id' label='考试批次' rules={[{ required: true, message: '请选择批次' }]}>
-            <Select
-              placeholder='选择考试批次'
-              showSearch
-              optionFilterProp='label'
-              options={batches.map((b) => ({
-                label: `${b.name}（ID: ${b.id}）`,
-                value: b.id,
-              }))}
-            />
-          </Form.Item>
-          <Form.Item name='registration_type' label='报名类型' rules={[{ required: true }]}>
-            <Select options={Object.entries(TYPE_LABELS).map(([value, label]) => ({ value, label }))} />
-          </Form.Item>
-          <Form.Item name='artifact_type' label='产物类型' rules={[{ required: true }]}>
-            <Select options={[
-              { label: '图片内嵌 Excel', value: 'embedded_xlsx' },
-              { label: '纯图片 ZIP', value: 'images_zip' },
-            ]} />
-          </Form.Item>
-          <Form.Item name='include_statuses' label='导出状态' rules={[{ required: true }]}>
-            <Select mode='multiple' options={Object.entries(STATUS_LABELS).map(([value, item]) => ({ value, label: item.text }))} />
-          </Form.Item>
-        </Form>
-      </Modal>
-      <Modal
-        title={`批量终审任务 ${batchFinalJob?.id ?? ''}`}
-        open={!!batchFinalJob}
-        onOk={submitBatchFinal}
-        onCancel={() => { setBatchFinalJob(null); setBatchFinalIds('') }}
-      >
-        <Input.TextArea
-          rows={4}
-          value={batchFinalIds}
-          onChange={(event) => setBatchFinalIds(event.target.value)}
-          placeholder='输入报名 ID，用逗号或换行分隔'
-        />
-      </Modal>
       {reauthDialog}
     </>
   )

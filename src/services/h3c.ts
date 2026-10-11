@@ -4,6 +4,12 @@ import type {
   H3cExamBatch,
   H3cExamBatchPayload,
   H3cExportJob,
+  H3cExportArtifactType,
+  H3cExportItem,
+  H3cExportPrecheckResponse,
+  H3cExportRegistrationType,
+  H3cBatchFinalReviewResult,
+  H3cBatchFinalReviewTarget,
   H3cRefund,
   H3cRegistration,
   H3cRegistrationStatus,
@@ -17,6 +23,9 @@ function reauthHeaders(token: string) {
 export const h3cService = {
   listBatches(params: PageParams & { status?: string; certification_code?: string }): Promise<PageData<H3cExamBatch>> {
     return http.get('/admin/cert-products/h3c/batches', { params })
+  },
+  getBatch(id: number): Promise<H3cExamBatch> {
+    return http.get(`/admin/cert-products/h3c/batches/${id}`)
   },
   createBatch(data: H3cExamBatchPayload): Promise<H3cExamBatch> {
     return http.post('/admin/cert-products/h3c/batches', data)
@@ -43,6 +52,8 @@ export const h3cService = {
     batch_id?: number
     registration_type?: H3cRegistrationType
     status?: H3cRegistrationStatus
+    keyword?: string
+    has_valid_export?: boolean
   }): Promise<PageData<H3cRegistration>> {
     return http.get('/admin/cert-products/h3c/registrations', { params })
   },
@@ -93,6 +104,16 @@ export const h3cService = {
       reauthHeaders(reauthToken),
     )
   },
+  batchFinalReviewTargets(
+    targets: H3cBatchFinalReviewTarget[],
+    reauthToken: string,
+  ): Promise<{ items: H3cBatchFinalReviewResult[] }> {
+    return http.post(
+      '/admin/cert-products/h3c/final-reviews/batch',
+      { targets },
+      reauthHeaders(reauthToken),
+    )
+  },
   closeRegistration(id: number, reason: string, reauthToken: string): Promise<H3cRegistration> {
     return http.post(
       `/admin/cert-products/h3c/registrations/${id}/close`,
@@ -112,14 +133,35 @@ export const h3cService = {
   },
   createExport(data: {
     batch_id: number
-    registration_type: H3cRegistrationType
-    artifact_type: 'embedded_xlsx' | 'images_zip'
+    registration_type?: H3cExportRegistrationType
+    artifact_type: H3cExportArtifactType
     include_statuses: H3cRegistrationStatus[]
+    registration_ids?: number[]
   }): Promise<H3cExportJob> {
     return http.post('/admin/cert-products/h3c/exports', data)
   },
+  precheckExport(data: {
+    batch_id: number
+    registration_ids?: number[]
+    registration_type?: H3cRegistrationType
+    status?: H3cRegistrationStatus
+    keyword?: string
+  }): Promise<H3cExportPrecheckResponse> {
+    return http.post('/admin/cert-products/h3c/exports/precheck', data)
+  },
   listExports(params: PageParams & { batch_id?: number; status?: string }): Promise<PageData<H3cExportJob>> {
     return http.get('/admin/cert-products/h3c/exports', { params })
+  },
+  listExportItems(
+    jobId: number,
+    params: PageParams & {
+      registration_type?: H3cRegistrationType
+      current_status?: H3cRegistrationStatus
+      is_valid?: boolean
+      keyword?: string
+    },
+  ): Promise<PageData<H3cExportItem>> {
+    return http.get(`/admin/cert-products/h3c/exports/${jobId}/items`, { params })
   },
   getExportUrl(id: number, reauthToken: string): Promise<{ url: string; expires_in: number }> {
     return http.get(`/admin/cert-products/h3c/exports/${id}/download-url`, reauthHeaders(reauthToken))

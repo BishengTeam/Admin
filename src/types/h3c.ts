@@ -1,4 +1,6 @@
 export type H3cRegistrationType = 'coupon' | 'student' | 'full'
+export type H3cExportRegistrationType = H3cRegistrationType | 'mixed'
+export type H3cExportArtifactType = 'embedded_xlsx' | 'images_zip' | 'full_package'
 export type H3cRegistrationStatus =
   | 'pending_payment'
   | 'pending_review'
@@ -98,8 +100,62 @@ export interface H3cRegistration {
   materials: H3cMaterial[]
   latest_review: H3cReview | null
   final_export_item_id?: number | null
+  latest_valid_export_job_id?: number | null
+  latest_valid_export_finished_at?: string | null
+  final_review_ready?: boolean
+  final_review_block_reason?: string | null
   created_at: string
   updated_at: string
+}
+
+export interface H3cExportPrecheckPerson {
+  registration_id: number
+  registration_no: string
+  name: string
+  registration_type: H3cRegistrationType
+  status: H3cRegistrationStatus
+  exportable: boolean
+  reason: string | null
+}
+
+export interface H3cExportPrecheckResponse {
+  selected_count: number
+  exportable_count: number
+  blocked_count: number
+  counts_by_type: Record<'coupon' | 'student' | 'full', number>
+  exportable_registration_ids: number[]
+  people: H3cExportPrecheckPerson[]
+}
+
+export interface H3cExportItem {
+  id: number
+  job_id: number
+  registration_id: number
+  registration_no: string
+  name: string
+  registration_type: H3cRegistrationType
+  current_status: H3cRegistrationStatus
+  version_no: number | null
+  is_valid: boolean
+  invalidated_reason: string | null
+  review_ready: boolean
+  block_reason: string | null
+  created_at: string
+}
+
+export interface H3cBatchFinalReviewTarget {
+  registration_id: number
+  export_item_id: number
+}
+
+export interface H3cBatchFinalReviewResult {
+  registration_id: number
+  export_item_id?: number | null
+  registration_no?: string | null
+  name?: string | null
+  success: boolean
+  status: 'success' | 'skipped' | 'failed'
+  reason: string | null
 }
 
 export interface H3cRefund {
@@ -123,11 +179,16 @@ export interface H3cRefund {
 export interface H3cExportJob {
   id: number
   batch_id: number
-  registration_type: H3cRegistrationType
-  artifact_type: 'embedded_xlsx' | 'images_zip'
+  registration_type: H3cExportRegistrationType
+  artifact_type: H3cExportArtifactType
+  requested_by_admin_id: number
+  requested_by_admin_name?: string | null
   include_statuses: H3cRegistrationStatus[]
   status: 'queued' | 'running' | 'succeeded' | 'failed'
   registration_count: number
+  valid_item_count: number
+  counts_by_type: Record<'coupon' | 'student' | 'full', number>
+  registration_ids: number[]
   started_at: string | null
   finished_at: string | null
   storage_key: string | null

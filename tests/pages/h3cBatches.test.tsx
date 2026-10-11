@@ -1,4 +1,5 @@
 import { cleanup, render, screen } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import BatchOverrides from '@/pages/certification/components/vendors/h3c/BatchOverrides'
 import { certProductService } from '@/services/certProduct'
@@ -128,10 +129,18 @@ describe('H3C BatchOverrides', () => {
     })
   })
 
-  afterEach(cleanup)
+afterEach(cleanup)
+
+function renderBatch() {
+  render(
+    <MemoryRouter>
+      <BatchOverrides type='h3c' productCode={null} />
+    </MemoryRouter>,
+  )
+}
 
   it('renders all batches without requiring a selected product', async () => {
-    render(<BatchOverrides type='h3c' productCode={null} />)
+    renderBatch()
 
     expect(await screen.findByText('9月H3CNE批次')).toBeInTheDocument()
     expect(screen.getByText('已下线认证批次')).toBeInTheDocument()
@@ -140,7 +149,7 @@ describe('H3C BatchOverrides', () => {
   })
 
   it('maps the certification column to product names with code fallback', async () => {
-    render(<BatchOverrides type='h3c' productCode={null} />)
+    renderBatch()
 
     await screen.findByText('9月H3CNE批次')
     expect(screen.getByText('H3C网络工程师')).toBeInTheDocument()
@@ -157,9 +166,15 @@ describe('H3C BatchOverrides', () => {
     })
     vi.mocked(h3cService.archiveBatch).mockResolvedValue(batch({ status: 'archived' }))
 
-    render(<BatchOverrides type='h3c' productCode={null} />)
+    renderBatch()
 
     await screen.findByText('已结束批次')
     expect(screen.getByRole('button', { name: /归\s*档/ })).toBeInTheDocument()
+  })
+
+  it('links each batch to the dedicated registration and export workbench', async () => {
+    renderBatch()
+
+    expect(await screen.findAllByText('报名与导出')).not.toHaveLength(0)
   })
 })
