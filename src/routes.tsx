@@ -43,6 +43,7 @@ const VideoWebCodes = lazy(() => import('@/pages/courses/Codes'))
 const CertificationOverview = lazy(() => import('@/pages/certification'))
 const TypeWorkbench = lazy(() => import('@/pages/certification/TypeWorkbench'))
 const H3cBatchExportWorkbench = lazy(() => import('@/pages/certification/components/vendors/h3c/BatchExportWorkbench'))
+const NispBatchWorkbench = lazy(() => import('@/pages/certification/components/vendors/nisp/BatchWorkbench'))
 const JobManagement = lazy(() => import('@/pages/operations/jobs'))
 const TrainingManagement = lazy(() => import('@/pages/operations/training'))
 const ActivityManagement = lazy(() => import('@/pages/operations/activities'))
@@ -272,6 +273,11 @@ export const adminRoutes: AppRoute[] = [
         path: 'nisp',
         element: <TypeWorkbench type='nisp' />,
         meta: { title: 'NISP认证', icon: 'FileSearchOutlined', permission: 'nisp:review' },
+      },
+      {
+        path: 'nisp/batches/:batchId',
+        element: <NispBatchWorkbench />,
+        meta: { title: 'NISP 批次工作台', icon: 'FileZipOutlined', permission: 'nisp:review', hidden: true },
       },
       {
         path: 'sangfor',

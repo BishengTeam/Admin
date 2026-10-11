@@ -20,6 +20,7 @@ export interface NispBatch {
   training_end: string | null
   level1_price_cents: number
   level2_price_cents: number
+  registration_counts?: Record<string, number>
   created_at: string
   updated_at: string
 }
@@ -45,6 +46,10 @@ export interface NispRegistration {
   } | null
   materials: NispMaterial[]
   final_export_item_id?: number | null
+  latest_valid_export_job_id?: number | null
+  latest_valid_export_finished_at?: string | null
+  final_review_ready?: boolean
+  final_review_block_reason?: string | null
 }
 
 export interface NispMaterial {
@@ -68,6 +73,12 @@ export interface NispExportJob {
   status: 'queued' | 'running' | 'succeeded' | 'failed'
   artifact_type: 'excel' | 'full_package'
   registration_count: number
+  requested_by_admin_id: number
+  requested_by_admin_name?: string | null
+  valid_item_count: number
+  registration_ids: number[]
+  file_expired: boolean
+  download_available: boolean
   storage_key: string | null
   artifact_bytes: number | null
   expires_at: string | null
@@ -84,9 +95,63 @@ export interface NispExportJob {
   created_at: string
 }
 
+export interface NispExportPrecheckPerson {
+  registration_id: number
+  registration_no: string
+  name: string
+  level: '1' | '2'
+  status: string
+  exportable: boolean
+  reason: string | null
+}
+
+export interface NispExportPrecheckResponse {
+  selected_count: number
+  exportable_count: number
+  blocked_count: number
+  level: '1' | '2'
+  exportable_registration_ids: number[]
+  people: NispExportPrecheckPerson[]
+}
+
+export interface NispExportItem {
+  id: number
+  job_id: number
+  registration_id: number
+  registration_no: string
+  name: string
+  level: '1' | '2'
+  current_status: string
+  version_no: number | null
+  is_valid: boolean
+  invalidated_reason: string | null
+  review_ready: boolean
+  block_reason: string | null
+  created_at: string
+}
+
+export interface NispBatchFinalReviewTarget {
+  registration_id: number
+  export_item_id: number
+}
+
+export interface NispBatchFinalReviewResult {
+  registration_id: number
+  export_item_id?: number | null
+  registration_no?: string | null
+  name?: string | null
+  success: boolean
+  status: 'success' | 'skipped' | 'failed'
+  reason: string | null
+}
+
 export const nispService = {
   listBatches(params: PageParams): Promise<PageData<NispBatch>> {
     return http.get('/admin/nisp/batches', { params })
+  },
+
+  getBatch(id: number): Promise<NispBatch> {
+    return http.get(`/admin/nisp/batches/${id}`)
   },
 
   createBatch(data: {
@@ -119,6 +184,8 @@ export const nispService = {
     batch_id?: number
     level?: string
     status?: string
+    keyword?: string
+    has_valid_export?: boolean
   }): Promise<PageData<NispRegistration>> {
     return http.get('/admin/nisp/registrations', { params })
   },
@@ -168,9 +235,54 @@ export const nispService = {
     }, { headers: { 'X-Reauth-Token': reauthToken } })
   },
 
-  createExport(batchId: number, level: string): Promise<NispExportJob> {
+  batchFinalReviewTargets(
+    targets: NispBatchFinalReviewTarget[],
+    reauthToken: string,
+  ): Promise<{ items: NispBatchFinalReviewResult[] }> {
+    return http.post('/admin/nisp/final-reviews/batch', {
+      targets,
+    }, { headers: { 'X-Reauth-Token': reauthToken } })
+  },
+
+  createExport(
+    batchId: number,
+    level?: string,
+    registrationIds?: number[],
+    includeStatuses?: string[],
+  ): Promise<NispExportJob> {
     return http.post('/admin/nisp/export', {
-      batch_id: batchId, level, include_statuses: ['approved'],
+      batch_id: batchId,
+      level,
+      include_statuses: includeStatuses?.length ? includeStatuses : ['approved'],
+      registration_ids: registrationIds,
     })
+  },
+
+  precheckExport(data: {
+    batch_id: number
+    registration_ids?: number[]
+    status?: string
+    keyword?: string
+  }): Promise<NispExportPrecheckResponse> {
+    return http.post('/admin/nisp/export/precheck', data)
+  },
+
+  listExportJobs(params: PageParams & { batch_id?: number }): Promise<PageData<NispExportJob>> {
+    return http.get('/admin/nisp/export/jobs', { params })
+  },
+
+  listExportItems(
+    jobId: number,
+    params: PageParams & {
+      current_status?: string
+      is_valid?: boolean
+      keyword?: string
+    },
+  ): Promise<PageData<NispExportItem>> {
+    return http.get(`/admin/nisp/export/jobs/${jobId}/items`, { params })
+  },
+
+  getExportSignedUrl(id: number): Promise<{ url: string; expires_at: string }> {
+    return http.get(`/admin/nisp/export/jobs/${id}/signed-url`)
   },
 }

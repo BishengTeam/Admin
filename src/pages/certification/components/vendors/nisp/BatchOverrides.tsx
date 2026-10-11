@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   Button, DatePicker, Form, Input, InputNumber, Modal,
   Popconfirm, Select, Space, Table, Tag, Typography, message,
 } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
+import { useNavigate } from 'react-router-dom'
 import { PlusOutlined, ReloadOutlined } from '@ant-design/icons'
 import { usePagination } from '@/hooks/usePagination'
 import { nispService } from '@/services/nisp'
@@ -24,14 +25,41 @@ const STATUS_CONFIG: Record<string, { text: string; color: string }> = {
   cancelled: { text: '已取消', color: 'red' },
 }
 
+interface BatchListContext {
+  page?: number
+  scrollY?: number
+}
+
+const BATCH_LIST_CONTEXT_KEY = 'nisp.batch-list.context'
+
+function readBatchListContext(): BatchListContext {
+  try {
+    const raw = window.sessionStorage.getItem(BATCH_LIST_CONTEXT_KEY)
+    return raw ? JSON.parse(raw) as BatchListContext : {}
+  } catch {
+    return {}
+  }
+}
+
 export default function NispBatchOverrides() {
+  const navigate = useNavigate()
   const [batchOpen, setBatchOpen] = useState(false)
   const [exporting, setExporting] = useState<number | null>(null)
   const [form] = Form.useForm()
+  const returnContext = useMemo(readBatchListContext, [])
   const { data, loading, pagination, refresh } = usePagination(
     (page) => nispService.listBatches(page),
     [],
+    { initialPage: returnContext.page },
   )
+
+  useEffect(() => {
+    window.sessionStorage.removeItem(BATCH_LIST_CONTEXT_KEY)
+    if (typeof returnContext.scrollY === 'number') {
+      const timer = window.setTimeout(() => window.scrollTo({ top: returnContext.scrollY }), 120)
+      return () => window.clearTimeout(timer)
+    }
+  }, [returnContext])
 
   const createBatch = async () => {
     let values
@@ -76,6 +104,17 @@ export default function NispBatchOverrides() {
     }
   }
 
+  const openWorkbench = (
+    row: NispBatch,
+    status?: 'pending_review' | 'rejected_awaiting_resubmission' | 'approved',
+  ) => {
+    window.sessionStorage.setItem(BATCH_LIST_CONTEXT_KEY, JSON.stringify({
+      page: pagination.current,
+      scrollY: window.scrollY,
+    }))
+    navigate(`/admin/certification/nisp/batches/${row.id}${status ? `?status=${status}` : ''}`)
+  }
+
   const columns: ColumnsType<NispBatch> = [
     { title: '批次名称', dataIndex: 'plan_name', ellipsis: true },
     {
@@ -99,6 +138,30 @@ export default function NispBatchOverrides() {
     { title: '考试时间', dataIndex: 'exam_date', width: 120, render: (v: string) => v ? formatDate(v) : '-' },
     { title: '名额', width: 90, render: (_, row) => `${row.occupied_count}/${row.capacity}` },
     {
+      title: '报名办理',
+      key: 'registration-counts',
+      width: 175,
+      render: (_, row) => (
+        <Space size={4} wrap>
+          {([
+            ['pending_review', '待初审'],
+            ['rejected_awaiting_resubmission', '待补正'],
+            ['approved', '初审通过'],
+          ] as const).map(([status, label]) => (
+            <Button
+              key={status}
+              size='small'
+              type='link'
+              style={{ padding: 0, height: 22 }}
+              onClick={() => openWorkbench(row, status)}
+            >
+              {label} {row.registration_counts?.[status] ?? 0}
+            </Button>
+          ))}
+        </Space>
+      ),
+    },
+    {
       title: '价格',
       width: 160,
       render: (_, row) => (
@@ -116,9 +179,12 @@ export default function NispBatchOverrides() {
     },
     {
       title: '操作',
-      width: 220,
+      width: 290,
       render: (_, row) => (
         <Space size={4}>
+          <Button size='small' type='primary' ghost onClick={() => openWorkbench(row)}>
+            管理报名
+          </Button>
           {row.plan_status === 'draft' && (
             <Button size='small' type='primary' onClick={() => nispService.publishBatch(row.id).then(() => { message.success('已发布'); refresh() })}>
               发布
