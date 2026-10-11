@@ -11,6 +11,7 @@ interface ReviewDetailDrawerProps {
   registrationNo: string
   open: boolean
   onClose: () => void
+  footer?: ReactNode
   statusItems: ReviewDetailItem[]
   informationItems: ReviewDetailItem[]
   materialItems: ReviewDetailItem[]
@@ -34,6 +35,7 @@ export default function ReviewDetailDrawer({
   registrationNo,
   open,
   onClose,
+  footer,
   statusItems,
   informationItems,
   materialItems,
@@ -46,6 +48,7 @@ export default function ReviewDetailDrawer({
       open={open}
       onClose={onClose}
       width={720}
+      footer={footer}
     >
       <Space direction='vertical' size={16} style={{ width: '100%' }}>
         <Descriptions title='状态' column={2} bordered size='small'>

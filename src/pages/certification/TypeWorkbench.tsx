@@ -49,20 +49,27 @@ export default function TypeWorkbench({ type: typeProp }: { type?: string }) {
   ) : null
 
   const tabs = useMemo(() => {
-    const items = [
-      { key: 'products', label: '认证产品', children: <ProductTable type={type as CertType} /> },
+    const items = profile?.batchFirst ? [] : [
       {
-        key: 'plans',
-        label: '批次管理',
-        children: (
-          <PlanTable
-            type={type as CertType}
-            productCode={selectedProduct}
-            overrides={profile?.batchOverrides ? <Suspense fallback={<Spin />}><profile.batchOverrides type={type as CertType} productCode={selectedProduct} /></Suspense> : undefined}
-          />
-        ),
+        key: 'products',
+        label: '认证产品',
+        children: <ProductTable type={type as CertType} />,
       },
     ]
+
+    const plansTab = {
+      key: 'plans',
+      label: '批次管理',
+      children: (
+        <PlanTable
+          type={type as CertType}
+          productCode={selectedProduct}
+          overrides={profile?.batchOverrides ? <Suspense fallback={<Spin />}><profile.batchOverrides type={type as CertType} productCode={selectedProduct} /></Suspense> : undefined}
+        />
+      ),
+    }
+    if (profile?.batchFirst) items.push(plansTab)
+    else items.splice(1, 0, plansTab)
 
     if (profile) {
       for (const tab of profile.tabs) {
@@ -76,6 +83,14 @@ export default function TypeWorkbench({ type: typeProp }: { type?: string }) {
           ),
         })
       }
+    }
+
+    if (profile?.batchFirst) {
+      items.push({
+        key: 'products',
+        label: profile.productTabLabel ?? '产品设置',
+        children: <ProductTable type={type as CertType} />,
+      })
     }
 
     return items

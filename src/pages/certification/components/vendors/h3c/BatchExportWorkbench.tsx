@@ -1,20 +1,19 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   Alert,
   Button,
   Card,
-  Col,
   Drawer,
   Empty,
-  Form,
   Input,
   Modal,
   Popconfirm,
-  Row,
+  Radio,
   Select,
   Space,
   Table,
+  Tabs,
   Tag,
   Typography,
   message,
@@ -31,6 +30,7 @@ import {
 } from '@ant-design/icons'
 import { PageContainer } from '@/components/PageContainer'
 import { usePagination } from '@/hooks/usePagination'
+import { usePermission } from '@/hooks/usePermission'
 import { useReauthentication } from '@/hooks/useReauthentication'
 import { h3cService } from '@/services/h3c'
 import { formatDate } from '@/utils/format'
@@ -45,6 +45,7 @@ import type {
   H3cRegistrationStatus,
   H3cRegistrationType,
 } from '@/types/h3c'
+import RegistrationReviewDrawer from './RegistrationReviewDrawer'
 
 const { Text } = Typography
 
@@ -63,7 +64,7 @@ const STATUS_LABELS: Record<H3cRegistrationStatus, { text: string; color: string
   pending_payment: { text: '待支付', color: 'orange' },
   pending_review: { text: '待初审', color: 'blue' },
   rejected_awaiting_resubmission: { text: '待补正', color: 'red' },
-  pending_refund_confirmation: { text: '待退款确认', color: 'volcano' },
+  pending_refund_confirmation: { text: '待确认退款', color: 'volcano' },
   refund_processing: { text: '退款中', color: 'processing' },
   approved: { text: '初审通过', color: 'green' },
   final_approved: { text: '终审通过', color: 'cyan' },
@@ -81,9 +82,11 @@ const JOB_STATUS_LABELS: Record<string, { text: string; color: string }> = {
 interface RegistrationFilters {
   keyword: string
   registration_type: H3cRegistrationType | undefined
-  status: H3cRegistrationStatus
+  status: H3cRegistrationStatus | undefined
   has_valid_export: boolean | undefined
 }
+
+type PrecheckScope = 'selected' | 'filter'
 
 function requiredMaterialType(type: H3cRegistrationType) {
   if (type === 'coupon') return 'coupon_proof'
@@ -102,22 +105,50 @@ function canExportRough(row: H3cRegistration) {
   return undefined
 }
 
+export function mergeSelectedRegistrations(
+  previous: Record<number, H3cRegistration>,
+  keys: readonly React.Key[],
+  rows: readonly H3cRegistration[],
+) {
+  const keySet = new Set(keys.map(Number))
+  const next: Record<number, H3cRegistration> = {}
+  for (const row of rows) {
+    if (keySet.has(row.id)) next[row.id] = row
+  }
+  for (const [id, row] of Object.entries(previous)) {
+    const numericId = Number(id)
+    if (keySet.has(numericId) && !next[numericId]) next[numericId] = row
+  }
+  return next
+}
+
+function parseInitialStatus(value: string | null) {
+  return value && value in STATUS_LABELS ? value as H3cRegistrationStatus : 'pending_review'
+}
+
 export default function BatchExportWorkbench() {
   const { batchId } = useParams<{ batchId: string }>()
   const parsedBatchId = Number(batchId)
+  const [searchParams] = useSearchParams()
   const navigate = useNavigate()
+  const canExport = usePermission('h3c:export')
   const [batch, setBatch] = useState<H3cExamBatch | null>(null)
-  const [filters, setFilters] = useState<RegistrationFilters>({
+  const [keywordInput, setKeywordInput] = useState('')
+  const [filters, setFilters] = useState<RegistrationFilters>(() => ({
     keyword: '',
     registration_type: undefined,
-    status: 'approved',
+    status: parseInitialStatus(searchParams.get('status')),
     has_valid_export: undefined,
-  })
+  }))
   const [selectedRegistrationIds, setSelectedRegistrationIds] = useState<Set<number>>(new Set())
-  const [selectedTargets, setSelectedTargets] = useState<Record<number, H3cBatchFinalReviewTarget>>({})
+  const [selectedRegistrations, setSelectedRegistrations] = useState<Record<number, H3cRegistration>>({})
   const [precheck, setPrecheck] = useState<H3cExportPrecheckResponse | null>(null)
+  const [precheckScope, setPrecheckScope] = useState<PrecheckScope>('selected')
   const [prechecking, setPrechecking] = useState(false)
   const [exporting, setExporting] = useState(false)
+  const [reviewRegistration, setReviewRegistration] = useState<H3cRegistration | null>(null)
+  const [reviewOpen, setReviewOpen] = useState(false)
+  const [selectedListOpen, setSelectedListOpen] = useState(false)
   const [itemJob, setItemJob] = useState<H3cExportJob | null>(null)
   const [itemRows, setItemRows] = useState<H3cExportItem[]>([])
   const [itemLoading, setItemLoading] = useState(false)
@@ -126,7 +157,9 @@ export default function BatchExportWorkbench() {
   const [finalOpen, setFinalOpen] = useState(false)
   const [reviewSubmitting, setReviewSubmitting] = useState(false)
   const [reviewResults, setReviewResults] = useState<H3cBatchFinalReviewResult[] | null>(null)
+  const [activeTab, setActiveTab] = useState('people')
   const { ensureReauthenticated, reauthDialog } = useReauthentication()
+  const activeJobRef = useRef(false)
 
   const registrations = usePagination<H3cRegistration>(
     (page) => h3cService.listRegistrations({
@@ -153,14 +186,51 @@ export default function BatchExportWorkbench() {
     h3cService.getBatch(parsedBatchId).then(setBatch).catch(() => setBatch(null))
   }, [parsedBatchId])
 
+  // Filter changes invalidate the old operation set. This prevents hidden rows
+  // from an old filter from remaining part of a later export or final review.
+  useEffect(() => {
+    setSelectedRegistrationIds(new Set())
+    setSelectedRegistrations({})
+  }, [filters.keyword, filters.registration_type, filters.status, filters.has_valid_export, parsedBatchId])
+
+  // Keep metadata for cross-page selections. Keys are authoritative; a row is
+  // removed as soon as its key is no longer selected, even when the current
+  // page supplies an empty selectedRows array.
+  useEffect(() => {
+    const rows = registrations.data?.items ?? []
+    setSelectedRegistrations((previous) => {
+      let changed = false
+      const next = { ...previous }
+      for (const row of rows) {
+        if (selectedRegistrationIds.has(row.id)) {
+          if (next[row.id] !== row) {
+            next[row.id] = row
+            changed = true
+          }
+        } else if (next[row.id]) {
+          delete next[row.id]
+          changed = true
+        }
+      }
+      return changed ? next : previous
+    })
+  }, [registrations.data, selectedRegistrationIds])
+
   const hasActiveJob = Boolean(
     exportJobs.data?.items.some((job) => job.status === 'queued' || job.status === 'running'),
   )
   useEffect(() => {
-    if (!hasActiveJob) return
+    if (!hasActiveJob) {
+      if (activeJobRef.current) {
+        activeJobRef.current = false
+        registrations.refresh()
+      }
+      return
+    }
+    activeJobRef.current = true
     const timer = window.setInterval(() => exportJobs.refresh(), 3000)
     return () => window.clearInterval(timer)
-  }, [hasActiveJob, exportJobs])
+  }, [hasActiveJob, exportJobs, registrations])
 
   const loadItems = useCallback(
     async (job: H3cExportJob, page = 1) => {
@@ -184,10 +254,11 @@ export default function BatchExportWorkbench() {
     await loadItems(job)
   }
 
-  const runPrecheck = useCallback(
-    async (registrationIds?: number[]) => {
+  const requestPrecheck = useCallback(
+    async (scope: PrecheckScope) => {
       if (!Number.isInteger(parsedBatchId)) return null
-      if (registrationIds && registrationIds.length === 0) {
+      const selectedIds = [...selectedRegistrationIds]
+      if (scope === 'selected' && selectedIds.length === 0) {
         message.warning('请先选择报名人员')
         return null
       }
@@ -195,12 +266,13 @@ export default function BatchExportWorkbench() {
       try {
         const result = await h3cService.precheckExport({
           batch_id: parsedBatchId,
-          registration_ids: registrationIds,
-          registration_type: registrationIds ? undefined : filters.registration_type,
-          status: registrationIds ? undefined : filters.status,
-          keyword: registrationIds ? undefined : filters.keyword || undefined,
+          registration_ids: scope === 'selected' ? selectedIds : undefined,
+          registration_type: scope === 'selected' ? undefined : filters.registration_type,
+          status: scope === 'selected' ? undefined : filters.status,
+          keyword: scope === 'selected' ? undefined : filters.keyword || undefined,
         })
         setPrecheck(result)
+        setPrecheckScope(scope)
         return result
       } catch (error) {
         message.error(error instanceof Error ? error.message : '导出预检失败')
@@ -209,15 +281,26 @@ export default function BatchExportWorkbench() {
         setPrechecking(false)
       }
     },
-    [filters.keyword, filters.registration_type, filters.status, parsedBatchId],
+    [filters.keyword, filters.registration_type, filters.status, parsedBatchId, selectedRegistrationIds],
   )
 
   const selectFilteredResult = async () => {
-    const result = await runPrecheck()
-    if (!result) return
-    setSelectedRegistrationIds(new Set(result.exportable_registration_ids))
-    setSelectedTargets({})
-    message.success(`已选择全部筛选结果中的 ${result.exportable_count} 名可导出人员`)
+    setPrechecking(true)
+    try {
+      const result = await h3cService.precheckExport({
+        batch_id: parsedBatchId,
+        registration_type: filters.registration_type,
+        status: filters.status,
+        keyword: filters.keyword || undefined,
+      })
+      setSelectedRegistrationIds(new Set(result.exportable_registration_ids))
+      setSelectedRegistrations({})
+      message.success(`已选择当前筛选结果中的 ${result.exportable_count} 名可导出人员`)
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '选择筛选结果失败')
+    } finally {
+      setPrechecking(false)
+    }
   }
 
   const confirmExport = async () => {
@@ -229,7 +312,9 @@ export default function BatchExportWorkbench() {
     }
     const selectedIdSet = new Set(ids)
     const statuses = [
-      ...new Set(precheck.people.filter((person) => selectedIdSet.has(person.registration_id)).map((person) => person.status)),
+      ...new Set(precheck.people
+        .filter((person) => selectedIdSet.has(person.registration_id))
+        .map((person) => person.status)),
     ] as H3cRegistrationStatus[]
     setExporting(true)
     try {
@@ -243,6 +328,8 @@ export default function BatchExportWorkbench() {
       message.success('完整资料包任务已创建')
       setPrecheck(null)
       setSelectedRegistrationIds(new Set())
+      setSelectedRegistrations({})
+      setActiveTab('records')
       exportJobs.refresh()
     } catch (error) {
       message.error(error instanceof Error ? error.message : '创建导出任务失败')
@@ -263,81 +350,79 @@ export default function BatchExportWorkbench() {
   }
 
   const updatePeopleSelection = (keys: React.Key[], rows: H3cRegistration[]) => {
-    const nextIds = new Set(keys.map(Number))
-    setSelectedRegistrationIds(nextIds)
-    setSelectedTargets((previous) => {
-      const next = { ...previous }
-      for (const row of rows) {
-        if (!nextIds.has(row.id) || !row.final_review_ready || !row.final_export_item_id) {
-          delete next[row.id]
-        } else {
-          next[row.id] = { registration_id: row.id, export_item_id: row.final_export_item_id }
-        }
-      }
-      return next
-    })
-  }
-
-  const updateItemSelection = (keys: React.Key[], rows: H3cExportItem[]) => {
     const keySet = new Set(keys.map(Number))
-    setSelectedTargets((previous) => {
-      const next = { ...previous }
-      for (const row of rows) {
-        if (!keySet.has(row.registration_id) || !row.review_ready) delete next[row.registration_id]
-        else next[row.registration_id] = { registration_id: row.registration_id, export_item_id: row.id }
-      }
-      return next
-    })
+    setSelectedRegistrationIds(keySet)
+    setSelectedRegistrations((previous) => mergeSelectedRegistrations(previous, keys, rows))
   }
 
-  const metadata = useMemo(() => {
-    const result = new Map<number, { name: string; registrationNo: string; type: H3cRegistrationType }>()
-    for (const row of registrations.data?.items ?? []) {
-      result.set(row.id, {
-        name: String(row.candidate_snapshot.candidate_name ?? ''),
-        registrationNo: row.registration_no,
-        type: row.registration_type,
-      })
-    }
-    for (const row of itemRows) {
-      result.set(row.registration_id, {
-        name: row.name,
-        registrationNo: row.registration_no,
-        type: row.registration_type,
-      })
-    }
-    return result
-  }, [itemRows, registrations.data])
+  const openDetail = (row: H3cRegistration) => {
+    setReviewRegistration(row)
+    setReviewOpen(true)
+  }
 
-  const selectedTargetList = useMemo(() => Object.values(selectedTargets), [selectedTargets])
+  const handleReviewed = (row: H3cRegistration) => {
+    setSelectedRegistrations((previous) => {
+      const next = { ...previous }
+      if (selectedRegistrationIds.has(row.id)) next[row.id] = row
+      else delete next[row.id]
+      return next
+    })
+    registrations.refresh()
+  }
+
+  const nextPending = () => {
+    const rows = registrations.data?.items ?? []
+    const currentIndex = reviewRegistration ? rows.findIndex((row) => row.id === reviewRegistration.id) : -1
+    const candidate = rows.slice(currentIndex + 1).find((row) => row.status === 'pending_review')
+      ?? rows.find((row) => row.status === 'pending_review')
+    if (!candidate) {
+      message.info('当前页没有其他待初审人员')
+      return
+    }
+    setReviewRegistration(candidate)
+  }
+
+  const selectedRows = useMemo(() => Object.values(selectedRegistrations), [selectedRegistrations])
+  const selectedTargetList = useMemo(
+    () => selectedRows
+      .filter((row) => selectedRegistrationIds.has(row.id) && row.final_review_ready && row.final_export_item_id)
+      .map((row) => ({
+        registration_id: row.id,
+        export_item_id: row.final_export_item_id as number,
+        row,
+      })),
+    [selectedRegistrationIds, selectedRows],
+  )
   const finalTypeCounts = useMemo(() => {
     const counts = { coupon: 0, student: 0, full: 0 }
-    for (const target of selectedTargetList) {
-      const type = metadata.get(target.registration_id)?.type
-      if (type) counts[type] += 1
-    }
+    for (const item of selectedTargetList) counts[item.row.registration_type] += 1
     return counts
-  }, [metadata, selectedTargetList])
+  }, [selectedTargetList])
 
   const submitFinalReview = async () => {
-    if (!selectedTargetList.length) return
+    const targets: H3cBatchFinalReviewTarget[] = selectedTargetList.map(({ registration_id, export_item_id }) => ({
+      registration_id,
+      export_item_id,
+    }))
+    if (!targets.length) return
     setReviewSubmitting(true)
     try {
       const token = await ensureReauthenticated()
       if (!token) throw new Error('请重新验证管理员密码')
-      const result = await h3cService.batchFinalReviewTargets(selectedTargetList, token)
+      const result = await h3cService.batchFinalReviewTargets(targets, token)
       setReviewResults(result.items)
       setFinalOpen(false)
       const failedRegistrations = new Set(
-        result.items
-          .filter((item) => item.status === 'failed')
-          .map((item) => item.registration_id),
+        result.items.filter((item) => item.status === 'failed').map((item) => item.registration_id),
       )
-      const failedTargets = selectedTargetList.filter((target) => failedRegistrations.has(target.registration_id))
-      setSelectedTargets(Object.fromEntries(failedTargets.map((target) => [target.registration_id, target])))
+      setSelectedRegistrationIds(new Set(failedRegistrations))
+      setSelectedRegistrations(() => Object.fromEntries(
+        selectedTargetList
+          .filter((item) => failedRegistrations.has(item.registration_id))
+          .map((item) => [item.registration_id, item.row]),
+      ))
       registrations.refresh()
       exportJobs.refresh()
-      if (itemJob) await loadItems(itemJob, itemPage)
     } catch (error) {
       message.error(error instanceof Error ? error.message : '批量终审失败')
     } finally {
@@ -346,16 +431,23 @@ export default function BatchExportWorkbench() {
   }
 
   const registrationColumns: ColumnsType<H3cRegistration> = [
-    { title: '报名编号', dataIndex: 'registration_no', width: 190, fixed: 'left' },
     {
-      title: '姓名',
+      title: '姓名 / 报名编号',
       key: 'name',
-      width: 110,
-      render: (_, row) => String(row.candidate_snapshot.candidate_name ?? '-'),
+      width: 210,
+      fixed: 'left',
+      render: (_, row) => (
+        <Space direction='vertical' size={0}>
+          <Button type='link' size='small' style={{ padding: 0, height: 22 }} onClick={() => openDetail(row)}>
+            {String(row.candidate_snapshot.candidate_name ?? '-')}
+          </Button>
+          <Text type='secondary' copyable={{ text: row.registration_no }}>{row.registration_no}</Text>
+        </Space>
+      ),
     },
-    { title: '类型', dataIndex: 'registration_type', width: 80, render: (value: H3cRegistrationType) => TYPE_LABELS[value] },
+    { title: '类型', dataIndex: 'registration_type', width: 75, render: (value: H3cRegistrationType) => TYPE_LABELS[value] },
     {
-      title: '状态',
+      title: '审核状态',
       dataIndex: 'status',
       width: 110,
       render: (value: H3cRegistrationStatus) => {
@@ -364,35 +456,49 @@ export default function BatchExportWorkbench() {
       },
     },
     {
-      title: '有效导出',
+      title: '导出情况',
       dataIndex: 'latest_valid_export_finished_at',
-      width: 165,
-      render: (value: string | null, row) => value
-        ? `${formatDate(value)} (#${row.latest_valid_export_job_id})`
-        : '未导出',
-    },
-    {
-      title: '可导出 / 可终审原因',
-      key: 'reason',
-      width: 210,
-      render: (_, row) => {
-        const exportReason = canExportRough(row)
-        if (exportReason) return <Text type='warning'>{exportReason}</Text>
-        if (row.status === 'final_approved') return <Text type='secondary'>已终审，可重新导出</Text>
-        if (!row.final_review_ready) return <Text type='warning'>{row.final_review_block_reason ?? '暂不可终审'}</Text>
-        return <Text type='success'>可导出、可终审</Text>
+      width: 180,
+      render: (value: string | null, row) => {
+        if (row.status === 'final_approved') return <Text type='secondary'>已终审</Text>
+        if (!value) return <Text type='secondary'>未导出</Text>
+        return (
+          <Space direction='vertical' size={0}>
+            <span>{formatDate(value)}</span>
+            <Text type={row.final_review_ready ? 'success' : 'warning'} style={{ fontSize: 12 }}>
+              {row.final_review_ready ? '可终审' : row.final_review_block_reason ?? '暂不可终审'}
+            </Text>
+          </Space>
+        )
       },
+    },
+    { title: '提交时间', dataIndex: 'created_at', width: 160, render: (value: string) => formatDate(value) },
+    {
+      title: '操作',
+      width: 180,
+      fixed: 'right',
+      render: (_, row) => (
+        <Space size={0}>
+          <Button type='link' size='small' icon={<EyeOutlined />} onClick={() => openDetail(row)}>详情</Button>
+          {row.status === 'pending_review' && (
+            <Button type='link' size='small' onClick={() => openDetail(row)}>初审</Button>
+          )}
+          {row.status === 'approved' && (
+            <Button type='link' size='small' onClick={() => openDetail(row)}>补正 / 终审</Button>
+          )}
+        </Space>
+      ),
     },
   ]
 
   const exportColumns: ColumnsType<H3cExportJob> = [
     { title: '任务', dataIndex: 'id', width: 75 },
-    { title: '类型', dataIndex: 'registration_type', width: 80, render: (value: string) => EXPORT_TYPE_LABELS[value] ?? value },
-    { title: '产物', dataIndex: 'artifact_type', width: 110, render: (value: string) => (value === 'full_package' ? '完整资料包' : value === 'embedded_xlsx' ? '内嵌 Excel' : '图片 ZIP') },
+    { title: '类型', dataIndex: 'registration_type', width: 75, render: (value: string) => EXPORT_TYPE_LABELS[value] ?? value },
+    { title: '产物', dataIndex: 'artifact_type', width: 105, render: (value: string) => (value === 'full_package' ? '完整资料包' : value === 'embedded_xlsx' ? '内嵌 Excel' : '图片 ZIP') },
     {
       title: '人数',
       key: 'count',
-      width: 160,
+      width: 165,
       render: (_, row) => (
         <Space direction='vertical' size={0}>
           <span>{row.registration_count} 人 / 有效 {row.valid_item_count} 人</span>
@@ -400,20 +506,20 @@ export default function BatchExportWorkbench() {
         </Space>
       ),
     },
-    { title: '操作人', dataIndex: 'requested_by_admin_name', width: 110, render: (value: string | null, row) => value ?? `#${row.requested_by_admin_id}` },
+    { title: '操作人', dataIndex: 'requested_by_admin_name', width: 105, render: (value: string | null, row) => value ?? `#${row.requested_by_admin_id}` },
     {
       title: '状态',
       dataIndex: 'status',
-      width: 100,
+      width: 95,
       render: (value: string) => {
         const item = JOB_STATUS_LABELS[value] ?? { text: value, color: 'default' }
         return <Tag color={item.color}>{item.text}</Tag>
       },
     },
-    { title: '完成时间', dataIndex: 'finished_at', width: 165, render: (value: string | null) => value ? formatDate(value) : '-' },
+    { title: '完成时间', dataIndex: 'finished_at', width: 160, render: (value: string | null) => value ? formatDate(value) : '-' },
     {
       title: '操作',
-      width: 260,
+      width: 245,
       fixed: 'right',
       render: (_, row) => (
         <Space size={0} wrap>
@@ -423,13 +529,11 @@ export default function BatchExportWorkbench() {
           <Button type='link' size='small' icon={<EyeOutlined />} onClick={() => openItems(row)}>
             查看人员
           </Button>
-          <Button type='link' size='small' icon={<SyncOutlined />} onClick={() => runPrecheck(row.registration_ids)}>
+          <Button type='link' size='small' icon={<SyncOutlined />} onClick={() => requestPrecheck(row.registration_ids.length ? 'selected' : 'filter')} disabled={!row.registration_ids.length}>
             重新生成
           </Button>
           {row.status === 'failed' && row.last_error && (
-            <Text type='danger' ellipsis={{ tooltip: row.last_error }} style={{ maxWidth: 180 }}>
-              {row.last_error}
-            </Text>
+            <Text type='danger' ellipsis={{ tooltip: row.last_error }} style={{ maxWidth: 180 }}>{row.last_error}</Text>
           )}
         </Space>
       ),
@@ -449,105 +553,176 @@ export default function BatchExportWorkbench() {
         ? <Tag color='green'>有效 #{row.id}</Tag>
         : <Tag color='red'>失效：{row.invalidated_reason ?? '未知原因'}</Tag>,
     },
-    { title: '终审', dataIndex: 'review_ready', width: 150, render: (value: boolean, row) => value ? <Tag color='cyan'>可勾选</Tag> : row.block_reason },
+    { title: '终审', dataIndex: 'review_ready', width: 150, render: (value: boolean, row) => value ? <Tag color='cyan'>可回人员列表终审</Tag> : row.block_reason },
+  ]
+
+  const quickStatuses: Array<{ value: string; label: string }> = [
+    { value: 'pending_review', label: '待初审' },
+    { value: 'rejected_awaiting_resubmission', label: '待补正' },
+    { value: 'approved', label: '初审通过' },
+    { value: 'final_approved', label: '终审通过' },
+    { value: 'all', label: '全部' },
+  ]
+
+  const goBack = () => {
+    if (window.history.length > 1) navigate(-1)
+    else navigate('/admin/certification/h3c')
+  }
+
+  const tabItems = [
+    {
+      key: 'people',
+      label: '报名人员',
+      children: (
+        <Card
+          title='报名人员'
+          extra={canExport ? (
+            <Space wrap>
+              <Button loading={prechecking} onClick={() => requestPrecheck('selected')} disabled={selectedRegistrationIds.size === 0}>
+                导出所选人员
+              </Button>
+              <Popconfirm
+                title='选择当前筛选结果中的全部可导出人员？'
+                description='选择不受分页影响；更改筛选条件后会自动清空。'
+                onConfirm={selectFilteredResult}
+              >
+                <Button icon={<CheckSquareOutlined />} loading={prechecking}>选择全部筛选结果</Button>
+              </Popconfirm>
+              <Button type='primary' icon={<FileZipOutlined />} loading={prechecking} onClick={() => requestPrecheck('filter')}>
+                导出当前筛选结果
+              </Button>
+            </Space>
+          ) : undefined}
+        >
+          <Space direction='vertical' size={12} style={{ width: '100%' }}>
+            <Space wrap>
+              <Input.Search
+                allowClear
+                value={keywordInput}
+                onChange={(event) => setKeywordInput(event.target.value)}
+                onSearch={(value) => setFilters((previous) => ({ ...previous, keyword: value.trim() }))}
+                placeholder='姓名 / 报名编号'
+                style={{ width: 240 }}
+              />
+              <Radio.Group
+                optionType='button'
+                buttonStyle='solid'
+                value={filters.status ?? 'all'}
+                onChange={(event) => setFilters((previous) => ({
+                  ...previous,
+                  status: event.target.value === 'all' ? undefined : event.target.value as H3cRegistrationStatus,
+                }))}
+                options={quickStatuses}
+              />
+              <Select
+                allowClear
+                placeholder='报名类型'
+                value={filters.registration_type}
+                onChange={(value) => setFilters((previous) => ({ ...previous, registration_type: value }))}
+                style={{ width: 110 }}
+                options={Object.entries(TYPE_LABELS).map(([value, label]) => ({ value, label }))}
+              />
+              <Select
+                allowClear
+                placeholder='有效导出'
+                value={filters.has_valid_export}
+                onChange={(value) => setFilters((previous) => ({ ...previous, has_valid_export: value }))}
+                style={{ width: 105 }}
+                options={[{ value: true, label: '有' }, { value: false, label: '无' }]}
+              />
+              <Button icon={<ReloadOutlined />} onClick={() => registrations.refresh()}>刷新</Button>
+            </Space>
+            <Alert
+              type='info'
+              showIcon
+              message={`已选 ${selectedRegistrationIds.size} 人；可终审 ${selectedTargetList.length} 人`}
+              description={(
+                <Space wrap>
+                  {canExport && (
+                    <Button size='small' disabled={selectedRegistrationIds.size === 0} onClick={() => setSelectedListOpen(true)}>
+                      查看名单
+                    </Button>
+                  )}
+                  <Button size='small' disabled={selectedRegistrationIds.size === 0} onClick={() => updatePeopleSelection([], [])}>
+                    清空选择
+                  </Button>
+                  <Button size='small' type='primary' disabled={selectedTargetList.length === 0} onClick={() => setFinalOpen(true)}>
+                    终审所选
+                  </Button>
+                </Space>
+              )}
+            />
+            <Table
+              rowKey='id'
+              columns={registrationColumns}
+              dataSource={registrations.data?.items ?? []}
+              loading={registrations.loading}
+              pagination={registrations.pagination}
+              scroll={{ x: 950 }}
+              locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description='当前筛选条件下暂无报名人员' /> }}
+              rowSelection={canExport ? {
+                selectedRowKeys: [...selectedRegistrationIds],
+                preserveSelectedRowKeys: true,
+                onChange: updatePeopleSelection,
+                getCheckboxProps: (row) => ({ disabled: Boolean(canExportRough(row)) }),
+              } : undefined}
+            />
+          </Space>
+        </Card>
+      ),
+    },
+    ...(canExport ? [{
+      key: 'records',
+      label: '导出记录',
+      children: (
+        <Card
+          title='导出记录'
+          extra={<Button icon={<ReloadOutlined />} onClick={() => exportJobs.refresh()}>刷新</Button>}
+        >
+          <Table
+            rowKey='id'
+            columns={exportColumns}
+            dataSource={exportJobs.data?.items ?? []}
+            loading={exportJobs.loading}
+            pagination={exportJobs.pagination}
+            scroll={{ x: 1150 }}
+            locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description='暂无导出记录' /> }}
+          />
+        </Card>
+      ),
+    }] : []),
   ]
 
   return (
     <PageContainer
-      title={`H3C 报名与导出${batch ? ` · ${batch.name}` : ''}`}
+      title={`H3C 批次工作台${batch ? ` · ${batch.name}` : ''}`}
       extra={(
         <Space>
-          <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/admin/certification/h3c')}>返回</Button>
+          <Button icon={<ArrowLeftOutlined />} onClick={goBack}>返回批次列表</Button>
           <Button icon={<ReloadOutlined />} onClick={() => { registrations.refresh(); exportJobs.refresh() }}>刷新</Button>
         </Space>
       )}
     >
       {batch && (
         <Card size='small' style={{ marginBottom: 16 }}>
-          <Row gutter={[16, 12]}>
-            <Col span={6}><Text type='secondary'>认证产品：</Text>{batch.certification_code}</Col>
-            <Col span={6}><Text type='secondary'>考试时间：</Text>{formatDate(batch.exam_date)}</Col>
-            <Col span={6}><Text type='secondary'>报名状态：</Text>{batch.status}</Col>
-            <Col span={6}><Text type='secondary'>名额：</Text>{batch.occupied_count}/{batch.capacity}</Col>
-          </Row>
+          <Space wrap size={24}>
+            <span><Text type='secondary'>认证产品：</Text>{batch.certification_code}</span>
+            <span><Text type='secondary'>考试时间：</Text>{formatDate(batch.exam_date)}</span>
+            <span><Text type='secondary'>批次状态：</Text>{batch.status}</span>
+            <span><Text type='secondary'>名额：</Text>{batch.occupied_count}/{batch.capacity}</span>
+          </Space>
         </Card>
       )}
 
-      <Card
-        title='报名人员'
-        extra={(
-          <Space wrap>
-            <Button loading={prechecking} onClick={() => runPrecheck([...selectedRegistrationIds])} disabled={selectedRegistrationIds.size === 0}>
-              导出所选人员
-            </Button>
-            <Popconfirm
-              title={`确认选择当前筛选结果中的全部可导出人员？`}
-              description='该选择不受分页影响；待补正、退款中、已取消等人员会被排除。'
-              onConfirm={selectFilteredResult}
-            >
-              <Button icon={<CheckSquareOutlined />}>选择全部筛选结果</Button>
-            </Popconfirm>
-            <Button type='primary' icon={<FileZipOutlined />} loading={prechecking} onClick={() => runPrecheck()}>
-              导出本批次全部初审通过人员
-            </Button>
-            <Button disabled={selectedTargetList.length === 0} onClick={() => setFinalOpen(true)}>
-              终审所选（{selectedTargetList.length}）
-            </Button>
-          </Space>
-        )}
-      >
-        <Form
-          layout='inline'
-          initialValues={{ status: 'approved' }}
-          onValuesChange={(_, values) => setFilters((previous) => ({ ...previous, ...values }))}
-          style={{ marginBottom: 16 }}
-        >
-          <Form.Item name='keyword' label='搜索'>
-            <Input.Search allowClear placeholder='姓名 / 报名编号' style={{ width: 220 }} />
-          </Form.Item>
-          <Form.Item name='registration_type' label='类型'>
-            <Select allowClear placeholder='全部' style={{ width: 110 }} options={Object.entries(TYPE_LABELS).map(([value, label]) => ({ value, label }))} />
-          </Form.Item>
-          <Form.Item name='status' label='状态'>
-            <Select style={{ width: 130 }} options={Object.entries(STATUS_LABELS).map(([value, item]) => ({ value, label: item.text }))} />
-          </Form.Item>
-          <Form.Item name='has_valid_export' label='有效导出'>
-            <Select allowClear placeholder='全部' style={{ width: 105 }} options={[{ value: true, label: '有' }, { value: false, label: '无' }]} />
-          </Form.Item>
-        </Form>
-        <Alert
-          style={{ marginBottom: 12 }}
-          type='info'
-          showIcon
-          message={`已选择导出 ${selectedRegistrationIds.size} 人；已选择终审 ${selectedTargetList.length} 人（可跨导出任务保留）`}
-        />
-        <Table
-          rowKey='id'
-          columns={registrationColumns}
-          dataSource={registrations.data?.items ?? []}
-          loading={registrations.loading}
-          pagination={registrations.pagination}
-          scroll={{ x: 950 }}
-          rowSelection={{
-            selectedRowKeys: [...selectedRegistrationIds],
-            preserveSelectedRowKeys: true,
-            onChange: updatePeopleSelection,
-            getCheckboxProps: (row) => ({ disabled: Boolean(canExportRough(row)) }),
-          }}
-        />
-      </Card>
+      <Tabs activeKey={activeTab} onChange={setActiveTab} items={tabItems} />
 
-      <Card title='导出记录' style={{ marginTop: 16 }}>
-        <Table
-          rowKey='id'
-          columns={exportColumns}
-          dataSource={exportJobs.data?.items ?? []}
-          loading={exportJobs.loading}
-          pagination={exportJobs.pagination}
-          scroll={{ x: 1200 }}
-          locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description='暂无导出记录' /> }}
-        />
-      </Card>
+      <RegistrationReviewDrawer
+        registration={reviewRegistration}
+        open={reviewOpen}
+        onClose={() => setReviewOpen(false)}
+        onReviewed={handleReviewed}
+        onNextPending={nextPending}
+      />
 
       <Modal
         open={!!precheck}
@@ -565,7 +740,7 @@ export default function BatchExportWorkbench() {
               style={{ marginBottom: 12 }}
               type={precheck.blocked_count ? 'warning' : 'success'}
               showIcon
-              message={`已选择 ${precheck.selected_count} 人：可导出 ${precheck.exportable_count} 人，暂不可导出 ${precheck.blocked_count} 人`}
+              message={`${precheckScope === 'selected' ? '所选人员' : '当前筛选结果'}：可导出 ${precheck.exportable_count} 人，暂不可导出 ${precheck.blocked_count} 人`}
               description={`考券 ${precheck.counts_by_type.coupon} 人 · 学生 ${precheck.counts_by_type.student} 人 · 全额 ${precheck.counts_by_type.full} 人`}
             />
             <Table
@@ -584,12 +759,37 @@ export default function BatchExportWorkbench() {
         )}
       </Modal>
 
+      <Modal
+        open={selectedListOpen}
+        title={`已选人员（${selectedRows.length} / ${selectedRegistrationIds.size}）`}
+        width={680}
+        footer={<Button type='primary' onClick={() => setSelectedListOpen(false)}>知道了</Button>}
+        onCancel={() => setSelectedListOpen(false)}
+      >
+        <Space direction='vertical' style={{ width: '100%' }}>
+          {selectedRows.length < selectedRegistrationIds.size && (
+            <Alert type='info' showIcon message={`另有 ${selectedRegistrationIds.size - selectedRows.length} 名跨页选择人员，导出预检会展示完整名单。`} />
+          )}
+          <Table
+            rowKey='id'
+            size='small'
+            columns={[
+              { title: '姓名', render: (_, row) => String(row.candidate_snapshot.candidate_name ?? '-') },
+              { title: '报名编号', dataIndex: 'registration_no' },
+              { title: '状态', dataIndex: 'status', render: (value: H3cRegistrationStatus) => STATUS_LABELS[value].text },
+            ]}
+            dataSource={selectedRows}
+            pagination={{ pageSize: 8 }}
+          />
+        </Space>
+      </Modal>
+
       <Drawer
         open={!!itemJob}
         width={760}
         title={`导出任务 ${itemJob?.id ?? ''} 人员`}
         onClose={() => setItemJob(null)}
-        extra={<Button disabled={selectedTargetList.length === 0} onClick={() => setFinalOpen(true)}>终审所选（{selectedTargetList.length}）</Button>}
+        footer={<Button onClick={() => setItemJob(null)}>关闭</Button>}
       >
         <Table
           rowKey='registration_id'
@@ -601,12 +801,6 @@ export default function BatchExportWorkbench() {
             total: itemTotal,
             pageSize: 20,
             onChange: (page) => itemJob && loadItems(itemJob, page),
-          }}
-          rowSelection={{
-            selectedRowKeys: selectedTargetList.map((item) => item.registration_id),
-            preserveSelectedRowKeys: true,
-            onChange: updateItemSelection,
-            getCheckboxProps: (row) => ({ disabled: !row.review_ready }),
           }}
         />
       </Drawer>
@@ -645,7 +839,7 @@ export default function BatchExportWorkbench() {
               { title: '报名编号', dataIndex: 'registration_no' },
               { title: '姓名', dataIndex: 'name' },
               { title: '结果', dataIndex: 'status', render: (value: H3cBatchFinalReviewResult['status']) => value === 'success' ? <Tag color='green'>成功</Tag> : value === 'skipped' ? <Tag color='orange'>跳过</Tag> : <Tag color='red'>失败</Tag> },
-              { title: '原因', dataIndex: 'reason', render: (value: string | null) => value ?? '-'},
+              { title: '原因', dataIndex: 'reason', render: (value: string | null) => value ?? '-' },
             ]}
             dataSource={reviewResults}
             pagination={false}

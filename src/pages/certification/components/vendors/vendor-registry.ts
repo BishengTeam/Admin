@@ -10,6 +10,9 @@ export interface VendorTab {
 
 export interface VendorProfile {
   type: CertType
+  /** H3C 等按批次办理的业务默认进入批次列表，产品配置后置。 */
+  batchFirst?: boolean
+  productTabLabel?: string
   /** 批次管理是否需要按认证产品筛选（如人社按产品查批次） */
   requiresProductFilter?: boolean
   batchOverrides?: LazyExoticComponent<ComponentType<any>>
@@ -20,26 +23,16 @@ export interface VendorProfile {
 const vendorRegistry: VendorProfile[] = [
   {
     type: 'h3c',
+    batchFirst: true,
+    productTabLabel: '产品设置',
     batchOverrides: lazy(() => import('./h3c/BatchOverrides')),
     batchFormExtra: lazy(() => import('./h3c/BatchFormExtra')),
     tabs: [
       {
-        key: 'review',
-        label: '报名审核',
-        permission: 'h3c:review',
-        component: lazy(() => import('./h3c/ReviewTab')),
-      },
-      {
         key: 'refund',
-        label: '退款',
+        label: '退款管理',
         permission: 'h3c:refund',
         component: lazy(() => import('./h3c/RefundTab')),
-      },
-      {
-        key: 'export',
-        label: '导出',
-        permission: 'h3c:export',
-        component: lazy(() => import('./h3c/ExportTab')),
       },
     ],
   },

@@ -46,6 +46,7 @@ export interface H3cExamBatch {
   max_resubmissions: number
   max_material_bytes: number
   prices: H3cPriceOption[]
+  registration_counts?: Partial<Record<H3cRegistrationStatus, number>>
   published_at: string | null
   registration_closed_at: string | null
   cancelled_at: string | null

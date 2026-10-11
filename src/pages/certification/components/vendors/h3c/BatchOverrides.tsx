@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import dayjs from 'dayjs'
 import { useNavigate } from 'react-router-dom'
 import {
@@ -56,12 +56,30 @@ const BATCH_STATUS: Record<string, { text: string; color: string }> = {
   cancelled: { text: '已取消', color: 'red' },
 }
 
+interface BatchListContext {
+  productFilter?: string
+  page?: number
+  scrollY?: number
+}
+
+const BATCH_LIST_CONTEXT_KEY = 'h3c.batch-list.context'
+
+function readBatchListContext(): BatchListContext {
+  try {
+    const raw = window.sessionStorage.getItem(BATCH_LIST_CONTEXT_KEY)
+    return raw ? JSON.parse(raw) as BatchListContext : {}
+  } catch {
+    return {}
+  }
+}
+
 export default function BatchOverrides(_props: { type: CertType; productCode: string | null }) {
   const navigate = useNavigate()
   const [batchOpen, setBatchOpen] = useState(false)
   const [editingBatch, setEditingBatch] = useState<H3cExamBatch | null>(null)
   const [products, setProducts] = useState<CertProduct[]>([])
-  const [productFilter, setProductFilter] = useState<string | undefined>(undefined)
+  const returnContext = useMemo(readBatchListContext, [])
+  const [productFilter, setProductFilter] = useState<string | undefined>(returnContext.productFilter)
   const [form] = Form.useForm()
 
   useEffect(() => {
@@ -75,6 +93,7 @@ export default function BatchOverrides(_props: { type: CertType; productCode: st
   const { data, loading, pagination, refresh } = usePagination(
     (page) => h3cService.listBatches({ ...page, certification_code: productFilter }),
     [productFilter],
+    { initialPage: returnContext.page },
   )
   const { ensureReauthenticated, reauthDialog } = useReauthentication()
 
@@ -84,6 +103,26 @@ export default function BatchOverrides(_props: { type: CertType; productCode: st
     await h3cService.cancelBatch(id, token)
     message.success('批次已取消')
     refresh()
+  }
+
+  useEffect(() => {
+    window.sessionStorage.removeItem(BATCH_LIST_CONTEXT_KEY)
+    if (typeof returnContext.scrollY === 'number') {
+      const timer = window.setTimeout(() => window.scrollTo({ top: returnContext.scrollY }), 120)
+      return () => window.clearTimeout(timer)
+    }
+  }, [returnContext])
+
+  const openWorkbench = (
+    row: H3cExamBatch,
+    status?: 'pending_review' | 'rejected_awaiting_resubmission' | 'approved',
+  ) => {
+    window.sessionStorage.setItem(BATCH_LIST_CONTEXT_KEY, JSON.stringify({
+      productFilter,
+      page: pagination.current,
+      scrollY: window.scrollY,
+    }))
+    navigate(`/admin/certification/h3c/batches/${row.id}${status ? `?status=${status}` : ''}`)
   }
 
   const createBatch = async () => {
@@ -215,6 +254,30 @@ export default function BatchOverrides(_props: { type: CertType; productCode: st
     { title: '考试时间', dataIndex: 'exam_date', width: 165, render: (value: string) => formatDate(value) },
     { title: '名额', width: 90, render: (_, row) => `${row.occupied_count}/${row.capacity}` },
     {
+      title: '报名办理',
+      key: 'registration-counts',
+      width: 175,
+      render: (_, row) => (
+        <Space size={4} wrap>
+          {([
+            ['pending_review', '待初审'],
+            ['rejected_awaiting_resubmission', '待补正'],
+            ['approved', '初审通过'],
+          ] as const).map(([status, label]) => (
+            <Button
+              key={status}
+              size='small'
+              type='link'
+              style={{ padding: 0, height: 22 }}
+              onClick={() => openWorkbench(row, status)}
+            >
+              {label} {row.registration_counts?.[status] ?? 0}
+            </Button>
+          ))}
+        </Space>
+      ),
+    },
+    {
       title: '价格',
       dataIndex: 'prices',
       width: 150,
@@ -231,11 +294,11 @@ export default function BatchOverrides(_props: { type: CertType; productCode: st
     },
     {
       title: '操作',
-      width: 385,
+      width: 320,
       render: (_, row) => (
         <Space>
-          <Button size='small' type='primary' ghost onClick={() => navigate(`/admin/certification/h3c/export/${row.id}`)}>
-            报名与导出
+          <Button size='small' type='primary' ghost onClick={() => openWorkbench(row)}>
+            管理报名
           </Button>
           {row.status === 'draft' && (
             <Button size='small' onClick={() => handleEdit(row)}>编辑</Button>

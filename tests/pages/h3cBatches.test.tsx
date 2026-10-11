@@ -1,7 +1,10 @@
 import { cleanup, render, screen } from '@testing-library/react'
+import { fireEvent } from '@testing-library/react'
+import { Route, Routes } from 'react-router-dom'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import BatchOverrides from '@/pages/certification/components/vendors/h3c/BatchOverrides'
+import { mergeSelectedRegistrations } from '@/pages/certification/components/vendors/h3c/BatchExportWorkbench'
 import { certProductService } from '@/services/certProduct'
 import { h3cService } from '@/services/h3c'
 import type { CertProduct } from '@/types/certProduct'
@@ -172,9 +175,47 @@ function renderBatch() {
     expect(screen.getByRole('button', { name: /归\s*档/ })).toBeInTheDocument()
   })
 
-  it('links each batch to the dedicated registration and export workbench', async () => {
-    renderBatch()
+  it('links each batch to the dedicated batch workbench', async () => {
+    render(
+      <MemoryRouter initialEntries={['/admin/certification/h3c']}>
+        <Routes>
+          <Route path='/admin/certification/h3c' element={<BatchOverrides type='h3c' productCode={null} />} />
+          <Route path='/admin/certification/h3c/batches/:batchId' element={<div>batch-workbench</div>} />
+        </Routes>
+      </MemoryRouter>,
+    )
 
-    expect(await screen.findAllByText('报名与导出')).not.toHaveLength(0)
+    fireEvent.click((await screen.findAllByText('管理报名'))[0])
+    expect(await screen.findByText('batch-workbench')).toBeInTheDocument()
+  })
+
+  it('opens the corresponding status filter from batch counters', async () => {
+    vi.mocked(h3cService.listBatches).mockResolvedValue({
+      items: [batch({ registration_counts: { pending_review: 2, approved: 5 } })],
+      total: 1,
+      page: 1,
+      page_size: 20,
+    })
+    render(
+      <MemoryRouter initialEntries={['/admin/certification/h3c']}>
+        <Routes>
+          <Route path='/admin/certification/h3c' element={<BatchOverrides type='h3c' productCode={null} />} />
+          <Route path='/admin/certification/h3c/batches/:batchId' element={<div>status-workbench</div>} />
+        </Routes>
+      </MemoryRouter>,
+    )
+
+    fireEvent.click(await screen.findByText('待初审 2'))
+    expect(await screen.findByText('status-workbench')).toBeInTheDocument()
+  })
+
+  it('removes rows from the selection when their keys are cancelled', () => {
+    const first = { id: 1, registration_no: 'H3C-1' } as never
+    const second = { id: 2, registration_no: 'H3C-2' } as never
+    const previous = mergeSelectedRegistrations({}, [1, 2], [first, second])
+
+    expect(Object.keys(previous)).toEqual(['1', '2'])
+    expect(mergeSelectedRegistrations(previous, [2], [second])).toEqual({ 2: second })
+    expect(mergeSelectedRegistrations(previous, [], [])).toEqual({})
   })
 })

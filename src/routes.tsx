@@ -254,9 +254,14 @@ export const adminRoutes: AppRoute[] = [
         meta: { title: '新华三认证', icon: 'ClusterOutlined', permission: 'h3c:review' },
       },
       {
+        path: 'h3c/batches/:batchId',
+        element: <H3cBatchExportWorkbench />,
+        meta: { title: 'H3C 批次工作台', icon: 'FileZipOutlined', permission: 'h3c:review', hidden: true },
+      },
+      {
         path: 'h3c/export/:batchId',
         element: <H3cBatchExportWorkbench />,
-        meta: { title: 'H3C 报名与导出', icon: 'FileZipOutlined', permission: 'h3c:export', hidden: true },
+        meta: { title: 'H3C 批次工作台', icon: 'FileZipOutlined', permission: 'h3c:review', hidden: true },
       },
       {
         path: 'renshe',

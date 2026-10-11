@@ -13,11 +13,12 @@ interface PaginationState {
 export function usePagination<T>(
   fetchFn: (params: PageParams, signal?: AbortSignal) => Promise<PageData<T>>,
   deps: unknown[] = [],
+  options?: { initialPage?: number },
 ) {
   const [data, setData] = useState<PageData<T> | null>(null)
   const [loading, setLoading] = useState(false)
   const [pagination, setPagination] = useState<PaginationState>({
-    current: 1,
+    current: options?.initialPage ?? 1,
     pageSize: DEFAULT_PAGE_SIZE,
     total: 0,
   })
