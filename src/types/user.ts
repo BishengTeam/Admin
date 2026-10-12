@@ -15,6 +15,26 @@ export interface UserFilter {
   created_at_end?: string
   identity_status?: string
   student_status?: string
+  review_status?: 'pending' | 'approved' | 'rejected'
+}
+
+export interface UserReviewSummaryItem {
+  user_id: number
+  openid: string
+  phone: string | null
+  is_active: boolean
+  created_at: string
+  identity_status: string | null
+  student_status: string | null
+  identity_updated_at: string | null
+  student_updated_at: string | null
+  latest_review_at: string
+}
+
+export interface UserReviewSummary {
+  identity_pending_count: number
+  student_pending_count: number
+  latest_pending: UserReviewSummaryItem[]
 }
 
 export interface UserDetail extends User {

@@ -9,7 +9,7 @@ import { usePermission } from '@/hooks/usePermission'
 import MaterialPreview from '@/pages/certification/components/vendors/renshe/MaterialPreview'
 import { rensheService } from '@/services/renshe'
 import { userService } from '@/services/users'
-import type { UserConversationSummary, UserDetail, UserOrderSummary } from '@/types/user'
+import type { UserConversationSummary, UserDetail, UserOrderSummary, UserReviewSummaryItem } from '@/types/user'
 import { LEVEL2_STATUS_MAP } from '@/types/user'
 import { formatDate, formatPrice } from '@/utils/format'
 import { isPdfMaterial } from '@/utils/renshe'
@@ -22,6 +22,8 @@ interface UserDetailDrawerProps {
   open: boolean
   onClose: () => void
   onSaved?: () => void | Promise<void>
+  nextPending?: UserReviewSummaryItem | null
+  onNextPending?: () => void
 }
 
 type ReviewTarget = 'identity' | 'student'
@@ -44,14 +46,22 @@ function ReviewTag({ status }: { status: string }) {
   return <Tag color={config?.color}>{config?.text ?? status}</Tag>
 }
 
-export default function UserDetailDrawer({ user, open, onClose, onSaved }: UserDetailDrawerProps) {
+export default function UserDetailDrawer({
+  user,
+  open,
+  onClose,
+  onSaved,
+  nextPending,
+  onNextPending,
+}: UserDetailDrawerProps) {
   const [reviewing, setReviewing] = useState<ReviewTarget | null>(null)
   const canReview = usePermission('user:write')
 
   if (!user) return null
 
-  const { profile, realname, student } = user
-  const eligible = realname?.status === 'verified' && student?.status === 'verified'
+    const { profile, realname, student } = user
+    const eligible = realname?.status === 'verified' && student?.status === 'verified'
+    const hasPendingReview = realname?.status === 'pending' || student?.status === 'pending'
 
   const submitReview = async (target: ReviewTarget, status: 'verified' | 'rejected', comment?: string) => {
     setReviewing(target)
@@ -141,6 +151,11 @@ export default function UserDetailDrawer({ user, open, onClose, onSaved }: UserD
       </Descriptions>
 
       {eligible && <Tag color="green" style={{ marginBottom: 20 }}>具备报名认证资格</Tag>}
+      {hasPendingReview && nextPending && onNextPending && (
+        <Button style={{ marginBottom: 20 }} onClick={onNextPending}>
+          下一位待审核
+        </Button>
+      )}
 
       <Descriptions title="实名信息" bordered size="small" column={2} style={{ marginBottom: 12 }}>
         {realname ? (

@@ -1,5 +1,5 @@
 import { http } from '@/core/request'
-import type { User, UserFilter, UserDetail, UserProfileDetail, UserRealnameInfo, UserStudentInfo, UserOrderSummary, UserConversationSummary, ReviewRecord, ReviewTargetType } from '@/types/user'
+import type { User, UserFilter, UserDetail, UserProfileDetail, UserRealnameInfo, UserStudentInfo, UserOrderSummary, UserConversationSummary, ReviewRecord, ReviewTargetType, UserReviewSummary } from '@/types/user'
 import type { PageData, PageParams } from '@/types/api'
 
 export const userService = {
@@ -9,6 +9,12 @@ export const userService = {
 
   async detail(id: number): Promise<UserDetail> {
     return http.get<UserDetail>(`/admin/users/${id}`)
+  },
+
+  async reviewSummary(latestLimit = 10): Promise<UserReviewSummary> {
+    return http.get<UserReviewSummary>('/admin/users/review-summary', {
+      params: { latest_limit: latestLimit },
+    })
   },
 
   async getOrders(id: number): Promise<UserOrderSummary[]> {

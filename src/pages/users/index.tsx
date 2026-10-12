@@ -1,5 +1,5 @@
-import { useState, useCallback, useRef } from 'react'
-import { Table, Input, DatePicker, Button, Space, Tag, message } from 'antd'
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
+import { Alert, Card, Table, Input, DatePicker, Button, Radio, Space, Tag, Typography, message } from 'antd'
 import { DownloadOutlined, DeleteOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import type { TableRowSelection } from 'antd/es/table/interface'
@@ -14,7 +14,7 @@ import { userService } from '@/services/users'
 import { USER_STATUS_MAP } from '@/core/constants'
 import { formatDate, formatPhone } from '@/utils/format'
 import { downloadBlob } from '@/utils/download'
-import type { User, UserFilter, UserDetail, UserProfileDetail, UserOrderSummary, UserConversationSummary } from '@/types/user'
+import type { User, UserFilter, UserDetail, UserProfileDetail, UserOrderSummary, UserConversationSummary, UserReviewSummary } from '@/types/user'
 import { LEVEL2_STATUS_MAP } from '@/types/user'
 import UserDetailDrawer from './components/UserDetailDrawer'
 
@@ -85,6 +85,15 @@ function mapProfileToDetail(
 }
 
 const { RangePicker } = DatePicker
+const { Text } = Typography
+
+type ReviewQuickFilter =
+  | 'all'
+  | 'pending'
+  | 'identity_pending'
+  | 'student_pending'
+  | 'approved'
+  | 'rejected'
 
 const searchFields: SearchField[] = [
   { name: 'openid', label: '用户名', span: 6, render: () => <Input placeholder="用户名" /> },
@@ -93,7 +102,9 @@ const searchFields: SearchField[] = [
 ]
 
 export default function UserList() {
-  const [filters, setFilters] = useState<UserFilter>({})
+  const [searchFilters, setSearchFilters] = useState<UserFilter>({})
+  const [reviewQuickFilter, setReviewQuickFilter] = useState<ReviewQuickFilter>('all')
+  const [reviewSummary, setReviewSummary] = useState<UserReviewSummary | null>(null)
   const [selectedUser, setSelectedUser] = useState<UserDetail | null>(null)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [selectedRowKeys, setSelectedRowKeys] = useState<number[]>([])
@@ -102,6 +113,15 @@ export default function UserList() {
   const canWrite = usePermission('user:write')
   const canDelete = usePermission('user:delete')
 
+  const filters = useMemo<UserFilter>(() => {
+    if (reviewQuickFilter === 'all') return searchFilters
+    if (reviewQuickFilter === 'pending') return { ...searchFilters, review_status: 'pending' }
+    if (reviewQuickFilter === 'identity_pending') return { ...searchFilters, identity_status: 'pending' }
+    if (reviewQuickFilter === 'student_pending') return { ...searchFilters, student_status: 'pending' }
+    if (reviewQuickFilter === 'approved') return { ...searchFilters, review_status: 'approved' }
+    return { ...searchFilters, review_status: 'rejected' }
+  }, [reviewQuickFilter, searchFilters])
+
   const { data, loading, pagination, refresh } = usePagination(
     (page) => userService.list({ ...filters, ...page }),
     [filters],
@@ -109,10 +129,26 @@ export default function UserList() {
 
   // 审核状态由列表接口直接返回（identity_status / student_status）
 
+  const refreshReviewSummary = useCallback(async () => {
+    try {
+      setReviewSummary(await userService.reviewSummary(10))
+    } catch {
+      setReviewSummary({
+        identity_pending_count: 0,
+        student_pending_count: 0,
+        latest_pending: [],
+      })
+    }
+  }, [])
+
+  useEffect(() => {
+    void refreshReviewSummary()
+  }, [refreshReviewSummary])
+
   const handleSearch = useCallback((values: Record<string, unknown>) => {
     const { openid, phone, created_at_range } = values
     const rangeArr = created_at_range as [string, string] | undefined
-    setFilters({
+    setSearchFilters({
       openid: openid as string | undefined,
       phone: phone as string | undefined,
       created_at_start: (rangeArr?.filter(Boolean).length === 2) ? rangeArr![0] : undefined,
@@ -121,7 +157,7 @@ export default function UserList() {
   }, [])
 
   const handleReset = useCallback(() => {
-    setFilters({})
+    setSearchFilters({})
   }, [])
 
   const handleRowClick = async (record: User) => {
@@ -148,6 +184,12 @@ export default function UserList() {
     const base = data?.items?.find((u) => u.id === id)
     setSelectedUser(mapProfileToDetail(flat, base || { id, openid: '', phone: '', is_active: false, created_at: '' }, orders, conversations))
   }, [data?.items])
+
+  const handleReviewSaved = useCallback(async () => {
+    await handleRefreshDetail()
+    await refreshReviewSummary()
+    refresh()
+  }, [handleRefreshDetail, refresh, refreshReviewSummary])
 
   const handleToggleStatus = async (record: User) => {
     const newStatus = !record.is_active
@@ -260,8 +302,60 @@ export default function UserList() {
     },
   ]
 
+  const nextPending = useMemo(() => {
+    const currentId = selectedUser?.id
+    return reviewSummary?.latest_pending.find(item => item.user_id !== currentId) ?? null
+  }, [reviewSummary, selectedUser?.id])
+
+  const openNextPending = useCallback(() => {
+    if (!nextPending) {
+      message.info('暂无待审核用户')
+      return
+    }
+    void handleRowClick({
+      id: nextPending.user_id,
+      openid: nextPending.openid,
+      phone: nextPending.phone || '',
+      is_active: nextPending.is_active,
+      identity_status: nextPending.identity_status,
+      student_status: nextPending.student_status,
+      created_at: nextPending.created_at,
+    })
+  }, [handleRowClick, nextPending])
+
   return (
     <PageContainer title="用户管理">
+      <Space size={16} style={{ marginBottom: 16 }} wrap>
+        <Card
+          size='small'
+          hoverable
+          onClick={() => setReviewQuickFilter('identity_pending')}
+          style={{ minWidth: 210, borderColor: reviewQuickFilter === 'identity_pending' ? '#1677ff' : undefined }}
+        >
+          <Text type='secondary'>待实名审核</Text>
+          <div style={{ fontSize: 24, fontWeight: 600, margin: '6px 0' }}>
+            {reviewSummary?.identity_pending_count ?? 0}
+          </div>
+          <Text type='secondary'>
+            {(reviewSummary?.identity_pending_count ?? 0) === 0 ? '暂无待审核用户' : '点击查看待审列表'}
+          </Text>
+        </Card>
+        <Card
+          size='small'
+          hoverable
+          onClick={() => setReviewQuickFilter('student_pending')}
+          style={{ minWidth: 210, borderColor: reviewQuickFilter === 'student_pending' ? '#1677ff' : undefined }}
+        >
+          <Text type='secondary'>待学生审核</Text>
+          <div style={{ fontSize: 24, fontWeight: 600, margin: '6px 0' }}>
+            {reviewSummary?.student_pending_count ?? 0}
+          </div>
+          <Text type='secondary'>
+            {(reviewSummary?.student_pending_count ?? 0) === 0 ? '暂无待审核用户' : '点击查看待审列表'}
+          </Text>
+        </Card>
+      </Space>
+
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
         <SearchForm fields={searchFields} onSearch={handleSearch} onReset={handleReset} />
         <Space style={{ flexShrink: 0 }}>
@@ -282,6 +376,27 @@ export default function UserList() {
         </Space>
       </div>
 
+      <Space direction='vertical' size={12} style={{ width: '100%', marginBottom: 16 }}>
+        <Radio.Group
+          optionType='button'
+          buttonStyle='solid'
+          value={reviewQuickFilter}
+          onChange={(event) => setReviewQuickFilter(event.target.value as ReviewQuickFilter)}
+          options={[
+            { value: 'all', label: '全部' },
+            { value: 'pending', label: '待审核' },
+            { value: 'identity_pending', label: '待实名审核' },
+            { value: 'student_pending', label: '待学生审核' },
+            { value: 'approved', label: '已通过' },
+            { value: 'rejected', label: '已驳回' },
+          ]}
+        />
+        {(reviewSummary?.identity_pending_count ?? 0) === 0
+          && (reviewSummary?.student_pending_count ?? 0) === 0 && (
+          <Alert type='success' showIcon message='暂无待审核用户' />
+        )}
+      </Space>
+
       <Table
         rowKey="id"
         columns={columns}
@@ -295,7 +410,9 @@ export default function UserList() {
         user={selectedUser}
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
-        onSaved={handleRefreshDetail}
+        onSaved={handleReviewSaved}
+        nextPending={nextPending}
+        onNextPending={openNextPending}
       />
     </PageContainer>
   )
