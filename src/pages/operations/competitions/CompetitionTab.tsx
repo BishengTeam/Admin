@@ -9,6 +9,7 @@ import dayjs from 'dayjs'
 import { PageContainer } from '@/components/PageContainer'
 import { ConfirmButton } from '@/components/ConfirmButton'
 import { ImageUpload } from '@/components/ImageUpload'
+import { PdfAttachmentUpload } from '@/components/PdfAttachmentUpload'
 import { usePagination } from '@/hooks/usePagination'
 import { usePermission } from '@/hooks/usePermission'
 import { competitionAdminService } from '@/services/competition'
@@ -25,6 +26,8 @@ type FormValues = {
   description?: string
   cover_url?: string
   home_cover_url?: string
+  poster_url?: string
+  attachments?: { title: string; pages: string[] }[]
   time_range?: [dayjs.Dayjs | null, dayjs.Dayjs | null]
   registration_deadline?: dayjs.Dayjs | null
   is_active?: boolean
@@ -59,6 +62,8 @@ export default function CompetitionTab() {
       description: item.description ?? '',
       cover_url: item.cover_url ?? '',
       home_cover_url: item.home_cover_url ?? '',
+      poster_url: item.poster_url ?? '',
+      attachments: item.attachments ?? [],
       time_range: [
         item.start_time ? dayjs(item.start_time) : null,
         item.end_time ? dayjs(item.end_time) : null,
@@ -97,6 +102,8 @@ export default function CompetitionTab() {
       description: values.description || null,
       cover_url: values.cover_url || null,
       home_cover_url: values.home_cover_url || null,
+      poster_url: values.poster_url || null,
+      attachments: values.attachments ?? [],
       start_time: start ? start.toISOString() : null,
       end_time: end ? end.toISOString() : null,
       registration_deadline: values.registration_deadline
@@ -264,6 +271,15 @@ export default function CompetitionTab() {
               hint={'首页竞赛专区瀑布流卡片封面\n固定裁剪输出：686 × 680 px（约 1 : 1）\n裁剪框大小固定，拖动选择截取位置\n不传则首页回退裁中赛事封面\n输出 JPG，单张 ≤ 5MB'}
             />
           </Form.Item>
+          <Form.Item
+            name='poster_url'
+            label='详情页长图海报'
+            tooltip='赛事详情页顶部的完整长图；不传则详情页回退显示赛事封面'
+          >
+            <ImageUpload
+              hint={'赛事详情页长图海报（完整展示、不裁切）\n建议竖向长图，宽度 ≥ 1080 px\n图片内可含报名二维码等信息\n输出 JPG，单张 ≤ 5MB'}
+            />
+          </Form.Item>
           <Form.Item name='description' label='赛事介绍'>
             <Input.TextArea rows={3} placeholder='赛事说明、参赛要求等' maxLength={2000} showCount />
           </Form.Item>
@@ -334,6 +350,14 @@ export default function CompetitionTab() {
               </>
             )}
           </Form.List>
+
+          <Divider orientation='left' orientationMargin={0} style={{ margin: '8px 0 16px' }}>
+            <Text type='secondary' style={{ fontSize: 13 }}>在线查阅附件</Text>
+          </Divider>
+
+          <Form.Item name='attachments' label={null}>
+            <PdfAttachmentUpload />
+          </Form.Item>
 
           <Divider orientation='left' orientationMargin={0} style={{ margin: '8px 0 16px' }}>
             <Text type='secondary' style={{ fontSize: 13 }}>报名表单配置</Text>

@@ -7,12 +7,19 @@ export interface CompetitionTrack {
   sort_order: number
 }
 
+/** 在线查阅附件（后端已把 PDF 转成页图，仅可见不可下载） */
+export interface CompetitionAttachment {
+  title: string
+  pages: string[]
+}
+
 export interface Competition {
   id: number
   name: string
   description: string | null
   cover_url: string | null
   home_cover_url?: string | null
+  poster_url?: string | null
   start_time: string | null
   end_time: string | null
   registration_deadline: string | null
@@ -21,6 +28,7 @@ export interface Competition {
   total_enrolled?: number
   created_at: string
   custom_fields?: unknown[] | null
+  attachments?: CompetitionAttachment[] | null
 }
 
 
@@ -37,12 +45,14 @@ export interface CompetitionPayload {
   description?: string | null
   cover_url?: string | null
   home_cover_url?: string | null
+  poster_url?: string | null
   start_time?: string | null
   end_time?: string | null
   registration_deadline?: string | null
   is_active?: boolean
   tracks?: CompetitionTrackInput[]
   custom_fields?: unknown[] | null
+  attachments?: CompetitionAttachment[] | null
 }
 
 export interface CompetitionRegistration {

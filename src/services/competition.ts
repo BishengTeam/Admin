@@ -19,6 +19,17 @@ export const competitionAdminService = {
     return http.delete<void>(`/admin/competitions/${id}`)
   },
 
+  /** 上传在线查阅附件 PDF，服务端转页图后返回标题与页图列表 */
+  async uploadAttachment(file: File): Promise<{ title: string; page_count: number; pages: string[] }> {
+    const formData = new FormData()
+    formData.append('file', file)
+    return http.post<{ title: string; page_count: number; pages: string[] }>(
+      '/admin/competitions/attachment-upload',
+      formData,
+      { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 120000 },
+    )
+  },
+
   async listRegistrations(
     competitionId: number,
     params: { track_id?: number } & PageParams,
