@@ -8,6 +8,8 @@ export interface CoverCropConfig {
   /** 固定输出高度，单位 px */
   height: number
   title?: string
+  /** 裁剪框大小固定（等比铺满原图短边），只能拖动位置，不能缩放 */
+  fixed?: boolean
 }
 
 interface CoverCropperProps {
@@ -93,6 +95,23 @@ function getInitialCropRect(
 
   width = Math.max(MIN_CROP_WIDTH, Math.min(width, imageWidth))
   height = width / cropRatio
+
+  return {
+    width,
+    height,
+    x: (imageWidth - width) / 2,
+    y: (imageHeight - height) / 2,
+  }
+}
+
+/** 固定框模式：裁剪框等比铺满原图短边、不可缩放，只能拖动位置 */
+function getFixedCropRect(
+  imageWidth: number,
+  imageHeight: number,
+  cropRatio: number,
+): CropRect {
+  const width = Math.min(imageWidth, imageHeight * cropRatio)
+  const height = width / cropRatio
 
   return {
     width,
@@ -277,7 +296,9 @@ export function CoverCropper({ open, file, crop, onCancel, onCropped }: CoverCro
         objectUrlRef.current = objectUrl
         const layout = getImageLayout(nextImage)
         setImage(nextImage)
-        setCropRect(getInitialCropRect(layout.width, layout.height, cropRatio))
+        setCropRect(crop.fixed
+          ? getFixedCropRect(layout.width, layout.height, cropRatio)
+          : getInitialCropRect(layout.width, layout.height, cropRatio))
       })
       .catch(err => {
         if (active) setError(err instanceof Error ? err.message : '图片读取失败')
@@ -295,7 +316,7 @@ export function CoverCropper({ open, file, crop, onCancel, onCropped }: CoverCro
   const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (!imageLayout || !cropRect || event.button !== 0) return
 
-    const handle = ((event.target as HTMLElement).dataset.handle ?? 'move') as CropHandle
+    const handle = (crop.fixed ? 'move' : ((event.target as HTMLElement).dataset.handle ?? 'move')) as CropHandle
     event.preventDefault()
     event.currentTarget.setPointerCapture(event.pointerId)
     dragRef.current = {
@@ -436,7 +457,7 @@ export function CoverCropper({ open, file, crop, onCancel, onCropped }: CoverCro
                   <div style={{ position: 'absolute', top: '33.333%', left: 0, right: 0, height: 1, background: 'rgba(255,255,255,.32)', pointerEvents: 'none' }} />
                   <div style={{ position: 'absolute', top: '66.667%', left: 0, right: 0, height: 1, background: 'rgba(255,255,255,.32)', pointerEvents: 'none' }} />
 
-                  {handles.map(handle => (
+                  {crop.fixed ? null : handles.map(handle => (
                     <div
                       key={handle.key}
                       data-handle={handle.key}
@@ -454,7 +475,9 @@ export function CoverCropper({ open, file, crop, onCancel, onCropped }: CoverCro
           )}
 
           <Typography.Text type="secondary">
-            在原图上拖动裁剪框：拖动中间移动位置，拖动边缘/四角按固定比例等比调整大小。输出固定为 {crop.width} × {crop.height} px，JPG 格式，不超过 5MB。
+            {crop.fixed
+              ? `裁剪框大小固定（与小程序显示比例一致），在原图上拖动选择截取位置。输出固定为 ${crop.width} × ${crop.height} px，JPG 格式，不超过 5MB。`
+              : `在原图上拖动裁剪框：拖动中间移动位置，拖动边缘/四角按固定比例等比调整大小。输出固定为 ${crop.width} × ${crop.height} px，JPG 格式，不超过 5MB。`}
           </Typography.Text>
         </Space>
       )}

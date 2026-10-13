@@ -24,6 +24,7 @@ type FormValues = {
   name?: string
   description?: string
   cover_url?: string
+  home_cover_url?: string
   time_range?: [dayjs.Dayjs | null, dayjs.Dayjs | null]
   registration_deadline?: dayjs.Dayjs | null
   is_active?: boolean
@@ -57,6 +58,7 @@ export default function CompetitionTab() {
       name: item.name,
       description: item.description ?? '',
       cover_url: item.cover_url ?? '',
+      home_cover_url: item.home_cover_url ?? '',
       time_range: [
         item.start_time ? dayjs(item.start_time) : null,
         item.end_time ? dayjs(item.end_time) : null,
@@ -94,6 +96,7 @@ export default function CompetitionTab() {
       name: values.name ?? '',
       description: values.description || null,
       cover_url: values.cover_url || null,
+      home_cover_url: values.home_cover_url || null,
       start_time: start ? start.toISOString() : null,
       end_time: end ? end.toISOString() : null,
       registration_deadline: values.registration_deadline
@@ -247,8 +250,18 @@ export default function CompetitionTab() {
           </Form.Item>
           <Form.Item name='cover_url' label='封面图'>
             <ImageUpload
-              crop={{ width: 1404, height: 640, title: '赛事封面' }}
-              hint={'赛事封面（列表卡片 + 详情页大图）\n固定裁剪输出：1404 × 640 px（约 2.2 : 1）\n上传后可拖动/缩放调整裁剪区域\n输出 JPG，单张 ≤ 5MB'}
+              crop={{ width: 1404, height: 640, title: '赛事封面', fixed: true }}
+              hint={'赛事封面（竞赛列表卡片 + 详情页大图）\n固定裁剪输出：1404 × 640 px（约 2.2 : 1）\n裁剪框大小固定，拖动选择截取位置\n输出 JPG，单张 ≤ 5MB'}
+            />
+          </Form.Item>
+          <Form.Item
+            name='home_cover_url'
+            label='首页竖版封面'
+            tooltip='首页「竞赛专区」瀑布流卡片用竖版封面；不传则自动裁中赛事封面'
+          >
+            <ImageUpload
+              crop={{ width: 686, height: 680, title: '首页竖版封面', fixed: true }}
+              hint={'首页竞赛专区瀑布流卡片封面\n固定裁剪输出：686 × 680 px（约 1 : 1）\n裁剪框大小固定，拖动选择截取位置\n不传则首页回退裁中赛事封面\n输出 JPG，单张 ≤ 5MB'}
             />
           </Form.Item>
           <Form.Item name='description' label='赛事介绍'>

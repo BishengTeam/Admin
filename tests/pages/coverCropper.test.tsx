@@ -24,6 +24,26 @@ describe('cover cropper', () => {
     expect(source).toContain('拖动中间移动位置，拖动边缘/四角按固定比例等比调整大小')
   })
 
+  it('supports fixed-box mode that only allows dragging the crop position', () => {
+    const source = readSource('src/components/CoverCropper.tsx')
+
+    expect(source).toContain('fixed?: boolean')
+    expect(source).toContain('function getFixedCropRect')
+    expect(source).toContain('const width = Math.min(imageWidth, imageHeight * cropRatio)')
+    expect(source).toContain('crop.fixed')
+    expect(source).toContain('? getFixedCropRect(layout.width, layout.height, cropRatio)')
+    expect(source).toContain('crop.fixed ? null : handles.map')
+    expect(source).toContain('裁剪框大小固定（与小程序显示比例一致），在原图上拖动选择截取位置')
+  })
+
+  it('crops competition covers with fixed boxes for both ratios', () => {
+    const source = readSource('src/pages/operations/competitions/CompetitionTab.tsx')
+
+    expect(source).toContain("crop={{ width: 1404, height: 640, title: '赛事封面', fixed: true }}")
+    expect(source).toContain("crop={{ width: 686, height: 680, title: '首页竖版封面', fixed: true }}")
+    expect(source).toContain('裁剪框大小固定，拖动选择截取位置')
+  })
+
   it('routes all cover ImageUpload fields through fixed-size manual cropping', () => {
     const paths = [
       'src/pages/operations/activities/ActivityTab.tsx',

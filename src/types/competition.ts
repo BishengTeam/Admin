@@ -12,6 +12,7 @@ export interface Competition {
   name: string
   description: string | null
   cover_url: string | null
+  home_cover_url?: string | null
   start_time: string | null
   end_time: string | null
   registration_deadline: string | null
@@ -35,6 +36,7 @@ export interface CompetitionPayload {
   name: string
   description?: string | null
   cover_url?: string | null
+  home_cover_url?: string | null
   start_time?: string | null
   end_time?: string | null
   registration_deadline?: string | null
