@@ -21,6 +21,10 @@ export interface NispBatch {
   consultation_group_qrcode_url: string | null
   level1_price_cents: number
   level2_price_cents: number
+  payment_timeout_minutes: number
+  resubmission_window_hours: number
+  max_resubmissions: number
+  max_material_bytes: number
   registration_counts?: Record<string, number>
   created_at: string
   updated_at: string
@@ -156,7 +160,9 @@ export interface NispBatchFinalReviewResult {
 }
 
 export const nispService = {
-  listBatches(params: PageParams): Promise<PageData<NispBatch>> {
+  listBatches(
+    params: PageParams & { keyword?: string; level?: '1' | '2'; status?: string },
+  ): Promise<PageData<NispBatch>> {
     return http.get('/admin/nisp/batches', { params })
   },
 
@@ -179,9 +185,41 @@ export const nispService = {
     return http.post('/admin/nisp/batches', data)
   },
 
+  createFullBatch(data: {
+    level: '1' | '2'
+    name: string
+    training_org?: string
+    apply_start: string
+    apply_end: string
+    exam_date?: string | null
+    exam_location?: string
+    capacity: number
+    price_cents: number
+    payment_timeout_minutes?: number
+    resubmission_window_hours?: number
+    max_resubmissions?: number
+    consultation_group_qrcode_url?: string | null
+    publish?: boolean
+  }): Promise<NispBatch> {
+    return http.post('/admin/nisp/batches/full', data)
+  },
+
   updateBatch(
     id: number,
-    data: { consultation_group_qrcode_url?: string | null },
+    data: {
+      name?: string
+      apply_start?: string
+      apply_end?: string
+      exam_date?: string | null
+      exam_location?: string
+      capacity?: number
+      training_org?: string
+      price_cents?: number
+      payment_timeout_minutes?: number
+      resubmission_window_hours?: number
+      max_resubmissions?: number
+      consultation_group_qrcode_url?: string | null
+    },
   ): Promise<NispBatch> {
     return http.put(`/admin/nisp/batches/${id}`, data)
   },
