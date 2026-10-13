@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import { fireEvent } from '@testing-library/react'
 import { Route, Routes } from 'react-router-dom'
 import { MemoryRouter } from 'react-router-dom'
@@ -160,7 +160,7 @@ function renderBatch() {
     expect(certProductService.list).toHaveBeenCalledWith({ type: 'h3c', page: 1, page_size: 100 })
   })
 
-  it('shows archive action for finished batches', async () => {
+  it('archives finished batches from the secondary menu', async () => {
     vi.mocked(h3cService.listBatches).mockResolvedValue({
       items: [batch({ id: 3, status: 'finalized', name: '已结束批次' })],
       total: 1,
@@ -172,7 +172,33 @@ function renderBatch() {
     renderBatch()
 
     await screen.findByText('已结束批次')
-    expect(screen.getByRole('button', { name: /归\s*档/ })).toBeInTheDocument()
+    fireEvent.click(await screen.findByRole('button', { name: /更多/ }))
+    fireEvent.click(await screen.findByText('归档批次'))
+    expect(await screen.findByText('归档后用户端不再显示该批次。')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '归档批次' }))
+    await waitFor(() => expect(h3cService.archiveBatch).toHaveBeenCalledWith(3))
+  })
+
+  it('shows the grouped H3C batch form with three registration types', async () => {
+    renderBatch()
+    fireEvent.click(await screen.findByRole('button', { name: /新建批次/ }))
+
+    expect(await screen.findByText('新建 H3C 考试批次')).toBeInTheDocument()
+    expect(screen.getByText('① 认证产品')).toBeInTheDocument()
+    expect(screen.getByText('② 基本信息')).toBeInTheDocument()
+    expect(screen.getByText('③ 报名安排')).toBeInTheDocument()
+    expect(screen.getByText('④ 考试安排')).toBeInTheDocument()
+    expect(screen.getByText('⑤ 报名类型与费用')).toBeInTheDocument()
+    expect(screen.getAllByText('考券报名').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('学生报名').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('全额报名').length).toBeGreaterThan(0)
+    expect(screen.getByText('考生需填写有效考券编号，并上传考券证明材料。')).toBeInTheDocument()
+    expect(screen.getByText('考生需填写学籍在线验证码，并上传学生证明材料。')).toBeInTheDocument()
+    expect(screen.getByText('考生仅填写基础报名信息，无需考券或学生证明材料。')).toBeInTheDocument()
+    expect(screen.queryByText('身份标签')).not.toBeInTheDocument()
+    expect(screen.queryByText('单图上限（MB）')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '保存草稿' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '保存并发布' })).toBeInTheDocument()
   })
 
   it('links each batch to the dedicated batch workbench', async () => {

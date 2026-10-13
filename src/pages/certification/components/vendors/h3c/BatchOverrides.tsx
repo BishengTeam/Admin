@@ -2,15 +2,18 @@ import { useEffect, useMemo, useState } from 'react'
 import dayjs from 'dayjs'
 import { useNavigate } from 'react-router-dom'
 import {
+  Alert,
   Button,
   Col,
   DatePicker,
+  Descriptions,
   Divider,
+  Drawer,
+  Dropdown,
   Form,
   Input,
   InputNumber,
   Modal,
-  Popconfirm,
   Row,
   Select,
   Space,
@@ -20,7 +23,7 @@ import {
   message,
 } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
-import { CalendarOutlined, FileProtectOutlined, PayCircleOutlined, PlusOutlined, ReloadOutlined, SafetyCertificateOutlined, TrophyOutlined } from '@ant-design/icons'
+import { DownOutlined, PlusOutlined, ReloadOutlined } from '@ant-design/icons'
 import { usePagination } from '@/hooks/usePagination'
 import { useReauthentication } from '@/hooks/useReauthentication'
 import { h3cService } from '@/services/h3c'
@@ -41,10 +44,20 @@ function yuanToCents(yuan?: number | null): number | undefined {
   return yuan != null ? Math.round(yuan * 100) : undefined
 }
 
+function formatDateOrNull(value?: string | null): string {
+  return value ? formatDate(value) : '-'
+}
+
 const TYPE_LABELS: Record<H3cRegistrationType, string> = {
   coupon: '考券报名',
   student: '学生报名',
   full: '全额报名',
+}
+
+const REGISTRATION_REQUIREMENTS: Record<H3cRegistrationType, string> = {
+  coupon: '考生需填写有效考券编号，并上传考券证明材料。',
+  student: '考生需填写学籍在线验证码，并上传学生证明材料。',
+  full: '考生仅填写基础报名信息，无需考券或学生证明材料。',
 }
 
 const BATCH_STATUS: Record<string, { text: string; color: string }> = {
@@ -56,8 +69,15 @@ const BATCH_STATUS: Record<string, { text: string; color: string }> = {
   cancelled: { text: '已取消', color: 'red' },
 }
 
+const STATUS_OPTIONS = Object.entries(BATCH_STATUS).map(([value, item]) => ({
+  value,
+  label: item.text,
+}))
+
 interface BatchListContext {
+  keyword?: string
   productFilter?: string
+  status?: string
   page?: number
   scrollY?: number
 }
@@ -73,37 +93,61 @@ function readBatchListContext(): BatchListContext {
   }
 }
 
+function extractIdentityTag(product: CertProduct): string {
+  const paren = product.chinese_name.match(/[（(]([^）)]+)[）)]/)?.[1]
+  if (paren && /^[A-Za-z0-9+-]/.test(paren)) return paren
+  const leading = product.chinese_name.match(/^([A-Za-z][A-Za-z0-9+.-]*)/)?.[1]
+  return leading ?? product.name
+}
+
+function suggestedBatchName(product: CertProduct | undefined): string {
+  const productName = product?.chinese_name || product?.code || 'H3C'
+  return `${productName} · ${dayjs().format('YYYY年M月')}考试批次`
+}
+
 export default function BatchOverrides(_props: { type: CertType; productCode: string | null }) {
   const navigate = useNavigate()
   const [batchOpen, setBatchOpen] = useState(false)
   const [editingBatch, setEditingBatch] = useState<H3cExamBatch | null>(null)
+  const [savingAction, setSavingAction] = useState<'draft' | 'publish' | 'edit' | null>(null)
   const [products, setProducts] = useState<CertProduct[]>([])
   const returnContext = useMemo(readBatchListContext, [])
+  const [keyword, setKeyword] = useState<string | undefined>(returnContext.keyword)
   const [productFilter, setProductFilter] = useState<string | undefined>(returnContext.productFilter)
+  const [statusFilter, setStatusFilter] = useState<string | undefined>(returnContext.status)
   const [form] = Form.useForm()
 
+  const watchProductCode = Form.useWatch('certification_code', form)
+  const watchName = Form.useWatch('name', form)
+  const watchApplyStart = Form.useWatch('apply_start', form)
+  const watchApplyEnd = Form.useWatch('apply_end', form)
+  const watchExamDate = Form.useWatch('exam_date', form)
+  const watchExamLocation = Form.useWatch('exam_location', form)
+  const watchCapacity = Form.useWatch('capacity', form)
+  const watchCouponPrice = Form.useWatch('coupon_price_cents', form)
+  const watchStudentPrice = Form.useWatch('student_price_cents', form)
+  const watchFullPrice = Form.useWatch('full_price_cents', form)
+
+  const selectedProduct = products.find((item) => item.code === watchProductCode)
+
   useEffect(() => {
-    if (products.length > 0) return
     certProductService
       .list({ type: 'h3c', page: 1, page_size: 100 })
       .then((page) => setProducts(page.items.filter((item) => item.is_active)))
       .catch(() => setProducts([]))
-  }, [products.length])
+  }, [])
 
   const { data, loading, pagination, refresh } = usePagination(
-    (page) => h3cService.listBatches({ ...page, certification_code: productFilter }),
-    [productFilter],
+    (page) => h3cService.listBatches({
+      ...page,
+      ...(keyword ? { keyword } : {}),
+      certification_code: productFilter,
+      ...(statusFilter ? { status: statusFilter } : {}),
+    }),
+    [keyword, productFilter, statusFilter],
     { initialPage: returnContext.page },
   )
   const { ensureReauthenticated, reauthDialog } = useReauthentication()
-
-  const cancel = async (id: number) => {
-    const token = await ensureReauthenticated()
-    if (!token) throw new Error('请重新验证管理员密码')
-    await h3cService.cancelBatch(id, token)
-    message.success('批次已取消')
-    refresh()
-  }
 
   useEffect(() => {
     window.sessionStorage.removeItem(BATCH_LIST_CONTEXT_KEY)
@@ -118,71 +162,109 @@ export default function BatchOverrides(_props: { type: CertType; productCode: st
     status?: 'pending_review' | 'rejected_awaiting_resubmission' | 'approved',
   ) => {
     window.sessionStorage.setItem(BATCH_LIST_CONTEXT_KEY, JSON.stringify({
+      keyword,
       productFilter,
+      status: statusFilter,
       page: pagination.current,
       scrollY: window.scrollY,
     }))
     navigate(`/admin/certification/h3c/batches/${row.id}${status ? `?status=${status}` : ''}`)
   }
 
-  const createBatch = async () => {
-    let values: Awaited<ReturnType<typeof form.validateFields>>
-    try {
-      values = await form.validateFields()
-    } catch {
-      return // 校验失败：antd 已标红字段
+  const validateSchedule = (
+    applyStart?: dayjs.Dayjs,
+    applyEnd?: dayjs.Dayjs,
+    examDate?: dayjs.Dayjs,
+  ): string | null => {
+    if (applyStart && applyEnd && applyStart.isAfter(applyEnd)) {
+      return '报名开始时间必须早于截止时间'
     }
-    try {
-      await h3cService.createBatch({
-        ...values,
-        apply_start: values.apply_start?.toISOString(),
-        apply_end: values.apply_end?.toISOString(),
-        exam_date: values.exam_date?.toISOString(),
-        coupon_price_cents: yuanToCents(values.coupon_price_cents),
-        student_price_cents: yuanToCents(values.student_price_cents),
-        full_price_cents: yuanToCents(values.full_price_cents),
-        max_material_bytes: Math.round(values.max_material_bytes_mb * 1048576),
-      })
-      message.success('H3C 考试批次已创建，请在列表中发布')
-      setBatchOpen(false)
-    } catch (error) {
-      // 422 等静默业务错误在此显式提示，避免"点击无反应"
-      message.error(error instanceof Error ? error.message : '创建失败，请重试')
+    if (examDate && applyEnd && examDate.isBefore(applyEnd)) {
+      return '考试时间不能早于报名截止时间'
     }
-  }
-  const updateBatch = async () => {
-    if (!editingBatch) return
-    let values: Awaited<ReturnType<typeof form.validateFields>>
-    try {
-      values = await form.validateFields()
-    } catch {
-      return // 校验失败：antd 已标红字段
-    }
-    const { certification_code: _ignored, ...rest } = values
-    try {
-      await h3cService.updateBatch(editingBatch.id, {
-        ...rest,
-        apply_start: values.apply_start?.toISOString(),
-        apply_end: values.apply_end?.toISOString(),
-        exam_date: values.exam_date?.toISOString(),
-        coupon_price_cents: yuanToCents(values.coupon_price_cents),
-        student_price_cents: yuanToCents(values.student_price_cents),
-        full_price_cents: yuanToCents(values.full_price_cents),
-        max_material_bytes: Math.round(values.max_material_bytes_mb * 1048576),
-      })
-      message.success('H3C 考试批次已更新')
-      setBatchOpen(false)
-    } catch (error) {
-      message.error(error instanceof Error ? error.message : '更新失败，请重试')
-    }
+    return null
   }
 
-  /** 从产品名提取认证缩写作为身份标签 */
-  const extractIdentityTag = (product: CertProduct): string => {
-    const paren = product.chinese_name.match(/[（(]([^）)]+)[）)]/)?.[1]
-    if (paren && /^[A-Za-z0-9+-]/.test(paren)) return paren
-    const leading = product.chinese_name.match(/^([A-Za-z][A-Za-z0-9+.-]*)/)?.[1]
-    return leading ?? product.name
+  const buildPayload = (values: Record<string, unknown>) => ({
+    name: String(values.name ?? '').trim(),
+    apply_start: (values.apply_start as dayjs.Dayjs | undefined)?.toISOString(),
+    apply_end: (values.apply_end as dayjs.Dayjs | undefined)?.toISOString(),
+    exam_date: (values.exam_date as dayjs.Dayjs | undefined)?.toISOString(),
+    exam_location: values.exam_location ? String(values.exam_location).trim() : undefined,
+    capacity: Number(values.capacity),
+    exam_code: String(values.exam_code ?? selectedProduct?.code ?? ''),
+    identity_tag: String(
+      values.identity_tag
+      ?? (selectedProduct ? extractIdentityTag(selectedProduct) : ''),
+    ),
+    coupon_price_cents: yuanToCents(values.coupon_price_cents as number | undefined),
+    student_price_cents: yuanToCents(values.student_price_cents as number | undefined),
+    full_price_cents: yuanToCents(values.full_price_cents as number | undefined),
+    payment_timeout_minutes: values.payment_timeout_minutes == null
+      ? undefined
+      : Number(values.payment_timeout_minutes),
+    resubmission_window_hours: values.resubmission_window_hours == null
+      ? undefined
+      : Number(values.resubmission_window_hours),
+    max_resubmissions: values.max_resubmissions == null
+      ? undefined
+      : Number(values.max_resubmissions),
+    max_material_bytes: Math.round(
+      Number(values.max_material_bytes_mb ?? editingBatch?.max_material_bytes ?? 10) * 1048576,
+    ),
+  })
+
+  const submitBatch = async (action: 'draft' | 'publish' | 'edit') => {
+    let values: Record<string, unknown>
+    try {
+      values = await form.validateFields()
+    } catch {
+      return
+    }
+
+    const scheduleError = validateSchedule(
+      values.apply_start as dayjs.Dayjs | undefined,
+      values.apply_end as dayjs.Dayjs | undefined,
+      values.exam_date as dayjs.Dayjs | undefined,
+    )
+    if (scheduleError) {
+      message.warning(scheduleError)
+      return
+    }
+
+    setSavingAction(action)
+    try {
+      if (editingBatch) {
+        await h3cService.updateBatch(editingBatch.id, buildPayload(values))
+        message.success('H3C 考试批次已更新')
+        setBatchOpen(false)
+        refresh()
+        return
+      }
+
+      const created = await h3cService.createBatch({
+        ...buildPayload(values),
+        certification_code: String(values.certification_code ?? ''),
+      })
+      if (action === 'publish') {
+        try {
+          await h3cService.publishBatch(created.id)
+          message.success('H3C 考试批次已创建并发布')
+        } catch (error) {
+          message.warning(
+            `草稿已保存，发布失败：${error instanceof Error ? error.message : '请检查批次配置'}`,
+          )
+        }
+      } else {
+        message.success('H3C 考试批次草稿已保存')
+      }
+      setBatchOpen(false)
+      refresh()
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '保存失败，请重试')
+    } finally {
+      setSavingAction(null)
+    }
   }
 
   const handleProductSelect = (code: string) => {
@@ -192,6 +274,11 @@ export default function BatchOverrides(_props: { type: CertType; productCode: st
       exam_code: product.code,
       identity_tag: extractIdentityTag(product),
     })
+    if (!watchName || Object.values(products).some(
+      (item) => watchName === suggestedBatchName(item),
+    )) {
+      form.setFieldsValue({ name: suggestedBatchName(product) })
+    }
   }
 
   const handleCreate = () => {
@@ -219,9 +306,15 @@ export default function BatchOverrides(_props: { type: CertType; productCode: st
       apply_start: batch.apply_start ? dayjs(batch.apply_start) : undefined,
       apply_end: batch.apply_end ? dayjs(batch.apply_end) : undefined,
       exam_date: batch.exam_date ? dayjs(batch.exam_date) : undefined,
-      coupon_price_cents: centsToYuan(batch.prices.find((p) => p.registration_type === 'coupon')?.price_cents),
-      student_price_cents: centsToYuan(batch.prices.find((p) => p.registration_type === 'student')?.price_cents),
-      full_price_cents: centsToYuan(batch.prices.find((p) => p.registration_type === 'full')?.price_cents),
+      coupon_price_cents: centsToYuan(
+        batch.prices.find((price) => price.registration_type === 'coupon')?.price_cents,
+      ),
+      student_price_cents: centsToYuan(
+        batch.prices.find((price) => price.registration_type === 'student')?.price_cents,
+      ),
+      full_price_cents: centsToYuan(
+        batch.prices.find((price) => price.registration_type === 'full')?.price_cents,
+      ),
       payment_timeout_minutes: batch.payment_timeout_minutes,
       resubmission_window_hours: batch.resubmission_window_hours,
       max_resubmissions: batch.max_resubmissions,
@@ -230,29 +323,117 @@ export default function BatchOverrides(_props: { type: CertType; productCode: st
     setBatchOpen(true)
   }
 
+  const runBatchAction = async (
+    action: () => Promise<unknown>,
+    successText: string,
+    errorText: string,
+  ) => {
+    try {
+      await action()
+      message.success(successText)
+      refresh()
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : errorText)
+    }
+  }
+
+  const cancel = async (id: number) => {
+    const token = await ensureReauthenticated()
+    if (!token) throw new Error('请重新验证管理员密码')
+    await h3cService.cancelBatch(id, token)
+    message.success('批次已取消')
+    refresh()
+  }
+
+  const confirmAction = (
+    title: string,
+    content: string,
+    onOk: () => Promise<void>,
+  ) => {
+    Modal.confirm({
+      title,
+      content,
+      okText: title,
+      cancelText: '再想想',
+      onOk: async () => {
+        try {
+          await onOk()
+        } catch (error) {
+          message.error(error instanceof Error ? error.message : '操作失败')
+        }
+      },
+    })
+  }
+
   const columns: ColumnsType<H3cExamBatch> = [
-    { title: '批次', dataIndex: 'name', ellipsis: true },
     {
-      title: '认证',
-      width: 150,
-      ellipsis: { showTitle: true },
+      title: '批次名称',
+      dataIndex: 'name',
+      width: 220,
+      ellipsis: true,
+      render: (value: string, row) => (
+        <Button type='link' size='small' onClick={() => openWorkbench(row)}>
+          {value}
+        </Button>
+      ),
+    },
+    {
+      title: '认证产品',
+      width: 170,
+      ellipsis: true,
       render: (_, row) => {
-        const label = products.find((p) => p.code === row.certification_code)?.chinese_name ?? row.certification_code
-        return <Typography.Text ellipsis={{ tooltip: label }} style={{ maxWidth: 140 }}>{label}</Typography.Text>
+        const label = products.find((item) => item.code === row.certification_code)
+          ?.chinese_name ?? row.certification_code
+        return (
+          <Typography.Text ellipsis={{ tooltip: label }} style={{ maxWidth: 150 }}>
+            {label}
+          </Typography.Text>
+        )
       },
     },
-    { title: '考试代码', dataIndex: 'exam_code', width: 120 },
     {
       title: '状态',
       dataIndex: 'status',
-      width: 110,
+      width: 100,
       render: (value: string) => {
         const item = BATCH_STATUS[value] ?? { text: value, color: 'default' }
         return <Tag color={item.color}>{item.text}</Tag>
       },
     },
-    { title: '考试时间', dataIndex: 'exam_date', width: 165, render: (value: string) => formatDate(value) },
-    { title: '名额', width: 90, render: (_, row) => `${row.occupied_count}/${row.capacity}` },
+    {
+      title: '报名时间',
+      width: 210,
+      render: (_, row) => `${formatDateOrNull(row.apply_start)} ~ ${formatDateOrNull(row.apply_end)}`,
+    },
+    {
+      title: '考试时间',
+      dataIndex: 'exam_date',
+      width: 120,
+      render: (value: string | null) => formatDateOrNull(value),
+    },
+    {
+      title: '名额',
+      width: 90,
+      render: (_, row) => `${row.occupied_count}/${row.capacity}`,
+    },
+    {
+      title: '报名费用',
+      dataIndex: 'prices',
+      width: 170,
+      render: (prices: H3cExamBatch['prices']) => (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2, lineHeight: '20px' }}>
+          {prices.map((price) => (
+            <div
+              key={price.registration_type}
+              style={{ display: 'flex', justifyContent: 'space-between', whiteSpace: 'nowrap' }}
+            >
+              <span style={{ color: '#666' }}>{TYPE_LABELS[price.registration_type]}</span>
+              <span style={{ fontWeight: 500 }}>{formatPrice(price.price_cents)}</span>
+            </div>
+          ))}
+        </div>
+      ),
+    },
     {
       title: '报名办理',
       key: 'registration-counts',
@@ -278,108 +459,180 @@ export default function BatchOverrides(_props: { type: CertType; productCode: st
       ),
     },
     {
-      title: '价格',
-      dataIndex: 'prices',
-      width: 150,
-      render: (prices: H3cExamBatch['prices']) => (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 2, lineHeight: '20px' }}>
-          {prices.map((price) => (
-            <div key={price.registration_type} style={{ display: 'flex', justifyContent: 'space-between', whiteSpace: 'nowrap' }}>
-              <span style={{ color: '#666' }}>{TYPE_LABELS[price.registration_type]}</span>
-              <span style={{ fontWeight: 500 }}>{formatPrice(price.price_cents)}</span>
-            </div>
-          ))}
-        </div>
-      ),
-    },
-    {
       title: '操作',
-      width: 320,
-      render: (_, row) => (
-        <Space>
-          <Button size='small' type='primary' ghost onClick={() => openWorkbench(row)}>
-            管理报名
-          </Button>
-          {row.status === 'draft' && (
-            <Button size='small' onClick={() => handleEdit(row)}>编辑</Button>
-          )}
-          {row.status === 'draft' && (
-            <Button size='small' type='primary' onClick={() => h3cService.publishBatch(row.id).then(refresh)}>
-              发布
+      width: 190,
+      fixed: 'right',
+      render: (_, row) => {
+        const menuItems = [
+          row.status === 'draft' && { key: 'edit', label: '编辑批次' },
+          row.status === 'draft' && { key: 'publish', label: '发布批次' },
+          row.status === 'published' && { key: 'close', label: '关闭报名' },
+          ['published', 'registration_closed'].includes(row.status) && {
+            key: 'finalize',
+            label: '结束批次',
+          },
+          ['published', 'registration_closed'].includes(row.status) && {
+            key: 'cancel',
+            danger: true,
+            label: '取消批次',
+          },
+          ['finalized', 'cancelled'].includes(row.status) && {
+            key: 'archive',
+            label: '归档批次',
+          },
+        ].filter(Boolean) as Array<{ key: string; label: string; danger?: boolean }>
+
+        return (
+          <Space size={4}>
+            <Button size='small' type='primary' ghost onClick={() => openWorkbench(row)}>
+              管理报名
             </Button>
-          )}
-          {row.status === 'published' && (
-            <Button size='small' onClick={() => h3cService.closeBatchRegistration(row.id).then(refresh)}>
-              关闭报名
-            </Button>
-          )}
-          {(row.status === 'published' || row.status === 'registration_closed') && (
-            <>
-              <Button size='small' onClick={() => h3cService.finalizeBatch(row.id).then(refresh)}>
-                结束
-              </Button>
-              <Popconfirm title='确认取消该考试批次？' onConfirm={() => cancel(row.id)}>
-                <Button size='small' danger>取消</Button>
-              </Popconfirm>
-            </>
-          )}
-          {(row.status === 'finalized' || row.status === 'cancelled') && (
-            <Popconfirm
-              trigger='click'
-              title='归档后用户端不再显示该批次，确认归档？'
-              onConfirm={() => h3cService.archiveBatch(row.id).then(refresh)}
+            <Dropdown
+              trigger={['click']}
+              menu={{
+                items: menuItems,
+                onClick: ({ key }) => {
+                  if (key === 'edit') handleEdit(row)
+                  if (key === 'publish') {
+                    void runBatchAction(
+                      () => h3cService.publishBatch(row.id),
+                      '批次已发布',
+                      '发布失败',
+                    )
+                  }
+                  if (key === 'close') {
+                    void runBatchAction(
+                      () => h3cService.closeBatchRegistration(row.id),
+                      '报名已关闭',
+                      '关闭报名失败',
+                    )
+                  }
+                  if (key === 'finalize') {
+                    confirmAction('结束批次', '结束后批次不再继续办理报名。', async () => {
+                      await h3cService.finalizeBatch(row.id)
+                      message.success('批次已结束')
+                      refresh()
+                    })
+                  }
+                  if (key === 'cancel') {
+                    confirmAction(
+                      '取消批次',
+                      '确认取消该 H3C 考试批次？',
+                      async () => { await cancel(row.id) },
+                    )
+                  }
+                  if (key === 'archive') {
+                    confirmAction(
+                      '归档批次',
+                      '归档后用户端不再显示该批次。',
+                      async () => {
+                        await h3cService.archiveBatch(row.id)
+                        message.success('批次已归档')
+                        refresh()
+                      },
+                    )
+                  }
+                },
+              }}
             >
-              <Button size='small'>归档</Button>
-            </Popconfirm>
-          )}
-        </Space>
-      ),
+              <Button size='small'>
+                更多 <DownOutlined />
+              </Button>
+            </Dropdown>
+          </Space>
+        )
+      },
     },
   ]
 
   return (
     <>
       <Space style={{ marginBottom: 16 }} wrap>
+        <Input.Search
+          allowClear
+          placeholder='搜索批次名称'
+          style={{ width: 220 }}
+          defaultValue={keyword}
+          onSearch={setKeyword}
+        />
         <Select
           placeholder='按认证产品筛选'
           allowClear
           showSearch
           optionFilterProp='label'
-          style={{ minWidth: 220 }}
+          style={{ minWidth: 210 }}
           value={productFilter}
           onChange={(value) => setProductFilter(value)}
-          options={products.map((p) => ({ value: p.code, label: p.chinese_name || p.code }))}
+          options={products.map((p) => ({
+            value: p.code,
+            label: p.chinese_name || p.code,
+          }))}
+        />
+        <Select
+          allowClear
+          placeholder='状态'
+          style={{ width: 130 }}
+          value={statusFilter}
+          onChange={setStatusFilter}
+          options={STATUS_OPTIONS}
         />
         <Button icon={<ReloadOutlined />} onClick={refresh}>刷新</Button>
         <Button type='primary' icon={<PlusOutlined />} onClick={handleCreate}>新建批次</Button>
       </Space>
-      <Table rowKey='id' columns={columns} dataSource={data?.items ?? []} loading={loading} pagination={pagination} />
+
+      <Table
+        rowKey='id'
+        columns={columns}
+        dataSource={data?.items ?? []}
+        loading={loading}
+        pagination={pagination}
+        scroll={{ x: 1370 }}
+      />
       {reauthDialog}
 
-      <Modal
-        title={editingBatch ? '编辑 H3C 考试批次' : '新建 H3C 考试批次'}
+      <Drawer
+        title={editingBatch ? `编辑 H3C 批次 · ${editingBatch.name}` : '新建 H3C 考试批次'}
         open={batchOpen}
-        onOk={editingBatch ? updateBatch : createBatch}
-        onCancel={() => setBatchOpen(false)}
-        width={720}
+        onClose={() => setBatchOpen(false)}
+        width='min(860px, 94vw)'
+        footer={
+          <Space style={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <Button onClick={() => setBatchOpen(false)}>取消</Button>
+            {!editingBatch && (
+              <Button
+                loading={savingAction === 'draft'}
+                onClick={() => void submitBatch('draft')}
+              >
+                保存草稿
+              </Button>
+            )}
+            <Button
+              type='primary'
+              loading={savingAction === 'publish' || savingAction === 'edit'}
+              onClick={() => void submitBatch(editingBatch ? 'edit' : 'publish')}
+            >
+              {editingBatch ? '保存修改' : '保存并发布'}
+            </Button>
+          </Space>
+        }
         destroyOnClose
       >
-        <Form form={form} layout='vertical' style={{ marginTop: 20 }} requiredMark='optional'>
-          <Divider orientation='left' orientationMargin={0} style={{ margin: '4px 0 16px' }}>
-            <Space size={6}>
-              <SafetyCertificateOutlined style={{ color: '#1677ff' }} />
-              <Typography.Text type='secondary' style={{ fontSize: 13 }}>关联认证</Typography.Text>
-            </Space>
-          </Divider>
+        <Form form={form} layout='vertical' requiredMark='optional'>
+          <Form.Item name='identity_tag' hidden>
+            <Input />
+          </Form.Item>
+          <Form.Item name='max_material_bytes_mb' hidden>
+            <InputNumber precision={0} />
+          </Form.Item>
 
+          <Divider orientation='left' orientationMargin={0}>① 认证产品</Divider>
           <Form.Item
             name='certification_code'
             label='认证产品'
             rules={[{ required: true, message: '请选择认证产品' }]}
-            tooltip='从已上架的 H3C 认证产品中选择，选中后自动带出考试代码与身份标签'
           >
             <Select
-              placeholder='选择认证产品'
+              placeholder='搜索并选择 H3C 认证产品'
               showSearch
               optionFilterProp='label'
               disabled={Boolean(editingBatch)}
@@ -388,42 +641,31 @@ export default function BatchOverrides(_props: { type: CertType; productCode: st
                 label: `${item.code} · ${item.chinese_name}`,
                 value: item.code,
               }))}
-              notFoundContent={products.length === 0 ? '暂无上架的 H3C 认证产品，请先在「认证产品」Tab 上架' : undefined}
+              notFoundContent={products.length === 0
+                ? '暂无上架的 H3C 认证产品，请先在认证产品中配置'
+                : undefined}
             />
           </Form.Item>
+          <Alert
+            type={selectedProduct ? 'success' : 'info'}
+            showIcon
+            message={
+              selectedProduct
+                ? `认证名称：${selectedProduct.chinese_name} · 考试代码：${selectedProduct.code}`
+                : '选择产品后自动关联认证、考试代码和身份标签'
+            }
+          />
 
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Item
-                name='exam_code' label='考试代码'
-                rules={[{ required: true, message: '请确认考试代码' }]}
-                tooltip='H3C 官方考试科目代码（GB0-xxx），选择认证后自动带出'
-              >
-                <Input placeholder='自动带出，可修改' maxLength={64} />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item
-                name='identity_tag' label='身份标签'
-                rules={[{ required: true, message: '请确认身份标签' }]}
-                tooltip='用于区分不同认证科目或等级，选择认证后自动带出'
-              >
-                <Input placeholder='自动带出，可修改' maxLength={64} />
-              </Form.Item>
-            </Col>
-          </Row>
-
-          <Form.Item name='name' label='批次名称' rules={[{ required: true, message: '请输入批次名称' }]}>
-            <Input placeholder='例如 2026 年 10 月成都考区' maxLength={128} />
+          <Divider orientation='left' orientationMargin={0}>② 基本信息</Divider>
+          <Form.Item
+            name='name'
+            label='批次名称'
+            rules={[{ required: true, whitespace: true, message: '请输入批次名称' }]}
+          >
+            <Input maxLength={128} placeholder={suggestedBatchName(selectedProduct)} />
           </Form.Item>
 
-          <Divider orientation='left' orientationMargin={0} style={{ margin: '8px 0 16px' }}>
-            <Space size={6}>
-              <CalendarOutlined style={{ color: '#722ED1' }} />
-              <Typography.Text type='secondary' style={{ fontSize: 13 }}>时间与地点</Typography.Text>
-            </Space>
-          </Divider>
-
+          <Divider orientation='left' orientationMargin={0}>③ 报名安排</Divider>
           <Row gutter={16}>
             <Col span={12}>
               <Form.Item name='apply_start' label='报名开始' rules={[{ required: true, message: '请选择' }]}>
@@ -436,92 +678,123 @@ export default function BatchOverrides(_props: { type: CertType; productCode: st
               </Form.Item>
             </Col>
             <Col span={12}>
-              <Form.Item name='exam_date' label='考试时间' rules={[{ required: true, message: '请选择' }]}>
-                <DatePicker showTime style={{ width: '100%' }} placeholder='考试时间' />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
               <Form.Item name='capacity' label='总名额' rules={[{ required: true, message: '请输入' }]}>
                 <InputNumber min={1} precision={0} style={{ width: '100%' }} placeholder='可报名人数上限' />
               </Form.Item>
             </Col>
           </Row>
-          <Form.Item name='exam_location' label='考试地点'>
-            <Input placeholder='线下考试填写地址' maxLength={256} />
-          </Form.Item>
 
-          <Divider orientation='left' orientationMargin={0} style={{ margin: '8px 0 16px' }}>
-            <Space size={6}>
-              <PayCircleOutlined style={{ color: '#FA8C16' }} />
-              <Typography.Text type='secondary' style={{ fontSize: 13 }}>报名价格（元）</Typography.Text>
-            </Space>
-          </Divider>
-
+          <Divider orientation='left' orientationMargin={0}>④ 考试安排</Divider>
           <Row gutter={16}>
-            <Col span={8}>
-              <Form.Item name='coupon_price_cents' label='考券价' rules={[{ required: true, message: '必填' }]}>
-                <InputNumber min={0} precision={2} style={{ width: '100%' }} placeholder='0.00' prefix='¥' />
+            <Col span={12}>
+              <Form.Item name='exam_date' label='考试时间' rules={[{ required: true, message: '请选择' }]}>
+                <DatePicker showTime style={{ width: '100%' }} placeholder='考试时间' />
               </Form.Item>
             </Col>
-            <Col span={8}>
-              <Form.Item name='student_price_cents' label='学生价' rules={[{ required: true, message: '必填' }]}>
-                <InputNumber min={0} precision={2} style={{ width: '100%' }} placeholder='0.00' prefix='¥' />
-              </Form.Item>
-            </Col>
-            <Col span={8}>
-              <Form.Item name='full_price_cents' label='全额价' rules={[{ required: true, message: '必填' }]}>
-                <InputNumber min={0} precision={2} style={{ width: '100%' }} placeholder='0.00' prefix='¥' />
+            <Col span={12}>
+              <Form.Item name='exam_location' label='考试地点'>
+                <Input maxLength={256} placeholder='线下考试填写地址' />
               </Form.Item>
             </Col>
           </Row>
 
-          <Divider orientation='left' orientationMargin={0} style={{ margin: '8px 0 16px' }}>
-            <Space size={6}>
-              <FileProtectOutlined style={{ color: '#52c41a' }} />
-              <Typography.Text type='secondary' style={{ fontSize: 13 }}>审核与补交</Typography.Text>
-            </Space>
-          </Divider>
-
+          <Divider orientation='left' orientationMargin={0}>⑤ 报名类型与费用</Divider>
           <Row gutter={16}>
-            <Col span={12}>
-              <Form.Item
-                name='payment_timeout_minutes' label='支付保留（分钟）'
-                rules={[{ required: true, message: '必填' }]}
-                tooltip='未在规定时间内完成支付的订单将自动关闭'
-              >
-                <InputNumber min={1} precision={0} style={{ width: '100%' }} />
+            {(['coupon', 'student', 'full'] as const).map((type) => (
+              <Col span={8} key={type}>
+                <div
+                  style={{
+                    padding: 12,
+                    height: '100%',
+                    borderRadius: 8,
+                    border: '1px solid #edf0f5',
+                    background: '#fafbfc',
+                  }}
+                >
+                  <Typography.Text strong>{TYPE_LABELS[type]}</Typography.Text>
+                  <Form.Item
+                    name={`${type}_price_cents`}
+                    label='本批次费用（元）'
+                    style={{ marginTop: 8, marginBottom: 8 }}
+                    rules={[{ required: true, message: '必填' }]}
+                  >
+                    <InputNumber min={0} precision={2} style={{ width: '100%' }} prefix='¥' placeholder='0.00' />
+                  </Form.Item>
+                  <Typography.Paragraph type='secondary' style={{ fontSize: 12, marginBottom: 0 }}>
+                    {REGISTRATION_REQUIREMENTS[type]}
+                  </Typography.Paragraph>
+                </div>
+              </Col>
+            ))}
+          </Row>
+
+          <Divider orientation='left' orientationMargin={0}>高级规则</Divider>
+          <Row gutter={16}>
+            <Col span={8}>
+              <Form.Item name='payment_timeout_minutes' label='支付时限（分钟）'>
+                <InputNumber min={1} max={1440} precision={0} style={{ width: '100%' }} />
               </Form.Item>
             </Col>
-            <Col span={12}>
-              <Form.Item
-                name='resubmission_window_hours' label='补交窗口（小时）'
-                rules={[{ required: true, message: '必填' }]}
-                tooltip='审核驳回后，考生可在此时间内重新提交材料'
-              >
-                <InputNumber min={1} precision={0} style={{ width: '100%' }} />
+            <Col span={8}>
+              <Form.Item name='resubmission_window_hours' label='补正时限（小时）'>
+                <InputNumber min={1} max={720} precision={0} style={{ width: '100%' }} />
               </Form.Item>
             </Col>
-            <Col span={12}>
-              <Form.Item name='max_resubmissions' label='最大补交次数' rules={[{ required: true, message: '必填' }]}>
+            <Col span={8}>
+              <Form.Item name='max_resubmissions' label='补正次数上限'>
                 <InputNumber min={0} max={10} precision={0} style={{ width: '100%' }} />
               </Form.Item>
             </Col>
             <Col span={12}>
               <Form.Item
-                name='max_material_bytes_mb' label='单图上限（MB）'
-                rules={[{ required: true, message: '必填' }]}
-                tooltip='考生上传的每张证件照最大体积（提交时自动转换为字节）'
+                name='exam_code'
+                label='考试信息例外调整'
+                tooltip='默认使用认证产品代码，仅确有业务需要时修改'
+                rules={[{ required: true, message: '请确认考试代码' }]}
               >
-                <InputNumber min={1} max={20} precision={0} style={{ width: '100%' }} placeholder='10' addonAfter='MB' />
+                <Input maxLength={64} placeholder='默认自动带出' />
               </Form.Item>
             </Col>
           </Row>
 
+          <Divider orientation='left' orientationMargin={0}>发布前摘要</Divider>
+          <Descriptions
+            size='small'
+            bordered
+            column={1}
+            items={[
+              {
+                key: 'product',
+                label: '认证产品',
+                children: selectedProduct
+                  ? `${selectedProduct.chinese_name} · ${selectedProduct.code}`
+                  : '-',
+              },
+              { key: 'name', label: '批次名称', children: watchName ?? '-' },
+              {
+                key: 'apply',
+                label: '报名时间',
+                children: `${formatDateOrNull(watchApplyStart?.toISOString())} ~ ${formatDateOrNull(watchApplyEnd?.toISOString())}`,
+              },
+              {
+                key: 'exam',
+                label: '考试安排',
+                children: `${formatDateOrNull(watchExamDate?.toISOString())}${watchExamLocation ? ` · ${watchExamLocation}` : ''}`,
+              },
+              { key: 'capacity', label: '总名额', children: watchCapacity ?? '-' },
+              {
+                key: 'prices',
+                label: '三档费用',
+                children: `考券 ${watchCouponPrice == null ? '-' : formatPrice(Math.round(watchCouponPrice * 100))} / 学生 ${watchStudentPrice == null ? '-' : formatPrice(Math.round(watchStudentPrice * 100))} / 全额 ${watchFullPrice == null ? '-' : formatPrice(Math.round(watchFullPrice * 100))}`,
+              },
+            ]}
+          />
+
           <Typography.Text type='secondary' style={{ fontSize: 12 }}>
-            批次创建后为草稿状态，需在列表中点击「发布」才会展示到小程序；价格与学生证明材料在审核环节校验。
+            三种报名类型属于同一批次的不同报名方式；费用均需配置，不能通过 0 元表示关闭该类型。
           </Typography.Text>
         </Form>
-      </Modal>
+      </Drawer>
     </>
   )
 }
