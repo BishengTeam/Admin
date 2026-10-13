@@ -238,7 +238,7 @@ export const adminRoutes: AppRoute[] = [
   {
     path: 'points-mall',
     element: <PointsMallManagement />,
-    meta: { title: '优惠管理', icon: 'GiftOutlined', permission: 'points:manage' },
+    meta: { title: '积分商城', icon: 'GiftOutlined', permission: 'points:manage' },
   },
   {
     path: 'certification',

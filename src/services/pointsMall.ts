@@ -45,6 +45,7 @@ export interface VirtualProduct {
   id: number
   product_type: 'course' | 'quiz_library'
   content_key: string
+  content_name: string | null
   course_id: number | null
   library_id: number | null
   name: string
@@ -58,6 +59,9 @@ export interface VirtualProduct {
   available_from: string | null
   available_to: string | null
   status: 'draft' | 'published' | 'offline'
+  redeemable: boolean
+  redeem_block_reason: string | null
+  refunded_count: number
   version: number
   created_at: string
   updated_at: string
@@ -96,10 +100,43 @@ export interface VirtualOrder {
   refunded_at: string | null
   created_at: string
   updated_at: string
+  user_nickname: string | null
+  user_phone: string | null
+}
+
+export interface PointsHistoryBrief {
+  id: number
+  action_type: string
+  amount: number
+  balance_after: number
+  description: string | null
+  source_type: string | null
+  source_id: string | null
+  created_at: string
+}
+
+export interface VirtualRefund {
+  id: number
+  order_id: number
+  user_id: number
+  points_returned: number
+  reason_code: string
+  reason_detail: string
+  refunded_by_admin_id: number
+  points_history_id: number
+  refunded_at: string
+  created_at: string
+}
+
+export interface VirtualOrderDetail extends VirtualOrder {
+  spend_history: PointsHistoryBrief | null
+  refund_history: PointsHistoryBrief | null
+  refund: VirtualRefund | null
+  refunded_by_admin_name: string | null
 }
 
 export const pointsMallService = {
-  list(params: PageParams): Promise<PageData<PointsMallItem>> {
+  list(params: PageParams & { keyword?: string; status?: string }): Promise<PageData<PointsMallItem>> {
     return http.get('/admin/points-mall/items', { params })
   },
   create(data: PointsMallItemPayload): Promise<PointsMallItem> {
@@ -114,6 +151,8 @@ export const pointsMallService = {
   listVirtualProducts(params: PageParams & {
     status?: string
     product_type?: string
+    keyword?: string
+    availability?: string
   }): Promise<PageData<VirtualProduct>> {
     return http.get('/admin/points-mall/virtual-products', { params })
   },
@@ -126,11 +165,21 @@ export const pointsMallService = {
   ): Promise<VirtualProduct> {
     return http.put(`/admin/points-mall/virtual-products/${id}`, data)
   },
+  getVirtualProduct(id: number): Promise<VirtualProduct> {
+    return http.get(`/admin/points-mall/virtual-products/${id}`)
+  },
   listVirtualOrders(params: PageParams & {
     user_id?: number
     status?: string
+    keyword?: string
+    product_id?: number
+    created_from?: string
+    created_to?: string
   }): Promise<PageData<VirtualOrder>> {
     return http.get('/admin/points-mall/virtual-orders', { params })
+  },
+  getVirtualOrder(id: number): Promise<VirtualOrderDetail> {
+    return http.get(`/admin/points-mall/virtual-orders/${id}`)
   },
   refundVirtualOrder(
     id: number,
