@@ -9,6 +9,7 @@ import { usePermission } from '@/hooks/usePermission'
 import { rensheService } from '@/services/renshe'
 import type { RensheRefund, RensheRefundFilter, RensheRefundStatus } from '@/types/renshe'
 import { formatDate, formatPrice } from '@/utils/format'
+import { refundErrorText } from '@/utils/refund'
 import type { CertType } from '../type-registry'
 import ApplicationDetailDrawer from './ApplicationDetailDrawer'
 
@@ -114,13 +115,16 @@ export default function RefundTab(_props: RefundTabProps) {
     { title: '报名', dataIndex: 'application_id', width: 90, render: (id: number) => `#${id}` },
     { title: '订单', dataIndex: 'order_id', width: 90, render: (id: number) => `#${id}` },
     { title: '状态', dataIndex: 'status', width: 100, render: refundStatusTag },
+    { title: '重试次数', dataIndex: 'retry_count', width: 90 },
     { title: '申请时间', dataIndex: 'requested_at', width: 170, render: (value: string) => formatDate(value) },
     { title: '处理截止', dataIndex: 'due_at', width: 170, render: (value: string) => formatDate(value) },
     { title: '时限', width: 115, render: (_, refund) => dueTag(refund) },
     {
       title: '原因/错误',
       ellipsis: true,
-      render: (_, refund) => refund.last_error || refund.rejection_reason || refund.reason_detail || refund.reason_code || '-',
+      render: (_, refund) => refund.last_error
+        ? <Text type='danger'>{refundErrorText(refund.last_error)}</Text>
+        : refund.rejection_reason || refund.reason_detail || refund.reason_code || '-',
     },
     {
       title: '操作',

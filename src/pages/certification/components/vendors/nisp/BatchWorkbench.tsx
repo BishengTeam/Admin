@@ -43,6 +43,7 @@ import type {
   NispRegistration,
 } from '@/services/nisp'
 import { formatDate } from '@/utils/format'
+import { registrationRefundStatus, refundRetryDescription } from '@/utils/refund'
 import RegistrationReviewDrawer from './RegistrationReviewDrawer'
 
 const { Text } = Typography
@@ -410,9 +411,19 @@ export default function NispBatchWorkbench() {
       title: '审核状态',
       dataIndex: 'status',
       width: 110,
-      render: (value: string) => {
-        const item = STATUS_LABELS[value] ?? { text: value, color: 'default' }
-        return <Tag color={item.color}>{item.text}</Tag>
+      render: (_, row) => {
+        const item = row.active_refund
+          ? registrationRefundStatus(row.status, row.active_refund)
+          : STATUS_LABELS[row.status] ?? { text: row.status, color: 'default' }
+        const retryDescription = refundRetryDescription(row.active_refund)
+        return (
+          <Space direction='vertical' size={0}>
+            <Tag color={item.color}>{item.text}</Tag>
+            {retryDescription && (
+              <Text type='danger' style={{ fontSize: 12 }}>{retryDescription}</Text>
+            )}
+          </Space>
+        )
       },
     },
     {

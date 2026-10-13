@@ -10,6 +10,7 @@ import {
   Space,
   Table,
   Tag,
+  Typography,
   message,
 } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
@@ -18,6 +19,7 @@ import { usePagination } from '@/hooks/usePagination'
 import { useReauthentication } from '@/hooks/useReauthentication'
 import { h3cService } from '@/services/h3c'
 import { formatDate, formatPrice } from '@/utils/format'
+import { registrationRefundStatus, refundRetryDescription } from '@/utils/refund'
 import type { CertType } from '../type-registry'
 import type {
   H3cRegistration,
@@ -47,6 +49,8 @@ const MATERIAL_LABELS: Record<string, string> = {
   student_proof: '学生证明',
 }
 
+const { Text } = Typography
+
 const TYPE_LABELS: Record<H3cRegistrationType, string> = {
   coupon: '考券报名',
   student: '学生报名',
@@ -65,9 +69,22 @@ const STATUS_LABELS: Record<H3cRegistrationStatus, { text: string; color: string
   cancelled: { text: '已取消', color: 'default' },
 }
 
-function statusTag(status: H3cRegistrationStatus) {
-  const item = STATUS_LABELS[status]
-  return <Tag color={item.color}>{item.text}</Tag>
+function statusTag(
+  status: H3cRegistrationStatus,
+  activeRefund?: H3cRegistration['active_refund'],
+) {
+  const item = activeRefund
+    ? registrationRefundStatus(status, activeRefund)
+    : STATUS_LABELS[status]
+  const retryDescription = refundRetryDescription(activeRefund)
+  return (
+    <Space direction='vertical' size={0}>
+      <Tag color={item.color}>{item.text}</Tag>
+      {retryDescription && (
+        <Text type='danger' style={{ fontSize: 12 }}>{retryDescription}</Text>
+      )}
+    </Space>
+  )
 }
 
 export default function ReviewTab(_props: { type: CertType }) {
@@ -173,7 +190,7 @@ export default function ReviewTab(_props: { type: CertType }) {
     { title: '报名号', dataIndex: 'registration_no', width: 175 },
     { title: '类型', dataIndex: 'registration_type', width: 100, render: (value: H3cRegistrationType) => TYPE_LABELS[value] },
     { title: '考生', width: 100, render: (_, row) => String(row.candidate_snapshot.candidate_name ?? '-') },
-    { title: '状态', dataIndex: 'status', width: 125, render: statusTag },
+    { title: '状态', dataIndex: 'status', width: 125, render: (_, row) => statusTag(row.status, row.active_refund) },
     { title: '金额', dataIndex: 'price_cents', width: 100, render: (value: number) => formatPrice(value) },
     { title: '提交时间', dataIndex: 'created_at', width: 165, render: (value: string) => formatDate(value) },
     {
@@ -239,7 +256,7 @@ export default function ReviewTab(_props: { type: CertType }) {
           materialLoading={detailLoading}
           statusItems={[
             { label: '报名类型', content: TYPE_LABELS[current.registration_type] },
-            { label: '状态', content: statusTag(current.status) },
+            { label: '状态', content: statusTag(current.status, current.active_refund) },
             { label: '金额', content: formatPrice(current.price_cents) },
             { label: '补交次数', content: current.resubmission_count },
           ]}

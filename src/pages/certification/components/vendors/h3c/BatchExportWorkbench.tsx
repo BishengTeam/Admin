@@ -34,6 +34,7 @@ import { usePermission } from '@/hooks/usePermission'
 import { useReauthentication } from '@/hooks/useReauthentication'
 import { h3cService } from '@/services/h3c'
 import { formatDate } from '@/utils/format'
+import { registrationRefundStatus, refundRetryDescription } from '@/utils/refund'
 import type {
   H3cBatchFinalReviewResult,
   H3cBatchFinalReviewTarget,
@@ -450,9 +451,19 @@ export default function BatchExportWorkbench() {
       title: '审核状态',
       dataIndex: 'status',
       width: 110,
-      render: (value: H3cRegistrationStatus) => {
-        const item = STATUS_LABELS[value]
-        return <Tag color={item.color}>{item.text}</Tag>
+      render: (_, row) => {
+        const item = row.active_refund
+          ? registrationRefundStatus(row.status, row.active_refund)
+          : STATUS_LABELS[row.status]
+        const retryDescription = refundRetryDescription(row.active_refund)
+        return (
+          <Space direction='vertical' size={0}>
+            <Tag color={item.color}>{item.text}</Tag>
+            {retryDescription && (
+              <Text type='danger' style={{ fontSize: 12 }}>{retryDescription}</Text>
+            )}
+          </Space>
+        )
       },
     },
     {

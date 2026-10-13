@@ -8,7 +8,7 @@ import { nispService } from '@/services/nisp'
 import type { NispBatch } from '@/services/nisp'
 
 vi.mock('@/services/nisp', () => ({ nispService: {
-  listBatches: vi.fn(), createExport: vi.fn(), cancelBatch: vi.fn(),
+  listBatches: vi.fn(), createExport: vi.fn(), cancelBatch: vi.fn(), updateBatch: vi.fn(),
 } }))
 
 const batch: NispBatch = {
@@ -16,6 +16,7 @@ const batch: NispBatch = {
   apply_start: null, apply_end: null, exam_date: null, exam_location: null,
   capacity: 10, occupied_count: 2, training_org: null, training_teacher: null,
   training_address: null, training_start: null, training_end: null,
+  consultation_group_qrcode_url: '/api/media/nisp-consultation-group.png',
   level1_price_cents: 0, level2_price_cents: 100, created_at: '', updated_at: '',
 }
 
@@ -77,6 +78,19 @@ function renderBatch() {
 
     fireEvent.click(await screen.findByText('管理报名'))
     expect(await screen.findByText('nisp-workbench')).toBeInTheDocument()
+  })
+
+  it('updates the NISP batch consultation group QR code', async () => {
+    vi.mocked(nispService.updateBatch).mockResolvedValue(batch)
+    renderBatch()
+
+    fireEvent.click(await screen.findByRole('button', { name: '咨询群码' }))
+    expect(await screen.findByText(/NISP 批次咨询群聊码/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '保存二维码' }))
+
+    await waitFor(() => expect(nispService.updateBatch).toHaveBeenCalledWith(42, {
+      consultation_group_qrcode_url: '/api/media/nisp-consultation-group.png',
+    }))
   })
 
   it('opens the corresponding status filter from batch counters', async () => {

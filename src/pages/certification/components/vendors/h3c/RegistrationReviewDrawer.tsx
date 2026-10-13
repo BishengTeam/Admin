@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
-import { Button, Checkbox, Form, Input, Modal, Radio, Select, Space, Tag, message } from 'antd'
+import { Button, Checkbox, Form, Input, Modal, Radio, Select, Space, Tag, Typography, message } from 'antd'
 import { useReauthentication } from '@/hooks/useReauthentication'
 import { h3cService } from '@/services/h3c'
 import { formatDate, formatPrice } from '@/utils/format'
+import { registrationRefundStatus, refundRetryDescription } from '@/utils/refund'
 import type { H3cRegistration, H3cRegistrationStatus, H3cRegistrationType } from '@/types/h3c'
 import MaterialPreview from '../renshe/MaterialPreview'
 import ReviewDetailDrawer from '../../shared/ReviewDetailDrawer'
@@ -45,10 +46,25 @@ const STATUS_LABELS: Record<H3cRegistrationStatus, { text: string; color: string
   cancelled: { text: '已取消', color: 'default' },
 }
 
-function statusTag(status: H3cRegistrationStatus) {
-  const item = STATUS_LABELS[status]
-  return <Tag color={item.color}>{item.text}</Tag>
+function statusTag(
+  status: H3cRegistrationStatus,
+  activeRefund?: H3cRegistration['active_refund'],
+) {
+  const item = activeRefund
+    ? registrationRefundStatus(status, activeRefund)
+    : STATUS_LABELS[status]
+  const retryDescription = refundRetryDescription(activeRefund)
+  return (
+    <Space direction='vertical' size={0}>
+      <Tag color={item.color}>{item.text}</Tag>
+      {retryDescription && (
+        <Text type='danger' style={{ fontSize: 12 }}>{retryDescription}</Text>
+      )}
+    </Space>
+  )
 }
+
+const { Text } = Typography
 
 interface Props {
   registration: H3cRegistration | null
@@ -195,7 +211,7 @@ export default function RegistrationReviewDrawer({
           materialLoading={detailLoading}
           statusItems={[
             { label: '报名类型', content: TYPE_LABELS[current.registration_type] },
-            { label: '状态', content: statusTag(current.status) },
+            { label: '状态', content: statusTag(current.status, current.active_refund) },
             { label: '金额', content: formatPrice(current.price_cents) },
             { label: '补交次数', content: current.resubmission_count },
             { label: '有效导出', content: current.latest_valid_export_finished_at ? formatDate(current.latest_valid_export_finished_at) : '未导出' },

@@ -127,6 +127,8 @@ export interface RensheApplicationDetail {
   current_order_status: string | null
   current_refund_id?: number | null
   current_refund_status?: string | null
+  current_refund_last_error?: string | null
+  current_refund_retry_count?: number | null
 }
 
 export interface RensheSignedUrl {
@@ -187,6 +189,7 @@ export interface RensheRefund {
   rejection_reason: string | null
   succeeded_at: string | null
   last_error: string | null
+  retry_count: number
 }
 
 export interface RensheRefundDecisionPayload {

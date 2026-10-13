@@ -88,6 +88,15 @@ export interface H3cRegistration {
   order_id: number
   registration_type: H3cRegistrationType
   status: H3cRegistrationStatus
+  active_refund?: {
+    id: number
+    status: string
+    out_refund_no: string | null
+    processing_at: string | null
+    succeeded_at: string | null
+    last_error: string | null
+    retry_count: number
+  } | null
   candidate_snapshot: Record<string, unknown>
   order_status: string
   price_cents: number
@@ -174,6 +183,7 @@ export interface H3cRefund {
   processing_at: string | null
   succeeded_at: string | null
   last_error: string | null
+  retry_count: number
   created_at: string
 }
 

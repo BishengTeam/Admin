@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import {
   Button, Card, Input, Modal,
-  Select, Space, Table, Tag, message,
+  Select, Space, Table, Tag, Typography, message,
 } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { usePagination } from '@/hooks/usePagination'
@@ -9,6 +9,7 @@ import { useReauthentication } from '@/hooks/useReauthentication'
 import { nispService } from '@/services/nisp'
 import type { NispMaterial, NispRegistration } from '@/services/nisp'
 import { formatPrice, formatDate } from '@/utils/format'
+import { registrationRefundStatus, refundRetryDescription } from '@/utils/refund'
 import MaterialPreview from '../renshe/MaterialPreview'
 import ReviewDetailDrawer from '../../shared/ReviewDetailDrawer'
 
@@ -23,6 +24,8 @@ const STATUS_CONFIG: Record<string, { text: string; color: string }> = {
   refund_processing: { text: '退款中', color: 'cyan' },
   refunded_closed: { text: '已退款关闭', color: 'default' },
 }
+
+const { Text } = Typography
 
 const LEVEL_LABELS: Record<string, string> = {
   '1': '一级',
@@ -172,9 +175,19 @@ export default function NispReviewTab() {
       title: '状态',
       dataIndex: 'status',
       width: 110,
-      render: (v: string) => {
-        const cfg = STATUS_CONFIG[v] ?? { text: v, color: 'default' }
-        return <Tag color={cfg.color}>{cfg.text}</Tag>
+      render: (_, row) => {
+        const cfg = row.active_refund
+          ? registrationRefundStatus(row.status, row.active_refund)
+          : STATUS_CONFIG[row.status] ?? { text: row.status, color: 'default' }
+        const retryDescription = refundRetryDescription(row.active_refund)
+        return (
+          <Space direction='vertical' size={0}>
+            <Tag color={cfg.color}>{cfg.text}</Tag>
+            {retryDescription && (
+              <Text type='danger' style={{ fontSize: 12 }}>{retryDescription}</Text>
+            )}
+          </Space>
+        )
       },
     },
     { title: '金额', dataIndex: 'price_cents', width: 90, render: (v: number) => formatPrice(v) },
@@ -245,9 +258,19 @@ export default function NispReviewTab() {
             {
               label: '状态',
               content: (
-                <Tag color={STATUS_CONFIG[current.status]?.color}>
-                  {STATUS_CONFIG[current.status]?.text ?? current.status}
-                </Tag>
+                <Space direction='vertical' size={0}>
+                  {(() => {
+                    const item = current.active_refund
+                      ? registrationRefundStatus(current.status, current.active_refund)
+                      : STATUS_CONFIG[current.status] ?? { text: current.status, color: 'default' }
+                    return <Tag color={item.color}>{item.text}</Tag>
+                  })()}
+                  {refundRetryDescription(current.active_refund) && (
+                    <Text type='danger' style={{ fontSize: 12 }}>
+                      {refundRetryDescription(current.active_refund)}
+                    </Text>
+                  )}
+                </Space>
               ),
             },
             { label: '金额', content: formatPrice(current.price_cents) },

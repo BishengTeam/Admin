@@ -7,6 +7,7 @@ import type { ColumnsType } from 'antd/es/table'
 import { useNavigate } from 'react-router-dom'
 import { PlusOutlined, ReloadOutlined } from '@ant-design/icons'
 import { usePagination } from '@/hooks/usePagination'
+import { ImageUpload } from '@/components/ImageUpload'
 import { nispService } from '@/services/nisp'
 import type { NispBatch } from '@/services/nisp'
 import { formatPrice, formatDate } from '@/utils/format'
@@ -44,6 +45,9 @@ function readBatchListContext(): BatchListContext {
 export default function NispBatchOverrides() {
   const navigate = useNavigate()
   const [batchOpen, setBatchOpen] = useState(false)
+  const [qrcodeBatch, setQrcodeBatch] = useState<NispBatch | null>(null)
+  const [qrcodeUrl, setQrcodeUrl] = useState('')
+  const [qrcodeSaving, setQrcodeSaving] = useState(false)
   const [exporting, setExporting] = useState<number | null>(null)
   const [form] = Form.useForm()
   const returnContext = useMemo(readBatchListContext, [])
@@ -91,6 +95,23 @@ export default function NispBatchOverrides() {
       message.error(error instanceof Error ? error.message : '创建导出任务失败')
     } finally {
       setExporting(null)
+    }
+  }
+
+  const saveQrcode = async () => {
+    if (!qrcodeBatch) return
+    setQrcodeSaving(true)
+    try {
+      await nispService.updateBatch(qrcodeBatch.id, {
+        consultation_group_qrcode_url: qrcodeUrl || null,
+      })
+      message.success('NISP 批次咨询群聊码已更新')
+      setQrcodeBatch(null)
+      refresh()
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '咨询群聊码更新失败')
+    } finally {
+      setQrcodeSaving(false)
     }
   }
 
@@ -179,7 +200,7 @@ export default function NispBatchOverrides() {
     },
     {
       title: '操作',
-      width: 290,
+      width: 370,
       render: (_, row) => (
         <Space size={4}>
           <Button size='small' type='primary' ghost onClick={() => openWorkbench(row)}>
@@ -203,6 +224,15 @@ export default function NispBatchOverrides() {
           >
             导出
           </Button>
+          <Button
+            size='small'
+            onClick={() => {
+              setQrcodeBatch(row)
+              setQrcodeUrl(row.consultation_group_qrcode_url || '')
+            }}
+          >
+            咨询群码
+          </Button>
           {['published', 'registration_closed'].includes(row.plan_status) && (
             <Popconfirm
               title="取消批次并关闭报名？"
@@ -225,7 +255,14 @@ export default function NispBatchOverrides() {
           新建批次
         </Button>
       </Space>
-      <Table rowKey='id' columns={columns} dataSource={data?.items ?? []} loading={loading} pagination={pagination} />
+      <Table
+        rowKey='id'
+        columns={columns}
+        dataSource={data?.items ?? []}
+        loading={loading}
+        pagination={pagination}
+        scroll={{ x: 1550 }}
+      />
 
       <Modal
         title="新建 NISP 考试批次"
@@ -254,7 +291,32 @@ export default function NispBatchOverrides() {
           <Form.Item name='level2_price' label="NISP二级价格（元）" rules={[{ required: true }]}>
             <InputNumber style={{ width: '100%' }} min={0} precision={2} />
           </Form.Item>
+          <Form.Item
+            name='consultation_group_qrcode_url'
+            label='NISP 批次咨询群聊码'
+            extra='终审通过后展示在报名详情中，用户可扫码加入本批次咨询群；建议上传正方形二维码并保留白色留白'
+          >
+            <ImageUpload
+              hint={'小程序端以正方形展示\n建议 ≥ 640 × 640 px，PNG/JPG，≤ 5MB\n二维码需保留白色留边'}
+            />
+          </Form.Item>
         </Form>
+      </Modal>
+
+      <Modal
+        title={`NISP 批次咨询群聊码 · ${qrcodeBatch?.plan_name ?? ''}`}
+        open={Boolean(qrcodeBatch)}
+        onCancel={() => setQrcodeBatch(null)}
+        onOk={saveQrcode}
+        confirmLoading={qrcodeSaving}
+        okText='保存二维码'
+        destroyOnClose
+      >
+        <ImageUpload
+          value={qrcodeUrl}
+          onChange={setQrcodeUrl}
+          hint={'小程序端以正方形展示\n建议 ≥ 640 × 640 px，PNG/JPG，≤ 5MB\n二维码需保留白色留边'}
+        />
       </Modal>
     </>
   )

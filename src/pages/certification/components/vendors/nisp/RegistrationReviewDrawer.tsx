@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
-import { Button, Input, Modal, Select, Space, Tag, message } from 'antd'
+import { Button, Input, Modal, Select, Space, Tag, Typography, message } from 'antd'
 import { useReauthentication } from '@/hooks/useReauthentication'
 import { nispService } from '@/services/nisp'
 import type { NispMaterial, NispRegistration } from '@/services/nisp'
 import { formatDate, formatPrice } from '@/utils/format'
+import { registrationRefundStatus, refundRetryDescription } from '@/utils/refund'
 import MaterialPreview from '../renshe/MaterialPreview'
 import ReviewDetailDrawer from '../../shared/ReviewDetailDrawer'
 
@@ -11,6 +12,8 @@ const LEVEL_LABELS: Record<string, string> = {
   '1': 'NISP一级',
   '2': 'NISP二级',
 }
+
+const { Text } = Typography
 
 const STATUS_LABELS: Record<string, { text: string; color: string }> = {
   pending_payment: { text: '待支付', color: 'orange' },
@@ -209,7 +212,21 @@ export default function RegistrationReviewDrawer({
             { label: '级别', content: LEVEL_LABELS[current.level] },
             {
               label: '状态',
-              content: <Tag color={STATUS_LABELS[current.status]?.color}>{STATUS_LABELS[current.status]?.text ?? current.status}</Tag>,
+              content: (
+                <Space direction='vertical' size={0}>
+                  {(() => {
+                    const item = current.active_refund
+                      ? registrationRefundStatus(current.status, current.active_refund)
+                      : STATUS_LABELS[current.status] ?? { text: current.status, color: 'default' }
+                    return <Tag color={item.color}>{item.text}</Tag>
+                  })()}
+                  {refundRetryDescription(current.active_refund) && (
+                    <Text type='danger' style={{ fontSize: 12 }}>
+                      {refundRetryDescription(current.active_refund)}
+                    </Text>
+                  )}
+                </Space>
+              ),
             },
             { label: '金额', content: formatPrice(current.price_cents) },
             { label: '补交次数', content: current.resubmission_count },

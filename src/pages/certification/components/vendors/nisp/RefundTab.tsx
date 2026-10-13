@@ -8,6 +8,7 @@ import { usePagination } from '@/hooks/usePagination'
 import { http } from '@/core/request'
 import type { PageData } from '@/types/api'
 import { formatPrice } from '@/utils/format'
+import { refundErrorText } from '@/utils/refund'
 
 const { Text } = Typography
 
@@ -43,7 +44,7 @@ const KIND_LABELS: Record<string, string> = {
 }
 
 export default function NispRefundTab() {
-  const [statusFilter, setStatusFilter] = useState<string>('requested')
+  const [statusFilter, setStatusFilter] = useState<string>('')
   const [selected, setSelected] = useState<NispRefund | null>(null)
   const [confirming, setConfirming] = useState(false)
   const { data, loading, pagination, refresh } = usePagination(
@@ -101,6 +102,16 @@ export default function NispRefundTab() {
       },
     },
     { title: '退款单号', dataIndex: 'out_refund_no', width: 140, ellipsis: true },
+    {
+      title: '失败原因',
+      dataIndex: 'last_error',
+      width: 220,
+      ellipsis: true,
+      render: (value: string | null) => value ? (
+        <Text type='danger'>{refundErrorText(value)}</Text>
+      ) : '-',
+    },
+    { title: '重试次数', dataIndex: 'retry_count', width: 90 },
     { title: '请求时间', dataIndex: 'requested_at', width: 110, render: (v: string) => v?.slice(0, 16).replace('T', ' ') },
     {
       title: '操作',
@@ -161,7 +172,7 @@ export default function NispRefundTab() {
             )}
             {selected.last_error && (
               <Descriptions.Item label="最后错误">
-                <Text type='danger'>{selected.last_error}</Text>
+                <Text type='danger'>{refundErrorText(selected.last_error)}</Text>
               </Descriptions.Item>
             )}
             <Descriptions.Item label="重试次数">{selected.retry_count}</Descriptions.Item>

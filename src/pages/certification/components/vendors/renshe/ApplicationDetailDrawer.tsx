@@ -29,6 +29,7 @@ import type {
   RensheReviewStage,
 } from '@/types/renshe'
 import { formatDate } from '@/utils/format'
+import { refundErrorText } from '@/utils/refund'
 import {
   formatBytes,
   isPdfMaterial,
@@ -371,7 +372,18 @@ export default function ApplicationDetailDrawer({
               {detail.close_reason && <Descriptions.Item label="关闭原因" span={3}>{detail.close_reason}</Descriptions.Item>}
               {(detail.current_refund_id || detail.current_refund_status) && (
                 <Descriptions.Item label="退款" span={3}>
-                  {detail.current_refund_id ? `#${detail.current_refund_id} ` : ''}{detail.current_refund_status || '-'}
+                  <Space direction='vertical' size={0}>
+                    <span>
+                      {detail.current_refund_id ? `#${detail.current_refund_id} ` : ''}
+                      {detail.current_refund_status || '-'}
+                      {detail.current_refund_retry_count ? ` · 已重试 ${detail.current_refund_retry_count} 次` : ''}
+                    </span>
+                    {detail.current_refund_status === 'failed' && detail.current_refund_last_error && (
+                      <Text type='danger' style={{ fontSize: 12 }}>
+                        {refundErrorText(detail.current_refund_last_error)}
+                      </Text>
+                    )}
+                  </Space>
                 </Descriptions.Item>
               )}
             </Descriptions>

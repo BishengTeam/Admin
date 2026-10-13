@@ -18,6 +18,7 @@ export interface NispBatch {
   training_address: string | null
   training_start: string | null
   training_end: string | null
+  consultation_group_qrcode_url: string | null
   level1_price_cents: number
   level2_price_cents: number
   registration_counts?: Record<string, number>
@@ -31,6 +32,15 @@ export interface NispRegistration {
   batch_id: number
   level: '1' | '2'
   status: string
+  active_refund?: {
+    id: number
+    status: string
+    out_refund_no: string | null
+    processing_at: string | null
+    succeeded_at: string | null
+    last_error: string | null
+    retry_count: number
+  } | null
   candidate_snapshot: Record<string, unknown>
   order_status: string
   price_cents: number
@@ -162,10 +172,18 @@ export const nispService = {
     training_address?: string
     training_start?: string
     training_end?: string
+    consultation_group_qrcode_url?: string | null
     level1_price_cents: number
     level2_price_cents: number
   }): Promise<NispBatch> {
     return http.post('/admin/nisp/batches', data)
+  },
+
+  updateBatch(
+    id: number,
+    data: { consultation_group_qrcode_url?: string | null },
+  ): Promise<NispBatch> {
+    return http.put(`/admin/nisp/batches/${id}`, data)
   },
 
   publishBatch(id: number): Promise<NispBatch> {
