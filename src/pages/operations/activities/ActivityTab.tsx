@@ -167,7 +167,7 @@ export default function ActivityTab() {
           <Button type="link" size="small" onClick={() => handleEdit(record)}>编辑</Button>
           <ConfirmButton
             title="删除活动"
-            description="确认删除此活动？"
+            description="将同时删除该活动的报名和提醒记录，此操作不可恢复。"
             danger
             type="link"
             size="small"
@@ -200,7 +200,7 @@ export default function ActivityTab() {
         {selectedRowKeys.length > 0 && (
           <ConfirmButton
             title="批量删除"
-            description={`确认删除选中的 ${selectedRowKeys.length} 个活动？`}
+            description={`将同时删除选中的 ${selectedRowKeys.length} 个活动及其报名、提醒记录，此操作不可恢复。`}
             danger
             icon={<DeleteOutlined />}
             onConfirm={handleBatchDelete}

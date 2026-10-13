@@ -94,7 +94,7 @@ export default function JobManagement() {
           <Button type="link" size="small" onClick={() => handleEdit(record)}>编辑</Button>
           <ConfirmButton
             title="删除职位"
-            description="此操作不可撤销，确认删除？"
+            description="将同时删除该岗位的投递记录，此操作不可恢复。"
             danger
             type="link"
             size="small"
