@@ -6,6 +6,7 @@ import BatchOverrides from '@/pages/certification/components/vendors/nisp/BatchO
 import { mergeSelectedRegistrations } from '@/pages/certification/components/vendors/nisp/BatchWorkbench'
 import { nispService } from '@/services/nisp'
 import { certProductService } from '@/services/certProduct'
+import { consultationGroupService } from '@/services/consultationGroup'
 import type { NispBatch } from '@/services/nisp'
 
 vi.mock('@/services/nisp', () => ({ nispService: {
@@ -13,6 +14,10 @@ vi.mock('@/services/nisp', () => ({ nispService: {
   createFullBatch: vi.fn(), publishBatch: vi.fn(), closeRegistration: vi.fn(),
 } }))
 vi.mock('@/services/certProduct', () => ({ certProductService: { list: vi.fn() } }))
+vi.mock('@/services/consultationGroup', () => ({ consultationGroupService: {
+  get: vi.fn(),
+  update: vi.fn(),
+} }))
 
 const batch: NispBatch = {
   id: 42, plan_id: 8, level: '2', plan_name: 'NISP测试批次', plan_status: 'published',
@@ -40,6 +45,16 @@ describe('NISP batch operations', () => {
     vi.mocked(nispService.listBatches).mockResolvedValue({ items: [batch], total: 1, page: 1, page_size: 20 })
     vi.mocked(certProductService.list).mockResolvedValue({
       items: [], total: 0, page: 1, page_size: 100,
+    })
+    vi.mocked(consultationGroupService.get).mockResolvedValue({
+      plan_id: 8,
+      qrcode_url: '/api/media/nisp-consultation-group.png',
+      join_instructions: null,
+      expires_at: null,
+      version: 3,
+      status: 'configured',
+      updated_by: 1,
+      updated_at: '2026-10-15T00:00:00Z',
     })
     vi.spyOn(message, 'success').mockImplementation(() => (() => {}) as ReturnType<typeof message.success>)
     vi.spyOn(message, 'error').mockImplementation(() => (() => {}) as ReturnType<typeof message.error>)
@@ -86,6 +101,7 @@ function renderBatch() {
     expect(screen.getByText('本批次一级报名费（元）')).toBeInTheDocument()
     expect(screen.queryByText('关联 Plan ID')).not.toBeInTheDocument()
     expect(screen.queryByText('NISP二级价格（元）')).not.toBeInTheDocument()
+    expect(screen.queryByText('批次咨询群聊码')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: '保存草稿' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '保存并发布' })).toBeInTheDocument()
   })
@@ -105,15 +121,25 @@ function renderBatch() {
   })
 
   it('updates the NISP batch consultation group QR code', async () => {
-    vi.mocked(nispService.updateBatch).mockResolvedValue(batch)
+    vi.mocked(consultationGroupService.update).mockResolvedValue({
+      plan_id: 8,
+      qrcode_url: '/api/media/nisp-consultation-group.png',
+      join_instructions: null,
+      expires_at: null,
+      version: 4,
+      status: 'configured',
+    })
     renderBatch()
 
     fireEvent.click(await screen.findByRole('button', { name: '咨询群码' }))
-    expect(await screen.findByText(/NISP 批次咨询群聊码/)).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: '保存二维码' }))
+    expect(await screen.findByText(/批次咨询群 · NISP测试批次/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '保存配置' }))
 
-    await waitFor(() => expect(nispService.updateBatch).toHaveBeenCalledWith(42, {
-      consultation_group_qrcode_url: '/api/media/nisp-consultation-group.png',
+    await waitFor(() => expect(consultationGroupService.update).toHaveBeenCalledWith(8, {
+      qrcode_url: '/api/media/nisp-consultation-group.png',
+      join_instructions: null,
+      expires_at: null,
+      version: 3,
     }))
   })
 

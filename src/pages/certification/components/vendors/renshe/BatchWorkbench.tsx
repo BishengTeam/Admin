@@ -20,6 +20,7 @@ import {
 import type { ColumnsType } from 'antd/es/table'
 import { ArrowLeftOutlined, DownloadOutlined, EyeOutlined, ReloadOutlined, RetweetOutlined } from '@ant-design/icons'
 import { PageContainer } from '@/components/PageContainer'
+import { ConsultationGroupDialog } from '@/components/ConsultationGroupDialog'
 import { usePagination } from '@/hooks/usePagination'
 import { usePermission } from '@/hooks/usePermission'
 import { certificationService } from '@/services/certification'
@@ -122,6 +123,7 @@ export default function RensheBatchWorkbench() {
   const [selectedListOpen, setSelectedListOpen] = useState(false)
   const [itemJob, setItemJob] = useState<RensheExportJob | null>(null)
   const [activeTab, setActiveTab] = useState('people')
+  const [consultationOpen, setConsultationOpen] = useState(false)
 
   const loadPlan = useCallback(async () => {
     if (!Number.isInteger(planId) || planId <= 0) return
@@ -371,6 +373,7 @@ export default function RensheBatchWorkbench() {
             void refreshJobs()
             void loadPlan()
           }}>刷新</Button>
+          <Button onClick={() => setConsultationOpen(true)}>咨询群</Button>
           <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/admin/certification/renshe')}>返回批次</Button>
         </Space>
       )}
@@ -630,6 +633,12 @@ export default function RensheBatchWorkbench() {
           />
         </Space>
       </Drawer>
+      <ConsultationGroupDialog
+        open={consultationOpen && Boolean(plan)}
+        planId={plan?.id ?? null}
+        batchName={plan?.name ?? ''}
+        onClose={() => setConsultationOpen(false)}
+      />
     </PageContainer>
   )
 }

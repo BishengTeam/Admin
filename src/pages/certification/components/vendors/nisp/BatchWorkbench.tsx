@@ -29,6 +29,7 @@ import {
   SyncOutlined,
 } from '@ant-design/icons'
 import { PageContainer } from '@/components/PageContainer'
+import { ConsultationGroupDialog } from '@/components/ConsultationGroupDialog'
 import { usePagination } from '@/hooks/usePagination'
 import { usePermission } from '@/hooks/usePermission'
 import { useReauthentication } from '@/hooks/useReauthentication'
@@ -132,6 +133,7 @@ export default function NispBatchWorkbench() {
   const [reviewSubmitting, setReviewSubmitting] = useState(false)
   const [reviewResults, setReviewResults] = useState<NispBatchFinalReviewResult[] | null>(null)
   const [activeTab, setActiveTab] = useState('people')
+  const [consultationOpen, setConsultationOpen] = useState(false)
   const { ensureReauthenticated, reauthDialog } = useReauthentication()
   const activeJobRef = useRef(false)
 
@@ -670,6 +672,7 @@ export default function NispBatchWorkbench() {
       extra={(
         <Space>
           <Button icon={<ArrowLeftOutlined />} onClick={goBack}>返回批次列表</Button>
+          <Button onClick={() => setConsultationOpen(true)}>咨询群</Button>
           <Button icon={<ReloadOutlined />} onClick={() => { registrations.refresh(); exportJobs.refresh() }}>刷新</Button>
         </Space>
       )}
@@ -817,6 +820,12 @@ export default function NispBatchWorkbench() {
           />
         )}
       </Modal>
+      <ConsultationGroupDialog
+        open={consultationOpen && Boolean(batch)}
+        planId={batch?.plan_id ?? null}
+        batchName={batch?.plan_name ?? ''}
+        onClose={() => setConsultationOpen(false)}
+      />
       {reauthDialog}
     </PageContainer>
   )

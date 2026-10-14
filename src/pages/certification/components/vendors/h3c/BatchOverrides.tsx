@@ -26,6 +26,7 @@ import type { ColumnsType } from 'antd/es/table'
 import { DownOutlined, PlusOutlined, ReloadOutlined } from '@ant-design/icons'
 import { usePagination } from '@/hooks/usePagination'
 import { useReauthentication } from '@/hooks/useReauthentication'
+import { ConsultationGroupDialog } from '@/components/ConsultationGroupDialog'
 import { h3cService } from '@/services/h3c'
 import { certProductService } from '@/services/certProduct'
 import { formatDate, formatPrice } from '@/utils/format'
@@ -109,6 +110,7 @@ export default function BatchOverrides(_props: { type: CertType; productCode: st
   const [batchOpen, setBatchOpen] = useState(false)
   const [editingBatch, setEditingBatch] = useState<H3cExamBatch | null>(null)
   const [savingAction, setSavingAction] = useState<'draft' | 'publish' | 'edit' | null>(null)
+  const [consultationBatch, setConsultationBatch] = useState<H3cExamBatch | null>(null)
   const [products, setProducts] = useState<CertProduct[]>([])
   const returnContext = useMemo(readBatchListContext, [])
   const [keyword, setKeyword] = useState<string | undefined>(returnContext.keyword)
@@ -460,6 +462,10 @@ export default function BatchOverrides(_props: { type: CertType; productCode: st
       fixed: 'right',
       render: (_, row) => {
         const menuItems = [
+          !['cancelled', 'archived'].includes(row.status) && {
+            key: 'consultation',
+            label: '咨询群配置',
+          },
           row.status === 'draft' && { key: 'edit', label: '编辑批次' },
           row.status === 'draft' && { key: 'publish', label: '发布批次' },
           row.status === 'published' && { key: 'close', label: '关闭报名' },
@@ -488,6 +494,7 @@ export default function BatchOverrides(_props: { type: CertType; productCode: st
               menu={{
                 items: menuItems,
                 onClick: ({ key }) => {
+                  if (key === 'consultation') setConsultationBatch(row)
                   if (key === 'edit') handleEdit(row)
                   if (key === 'publish') {
                     void runBatchAction(
@@ -778,6 +785,13 @@ export default function BatchOverrides(_props: { type: CertType; productCode: st
           </Typography.Text>
         </Form>
       </Drawer>
-    </>
+
+      <ConsultationGroupDialog
+        open={Boolean(consultationBatch)}
+        planId={consultationBatch?.plan_id ?? null}
+        batchName={consultationBatch?.name ?? ''}
+        onClose={() => setConsultationBatch(null)}
+      />
+   </>
   )
 }

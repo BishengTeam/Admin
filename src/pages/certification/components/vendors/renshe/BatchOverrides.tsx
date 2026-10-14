@@ -29,6 +29,7 @@ import {
 } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import { useNavigate } from 'react-router-dom'
+import { ConsultationGroupDialog } from '@/components/ConsultationGroupDialog'
 import { ConfirmButton } from '@/components/ConfirmButton'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermission } from '@/hooks/usePermission'
@@ -110,6 +111,7 @@ export default function BatchOverrides(_props: BatchOverridesProps) {
   const [modalOpen, setModalOpen] = useState(false)
   const [editingPlan, setEditingPlan] = useState<CertificationPlan | null>(null)
   const [cleanupPlan, setCleanupPlan] = useState<CertificationPlan | null>(null)
+  const [consultationPlan, setConsultationPlan] = useState<CertificationPlan | null>(null)
   const [cleanupRuns, setCleanupRuns] = useState<RensheCleanupRun[]>([])
   const [cleanupLoading, setCleanupLoading] = useState(false)
   const [form] = Form.useForm<PlanFormValues>()
@@ -298,6 +300,11 @@ export default function BatchOverrides(_props: BatchOverridesProps) {
           <Button type='primary' ghost size='small' onClick={() => openWorkbench(plan)}>
             管理报名
           </Button>
+          {canWrite && !['cancelled', 'archived'].includes(plan.status) && (
+            <Button type='link' size='small' onClick={() => setConsultationPlan(plan)}>
+              咨询群
+            </Button>
+          )}
           {canWrite && plan.status === 'draft' && (
             <>
               <Button type="link" size="small" icon={<EditOutlined />} onClick={() => openEdit(plan)}>编辑</Button>
@@ -489,6 +496,13 @@ export default function BatchOverrides(_props: BatchOverridesProps) {
           scroll={{ x: 900 }}
         />
       </Drawer>
+
+      <ConsultationGroupDialog
+        open={Boolean(consultationPlan)}
+        planId={consultationPlan?.id ?? null}
+        batchName={consultationPlan?.name ?? ''}
+        onClose={() => setConsultationPlan(null)}
+      />
     </>
   )
 }

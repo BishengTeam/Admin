@@ -30,7 +30,7 @@ import {
   ReloadOutlined,
 } from '@ant-design/icons'
 import { usePagination } from '@/hooks/usePagination'
-import { ImageUpload } from '@/components/ImageUpload'
+import { ConsultationGroupDialog } from '@/components/ConsultationGroupDialog'
 import { certProductService } from '@/services/certProduct'
 import { nispService } from '@/services/nisp'
 import type { NispBatch } from '@/services/nisp'
@@ -93,8 +93,6 @@ export default function NispBatchOverrides() {
   const [editingBatch, setEditingBatch] = useState<NispBatch | null>(null)
   const [savingAction, setSavingAction] = useState<'draft' | 'publish' | 'edit' | null>(null)
   const [qrcodeBatch, setQrcodeBatch] = useState<NispBatch | null>(null)
-  const [qrcodeUrl, setQrcodeUrl] = useState('')
-  const [qrcodeSaving, setQrcodeSaving] = useState(false)
   const [products, setProducts] = useState<CertProduct[]>([])
   const [productsLoading, setProductsLoading] = useState(true)
   const [form] = Form.useForm()
@@ -232,7 +230,6 @@ export default function NispBatchOverrides() {
       max_resubmissions: values.max_resubmissions == null
         ? undefined
         : Number(values.max_resubmissions),
-      consultation_group_qrcode_url: values.consultation_group_qrcode_url as string | null | undefined,
     }
 
     setSavingAction(action)
@@ -273,26 +270,8 @@ export default function NispBatchOverrides() {
       payment_timeout_minutes: batch.payment_timeout_minutes,
       resubmission_window_hours: batch.resubmission_window_hours,
       max_resubmissions: batch.max_resubmissions,
-      consultation_group_qrcode_url: batch.consultation_group_qrcode_url,
     })
     setBatchOpen(true)
-  }
-
-  const saveQrcode = async () => {
-    if (!qrcodeBatch) return
-    setQrcodeSaving(true)
-    try {
-      await nispService.updateBatch(qrcodeBatch.id, {
-        consultation_group_qrcode_url: qrcodeUrl || null,
-      })
-      message.success('NISP 批次咨询群聊码已更新')
-      setQrcodeBatch(null)
-      refresh()
-    } catch (error) {
-      message.error(error instanceof Error ? error.message : '咨询群聊码更新失败')
-    } finally {
-      setQrcodeSaving(false)
-    }
   }
 
   const publishBatch = async (batch: NispBatch) => {
@@ -454,10 +433,7 @@ export default function NispBatchOverrides() {
             </Button>
             <Button
               size='small'
-              onClick={() => {
-                setQrcodeBatch(row)
-                setQrcodeUrl(row.consultation_group_qrcode_url || '')
-              }}
+              onClick={() => setQrcodeBatch(row)}
             >
               咨询群码
             </Button>
@@ -645,16 +621,6 @@ export default function NispBatchOverrides() {
               </Form.Item>
             </Col>
           </Row>
-          <Form.Item
-            name='consultation_group_qrcode_url'
-            label='批次咨询群聊码'
-            extra='终审通过后展示在报名详情中；建议上传正方形二维码并保留白色留白'
-          >
-            <ImageUpload
-              hint={'小程序端以正方形展示\n建议 ≥ 640 × 640 px，PNG/JPG，≤ 5MB\n二维码需保留白色留边'}
-            />
-          </Form.Item>
-
           <Divider orientation='left' orientationMargin={0}>
             ⑤ 报名要求预览
           </Divider>
@@ -743,21 +709,12 @@ export default function NispBatchOverrides() {
         </Form>
       </Drawer>
 
-      <Modal
-        title={`NISP 批次咨询群聊码 · ${qrcodeBatch?.plan_name ?? ''}`}
+      <ConsultationGroupDialog
         open={Boolean(qrcodeBatch)}
-        onCancel={() => setQrcodeBatch(null)}
-        onOk={saveQrcode}
-        confirmLoading={qrcodeSaving}
-        okText='保存二维码'
-        destroyOnClose
-      >
-        <ImageUpload
-          value={qrcodeUrl}
-          onChange={setQrcodeUrl}
-          hint={'小程序端以正方形展示\n建议 ≥ 640 × 640 px，PNG/JPG，≤ 5MB\n二维码需保留白色留边'}
-        />
-      </Modal>
+        planId={qrcodeBatch?.plan_id ?? null}
+        batchName={qrcodeBatch?.plan_name ?? ''}
+        onClose={() => setQrcodeBatch(null)}
+      />
     </>
   )
 }
