@@ -7,6 +7,18 @@ export const certProductService = {
     return http.get<CertCatalogItem[]>('/admin/cert-products/catalog', { params: { type } })
   },
 
+  async importCatalog(file: File): Promise<{
+    imported_count: number
+    created_count: number
+    updated_count: number
+    price_upserted_count: number
+    source: string
+  }> {
+    const formData = new FormData()
+    formData.append('file', file)
+    return http.post('/admin/cert-products/catalog/import', formData, { timeout: 60000 })
+  },
+
   async list(params: { type?: string; keyword?: string } & PageParams): Promise<PageData<CertProduct>> {
     return http.get<PageData<CertProduct>>('/admin/cert-products', { params })
   },

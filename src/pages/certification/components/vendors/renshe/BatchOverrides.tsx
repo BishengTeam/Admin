@@ -45,7 +45,7 @@ const { Text } = Typography
 
 interface BatchOverridesProps {
   type: CertType
-  productCode: string | null
+  productCode?: string | null
 }
 
 interface PlanFormValues {
@@ -101,8 +101,8 @@ function toPayload(values: PlanFormValues): CertificationPlanPayload {
   }
 }
 
-export default function BatchOverrides({ productCode }: BatchOverridesProps) {
-  const pc = productCode!
+export default function BatchOverrides(_props: BatchOverridesProps) {
+  const pc = 'RS-ZY'
   const navigate = useNavigate()
   const [plans, setPlans] = useState<CertificationPlan[]>([])
   const [loading, setLoading] = useState(false)

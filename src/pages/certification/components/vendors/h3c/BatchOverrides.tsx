@@ -76,7 +76,6 @@ const STATUS_OPTIONS = Object.entries(BATCH_STATUS).map(([value, item]) => ({
 
 interface BatchListContext {
   keyword?: string
-  productFilter?: string
   status?: string
   page?: number
   scrollY?: number
@@ -113,7 +112,6 @@ export default function BatchOverrides(_props: { type: CertType; productCode: st
   const [products, setProducts] = useState<CertProduct[]>([])
   const returnContext = useMemo(readBatchListContext, [])
   const [keyword, setKeyword] = useState<string | undefined>(returnContext.keyword)
-  const [productFilter, setProductFilter] = useState<string | undefined>(returnContext.productFilter)
   const [statusFilter, setStatusFilter] = useState<string | undefined>(returnContext.status)
   const [form] = Form.useForm()
 
@@ -141,10 +139,9 @@ export default function BatchOverrides(_props: { type: CertType; productCode: st
     (page) => h3cService.listBatches({
       ...page,
       ...(keyword ? { keyword } : {}),
-      certification_code: productFilter,
       ...(statusFilter ? { status: statusFilter } : {}),
     }),
-    [keyword, productFilter, statusFilter],
+    [keyword, statusFilter],
     { initialPage: returnContext.page },
   )
   const { ensureReauthenticated, reauthDialog } = useReauthentication()
@@ -163,7 +160,6 @@ export default function BatchOverrides(_props: { type: CertType; productCode: st
   ) => {
     window.sessionStorage.setItem(BATCH_LIST_CONTEXT_KEY, JSON.stringify({
       keyword,
-      productFilter,
       status: statusFilter,
       page: pagination.current,
       scrollY: window.scrollY,
@@ -554,19 +550,6 @@ export default function BatchOverrides(_props: { type: CertType; productCode: st
           style={{ width: 220 }}
           defaultValue={keyword}
           onSearch={setKeyword}
-        />
-        <Select
-          placeholder='按认证产品筛选'
-          allowClear
-          showSearch
-          optionFilterProp='label'
-          style={{ minWidth: 210 }}
-          value={productFilter}
-          onChange={(value) => setProductFilter(value)}
-          options={products.map((p) => ({
-            value: p.code,
-            label: p.chinese_name || p.code,
-          }))}
         />
         <Select
           allowClear

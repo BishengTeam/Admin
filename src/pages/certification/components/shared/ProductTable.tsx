@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Button, Col, Divider, Form, Input, InputNumber, Modal, Row, Select, Space, Switch, Table, Tag, Typography, message } from 'antd'
+import { Button, Col, Divider, Form, Input, InputNumber, Modal, Row, Select, Space, Switch, Table, Tag, Typography, Upload, message } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
-import { PlusOutlined, ReloadOutlined, SafetyCertificateOutlined, UnlockOutlined } from '@ant-design/icons'
+import { PlusOutlined, ReloadOutlined, SafetyCertificateOutlined, UnlockOutlined, UploadOutlined } from '@ant-design/icons'
+import type { UploadRequestOption } from 'rc-upload/lib/interface'
 import { usePagination } from '@/hooks/usePagination'
 import { usePermission } from '@/hooks/usePermission'
 import { useAuth } from '@/hooks/useAuth'
@@ -58,6 +59,7 @@ export default function ProductTable({ type }: ProductTableProps) {
   const [customCode, setCustomCode] = useState(false)
   const [catalog, setCatalog] = useState<CertCatalogItem[]>([])
   const [selectedCatalog, setSelectedCatalog] = useState<CertCatalogItem | null>(null)
+  const [importing, setImporting] = useState(false)
   const [form] = Form.useForm<ProductFormValues>()
 
   const { data, loading, pagination, refresh } = usePagination(
@@ -69,6 +71,23 @@ export default function ProductTable({ type }: ProductTableProps) {
 
   const loadCatalog = () => {
     certProductService.getCatalog(type).then(setCatalog).catch(() => setCatalog([]))
+  }
+
+  const importCatalog = async (options: UploadRequestOption) => {
+    const file = options.file as File
+    setImporting(true)
+    try {
+      const result = await certProductService.importCatalog(file)
+      message.success(
+        `价格表已导入：新增目录 ${result.created_count} 项，更新 ${result.updated_count} 项，同步价格 ${result.price_upserted_count} 条`,
+      )
+      await refresh()
+      loadCatalog()
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '价格表导入失败')
+    } finally {
+      setImporting(false)
+    }
   }
 
   useEffect(() => {
@@ -119,10 +138,14 @@ export default function ProductTable({ type }: ProductTableProps) {
     const item = catalog.find((c) => c.code === code) ?? null
     setSelectedCatalog(item)
     if (item) {
+      const studentPrice = item.prices?.find(price => price.user_type === 'student')?.price_cents
+      const normalPrice = item.prices?.find(price => price.user_type === 'normal')?.price_cents
       form.setFieldsValue({
         catalog_id: item.id,
         chinese_name: item.name,
         name: displayNameFromCode(code),
+        student_price_yuan: studentPrice != null ? studentPrice / 100 : undefined,
+        normal_price_yuan: normalPrice != null ? normalPrice / 100 : undefined,
       })
     }
   }
@@ -187,6 +210,17 @@ export default function ProductTable({ type }: ProductTableProps) {
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
         <Space>
           {canWrite && <Button type='primary' icon={<PlusOutlined />} onClick={handleAdd}>新增产品</Button>}
+          {canWrite && isSuperAdmin && type === 'h3c' && (
+            <Upload
+              accept='.xlsx'
+              maxCount={1}
+              showUploadList={false}
+              customRequest={importCatalog}
+              disabled={importing}
+            >
+              <Button icon={<UploadOutlined />} loading={importing}>导入价格表</Button>
+            </Upload>
+          )}
           <Button icon={<ReloadOutlined />} loading={loading} onClick={refresh}>刷新</Button>
         </Space>
         <Text type='secondary'>共 {data?.total ?? 0} 个产品</Text>
@@ -262,7 +296,7 @@ export default function ProductTable({ type }: ProductTableProps) {
                     optionFilterProp='label'
                     disabled={Boolean(editingItem)}
                     onChange={handleCodeChange}
-                    notFoundContent={catalog.length === 0 ? '目录为空，请联系超级管理员导入价格表' : undefined}
+                    notFoundContent={catalog.length === 0 ? '目录为空，请联系超级管理员在「产品设置」导入价格表' : undefined}
                   />
                 )}
               </Form.Item>

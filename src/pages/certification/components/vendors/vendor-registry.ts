@@ -13,8 +13,6 @@ export interface VendorProfile {
   /** H3C 等按批次办理的业务默认进入批次列表，产品配置后置。 */
   batchFirst?: boolean
   productTabLabel?: string
-  /** 批次管理是否需要按认证产品筛选（如人社按产品查批次） */
-  requiresProductFilter?: boolean
   batchOverrides?: LazyExoticComponent<ComponentType<any>>
   batchFormExtra?: LazyExoticComponent<ComponentType<any>>
   tabs: VendorTab[]
@@ -64,7 +62,6 @@ const vendorRegistry: VendorProfile[] = [
     type: 'renshe',
     batchFirst: true,
     productTabLabel: '产品设置',
-    requiresProductFilter: true,
     batchOverrides: lazy(() => import('./renshe/BatchOverrides')),
     tabs: [
       {
@@ -77,7 +74,6 @@ const vendorRegistry: VendorProfile[] = [
   },
   {
     type: 'sangfor',
-    requiresProductFilter: true,
     tabs: [],
   },
 ]

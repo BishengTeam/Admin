@@ -22,6 +22,7 @@ export interface CertCatalogItem {
   remark: string | null
   source: string | null
   instantiated: boolean
+  prices?: CertProductPrice[]
 }
 
 export interface CertProduct {
