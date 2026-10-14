@@ -31,6 +31,8 @@ export interface CertProduct {
   name: string
   chinese_name: string
   description: string | null
+  /** 首页认证专区通栏大图（1404×640） */
+  home_cover_url: string | null
   is_active: boolean
   sort_order: number
   prices: CertProductPrice[]
@@ -45,6 +47,7 @@ export interface CertProductCreatePayload {
   name: string
   chinese_name: string
   description?: string
+  home_cover_url?: string | null
   is_active?: boolean
   sort_order?: number
   prices?: CertProductPrice[]
@@ -55,6 +58,7 @@ export interface CertProductUpdatePayload {
   name?: string
   chinese_name?: string
   description?: string
+  home_cover_url?: string | null
   is_active?: boolean
   sort_order?: number
   prices?: CertProductPrice[]

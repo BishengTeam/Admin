@@ -44,6 +44,7 @@ function product(overrides: Partial<CertProduct> = {}): CertProduct {
     name: 'H3C Certified Network Engineer',
     chinese_name: 'H3C网络工程师',
     description: null,
+    home_cover_url: null,
     is_active: true,
     sort_order: 0,
     prices: [],

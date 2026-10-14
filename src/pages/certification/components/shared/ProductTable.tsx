@@ -5,6 +5,7 @@ import { PlusOutlined, ReloadOutlined, SafetyCertificateOutlined, UnlockOutlined
 import { usePagination } from '@/hooks/usePagination'
 import { usePermission } from '@/hooks/usePermission'
 import { useAuth } from '@/hooks/useAuth'
+import { ImageUpload } from '@/components/ImageUpload'
 import { certProductService } from '@/services/certProduct'
 import type { CertCatalogItem, CertPriceUserType, CertProduct, CertProductCreatePayload, CertProductPrice, CertProductUpdatePayload } from '@/types/certProduct'
 import { CERT_TYPE_META, type CertType } from '../vendors/type-registry'
@@ -28,6 +29,7 @@ const defaultFormValues: ProductFormValues = {
   name: '',
   chinese_name: '',
   description: '',
+  home_cover_url: '',
   is_active: true,
 }
 
@@ -105,6 +107,7 @@ export default function ProductTable({ type }: ProductTableProps) {
       name: item.name,
       chinese_name: item.chinese_name,
       description: item.description ?? '',
+      home_cover_url: item.home_cover_url ?? '',
       is_active: item.is_active,
       student_price_yuan: student !== null ? student / 100 : undefined,
       normal_price_yuan: normal !== null ? normal / 100 : undefined,
@@ -127,13 +130,15 @@ export default function ProductTable({ type }: ProductTableProps) {
   const handleOk = async () => {
     const values = await form.validateFields()
     const prices = buildPrices(values)
+    // 空串归一为 null，避免库里存空字符串
+    const homeCover = values.home_cover_url || null
     if (editingItem) {
       const { type: _t, code: _c, catalog_id: _ci, student_price_yuan: _s, normal_price_yuan: _n, ...updateData } = values
-      const payload: CertProductUpdatePayload = { ...updateData, prices }
+      const payload: CertProductUpdatePayload = { ...updateData, home_cover_url: homeCover, prices }
       await certProductService.update(editingItem.code, payload)
       message.success('更新成功')
     } else {
-      const payload = { ...values, prices, catalog_id: customCode ? null : values.catalog_id ?? null }
+      const payload = { ...values, home_cover_url: homeCover, prices, catalog_id: customCode ? null : values.catalog_id ?? null }
       await certProductService.create(payload)
       message.success('创建成功')
     }
@@ -326,6 +331,13 @@ export default function ProductTable({ type }: ProductTableProps) {
 
           <Form.Item name='description' label='描述'>
             <Input.TextArea rows={2} placeholder='可选，展示在小程序报名页' maxLength={512} showCount />
+          </Form.Item>
+
+          <Form.Item name='home_cover_url' label='首页认证横幅'>
+            <ImageUpload
+              crop={{ width: 1404, height: 640, title: '首页认证横幅', fixed: true }}
+              hint={'小程序首页认证专区通栏大图\n固定裁剪输出：1404 × 640 px（约 2.2 : 1）\n裁剪框大小固定，拖动选择截取位置\n不传则首页按厂商配色渐变展示\n输出 JPG，单张 ≤ 5MB'}
+            />
           </Form.Item>
 
           <Divider orientation='left' orientationMargin={0} style={{ margin: '8px 0 16px' }}>
