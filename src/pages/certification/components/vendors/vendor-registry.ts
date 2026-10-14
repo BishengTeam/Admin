@@ -62,26 +62,16 @@ const vendorRegistry: VendorProfile[] = [
   },
   {
     type: 'renshe',
+    batchFirst: true,
+    productTabLabel: '产品设置',
     requiresProductFilter: true,
     batchOverrides: lazy(() => import('./renshe/BatchOverrides')),
     tabs: [
-      {
-        key: 'review',
-        label: '报名审核',
-        permission: 'user:list',
-        component: lazy(() => import('./renshe/ApplicationTab')),
-      },
       {
         key: 'refund',
         label: '退款',
         permission: 'order:list',
         component: lazy(() => import('./renshe/RefundTab')),
-      },
-      {
-        key: 'export',
-        label: '导出',
-        permission: 'user:list',
-        component: lazy(() => import('./renshe/ExportTab')),
       },
     ],
   },

@@ -44,6 +44,7 @@ const CertificationOverview = lazy(() => import('@/pages/certification'))
 const TypeWorkbench = lazy(() => import('@/pages/certification/TypeWorkbench'))
 const H3cBatchExportWorkbench = lazy(() => import('@/pages/certification/components/vendors/h3c/BatchExportWorkbench'))
 const NispBatchWorkbench = lazy(() => import('@/pages/certification/components/vendors/nisp/BatchWorkbench'))
+const RensheBatchWorkbench = lazy(() => import('@/pages/certification/components/vendors/renshe/BatchWorkbench'))
 const JobManagement = lazy(() => import('@/pages/operations/jobs'))
 const TrainingManagement = lazy(() => import('@/pages/operations/training'))
 const ActivityManagement = lazy(() => import('@/pages/operations/activities'))
@@ -268,6 +269,11 @@ export const adminRoutes: AppRoute[] = [
         path: 'renshe',
         element: <TypeWorkbench type='renshe' />,
         meta: { title: '人社认证', icon: 'AuditOutlined', permission: 'user:list' },
+      },
+      {
+        path: 'renshe/batches/:batchId',
+        element: <RensheBatchWorkbench />,
+        meta: { title: '人社批次工作台', icon: 'AuditOutlined', permission: 'user:list', hidden: true },
       },
       {
         path: 'nisp',

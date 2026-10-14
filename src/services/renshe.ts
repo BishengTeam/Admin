@@ -1,6 +1,8 @@
 import { http } from '@/core/request'
 import type { PageData } from '@/types/api'
 import type {
+  RensheBatchExternalReviewPayload,
+  RensheBatchExternalReviewResult,
   RensheApplicationDetail,
   RensheApplicationFilter,
   RensheApplicationListItem,
@@ -39,6 +41,25 @@ export const rensheService = {
     return http.post<RensheReviewCorrection>(`/admin/cert-products/renshe/reviews/${reviewId}/corrections`, data)
   },
 
+  async returnForCorrection(
+    applicationId: number,
+    data: RensheReviewPayload,
+  ): Promise<RensheReview> {
+    return http.post<RensheReview>(
+      `/admin/cert-products/renshe/applications/${applicationId}/return-correction`,
+      data,
+    )
+  },
+
+  async batchExternalReview(
+    data: RensheBatchExternalReviewPayload,
+  ): Promise<{ items: RensheBatchExternalReviewResult[] }> {
+    return http.post<{ items: RensheBatchExternalReviewResult[] }>(
+      '/admin/cert-products/renshe/external-reviews/batch',
+      data,
+    )
+  },
+
   async getMaterialSignedUrl(materialId: number, download = false): Promise<RensheSignedUrl> {
     return http.get<RensheSignedUrl>(`/admin/cert-products/renshe/materials/${materialId}/signed-url`, {
       params: { download },
@@ -59,8 +80,11 @@ export const rensheService = {
     return http.get<RensheExportJob[]>(`/admin/cert-products/renshe/plans/${planId}/exports`)
   },
 
-  async createExportJob(planId: number): Promise<RensheExportJob> {
-    return http.post<RensheExportJob>(`/admin/cert-products/renshe/plans/${planId}/exports`)
+  async createExportJob(planId: number, applicationIds?: number[]): Promise<RensheExportJob> {
+    return http.post<RensheExportJob>(
+      `/admin/cert-products/renshe/plans/${planId}/exports`,
+      applicationIds?.length ? { application_ids: applicationIds } : {},
+    )
   },
 
   async getExportJob(jobId: number): Promise<RensheExportJob> {

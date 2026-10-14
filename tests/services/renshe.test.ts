@@ -52,7 +52,32 @@ describe('renshe admin services', () => {
     const { rensheService } = await import('@/services/renshe')
 
     await rensheService.createExportJob(12)
-    expect(http.post).toHaveBeenCalledWith('/admin/cert-products/renshe/plans/12/exports')
+    expect(http.post).toHaveBeenCalledWith('/admin/cert-products/renshe/plans/12/exports', {})
+
+    await rensheService.createExportJob(12, [101, 102])
+    expect(http.post).toHaveBeenCalledWith('/admin/cert-products/renshe/plans/12/exports', {
+      application_ids: [101, 102],
+    })
+
+    await rensheService.returnForCorrection(101, {
+      decision: 'rejected',
+      reason: '资料需更新',
+      required_changes: ['student_card'],
+    })
+    expect(http.post).toHaveBeenCalledWith('/admin/cert-products/renshe/applications/101/return-correction', {
+      decision: 'rejected',
+      reason: '资料需更新',
+      required_changes: ['student_card'],
+    })
+
+    await rensheService.batchExternalReview({
+      targets: [{ application_id: 101 }],
+      decision: 'approved',
+    })
+    expect(http.post).toHaveBeenCalledWith('/admin/cert-products/renshe/external-reviews/batch', {
+      targets: [{ application_id: 101 }],
+      decision: 'approved',
+    })
 
     await rensheService.retryExportJob(51)
     expect(http.post).toHaveBeenCalledWith('/admin/cert-products/renshe/exports/51/retry')

@@ -44,6 +44,10 @@ export interface RensheApplicationListItem {
   frozen_at: string | null
   created_at: string
   updated_at: string
+  latest_export_job_id: number | null
+  latest_export_generation_no: number | null
+  latest_export_finished_at: string | null
+  current_version_exported: boolean
 }
 
 export interface RensheMaterial {
@@ -78,6 +82,7 @@ export interface RensheReview {
   required_changes: string[] | null
   reviewer_id: number
   reviewed_at: string
+  export_item_id: number | null
 }
 
 export interface RensheReviewCorrectionPayload {
@@ -151,6 +156,16 @@ export interface RensheExportVolume {
   download_available: boolean
 }
 
+export interface RensheExportItem {
+  id: number
+  job_id: number
+  application_id: number
+  version_id: number
+  status: RensheExportStatus
+  estimated_size_bytes: number | null
+  last_error: string | null
+}
+
 export interface RensheExportJob {
   id: number
   plan_id: number
@@ -166,6 +181,26 @@ export interface RensheExportJob {
   retry_count: number
   last_error: string | null
   volumes: RensheExportVolume[]
+  items: RensheExportItem[]
+}
+
+export interface RensheBatchExternalReviewTarget {
+  application_id: number
+}
+
+export interface RensheBatchExternalReviewPayload {
+  targets: RensheBatchExternalReviewTarget[]
+  decision: RensheReviewDecision
+  reason?: string
+  required_changes?: string[]
+}
+
+export interface RensheBatchExternalReviewResult {
+  application_id: number
+  success: boolean
+  status: 'success' | 'failed'
+  reason: string | null
+  review: RensheReview | null
 }
 
 export type RensheRefundStatus = 'requested' | 'approved' | 'processing' | 'succeeded' | 'rejected' | 'failed'

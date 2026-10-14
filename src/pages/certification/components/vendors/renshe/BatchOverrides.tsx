@@ -28,6 +28,7 @@ import {
   StopOutlined,
 } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
+import { useNavigate } from 'react-router-dom'
 import { ConfirmButton } from '@/components/ConfirmButton'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermission } from '@/hooks/usePermission'
@@ -102,6 +103,7 @@ function toPayload(values: PlanFormValues): CertificationPlanPayload {
 
 export default function BatchOverrides({ productCode }: BatchOverridesProps) {
   const pc = productCode!
+  const navigate = useNavigate()
   const [plans, setPlans] = useState<CertificationPlan[]>([])
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -208,6 +210,10 @@ export default function BatchOverrides({ productCode }: BatchOverridesProps) {
     void loadCleanupRuns(plan)
   }
 
+  const openWorkbench = (plan: CertificationPlan) => {
+    navigate(`/admin/certification/renshe/batches/${plan.id}`)
+  }
+
   const retryCleanup = async (run: RensheCleanupRun) => {
     await rensheService.retryCleanupRun(run.id)
     message.success('清理任务已重新排队')
@@ -249,7 +255,17 @@ export default function BatchOverrides({ productCode }: BatchOverridesProps) {
 
   const columns = useMemo<ColumnsType<CertificationPlan>>(() => [
     { title: '批次', dataIndex: 'id', width: 80, render: (id: number) => `#${id}` },
-    { title: '名称', dataIndex: 'name', width: 180, ellipsis: true },
+    {
+      title: '名称',
+      dataIndex: 'name',
+      width: 210,
+      ellipsis: true,
+      render: (value: string, plan) => (
+        <Button type='link' size='small' style={{ padding: 0 }} onClick={() => openWorkbench(plan)}>
+          {value}
+        </Button>
+      ),
+    },
     {
       title: '报名时间',
       width: 250,
@@ -279,6 +295,9 @@ export default function BatchOverrides({ productCode }: BatchOverridesProps) {
       fixed: 'right',
       render: (_, plan) => (
         <Space size={0} wrap>
+          <Button type='primary' ghost size='small' onClick={() => openWorkbench(plan)}>
+            管理报名
+          </Button>
           {canWrite && plan.status === 'draft' && (
             <>
               <Button type="link" size="small" icon={<EditOutlined />} onClick={() => openEdit(plan)}>编辑</Button>
