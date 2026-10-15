@@ -32,4 +32,17 @@ describe('certification product vendors', () => {
     expect(routes).toContain("path: 'sangfor'")
     expect(routes).toContain("<TypeWorkbench type='sangfor' />")
   })
+
+  it('uses consistent batch-first navigation labels for certification workbenches', () => {
+    const vendors = readFile('src/pages/certification/components/vendors/vendor-registry.ts')
+
+    for (const vendor of ['h3c', 'nisp', 'renshe']) {
+      const profile = vendors.slice(
+        vendors.indexOf(`type: '${vendor}'`),
+        vendors.indexOf('type:', vendors.indexOf(`type: '${vendor}'`) + 10),
+      )
+      expect(profile).toContain('batchFirst: true')
+      expect(profile).toContain("label: '退款管理'")
+    }
+  })
 })

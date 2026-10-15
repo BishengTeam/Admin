@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import dayjs, { type Dayjs } from 'dayjs'
 import {
+  Alert,
   Button,
   DatePicker,
-  Descriptions,
   Drawer,
   Form,
   Input,
@@ -35,6 +35,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { usePermission } from '@/hooks/usePermission'
 import { certificationService } from '@/services/certification'
 import { rensheService } from '@/services/renshe'
+import type { RensheProgram } from '@/services/renshe'
 import type { CertificationPlan, CertificationPlanPayload } from '@/types/certification'
 import { PLAN_STATUS_MAP } from '@/types/certification'
 import type { RensheCleanupRun } from '@/types/renshe'
@@ -106,6 +107,7 @@ export default function BatchOverrides(_props: BatchOverridesProps) {
   const pc = 'RS-ZY'
   const navigate = useNavigate()
   const [plans, setPlans] = useState<CertificationPlan[]>([])
+  const [programs, setPrograms] = useState<RensheProgram[]>([])
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [modalOpen, setModalOpen] = useState(false)
@@ -128,9 +130,18 @@ export default function BatchOverrides(_props: BatchOverridesProps) {
     }
   }, [pc])
 
+  const loadPrograms = useCallback(async () => {
+    try {
+      setPrograms(await rensheService.listPrograms())
+    } catch {
+      setPrograms([])
+    }
+  }, [])
+
   useEffect(() => {
     void loadPlans()
-  }, [loadPlans])
+    void loadPrograms()
+  }, [loadPlans, loadPrograms])
 
   const openCreate = () => {
     setEditingPlan(null)
@@ -151,10 +162,18 @@ export default function BatchOverrides(_props: BatchOverridesProps) {
     try {
       const payload = toPayload(values)
       if (editingPlan) {
-        await certificationService.updatePlan(pc, editingPlan.id, payload)
+        await certificationService.updatePlan(pc, editingPlan.id, {
+          ...payload,
+          ...(editingPlan.status === 'draft'
+            ? { program_code: programs[0]?.program_code }
+            : {}),
+        })
         message.success('批次已更新')
       } else {
-        await certificationService.createPlan(pc, payload)
+        await certificationService.createPlan(pc, {
+          ...payload,
+          program_code: programs[0]?.program_code,
+        })
         message.success('批次已创建')
       }
       setModalOpen(false)
@@ -266,6 +285,17 @@ export default function BatchOverrides(_props: BatchOverridesProps) {
         <Button type='link' size='small' style={{ padding: 0 }} onClick={() => openWorkbench(plan)}>
           {value}
         </Button>
+      ),
+    },
+    {
+      title: '报考项目',
+      width: 210,
+      ellipsis: true,
+      render: (_, plan) => (
+        <Space direction='vertical' size={0}>
+          <Text>{plan.occupation_name || '待核实'}</Text>
+          <Text type='secondary'>{plan.skill_level || '待核实'}</Text>
+        </Space>
       ),
     },
     {
@@ -390,17 +420,31 @@ export default function BatchOverrides(_props: BatchOverridesProps) {
   return (
     <>
       <Space style={{ marginBottom: 16, width: '100%', justifyContent: 'flex-end' }}>
-        {canWrite && <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>新建批次</Button>}
+        {canWrite && (
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            disabled={programs.length !== 1}
+            onClick={openCreate}
+          >
+            新建批次
+          </Button>
+        )}
         <Button icon={<ReloadOutlined />} loading={loading} onClick={loadPlans}>刷新</Button>
       </Space>
 
-      <Descriptions bordered size="small" column={5} style={{ marginBottom: 16 }}>
-        <Descriptions.Item label="产品">RS-ZY</Descriptions.Item>
-        <Descriptions.Item label="职业">信息安全管理员</Descriptions.Item>
-        <Descriptions.Item label="等级">中级工</Descriptions.Item>
-        <Descriptions.Item label="考试类型">新考</Descriptions.Item>
-        <Descriptions.Item label="申报类型">学历型</Descriptions.Item>
-      </Descriptions>
+      {canWrite && programs.length !== 1 && (
+        <Alert
+          style={{ marginBottom: 16 }}
+          type={programs.length === 0 ? 'warning' : 'info'}
+          showIcon
+          message={
+            programs.length === 0
+              ? '暂无法获取当前支持的报考组合，先刷新后再新建批次'
+              : '当前支持多个报考组合，请联系管理员完善批次创建表单'
+          }
+        />
+      )}
 
       <Table
         rowKey="id"
@@ -422,6 +466,25 @@ export default function BatchOverrides(_props: BatchOverridesProps) {
         destroyOnClose
       >
         <Form form={form} layout="vertical">
+          {(() => {
+            const program = editingPlan
+              ? {
+                occupation_name: editingPlan.occupation_name,
+                skill_level: editingPlan.skill_level,
+                exam_type: editingPlan.exam_type,
+                application_type: editingPlan.application_type,
+              }
+              : programs[0]
+            return (
+              <Alert
+                style={{ marginBottom: 20 }}
+                type='info'
+                showIcon
+                message='当前支持的报考项目'
+                description={`${program?.occupation_name || '待核实'} · ${program?.skill_level || '待核实'} · ${program?.exam_type || '待核实'} · ${program?.application_type || '待核实'}`}
+              />
+            )
+          })()}
           <Form.Item name="name" label="批次名称" rules={[{ required: true, whitespace: true, message: '请输入批次名称' }]}>
             <Input maxLength={128} showCount />
           </Form.Item>

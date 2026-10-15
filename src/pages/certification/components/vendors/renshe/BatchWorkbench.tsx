@@ -399,6 +399,10 @@ export default function RensheBatchWorkbench() {
           <Descriptions.Item label='状态'>{plan.status}</Descriptions.Item>
           <Descriptions.Item label='报名费'>{formatPrice(plan.price_cents)}</Descriptions.Item>
           <Descriptions.Item label='名额'>{plan.enrolled}/{plan.capacity || '不限'}</Descriptions.Item>
+          <Descriptions.Item label='报考项目'>{plan.occupation_name || '待核实'}</Descriptions.Item>
+          <Descriptions.Item label='技能等级'>{plan.skill_level || '待核实'}</Descriptions.Item>
+          <Descriptions.Item label='考试类型'>{plan.exam_type || '待核实'}</Descriptions.Item>
+          <Descriptions.Item label='申报类型'>{plan.application_type || '待核实'}</Descriptions.Item>
           <Descriptions.Item label='报名时间' span={2}>
             {formatDateOrNull(plan.apply_start)} ~ {formatDateOrNull(plan.apply_end)}
           </Descriptions.Item>

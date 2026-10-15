@@ -127,6 +127,14 @@ export interface RensheApplicationDetail {
   close_reason: string | null
   created_at: string
   updated_at: string
+  plan: {
+    id: number
+    name: string
+    occupation_name: string
+    skill_level: string
+    exam_type: string
+    application_type: string
+  }
   versions: RensheApplicationVersion[]
   current_order_id: number | null
   current_order_status: string | null

@@ -13,7 +13,7 @@ describe('Renshe batch workbench contract', () => {
     )
 
     expect(rensheProfile).toContain('batchFirst: true')
-    expect(rensheProfile).toContain("label: '退款'")
+    expect(rensheProfile).toContain("label: '退款管理'")
     expect(rensheProfile).not.toContain("label: '报名审核'")
     expect(rensheProfile).not.toContain("label: '导出'")
     expect(routes).toContain("path: 'renshe/batches/:batchId'")

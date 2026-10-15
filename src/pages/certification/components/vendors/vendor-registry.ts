@@ -13,6 +13,7 @@ export interface VendorProfile {
   /** H3C 等按批次办理的业务默认进入批次列表，产品配置后置。 */
   batchFirst?: boolean
   productTabLabel?: string
+  productComponent?: LazyExoticComponent<ComponentType<{ type: CertType }>>
   batchOverrides?: LazyExoticComponent<ComponentType<any>>
   batchFormExtra?: LazyExoticComponent<ComponentType<any>>
   tabs: VendorTab[]
@@ -57,12 +58,13 @@ const vendorRegistry: VendorProfile[] = [
   {
     type: 'renshe',
     batchFirst: true,
-    productTabLabel: '产品设置',
+    productTabLabel: '认证设置',
+    productComponent: lazy(() => import('./renshe/CertificationSettings')),
     batchOverrides: lazy(() => import('./renshe/BatchOverrides')),
     tabs: [
       {
         key: 'refund',
-        label: '退款',
+        label: '退款管理',
         permission: 'order:list',
         component: lazy(() => import('./renshe/RefundTab')),
       },

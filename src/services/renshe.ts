@@ -20,7 +20,20 @@ import type {
   RensheSignedUrl,
 } from '@/types/renshe'
 
+export interface RensheProgram {
+  program_code: string
+  occupation_name: string
+  occupation_code: string
+  skill_level: string
+  exam_type: string
+  application_type: string
+}
+
 export const rensheService = {
+  async listPrograms(): Promise<RensheProgram[]> {
+    return http.get<RensheProgram[]>('/admin/cert-products/renshe/programs')
+  },
+
   async listApplications(params: RensheApplicationFilter): Promise<PageData<RensheApplicationListItem>> {
     return http.get<PageData<RensheApplicationListItem>>('/admin/cert-products/renshe/applications', { params })
   },

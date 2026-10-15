@@ -72,4 +72,5 @@ export interface CertificationPlanPayload {
   contact_name?: string | null
   contact_phone?: string | null
   sort_order?: number
+  program_code?: string
 }

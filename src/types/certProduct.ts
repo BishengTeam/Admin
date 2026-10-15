@@ -58,7 +58,7 @@ export interface CertProductUpdatePayload {
   code?: string
   name?: string
   chinese_name?: string
-  description?: string
+  description?: string | null
   home_cover_url?: string | null
   is_active?: boolean
   sort_order?: number

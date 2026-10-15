@@ -62,7 +62,13 @@ export default function TypeWorkbench({ type: typeProp }: { type?: string }) {
       items.push({
         key: 'products',
         label: profile.productTabLabel ?? '产品设置',
-        children: <ProductTable type={type as CertType} />,
+        children: profile.productComponent ? (
+          <Suspense fallback={<div style={{ textAlign: 'center', padding: 48 }}><Spin /></div>}>
+            <profile.productComponent type={type as CertType} />
+          </Suspense>
+        ) : (
+          <ProductTable type={type as CertType} />
+        ),
       })
     }
 

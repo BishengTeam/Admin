@@ -357,8 +357,13 @@ export default function ApplicationDetailDrawer({
           <>
             <Descriptions bordered size="small" column={3} style={{ marginBottom: 24 }}>
               <Descriptions.Item label="报名 ID">#{detail.id}</Descriptions.Item>
-              <Descriptions.Item label="批次 ID">#{detail.plan_id}</Descriptions.Item>
+              <Descriptions.Item label="批次">{detail.plan.name}（#{detail.plan_id}）</Descriptions.Item>
               <Descriptions.Item label="用户 ID">#{detail.user_id}</Descriptions.Item>
+              <Descriptions.Item label="报考项目">{detail.plan.occupation_name || '待核实'}</Descriptions.Item>
+              <Descriptions.Item label="技能等级">{detail.plan.skill_level || '待核实'}</Descriptions.Item>
+              <Descriptions.Item label="考试 / 申报">
+                {detail.plan.exam_type || '待核实'} / {detail.plan.application_type || '待核实'}
+              </Descriptions.Item>
               <Descriptions.Item label="报名状态">
                 {renderStatus(detail.status, RENSHE_APPLICATION_STATUS_MAP)}
               </Descriptions.Item>
