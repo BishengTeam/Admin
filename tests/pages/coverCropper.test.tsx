@@ -36,11 +36,12 @@ describe('cover cropper', () => {
     expect(source).toContain('裁剪框大小固定（与小程序显示比例一致），在原图上拖动选择截取位置')
   })
 
-  it('crops competition covers with fixed boxes for both ratios', () => {
+  it('crops competition covers with a fixed box', () => {
     const source = readSource('src/pages/operations/competitions/CompetitionTab.tsx')
 
     expect(source).toContain("crop={{ width: 1404, height: 640, title: '赛事封面', fixed: true }}")
-    expect(source).toContain("crop={{ width: 686, height: 680, title: '首页竖版封面', fixed: true }}")
+    // 首页竖版封面（686×680）已于 2026-10-15 下线，不应再出现
+    expect(source).not.toContain("width: 686, height: 680")
     expect(source).toContain('裁剪框大小固定，拖动选择截取位置')
   })
 
