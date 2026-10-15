@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Button, Input, Modal, Select, Space, Tag, Typography, message } from 'antd'
+import { usePermission } from '@/hooks/usePermission'
 import { useReauthentication } from '@/hooks/useReauthentication'
 import { nispService } from '@/services/nisp'
 import type { NispMaterial, NispRegistration } from '@/services/nisp'
@@ -67,6 +69,8 @@ export default function RegistrationReviewDrawer({
   onReviewed,
   onNextPending,
 }: Props) {
+  const navigate = useNavigate()
+  const canViewRefunds = usePermission('nisp:refund')
   const [detail, setDetail] = useState<NispRegistration | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
   const [rejectOpen, setRejectOpen] = useState(false)
@@ -224,6 +228,21 @@ export default function RegistrationReviewDrawer({
                     <Text type='danger' style={{ fontSize: 12 }}>
                       {refundRetryDescription(current.active_refund)}
                     </Text>
+                  )}
+                  {canViewRefunds && current.active_refund && (
+                    <Button
+                      size='small'
+                      type='link'
+                      style={{ padding: 0, height: 'auto' }}
+                      onClick={() => {
+                        onClose()
+                        navigate(
+                          `/admin/certification/nisp/batches/${current.batch_id}?tab=refunds&refundRegistrationId=${current.id}`,
+                        )
+                      }}
+                    >
+                      查看退款记录
+                    </Button>
                   )}
                 </Space>
               ),

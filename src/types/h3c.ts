@@ -177,6 +177,7 @@ export interface H3cRefund {
   reason_detail: string | null
   amount_cents: number
   status: string
+  requested_at: string
   approved_by_admin_id: number | null
   approved_at: string | null
   out_refund_no: string | null
@@ -185,6 +186,12 @@ export interface H3cRefund {
   last_error: string | null
   retry_count: number
   created_at: string
+  out_trade_no?: string | null
+  candidate_name?: string | null
+  registration_no?: string | null
+  batch_id?: number | null
+  batch_name?: string | null
+  product_label?: string | null
 }
 
 export interface H3cExportJob {

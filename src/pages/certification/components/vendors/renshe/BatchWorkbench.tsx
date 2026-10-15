@@ -21,6 +21,7 @@ import type { ColumnsType } from 'antd/es/table'
 import { ArrowLeftOutlined, DownloadOutlined, EyeOutlined, ReloadOutlined, RetweetOutlined } from '@ant-design/icons'
 import { PageContainer } from '@/components/PageContainer'
 import { ConsultationGroupDialog } from '@/components/ConsultationGroupDialog'
+import { RefundWorkbench } from '@/components/RefundWorkbench'
 import { usePagination } from '@/hooks/usePagination'
 import { usePermission } from '@/hooks/usePermission'
 import { certificationService } from '@/services/certification'
@@ -99,8 +100,11 @@ export default function RensheBatchWorkbench() {
   const { batchId } = useParams<{ batchId: string }>()
   const planId = Number(batchId)
   const [searchParams] = useSearchParams()
+  const openApplicationId = Number(searchParams.get('openRegistrationId'))
+  const refundApplicationId = Number(searchParams.get('refundRegistrationId'))
   const navigate = useNavigate()
   const canWrite = usePermission('user:write')
+  const canRefund = usePermission('order:list')
   const [plan, setPlan] = useState<CertificationPlan | null>(null)
   const [filters, setFilters] = useState<PeopleFilters>(() => ({
     keyword: '',
@@ -122,7 +126,7 @@ export default function RensheBatchWorkbench() {
   const [exporting, setExporting] = useState(false)
   const [selectedListOpen, setSelectedListOpen] = useState(false)
   const [itemJob, setItemJob] = useState<RensheExportJob | null>(null)
-  const [activeTab, setActiveTab] = useState('people')
+  const [activeTab, setActiveTab] = useState(searchParams.get('tab') === 'refunds' ? 'refunds' : 'people')
   const [consultationOpen, setConsultationOpen] = useState(false)
 
   const loadPlan = useCallback(async () => {
@@ -132,6 +136,17 @@ export default function RensheBatchWorkbench() {
   }, [planId])
 
   useEffect(() => { void loadPlan() }, [loadPlan])
+
+  useEffect(() => {
+    const tab = searchParams.get('tab')
+    if (tab === 'refunds') setActiveTab('refunds')
+  }, [searchParams])
+
+  useEffect(() => {
+    if (!Number.isInteger(openApplicationId) || openApplicationId <= 0) return
+    setDrawerId(openApplicationId)
+    setDrawerOpen(true)
+  }, [openApplicationId])
 
   const applications = usePagination<RensheApplicationListItem>(
     page => rensheService.listApplications({
@@ -485,6 +500,19 @@ export default function RensheBatchWorkbench() {
               scroll={{ x: 1150 }}
             />
           ) },
+          ...(canRefund ? [{
+            key: 'refunds',
+            label: '退款记录',
+            children: (
+              <RefundWorkbench
+                vendor='renshe'
+                batchId={planId}
+                registrationId={Number.isInteger(refundApplicationId) ? refundApplicationId : undefined}
+                embedded
+                onChanged={applications.refresh}
+              />
+            ),
+          }] : []),
         ]}
       />
 

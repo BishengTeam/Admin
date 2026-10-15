@@ -9,6 +9,7 @@ export interface PageData<T> {
   total: number
   page: number
   page_size: number
+  status_counts?: Record<string, number>
 }
 
 export interface PageParams {

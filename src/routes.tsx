@@ -243,7 +243,22 @@ export const adminRoutes: AppRoute[] = [
   },
   {
     path: 'certification',
-    meta: { title: '认证管理', icon: 'SafetyCertificateOutlined', permission: 'content:list' },
+    meta: {
+      title: '认证管理',
+      icon: 'SafetyCertificateOutlined',
+      permissions: [
+        'content:list',
+        'h3c:review',
+        'h3c:export',
+        'h3c:refund',
+        'user:list',
+        'user:write',
+        'order:list',
+        'nisp:review',
+        'nisp:export',
+        'nisp:refund',
+      ],
+    },
     children: [
       {
         index: true,
@@ -253,37 +268,69 @@ export const adminRoutes: AppRoute[] = [
       {
         path: 'h3c',
         element: <TypeWorkbench type='h3c' />,
-        meta: { title: '新华三认证', icon: 'ClusterOutlined', permission: 'h3c:review' },
+        meta: {
+          title: '新华三认证',
+          icon: 'ClusterOutlined',
+          permissions: ['h3c:review', 'h3c:export', 'h3c:refund'],
+        },
       },
       {
         path: 'h3c/batches/:batchId',
         element: <H3cBatchExportWorkbench />,
-        meta: { title: 'H3C 批次工作台', icon: 'FileZipOutlined', permission: 'h3c:review', hidden: true },
+        meta: {
+          title: 'H3C 批次工作台',
+          icon: 'FileZipOutlined',
+          permissions: ['h3c:review', 'h3c:export', 'h3c:refund'],
+          hidden: true,
+        },
       },
       {
         path: 'h3c/export/:batchId',
         element: <H3cBatchExportWorkbench />,
-        meta: { title: 'H3C 批次工作台', icon: 'FileZipOutlined', permission: 'h3c:review', hidden: true },
+        meta: {
+          title: 'H3C 批次工作台',
+          icon: 'FileZipOutlined',
+          permissions: ['h3c:review', 'h3c:export', 'h3c:refund'],
+          hidden: true,
+        },
       },
       {
         path: 'renshe',
         element: <TypeWorkbench type='renshe' />,
-        meta: { title: '人社认证', icon: 'AuditOutlined', permission: 'user:list' },
+        meta: {
+          title: '人社认证',
+          icon: 'AuditOutlined',
+          permissions: ['user:list', 'user:write', 'order:list'],
+        },
       },
       {
         path: 'renshe/batches/:batchId',
         element: <RensheBatchWorkbench />,
-        meta: { title: '人社批次工作台', icon: 'AuditOutlined', permission: 'user:list', hidden: true },
+        meta: {
+          title: '人社批次工作台',
+          icon: 'AuditOutlined',
+          permissions: ['user:list', 'user:write', 'order:list'],
+          hidden: true,
+        },
       },
       {
         path: 'nisp',
         element: <TypeWorkbench type='nisp' />,
-        meta: { title: 'NISP认证', icon: 'FileSearchOutlined', permission: 'nisp:review' },
+        meta: {
+          title: 'NISP认证',
+          icon: 'FileSearchOutlined',
+          permissions: ['nisp:review', 'nisp:export', 'nisp:refund'],
+        },
       },
       {
         path: 'nisp/batches/:batchId',
         element: <NispBatchWorkbench />,
-        meta: { title: 'NISP 批次工作台', icon: 'FileZipOutlined', permission: 'nisp:review', hidden: true },
+        meta: {
+          title: 'NISP 批次工作台',
+          icon: 'FileZipOutlined',
+          permissions: ['nisp:review', 'nisp:export', 'nisp:refund'],
+          hidden: true,
+        },
       },
       {
         path: 'sangfor',

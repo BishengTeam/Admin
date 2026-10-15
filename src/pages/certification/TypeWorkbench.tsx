@@ -2,6 +2,7 @@ import { Suspense, useMemo } from 'react'
 import { Spin, Tabs, Typography } from 'antd'
 import { Navigate, useParams } from 'react-router-dom'
 import { PageContainer } from '@/components/PageContainer'
+import { useAuth } from '@/hooks/useAuth'
 import { CERT_TYPE_META, type CertType } from './components/vendors/type-registry'
 import { getVendorProfile } from './components/vendors/vendor-registry'
 import ProductTable from './components/shared/ProductTable'
@@ -9,13 +10,19 @@ import PlanTable from './components/shared/PlanTable'
 
 const { Text } = Typography
 
+function hasPermission(permissions: string[], code?: string) {
+  return !code || permissions.includes('*') || permissions.includes(code)
+}
+
 export default function TypeWorkbench({ type: typeProp }: { type?: string }) {
   const params = useParams<{ type: string }>()
   const type = typeProp ?? params.type
   const meta = CERT_TYPE_META[type as CertType]
   const profile = getVendorProfile(type as CertType)
+  const { permissions } = useAuth()
 
   const tabs = useMemo(() => {
+    const authorizedTabs = profile?.tabs.filter(tab => hasPermission(permissions, tab.permission)) ?? []
     const items = profile?.batchFirst ? [] : [
       {
         key: 'products',
@@ -38,7 +45,7 @@ export default function TypeWorkbench({ type: typeProp }: { type?: string }) {
     else items.splice(1, 0, plansTab)
 
     if (profile) {
-      for (const tab of profile.tabs) {
+      for (const tab of authorizedTabs) {
         items.push({
           key: tab.key,
           label: tab.label,
@@ -60,7 +67,7 @@ export default function TypeWorkbench({ type: typeProp }: { type?: string }) {
     }
 
     return items
-  }, [type, profile])
+  }, [type, profile, permissions])
 
   if (!meta) return <Navigate to='/admin/certification' replace />
 

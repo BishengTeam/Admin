@@ -29,14 +29,11 @@ describe('certification refund recovery display', () => {
   })
 
   it('explains refund failures in refund lists', () => {
-    for (const path of [
-      'src/pages/certification/components/vendors/h3c/RefundTab.tsx',
-      'src/pages/certification/components/vendors/nisp/RefundTab.tsx',
-      'src/pages/certification/components/vendors/renshe/RefundTab.tsx',
-    ]) {
-      const source = readSource(path)
-      expect(source, path).toContain('refundErrorText')
-    }
+    const source = readSource('src/components/RefundWorkbench.tsx')
+    expect(source).toContain('refundErrorText')
+    expect(readSource('src/pages/certification/components/vendors/h3c/RefundTab.tsx')).toContain("vendor='h3c'")
+    expect(readSource('src/pages/certification/components/vendors/nisp/RefundTab.tsx')).toContain("vendor='nisp'")
+    expect(readSource('src/pages/certification/components/vendors/renshe/RefundTab.tsx')).toContain("vendor='renshe'")
   })
 
   it('explains Renshe refund failures in the application drawer', () => {

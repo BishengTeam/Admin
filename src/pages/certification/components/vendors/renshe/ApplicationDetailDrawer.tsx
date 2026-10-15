@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   Button,
   Collapse,
@@ -103,6 +104,7 @@ export default function ApplicationDetailDrawer({
   onClose,
   onChanged,
 }: ApplicationDetailDrawerProps) {
+  const navigate = useNavigate()
   const [detail, setDetail] = useState<RensheApplicationDetail | null>(null)
   const [loading, setLoading] = useState(false)
   const [reviewing, setReviewing] = useState(false)
@@ -111,6 +113,7 @@ export default function ApplicationDetailDrawer({
   const [rejectionForm] = Form.useForm<RejectionFormValues>()
   const [correctionForm] = Form.useForm<CorrectionFormValues>()
   const canWrite = usePermission('user:write')
+  const canViewRefunds = usePermission('order:list')
   const { admin } = useAuth()
   const isSuperAdmin = admin?.role === 'super_admin'
 
@@ -382,6 +385,21 @@ export default function ApplicationDetailDrawer({
                       <Text type='danger' style={{ fontSize: 12 }}>
                         {refundErrorText(detail.current_refund_last_error)}
                       </Text>
+                    )}
+                    {canViewRefunds && detail.current_refund_id && (
+                      <Button
+                        size='small'
+                        type='link'
+                        style={{ padding: 0, height: 'auto' }}
+                        onClick={() => {
+                          onClose()
+                          navigate(
+                            `/admin/certification/renshe/batches/${detail.plan_id}?tab=refunds&refundRegistrationId=${detail.id}`,
+                          )
+                        }}
+                      >
+                        查看退款记录
+                      </Button>
                     )}
                   </Space>
                 </Descriptions.Item>

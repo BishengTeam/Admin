@@ -96,7 +96,9 @@ export function hasRouteAccess(
   if (route.meta?.roles && (!role || !route.meta.roles.includes(role as AdminRole))) return false
   if (permissions.includes('*')) return true
   const required = route.meta?.permissions ?? (route.meta?.permission ? [route.meta.permission] : [])
-  return required.every((permission) => permissions.includes(permission))
+  // `permissions` is an any-of contract. Route-level narrow access is enforced
+  // inside the page by hiding or rejecting the specific action.
+  return required.some((permission) => permissions.includes(permission))
 }
 
 export function buildMenuItems(

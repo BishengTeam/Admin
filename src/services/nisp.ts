@@ -109,6 +109,32 @@ export interface NispExportJob {
   created_at: string
 }
 
+export interface NispRefund {
+  id: number
+  registration_id: number
+  order_id: number
+  request_kind: string
+  reason_code: string
+  reason_detail: string | null
+  amount_cents: number
+  status: string
+  requested_by_admin_id: number | null
+  requested_at: string
+  approved_by_admin_id: number | null
+  approved_at: string | null
+  out_trade_no?: string | null
+  out_refund_no: string | null
+  processing_at: string | null
+  succeeded_at: string | null
+  last_error: string | null
+  retry_count: number
+  candidate_name?: string | null
+  registration_no?: string | null
+  batch_id?: number | null
+  batch_name?: string | null
+  product_label?: string | null
+}
+
 export interface NispExportPrecheckPerson {
   registration_id: number
   registration_no: string
@@ -244,6 +270,28 @@ export const nispService = {
     has_valid_export?: boolean
   }): Promise<PageData<NispRegistration>> {
     return http.get('/admin/nisp/registrations', { params })
+  },
+
+  listRefunds(params: PageParams & {
+    registration_id?: number
+    batch_id?: number
+    keyword?: string
+    reason_code?: string
+    request_kind?: string
+    requested_at_start?: string
+    requested_at_end?: string
+    group?: 'pending' | 'processing' | 'abnormal'
+    status?: string
+  }): Promise<PageData<NispRefund>> {
+    return http.get('/admin/nisp/refunds', { params })
+  },
+
+  confirmRefund(id: number): Promise<NispRefund> {
+    return http.post(`/admin/nisp/refunds/${id}/confirm`)
+  },
+
+  reconcileRefund(id: number): Promise<NispRefund> {
+    return http.post(`/admin/nisp/refunds/${id}/reconcile`)
   },
 
   getRegistration(id: number): Promise<NispRegistration> {

@@ -36,6 +36,8 @@ const vendorRegistry: VendorProfile[] = [
   },
   {
     type: 'nisp',
+    batchFirst: true,
+    productTabLabel: '产品设置',
     batchOverrides: lazy(() => import('./nisp/BatchOverrides')),
     tabs: [
       {
@@ -46,15 +48,9 @@ const vendorRegistry: VendorProfile[] = [
       },
       {
         key: 'refund',
-        label: '退款',
+        label: '退款管理',
         permission: 'nisp:refund',
         component: lazy(() => import('./nisp/RefundTab')),
-      },
-      {
-        key: 'export',
-        label: '导出',
-        permission: 'nisp:export',
-        component: lazy(() => import('./nisp/ExportTab')),
       },
     ],
   },

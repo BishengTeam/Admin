@@ -123,7 +123,17 @@ export const h3cService = {
       reauthHeaders(reauthToken),
     )
   },
-  listRefunds(params: PageParams & { status?: string }): Promise<PageData<H3cRefund>> {
+  listRefunds(params: PageParams & {
+    registration_id?: number
+    batch_id?: number
+    keyword?: string
+    reason_code?: string
+    request_kind?: string
+    requested_at_start?: string
+    requested_at_end?: string
+    group?: 'pending' | 'processing' | 'abnormal'
+    status?: string
+  }): Promise<PageData<H3cRefund>> {
     return http.get('/admin/cert-products/h3c/refunds', { params })
   },
   confirmRefund(id: number, reauthToken: string): Promise<H3cRefund> {

@@ -61,17 +61,26 @@ describe('certification review materials', () => {
     expect(shared).toContain("title='报名材料'")
   })
 
-  it('labels NISP exports as full packages with per-candidate archives', () => {
+  it('keeps NISP exports inside the batch workbench', () => {
     const page = readFileSync(
       resolve(
         process.cwd(),
-        'src/pages/certification/components/vendors/nisp/ExportTab.tsx',
+        'src/pages/certification/components/vendors/nisp/BatchWorkbench.tsx',
+      ),
+      'utf8',
+    )
+    const registry = readFileSync(
+      resolve(
+        process.cwd(),
+        'src/pages/certification/components/vendors/vendor-registry.ts',
       ),
       'utf8',
     )
 
-    expect(page).toContain("'full_package'")
+    expect(registry).not.toContain('./nisp/ExportTab')
+    expect(registry).toContain("type: 'nisp'")
+    expect(registry).toContain('batchFirst: true')
     expect(page).toContain('完整资料包')
-    expect(page).toContain('每位考生独立 ZIP')
+    expect(page).toContain("setActiveTab('records')")
   })
 })

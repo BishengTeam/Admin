@@ -30,6 +30,7 @@ import {
 } from '@ant-design/icons'
 import { PageContainer } from '@/components/PageContainer'
 import { ConsultationGroupDialog } from '@/components/ConsultationGroupDialog'
+import { RefundWorkbench } from '@/components/RefundWorkbench'
 import { usePagination } from '@/hooks/usePagination'
 import { usePermission } from '@/hooks/usePermission'
 import { useReauthentication } from '@/hooks/useReauthentication'
@@ -106,8 +107,11 @@ export default function NispBatchWorkbench() {
   const { batchId } = useParams<{ batchId: string }>()
   const parsedBatchId = Number(batchId)
   const [searchParams] = useSearchParams()
+  const openRegistrationId = Number(searchParams.get('openRegistrationId'))
+  const refundRegistrationId = Number(searchParams.get('refundRegistrationId'))
   const navigate = useNavigate()
   const canExport = usePermission('nisp:export')
+  const canRefund = usePermission('nisp:refund')
   const [batch, setBatch] = useState<NispBatch | null>(null)
   const [keywordInput, setKeywordInput] = useState('')
   const [filters, setFilters] = useState<RegistrationFilters>(() => ({
@@ -132,7 +136,7 @@ export default function NispBatchWorkbench() {
   const [finalOpen, setFinalOpen] = useState(false)
   const [reviewSubmitting, setReviewSubmitting] = useState(false)
   const [reviewResults, setReviewResults] = useState<NispBatchFinalReviewResult[] | null>(null)
-  const [activeTab, setActiveTab] = useState('people')
+  const [activeTab, setActiveTab] = useState(searchParams.get('tab') === 'refunds' ? 'refunds' : 'people')
   const [consultationOpen, setConsultationOpen] = useState(false)
   const { ensureReauthenticated, reauthDialog } = useReauthentication()
   const activeJobRef = useRef(false)
@@ -160,6 +164,27 @@ export default function NispBatchWorkbench() {
     if (!Number.isInteger(parsedBatchId)) return
     nispService.getBatch(parsedBatchId).then(setBatch).catch(() => setBatch(null))
   }, [parsedBatchId])
+
+  useEffect(() => {
+    const tab = searchParams.get('tab')
+    if (tab === 'refunds') setActiveTab('refunds')
+  }, [searchParams])
+
+  useEffect(() => {
+    if (!Number.isInteger(openRegistrationId) || openRegistrationId <= 0) return
+    let cancelled = false
+    nispService.getRegistration(openRegistrationId)
+      .then((row) => {
+        if (!cancelled) {
+          setReviewRegistration(row)
+          setReviewOpen(true)
+        }
+      })
+      .catch(() => undefined)
+    return () => {
+      cancelled = true
+    }
+  }, [openRegistrationId])
 
   useEffect(() => {
     setSelectedRegistrationIds(new Set())
@@ -662,6 +687,19 @@ export default function NispBatchWorkbench() {
             locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description='暂无导出记录' /> }}
           />
         </Card>
+      ),
+    }] : []),
+    ...(canRefund ? [{
+      key: 'refunds',
+      label: '退款记录',
+      children: (
+        <RefundWorkbench
+          vendor='nisp'
+          batchId={parsedBatchId}
+          registrationId={Number.isInteger(refundRegistrationId) ? refundRegistrationId : undefined}
+          embedded
+          onChanged={registrations.refresh}
+        />
       ),
     }] : []),
   ]

@@ -206,7 +206,15 @@ export interface RensheBatchExternalReviewResult {
 export type RensheRefundStatus = 'requested' | 'approved' | 'processing' | 'succeeded' | 'rejected' | 'failed'
 
 export interface RensheRefundFilter extends PageParams {
-  status?: RensheRefundStatus
+  application_id?: number
+  status?: RensheRefundStatus | string
+  plan_id?: number
+  keyword?: string
+  reason_code?: string
+  request_kind?: string
+  requested_at_start?: string
+  requested_at_end?: string
+  group?: 'pending' | 'processing' | 'abnormal'
 }
 
 export interface RensheRefund {
@@ -221,10 +229,21 @@ export interface RensheRefund {
   status: RensheRefundStatus
   requested_at: string
   due_at: string
+  approved_by_admin_id?: number | null
+  decided_at?: string | null
   rejection_reason: string | null
+  out_refund_no?: string | null
+  wechat_refund_id?: string | null
+  processing_at?: string | null
   succeeded_at: string | null
   last_error: string | null
   retry_count: number
+  out_trade_no?: string | null
+  candidate_name?: string | null
+  registration_no?: string | null
+  batch_id?: number | null
+  batch_name?: string | null
+  product_label?: string | null
 }
 
 export interface RensheRefundDecisionPayload {

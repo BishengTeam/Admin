@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Button, Checkbox, Form, Input, Modal, Radio, Select, Space, Tag, Typography, message } from 'antd'
+import { usePermission } from '@/hooks/usePermission'
 import { useReauthentication } from '@/hooks/useReauthentication'
 import { h3cService } from '@/services/h3c'
 import { formatDate, formatPrice } from '@/utils/format'
@@ -89,6 +91,8 @@ export default function RegistrationReviewDrawer({
   onReviewed,
   onNextPending,
 }: Props) {
+  const navigate = useNavigate()
+  const canViewRefunds = usePermission('h3c:refund')
   const [detail, setDetail] = useState<H3cRegistration | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
   const [reviewOpen, setReviewOpen] = useState(false)
@@ -211,7 +215,29 @@ export default function RegistrationReviewDrawer({
           materialLoading={detailLoading}
           statusItems={[
             { label: '报名类型', content: TYPE_LABELS[current.registration_type] },
-            { label: '状态', content: statusTag(current.status, current.active_refund) },
+            {
+              label: '状态',
+              content: (
+                <Space direction='vertical' size={0}>
+                  {statusTag(current.status, current.active_refund)}
+                  {canViewRefunds && current.active_refund && (
+                    <Button
+                      size='small'
+                      type='link'
+                      style={{ padding: 0, height: 'auto' }}
+                      onClick={() => {
+                        onClose()
+                        navigate(
+                          `/admin/certification/h3c/batches/${current.batch_id}?tab=refunds&refundRegistrationId=${current.id}`,
+                        )
+                      }}
+                    >
+                      查看退款记录
+                    </Button>
+                  )}
+                </Space>
+              ),
+            },
             { label: '金额', content: formatPrice(current.price_cents) },
             { label: '补交次数', content: current.resubmission_count },
             { label: '有效导出', content: current.latest_valid_export_finished_at ? formatDate(current.latest_valid_export_finished_at) : '未导出' },
