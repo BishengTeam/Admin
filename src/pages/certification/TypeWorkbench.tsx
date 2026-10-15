@@ -1,6 +1,6 @@
 import { Suspense, useMemo } from 'react'
 import { Spin, Tabs, Typography } from 'antd'
-import { Navigate, useParams } from 'react-router-dom'
+import { Navigate, useParams, useSearchParams } from 'react-router-dom'
 import { PageContainer } from '@/components/PageContainer'
 import { useAuth } from '@/hooks/useAuth'
 import { CERT_TYPE_META, type CertType } from './components/vendors/type-registry'
@@ -16,6 +16,7 @@ function hasPermission(permissions: string[], code?: string) {
 
 export default function TypeWorkbench({ type: typeProp }: { type?: string }) {
   const params = useParams<{ type: string }>()
+  const [searchParams, setSearchParams] = useSearchParams()
   const type = typeProp ?? params.type
   const meta = CERT_TYPE_META[type as CertType]
   const profile = getVendorProfile(type as CertType)
@@ -79,7 +80,7 @@ export default function TypeWorkbench({ type: typeProp }: { type?: string }) {
 
   return (
     <PageContainer title={`${meta.label}认证管理`}>
-      <Tabs items={tabs} />
+      <Tabs items={tabs} activeKey={tabs.some(tab => tab.key === searchParams.get('tab')) ? searchParams.get('tab')! : tabs[0]?.key} onChange={key => setSearchParams({ tab: key })} />
     </PageContainer>
   )
 }

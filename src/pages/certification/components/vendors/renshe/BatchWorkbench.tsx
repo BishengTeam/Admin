@@ -24,7 +24,6 @@ import { ConsultationGroupDialog } from '@/components/ConsultationGroupDialog'
 import { RefundWorkbench } from '@/components/RefundWorkbench'
 import { usePagination } from '@/hooks/usePagination'
 import { usePermission } from '@/hooks/usePermission'
-import { certificationService } from '@/services/certification'
 import { rensheService } from '@/services/renshe'
 import type {
   CertificationPlan,
@@ -103,7 +102,8 @@ export default function RensheBatchWorkbench() {
   const openApplicationId = Number(searchParams.get('openRegistrationId'))
   const refundApplicationId = Number(searchParams.get('refundRegistrationId'))
   const navigate = useNavigate()
-  const canWrite = usePermission('user:write')
+  const canWrite = usePermission('renshe:review')
+  const canExport = usePermission('renshe:export')
   const canRefund = usePermission('order:list')
   const [plan, setPlan] = useState<CertificationPlan | null>(null)
   const [filters, setFilters] = useState<PeopleFilters>(() => ({
@@ -131,7 +131,7 @@ export default function RensheBatchWorkbench() {
 
   const loadPlan = useCallback(async () => {
     if (!Number.isInteger(planId) || planId <= 0) return
-    const plans = await certificationService.listPlans('RS-ZY')
+    const plans = await rensheService.listBatches()
     setPlan(plans.find(item => item.id === planId) ?? null)
   }, [planId])
 
@@ -341,7 +341,7 @@ export default function RensheBatchWorkbench() {
       render: (_, row) => (
         <Space size={4}>
           <Button size='small' icon={<EyeOutlined />} onClick={() => setItemJob(row)}>查看人员</Button>
-          {row.status === 'failed' && canWrite && (
+          {row.status === 'failed' && canExport && (
             <Button
               size='small'
               icon={<RetweetOutlined />}
@@ -399,7 +399,8 @@ export default function RensheBatchWorkbench() {
           <Descriptions.Item label='状态'>{plan.status}</Descriptions.Item>
           <Descriptions.Item label='报名费'>{formatPrice(plan.price_cents)}</Descriptions.Item>
           <Descriptions.Item label='名额'>{plan.enrolled}/{plan.capacity || '不限'}</Descriptions.Item>
-          <Descriptions.Item label='报考项目'>{plan.occupation_name || '待核实'}</Descriptions.Item>
+          <Descriptions.Item label='报考项目'>{plan.project_name || '待核实'}</Descriptions.Item>
+          <Descriptions.Item label='职业／工种'>{plan.occupation_name || '待核实'}</Descriptions.Item>
           <Descriptions.Item label='技能等级'>{plan.skill_level || '待核实'}</Descriptions.Item>
           <Descriptions.Item label='考试类型'>{plan.exam_type || '待核实'}</Descriptions.Item>
           <Descriptions.Item label='申报类型'>{plan.application_type || '待核实'}</Descriptions.Item>
@@ -434,23 +435,23 @@ export default function RensheBatchWorkbench() {
                   options={STATUS_OPTIONS}
                   style={{ width: 170 }}
                 />
-                {canWrite && (
+                {(canWrite || canExport) && (
                   <>
                     <Button
                       type='primary'
                       loading={exporting}
-                      disabled={selectedList.length === 0}
+                      disabled={!canExport || selectedList.length === 0}
                       onClick={() => void exportApplications('selected')}
                     >
                       导出所选（{selectedList.length}）
                     </Button>
-                    <Button loading={exporting} onClick={() => void exportApplications('filter')}>
+                    <Button disabled={!canExport} loading={exporting} onClick={() => void exportApplications('filter')}>
                       导出当前筛选
                     </Button>
                     <Button
                       type='primary'
                       ghost
-                      disabled={selectedList.length === 0}
+                      disabled={!canWrite || selectedList.length === 0}
                       onClick={() => {
                         externalForm.setFieldsValue({ decision: 'approved' })
                         setExternalOpen(true)

@@ -130,6 +130,9 @@ export interface RensheApplicationDetail {
   plan: {
     id: number
     name: string
+    project_name?: string | null
+    renshe_config_id?: number | null
+    renshe_config?: import('./rensheProject').RensheProjectConfig | null
     occupation_name: string
     skill_level: string
     exam_type: string

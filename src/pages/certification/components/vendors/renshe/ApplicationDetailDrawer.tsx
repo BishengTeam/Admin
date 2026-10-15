@@ -112,7 +112,7 @@ export default function ApplicationDetailDrawer({
   const [correctingReview, setCorrectingReview] = useState<RensheReview | null>(null)
   const [rejectionForm] = Form.useForm<RejectionFormValues>()
   const [correctionForm] = Form.useForm<CorrectionFormValues>()
-  const canWrite = usePermission('user:write')
+  const canWrite = usePermission('renshe:review')
   const canViewRefunds = usePermission('order:list')
   const { admin } = useAuth()
   const isSuperAdmin = admin?.role === 'super_admin'
@@ -208,7 +208,7 @@ export default function ApplicationDetailDrawer({
       title: '材料',
       dataIndex: 'kind',
       width: 150,
-      render: (kind: RensheMaterial['kind']) => RENSHE_MATERIAL_LABELS[kind],
+      render: (kind: RensheMaterial['kind']) => detail?.plan.renshe_config?.materials.find(item => item.kind === kind)?.name || RENSHE_MATERIAL_LABELS[kind],
     },
     {
       title: '文件',
@@ -233,7 +233,7 @@ export default function ApplicationDetailDrawer({
         />
       ),
     },
-  ], [])
+  ], [detail?.plan.renshe_config])
 
   const reviewColumns = useMemo<ColumnsType<RensheReview>>(() => [
     {
@@ -293,6 +293,7 @@ export default function ApplicationDetailDrawer({
             <Title level={5}>报名信息</Title>
             {renderSnapshot(version.form_data)}
             <Title level={5}>材料</Title>
+            {detail.plan.renshe_config && <Space wrap style={{ marginBottom: 12 }}>{detail.plan.renshe_config.materials.map(item => <Tag key={item.kind}>{item.name} · {item.required ? '必填' : '选填'} · {item.extensions.join('/')} · {item.max_count} 个</Tag>)}</Space>}
             <Table
               rowKey="id"
               columns={materialColumns}
@@ -359,7 +360,8 @@ export default function ApplicationDetailDrawer({
               <Descriptions.Item label="报名 ID">#{detail.id}</Descriptions.Item>
               <Descriptions.Item label="批次">{detail.plan.name}（#{detail.plan_id}）</Descriptions.Item>
               <Descriptions.Item label="用户 ID">#{detail.user_id}</Descriptions.Item>
-              <Descriptions.Item label="报考项目">{detail.plan.occupation_name || '待核实'}</Descriptions.Item>
+              <Descriptions.Item label="报考项目">{detail.plan.project_name || '待核实'}</Descriptions.Item>
+              <Descriptions.Item label="职业／工种">{detail.plan.occupation_name || '待核实'}</Descriptions.Item>
               <Descriptions.Item label="技能等级">{detail.plan.skill_level || '待核实'}</Descriptions.Item>
               <Descriptions.Item label="考试 / 申报">
                 {detail.plan.exam_type || '待核实'} / {detail.plan.application_type || '待核实'}
@@ -437,7 +439,7 @@ export default function ApplicationDetailDrawer({
             <Input.TextArea rows={4} maxLength={2000} showCount />
           </Form.Item>
           <Form.Item name="required_changes" label="待修改项" rules={[{ required: true, message: '请选择至少一个待修改项' }]}>
-            <Select mode="tags" options={REQUIRED_CHANGE_OPTIONS} placeholder="选择材料或输入字段名" />
+            <Select mode="tags" options={detail?.plan.renshe_config?.materials.map(item => ({ value: item.kind, label: item.name })) ?? REQUIRED_CHANGE_OPTIONS} placeholder="选择材料或输入字段名" />
           </Form.Item>
         </Form>
       </Modal>

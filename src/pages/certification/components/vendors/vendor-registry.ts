@@ -58,8 +58,8 @@ const vendorRegistry: VendorProfile[] = [
   {
     type: 'renshe',
     batchFirst: true,
-    productTabLabel: '认证设置',
-    productComponent: lazy(() => import('./renshe/CertificationSettings')),
+    productTabLabel: '报考项目',
+    productComponent: lazy(() => import('./renshe/ProjectTable')),
     batchOverrides: lazy(() => import('./renshe/BatchOverrides')),
     tabs: [
       {

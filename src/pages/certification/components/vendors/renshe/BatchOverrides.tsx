@@ -10,6 +10,7 @@ import {
   InputNumber,
   List,
   Modal,
+  Select,
   Space,
   Table,
   Tag,
@@ -28,14 +29,14 @@ import {
   StopOutlined,
 } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { ConsultationGroupDialog } from '@/components/ConsultationGroupDialog'
 import { ConfirmButton } from '@/components/ConfirmButton'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermission } from '@/hooks/usePermission'
 import { certificationService } from '@/services/certification'
 import { rensheService } from '@/services/renshe'
-import type { RensheProgram } from '@/services/renshe'
+import type { RensheProject } from '@/types/rensheProject'
 import type { CertificationPlan, CertificationPlanPayload } from '@/types/certification'
 import { PLAN_STATUS_MAP } from '@/types/certification'
 import type { RensheCleanupRun } from '@/types/renshe'
@@ -51,6 +52,10 @@ interface BatchOverridesProps {
 }
 
 interface PlanFormValues {
+  project_code: string
+  project_config_id?: number
+  exam_type?: string
+  application_type?: string
   name: string
   apply_range?: [Dayjs, Dayjs]
   price_yuan: number
@@ -73,6 +78,10 @@ const CLEANUP_STATUS_MAP: Record<string, { text: string; color: string }> = {
 
 function toFormValues(plan: CertificationPlan): PlanFormValues {
   return {
+    project_code: plan.product_type,
+    project_config_id: plan.renshe_config_id ?? undefined,
+    exam_type: plan.exam_type,
+    application_type: plan.application_type,
     name: plan.name,
     apply_range: plan.apply_start && plan.apply_end ? [dayjs(plan.apply_start), dayjs(plan.apply_end)] : undefined,
     price_yuan: plan.price_cents / 100,
@@ -104,10 +113,13 @@ function toPayload(values: PlanFormValues): CertificationPlanPayload {
 }
 
 export default function BatchOverrides(_props: BatchOverridesProps) {
-  const pc = 'RS-ZY'
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [plans, setPlans] = useState<CertificationPlan[]>([])
-  const [programs, setPrograms] = useState<RensheProgram[]>([])
+  const [projects, setProjects] = useState<RensheProject[]>([])
+  const [keyword, setKeyword] = useState('')
+  const [statusFilter, setStatusFilter] = useState<string>()
+  const [projectFilter, setProjectFilter] = useState<number | undefined>(() => Number(searchParams.get('project_id')) || undefined)
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [modalOpen, setModalOpen] = useState(false)
@@ -117,6 +129,11 @@ export default function BatchOverrides(_props: BatchOverridesProps) {
   const [cleanupRuns, setCleanupRuns] = useState<RensheCleanupRun[]>([])
   const [cleanupLoading, setCleanupLoading] = useState(false)
   const [form] = Form.useForm<PlanFormValues>()
+  const projectCode = Form.useWatch('project_code', form)
+  const configId = Form.useWatch('project_config_id', form)
+  const selectedProject = projects.find(item => item.code === projectCode)
+  const coreLocked = Boolean(editingPlan?.published_at)
+  const selectedConfig = editingPlan && configId === editingPlan.renshe_config_id && projectCode === editingPlan.product_type ? editingPlan.renshe_config : selectedProject?.config
   const canWrite = usePermission('user:write')
   const { admin } = useAuth()
   const isSuperAdmin = admin?.role === 'super_admin'
@@ -124,31 +141,50 @@ export default function BatchOverrides(_props: BatchOverridesProps) {
   const loadPlans = useCallback(async () => {
     setLoading(true)
     try {
-      setPlans(await certificationService.listPlans(pc))
+      setPlans(await rensheService.listBatches())
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '加载人社批次失败')
     } finally {
       setLoading(false)
     }
-  }, [pc])
+  }, [])
 
-  const loadPrograms = useCallback(async () => {
-    try {
-      setPrograms(await rensheService.listPrograms())
-    } catch {
-      setPrograms([])
-    }
+  const loadProjects = useCallback(async () => {
+    try { setProjects(await rensheService.listProjects()) }
+    catch (error) { message.error(error instanceof Error ? error.message : '加载报考项目失败') }
   }, [])
 
   useEffect(() => {
     void loadPlans()
-    void loadPrograms()
-  }, [loadPlans, loadPrograms])
+    void loadProjects()
+  }, [loadPlans, loadProjects, searchParams.get('tab')])
+
+  useEffect(() => { setProjectFilter(Number(searchParams.get('project_id')) || undefined) }, [searchParams])
 
   const openCreate = () => {
     setEditingPlan(null)
     form.resetFields()
     form.setFieldsValue({ price_yuan: 500, capacity: 0, sort_order: 0 })
+    const available = projects.filter(item => item.status === 'available')
+    const preferred = available.find(item => item.id === projectFilter) ?? (available.length === 1 ? available[0] : undefined)
+    if (preferred) selectProject(preferred.code)
     setModalOpen(true)
   }
+
+  const selectProject = (code: string) => {
+    const project = projects.find(item => item.code === code)
+    form.setFieldsValue({ project_code: code, project_config_id: project?.config_id ?? undefined,
+      exam_type: project?.config.exam_types.length === 1 ? project.config.exam_types[0] : undefined,
+      application_type: project?.config.application_types.length === 1 ? project.config.application_types[0] : undefined })
+  }
+
+  useEffect(() => {
+    const requestedProject = Number(searchParams.get('project_id'))
+    if (searchParams.get('create') === '1' && projects.some(item => item.id === requestedProject && item.status === 'available') && canWrite) {
+      openCreate()
+      const next = new URLSearchParams(searchParams); next.delete('create'); setSearchParams(next, { replace: true })
+    }
+  }, [searchParams, projects, canWrite])
 
   const openEdit = (plan: CertificationPlan) => {
     setEditingPlan(plan)
@@ -162,31 +198,39 @@ export default function BatchOverrides(_props: BatchOverridesProps) {
     try {
       const payload = toPayload(values)
       if (editingPlan) {
-        await certificationService.updatePlan(pc, editingPlan.id, {
-          ...payload,
+        const { name: _name, ...publishedPayload } = payload
+        await certificationService.updatePlan(editingPlan.product_type, editingPlan.id, {
+          ...(coreLocked ? publishedPayload : payload),
           ...(editingPlan.status === 'draft'
-            ? { program_code: programs[0]?.program_code }
+            ? { project_code: values.project_code, project_config_id: values.project_config_id, exam_type: values.exam_type, application_type: values.application_type }
             : {}),
         })
         message.success('批次已更新')
       } else {
-        await certificationService.createPlan(pc, {
+        await certificationService.createPlan(values.project_code, {
           ...payload,
-          program_code: programs[0]?.program_code,
+          project_config_id: values.project_config_id, exam_type: values.exam_type, application_type: values.application_type,
         })
         message.success('批次已创建')
       }
       setModalOpen(false)
       await loadPlans()
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '保存人社批次失败')
     } finally {
       setSaving(false)
     }
   }
 
   const mutatePlan = async (action: () => Promise<unknown>, successMessage: string) => {
-    await action()
-    message.success(successMessage)
-    await loadPlans()
+    try {
+      await action()
+      message.success(successMessage)
+      await loadPlans()
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '批次操作失败')
+      throw error
+    }
   }
 
   const confirmImpactAction = (plan: CertificationPlan, action: 'cancel' | 'finalize') => {
@@ -209,8 +253,8 @@ export default function BatchOverrides(_props: BatchOverridesProps) {
       okButtonProps: { danger: true },
       onOk: () => mutatePlan(
         () => isFinalize
-          ? certificationService.finalizePlan(pc, plan.id)
-          : certificationService.cancelPlan(pc, plan.id),
+          ? certificationService.finalizePlan(plan.product_type, plan.id)
+          : certificationService.cancelPlan(plan.product_type, plan.id),
         isFinalize ? '批次已终结' : '批次已取消',
       ),
     })
@@ -293,8 +337,8 @@ export default function BatchOverrides(_props: BatchOverridesProps) {
       ellipsis: true,
       render: (_, plan) => (
         <Space direction='vertical' size={0}>
-          <Text>{plan.occupation_name || '待核实'}</Text>
-          <Text type='secondary'>{plan.skill_level || '待核实'}</Text>
+          <Text>{plan.project_name || projects.find(item => item.code === plan.product_type)?.chinese_name || '待核实'}</Text>
+          <Text type='secondary'>{plan.occupation_name || '待核实'} · {plan.skill_level || '待核实'}</Text>
         </Space>
       ),
     },
@@ -345,7 +389,7 @@ export default function BatchOverrides(_props: BatchOverridesProps) {
                 size="small"
                 icon={<SendOutlined />}
                 onConfirm={() => mutatePlan(
-                  () => certificationService.publishPlan(pc, plan.id),
+                  () => certificationService.publishPlan(plan.product_type, plan.id),
                   '批次已发布',
                 )}
               >
@@ -359,7 +403,7 @@ export default function BatchOverrides(_props: BatchOverridesProps) {
                 size="small"
                 icon={<DeleteOutlined />}
                 onConfirm={() => mutatePlan(
-                  () => certificationService.deletePlan(pc, plan.id),
+                  () => certificationService.deletePlan(plan.product_type, plan.id),
                   '批次已删除',
                 )}
               >
@@ -377,7 +421,7 @@ export default function BatchOverrides(_props: BatchOverridesProps) {
                 size="small"
                 icon={<StopOutlined />}
                 onConfirm={() => mutatePlan(
-                  () => certificationService.closeRegistration(pc, plan.id),
+                  () => certificationService.closeRegistration(plan.product_type, plan.id),
                   '报名已关闭',
                 )}
               >
@@ -400,7 +444,7 @@ export default function BatchOverrides(_props: BatchOverridesProps) {
               type="link"
               size="small"
               onConfirm={() => mutatePlan(
-                () => certificationService.archivePlan(pc, plan.id),
+                () => certificationService.archivePlan(plan.product_type, plan.id),
                 '批次已归档',
               )}
             >
@@ -415,41 +459,40 @@ export default function BatchOverrides(_props: BatchOverridesProps) {
         </Space>
       ),
     },
-  ], [canWrite, isSuperAdmin])
+  ], [canWrite, isSuperAdmin, projects])
 
   return (
     <>
-      <Space style={{ marginBottom: 16, width: '100%', justifyContent: 'flex-end' }}>
+      <Space wrap style={{ marginBottom: 16, width: '100%' }}>
         {canWrite && (
           <Button
             type="primary"
             icon={<PlusOutlined />}
-            disabled={programs.length !== 1}
+            disabled={!projects.some(item => item.status === 'available')}
             onClick={openCreate}
           >
             新建批次
           </Button>
         )}
-        <Button icon={<ReloadOutlined />} loading={loading} onClick={loadPlans}>刷新</Button>
+        <Button icon={<ReloadOutlined />} loading={loading} onClick={() => { void loadPlans(); void loadProjects() }}>刷新</Button>
+        <Input.Search allowClear placeholder='搜索批次名称' style={{ width: 220 }} onChange={event => setKeyword(event.target.value)} />
+        <Select allowClear placeholder='报考项目' style={{ width: 240 }} value={projectFilter} onChange={setProjectFilter} options={projects.map(item => ({ value: item.id, label: item.chinese_name }))} />
+        <Select allowClear placeholder='批次状态' style={{ width: 140 }} value={statusFilter} onChange={setStatusFilter} options={Object.entries(PLAN_STATUS_MAP).map(([value, meta]) => ({ value, label: meta.text }))} />
       </Space>
 
-      {canWrite && programs.length !== 1 && (
+      {canWrite && !projects.some(item => item.status === 'available') && (
         <Alert
           style={{ marginBottom: 16 }}
-          type={programs.length === 0 ? 'warning' : 'info'}
+          type='info'
           showIcon
-          message={
-            programs.length === 0
-              ? '暂无法获取当前支持的报考组合，先刷新后再新建批次'
-              : '当前支持多个报考组合，请联系管理员完善批次创建表单'
-          }
+          message='请先在“报考项目”中完善配置并设置为可用，再创建批次。'
         />
       )}
 
       <Table
         rowKey="id"
         columns={columns}
-        dataSource={plans}
+        dataSource={plans.filter(plan => plan.name.includes(keyword.trim()) && (!statusFilter || plan.status === statusFilter) && (!projectFilter || projects.find(item => item.id === projectFilter)?.code === plan.product_type))}
         loading={loading}
         pagination={false}
         scroll={{ x: 1650 }}
@@ -459,6 +502,7 @@ export default function BatchOverrides(_props: BatchOverridesProps) {
         title={editingPlan ? '编辑人社批次' : '新建人社批次'}
         open={modalOpen}
         width={760}
+        styles={{ body: { maxHeight: 'calc(100vh - 240px)', overflowY: 'auto', paddingRight: 8 } }}
         okText="保存"
         okButtonProps={{ loading: saving }}
         onOk={submitPlan}
@@ -466,27 +510,20 @@ export default function BatchOverrides(_props: BatchOverridesProps) {
         destroyOnClose
       >
         <Form form={form} layout="vertical">
-          {(() => {
-            const program = editingPlan
-              ? {
-                occupation_name: editingPlan.occupation_name,
-                skill_level: editingPlan.skill_level,
-                exam_type: editingPlan.exam_type,
-                application_type: editingPlan.application_type,
-              }
-              : programs[0]
-            return (
-              <Alert
-                style={{ marginBottom: 20 }}
-                type='info'
-                showIcon
-                message='当前支持的报考项目'
-                description={`${program?.occupation_name || '待核实'} · ${program?.skill_level || '待核实'} · ${program?.exam_type || '待核实'} · ${program?.application_type || '待核实'}`}
-              />
-            )
-          })()}
+          <Form.Item name='project_code' label='报考项目' rules={[{ required: true, message: '请选择报考项目' }]}>
+            <Select showSearch optionFilterProp='label' disabled={coreLocked} placeholder='选择本期报考项目' onChange={code => { selectProject(code); if (editingPlan) message.info('已重新加载项目配置，请检查考试类型、申报类型及本期安排') }} options={projects.filter(item => item.status === 'available' || item.code === editingPlan?.product_type).map(item => ({ value: item.code, label: item.chinese_name, disabled: item.status !== 'available' && item.code !== editingPlan?.product_type }))} />
+          </Form.Item>
+          <Form.Item name='project_config_id' hidden><InputNumber /></Form.Item>
+          {selectedConfig && <>
+            <Alert style={{ marginBottom: 16 }} type='info' showIcon message={`${selectedConfig.occupation_name} · ${selectedConfig.skill_level}`} description={`学历型报名；${selectedConfig.materials.filter(item => item.required).length} 类必填材料；发布后固定本期项目配置，不能更换项目及核心报考属性。`} />
+            {!coreLocked && editingPlan && selectedProject?.config_id !== editingPlan.renshe_config_id && configId === editingPlan.renshe_config_id && <Alert style={{ marginBottom: 16 }} type='warning' showIcon message={`项目存在新配置 V${selectedProject?.version}，本草稿仍使用原版本。`} action={<Button size='small' onClick={() => selectProject(projectCode)}>更新为最新配置</Button>} />}
+            <Space align='start' style={{ display: 'flex' }} size={16}>
+              <Form.Item name='exam_type' label='本期考试类型' rules={[{ required: true, message: '请选择考试类型' }]} style={{ flex: 1 }}><Select disabled={coreLocked} options={selectedConfig.exam_types.map(value => ({ value, label: value }))} /></Form.Item>
+              <Form.Item name='application_type' label='本期申报类型' rules={[{ required: true, message: '请选择申报类型' }]} style={{ flex: 1 }}><Select disabled={coreLocked} options={selectedConfig.application_types.map(value => ({ value, label: value }))} /></Form.Item>
+            </Space>
+          </>}
           <Form.Item name="name" label="批次名称" rules={[{ required: true, whitespace: true, message: '请输入批次名称' }]}>
-            <Input maxLength={128} showCount />
+            <Input maxLength={128} showCount disabled={coreLocked} />
           </Form.Item>
           <Form.Item
             name="apply_range"

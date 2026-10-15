@@ -58,7 +58,7 @@ export default function ApplicationTab(_props: ApplicationTabProps) {
   const [filters, setFilters] = useState<RensheApplicationFilter>({})
   const [selectedApplicationId, setSelectedApplicationId] = useState<number | null>(null)
   const [drawerOpen, setDrawerOpen] = useState(false)
-  const canReview = usePermission('user:write')
+  const canReview = usePermission('renshe:review')
 
   const { data, loading, pagination, refresh } = usePagination(
     (page) => rensheService.listApplications({ ...filters, ...page }),

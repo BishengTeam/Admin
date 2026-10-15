@@ -57,7 +57,7 @@ export default function ExportTab(_props: ExportTabProps) {
   const [cleanupRuns, setCleanupRuns] = useState<RensheCleanupRun[]>([])
   const [loading, setLoading] = useState(false)
   const [detailJob, setDetailJob] = useState<RensheExportJob | null>(null)
-  const canWrite = usePermission('user:write')
+  const canWrite = usePermission('renshe:export')
 
   const selectedPlan = plans.find((plan) => plan.id === selectedPlanId)
   const exportLocked = isPlanExportLocked(selectedPlan, cleanupRuns)

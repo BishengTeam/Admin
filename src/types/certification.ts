@@ -31,6 +31,9 @@ export const PLAN_STATUS_MAP: Record<PlanStatus, { text: string; color: string }
 }
 
 export interface CertificationPlan {
+  project_name?: string | null
+  renshe_config_id?: number | null
+  renshe_config?: import('./rensheProject').RensheProjectConfig | null
   id: number
   product_type: string
   name: string
@@ -61,6 +64,10 @@ export interface CertificationPlan {
 }
 
 export interface CertificationPlanPayload {
+  project_code?: string
+  project_config_id?: number
+  exam_type?: string
+  application_type?: string
   name: string
   apply_start?: string | null
   apply_end?: string | null

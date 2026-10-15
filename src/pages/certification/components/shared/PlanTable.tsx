@@ -67,7 +67,7 @@ export default function PlanTable({ type, overrides }: PlanTableProps) {
     }
   }, [type])
 
-  useEffect(() => { void loadPlans() }, [loadPlans])
+  useEffect(() => { if (!overrides) void loadPlans() }, [loadPlans, overrides])
 
   if (overrides) {
     return <>{overrides}</>

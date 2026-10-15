@@ -1,4 +1,6 @@
 import { http } from '@/core/request'
+import type { RensheProject, RensheProjectWrite, RensheCapabilities } from '@/types/rensheProject'
+import type { CertificationPlan } from '@/types/certification'
 import type { PageData } from '@/types/api'
 import type {
   RensheBatchExternalReviewPayload,
@@ -30,6 +32,12 @@ export interface RensheProgram {
 }
 
 export const rensheService = {
+  listProjects: () => http.get<RensheProject[]>('/admin/cert-products/renshe/projects'),
+  projectCapabilities: () => http.get<RensheCapabilities>('/admin/cert-products/renshe/project-capabilities'),
+  createProject: (data: RensheProjectWrite) => http.post<RensheProject>('/admin/cert-products/renshe/projects', data),
+  updateProject: (id: number, data: RensheProjectWrite) => http.put<RensheProject>(`/admin/cert-products/renshe/projects/${id}`, data),
+  deleteProject: (id: number) => http.delete<void>(`/admin/cert-products/renshe/projects/${id}`),
+  listBatches: () => http.get<CertificationPlan[]>('/admin/cert-products/renshe/batches'),
   async listPrograms(): Promise<RensheProgram[]> {
     return http.get<RensheProgram[]>('/admin/cert-products/renshe/programs')
   },
