@@ -1,4 +1,4 @@
-import { Suspense, useMemo, type ReactNode } from 'react'
+import { Suspense, useMemo, useState, type ReactNode } from 'react'
 import { useNavigate, useLocation, Outlet } from 'react-router-dom'
 import { Layout, Menu, Button, Breadcrumb, Dropdown, Avatar, Spin, Result, Tag, message, theme } from 'antd'
 import type { MenuProps } from 'antd'
@@ -36,7 +36,9 @@ import {
   SettingOutlined,
   CloudServerOutlined,
   FilePdfOutlined,
+  KeyOutlined,
   LockOutlined,
+  PlayCircleOutlined,
 } from '@ant-design/icons'
 import { useAppStore } from '@/stores/appStore'
 import { useAuthStore } from '@/stores/authStore'
@@ -84,6 +86,8 @@ const iconMap: Record<string, ReactNode> = {
   SettingOutlined: <SettingOutlined />,
   CloudServerOutlined: <CloudServerOutlined />,
   FilePdfOutlined: <FilePdfOutlined />,
+  KeyOutlined: <KeyOutlined />,
+  PlayCircleOutlined: <PlayCircleOutlined />,
 }
 
 export function hasRouteAccess(
@@ -96,6 +100,7 @@ export function hasRouteAccess(
   if (route.meta?.roles && (!role || !route.meta.roles.includes(role as AdminRole))) return false
   if (permissions.includes('*')) return true
   const required = route.meta?.permissions ?? (route.meta?.permission ? [route.meta.permission] : [])
+  if (required.length === 0) return true
   // `permissions` is an any-of contract. Route-level narrow access is enforced
   // inside the page by hiding or rejecting the specific action.
   return required.some((permission) => permissions.includes(permission))
@@ -107,51 +112,100 @@ export function buildMenuItems(
   initialized: boolean,
   role?: AdminRole | string,
 ): MenuProps['items'] {
-  return routes.flatMap((r) => {
-      if (!r.meta || r.meta.hidden) return []
-      const icon = r.meta?.icon ? iconMap[r.meta.icon] : undefined
-      if (r.children) {
-        const hasIndexChild = r.children.some((child) => child.index)
-        const hasVisibleNonIndexChild = r.children.some(
-          (child) => !child.index && !child.meta?.hidden,
-        )
-        // 一个只有 index 子路由的模块是独立页面；隐藏的工作台路由不应让菜单整项消失。
-        if (hasIndexChild && !hasVisibleNonIndexChild) {
-          if (!hasRouteAccess(r, permissions, initialized, role)) return []
-          return [{
-            key: r.path!,
-            icon,
-            label: r.meta?.title,
-          }]
-        }
-        const visibleChildren = r.children.filter((c) => c.meta && !c.meta.hidden && hasRouteAccess(c, permissions, initialized, role))
-        if (visibleChildren.length === 0) return []
-        if (r.meta.roles && (!role || !r.meta.roles.includes(role as AdminRole))) return []
-        return [{
-          key: r.path!,
-          icon,
-          label: r.meta?.title,
-          children: visibleChildren.map((c) => ({
-            key: c.index ? r.path : `${r.path}/${c.path}`,
-            icon: c.meta?.icon ? iconMap[c.meta.icon] : undefined,
-            label: c.meta?.title,
-          })),
-        }]
-      }
-      if (!hasRouteAccess(r, permissions, initialized, role)) return []
-      return [{
-        key: r.path!,
-        icon,
-        label: r.meta?.title,
-      }]
-    })
+  return routes.flatMap((route) => {
+    const item = buildRouteMenuItem(route, '', permissions, initialized, role)
+    return item ? [item] : []
+  }) as MenuProps['items']
 }
 
-function findBreadcrumb(relativePath: string, routes: AppRoute[], parentPath = ''): { title: string }[] {
+interface MenuTreeNode {
+  key?: React.Key
+  icon?: ReactNode
+  label?: ReactNode
+  children?: MenuTreeNode[]
+}
+
+export function getMenuAncestorKeys(items: MenuProps['items'], targetKey?: string): string[] {
+  if (!targetKey) return []
+  const ancestors: string[] = []
+
+  const walk = (nodes: MenuTreeNode[] = [], parents: string[] = []): boolean => {
+    for (const node of nodes) {
+      if (node.key === undefined || node.key === null) continue
+      const key = String(node.key)
+      const nextParents = [...parents, key]
+      if (key === targetKey) {
+        ancestors.push(...parents)
+        return true
+      }
+      if (node.children?.length && walk(node.children, nextParents)) return true
+    }
+    return false
+  }
+
+  walk((items ?? []) as MenuTreeNode[])
+  return ancestors
+}
+
+function buildRouteMenuItem(
+  route: AppRoute,
+  parentPath: string,
+  permissions: string[],
+  initialized: boolean,
+  role?: AdminRole | string,
+): MenuTreeNode | undefined {
+  if (!route.meta || route.meta.hidden) return undefined
+  if (!hasRouteAccess(route, permissions, initialized, role)) return undefined
+
+  const fullPath = route.index
+    ? parentPath
+    : [parentPath, route.path].filter(Boolean).join('/')
+  const key = route.menuKey ?? fullPath
+  const icon = route.meta.icon ? iconMap[route.meta.icon] : undefined
+
+  if (route.children?.length) {
+    const children = route.children
+      .map(child => buildRouteMenuItem(child, fullPath, permissions, initialized, role))
+      .filter((child): child is MenuTreeNode => Boolean(child))
+    if (children.length) {
+      return { key, icon, label: route.meta.title, children }
+    }
+    // A group whose index route renders the page is represented by the parent item.
+    if (route.children.some(child => child.index)) {
+      return { key, icon, label: route.meta.title }
+    }
+    return undefined
+  }
+
+  return { key, icon, label: route.meta.title }
+}
+
+export function routePathMatches(routePath: string, relativePath: string): boolean {
+  const routeParts = routePath.split('/').filter(Boolean)
+  const pathParts = relativePath.split('/').filter(Boolean)
+  if (routeParts.length === 0 || pathParts.length === 0) return false
+  return routeParts.length === pathParts.length && routeParts.every((part, index) => (
+    part.startsWith(':') ? Boolean(pathParts[index]) : part === pathParts[index]
+  ))
+}
+
+export function findBreadcrumb(
+  relativePath: string,
+  routes: AppRoute[],
+  parentPath = '',
+  detailTitle?: string,
+  rootRoutes: AppRoute[] = routes,
+): { title: string }[] {
   for (const r of routes) {
     const fullPath = r.index ? parentPath : [parentPath, r.path].filter(Boolean).join('/')
     if (r.children) {
-      const found = findBreadcrumb(relativePath, r.children, r.path ? fullPath : parentPath)
+      const found = findBreadcrumb(
+        relativePath,
+        r.children,
+        r.path ? fullPath : parentPath,
+        detailTitle,
+        rootRoutes,
+      )
       if (found.length) {
         if (r.meta?.title) {
           return [{ title: r.meta.title }, ...found]
@@ -159,21 +213,31 @@ function findBreadcrumb(relativePath: string, routes: AppRoute[], parentPath = '
         return found
       }
     }
-    if (relativePath === fullPath) {
-      return r.meta?.title ? [{ title: r.meta.title }] : []
+    if (routePathMatches(fullPath, relativePath)) {
+      const title = detailTitle ?? r.meta?.title
+      if (!title) return []
+      if (!r.meta?.activeMenuKey) return [{ title }]
+      const activeRoute = findActiveRoute(r.meta.activeMenuKey, rootRoutes)
+      return activeRoute?.meta?.title
+        ? [{ title: activeRoute.meta.title }, { title }]
+        : [{ title }]
     }
   }
   return []
 }
 
-function findActiveRoute(relativePath: string, routes: AppRoute[], parentPath = ''): AppRoute | undefined {
+export function findActiveRoute(
+  relativePath: string,
+  routes: AppRoute[],
+  parentPath = '',
+): AppRoute | undefined {
   for (const route of routes) {
     const fullPath = route.index ? parentPath : [parentPath, route.path].filter(Boolean).join('/')
     if (route.children) {
       const child = findActiveRoute(relativePath, route.children, fullPath)
       if (child) return child
     }
-    if (relativePath === fullPath) return route
+    if (routePathMatches(fullPath, relativePath)) return route
   }
   return undefined
 }
@@ -194,28 +258,30 @@ export default function AdminLayout({ children }: { children?: ReactNode }) {
   const currentRoute = useMemo(() => {
     const pathname = location.pathname.replace(/^\/admin\/?/, '')
     return findActiveRoute(pathname, adminRoutes)
-  }, [location.pathname])
+  }, [location])
 
   const routeAllowed = !currentRoute || hasRouteAccess(currentRoute, permissions, initialized, admin?.role)
 
   const breadcrumbItems = useMemo(() => {
     const relativePath = location.pathname.replace(/^\/admin\/?/, '')
-    const items = findBreadcrumb(relativePath, adminRoutes)
+    const stateTitle = (location.state as { breadcrumbTitle?: unknown } | null)?.breadcrumbTitle
+    const detailTitle = typeof stateTitle === 'string' && stateTitle.trim()
+      ? stateTitle.trim()
+      : undefined
+    const items = findBreadcrumb(relativePath, adminRoutes, '', detailTitle)
     return [{ title: '首页' }, ...items]
-  }, [location.pathname])
+  }, [location])
 
   const selectedKeys = useMemo(() => {
-    const path = location.pathname.replace('/admin/', '')
-    return [path]
+    const relativePath = location.pathname.replace(/^\/admin\/?/, '')
+    return [currentRoute?.meta?.activeMenuKey ?? relativePath]
   }, [location.pathname])
 
+  const [manualOpenKeys, setManualOpenKeys] = useState<string[]>([])
   const openKeys = useMemo(() => {
-    const parts = location.pathname.replace('/admin/', '').split('/')
-    if (parts.length > 1) {
-      return [parts[0]]
-    }
-    return []
-  }, [location.pathname])
+    const routeOpenKeys = getMenuAncestorKeys(menuItems, selectedKeys[0])
+    return Array.from(new Set([...manualOpenKeys, ...routeOpenKeys]))
+  }, [manualOpenKeys, menuItems, selectedKeys])
 
   const handleLogout = async () => {
     try {
@@ -228,7 +294,7 @@ export default function AdminLayout({ children }: { children?: ReactNode }) {
   }
 
   return (
-    <Layout className="admin-main-layout" style={{ minHeight: '100vh' }}>
+    <Layout style={{ minHeight: '100vh' }}>
       <Sider
         trigger={null}
         collapsible
@@ -237,7 +303,7 @@ export default function AdminLayout({ children }: { children?: ReactNode }) {
         width={240}
         style={{
           overflow: 'auto',
-          height: 'calc(100vh / var(--admin-shell-zoom, 1))',
+          height: '100vh',
           position: 'fixed',
           left: 0,
           top: 0,
@@ -265,9 +331,10 @@ export default function AdminLayout({ children }: { children?: ReactNode }) {
           theme="dark"
           mode="inline"
           selectedKeys={selectedKeys}
-          defaultOpenKeys={openKeys}
+          openKeys={openKeys}
           items={menuItems}
           onClick={({ key }) => navigate(`/admin/${key}`)}
+          onOpenChange={(keys) => setManualOpenKeys(keys.map(String))}
         />
       </Sider>
       <Layout style={{ marginLeft: collapsed ? 80 : 240, transition: 'margin-left 0.2s' }}>

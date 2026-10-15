@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { adminRoutes } from '@/routes'
-import { buildMenuItems, hasRouteAccess } from '@/layouts/AdminLayout'
+import {
+  buildMenuItems,
+  findActiveRoute,
+  findBreadcrumb,
+  getMenuAncestorKeys,
+  hasRouteAccess,
+} from '@/layouts/AdminLayout'
 import { ADMIN_CREATABLE_ROLE_OPTIONS, getAdminLandingPath } from '@/core/permission'
 
 describe('fixed administrator role navigation', () => {
@@ -20,6 +28,36 @@ describe('fixed administrator role navigation', () => {
     ])
   })
 
+  it('keeps role-specific navigation to nine primary workspaces for super administrators', () => {
+    type MenuItem = { key: string; label: string; children?: Array<{ key: string; label: string }> }
+    const superMenu = buildMenuItems(adminRoutes, ['*'], true, 'super_admin') as MenuItem[]
+
+    expect(superMenu.map((item) => item.key)).toEqual([
+      'dashboard',
+      'user-support',
+      'certification',
+      'learning',
+      'quiz',
+      'orders',
+      'content-operations',
+      'points-mall',
+      'settings',
+    ])
+    expect(superMenu.map((item) => item.label)).toEqual([
+      '数据概览',
+      '用户与客服',
+      '认证报名',
+      '课程与教学',
+      '题库与考试',
+      '订单管理',
+      '内容与运营',
+      '积分商城',
+      '系统管理',
+    ])
+    expect(superMenu.find((item) => item.key === 'user-support')?.children?.map((child) => child.label))
+      .toEqual(['用户管理', '客服工单', '审核记录'])
+  })
+
   it('shows system management only to the unique super administrator', () => {
     const settings = adminRoutes.find((route) => route.path === 'settings')!
     expect(hasRouteAccess(settings, ['*'], true, 'super_admin')).toBe(true)
@@ -31,8 +69,8 @@ describe('fixed administrator role navigation', () => {
     expect(quizMenu.map((item) => item.key)).toEqual(['quiz'])
   })
 
-  it('shows classroom management as a direct menu item to super administrator and teacher', () => {
-    type MenuItem = { key: string; label: string; children?: Array<{ key: string }> }
+  it('groups course products and teaching classrooms for administrators and teachers', () => {
+    type MenuItem = { key: string; label: string; children?: Array<{ key: string; label: string }> }
 
     const superMenu = buildMenuItems(adminRoutes, ['*'], true, 'super_admin') as MenuItem[]
     const teacherMenu = buildMenuItems(
@@ -42,19 +80,19 @@ describe('fixed administrator role navigation', () => {
       'teacher',
     ) as MenuItem[]
 
-    const superClassroom = superMenu.find((item) => item.key === 'classrooms')
-    const teacherClassroom = teacherMenu.find((item) => item.key === 'classrooms')
+    const superLearning = superMenu.find((item) => item.key === 'learning')
+    const teacherLearning = teacherMenu.find((item) => item.key === 'learning')
 
-    expect(superClassroom).toMatchObject({
-      key: 'classrooms',
-      label: '课堂管理',
+    expect(superLearning).toMatchObject({
+      key: 'learning',
+      label: '课程与教学',
     })
-    expect(superClassroom?.children).toBeUndefined()
-    expect(teacherClassroom).toMatchObject({
-      key: 'classrooms',
-      label: '课堂管理',
+    expect(superLearning?.children?.map((child) => child.key)).toEqual(['courses', 'classrooms'])
+    expect(teacherLearning).toMatchObject({
+      key: 'learning',
+      label: '课程与教学',
     })
-    expect(teacherClassroom?.children).toBeUndefined()
+    expect(teacherLearning?.children?.map((child) => child.key)).toEqual(['classrooms'])
   })
 
   it('shows the update checker only inside super-admin system management', () => {
@@ -72,7 +110,7 @@ describe('fixed administrator role navigation', () => {
     const certMenu = superMenu.find((item) => item.key === 'certification')
     expect(certMenu).toBeDefined()
     expect(certMenu!.children!.map((child) => child.key)).toEqual([
-      'certification',
+      'certification/overview',
       'certification/h3c',
       'certification/renshe',
       'certification/nisp',
@@ -99,7 +137,7 @@ describe('fixed administrator role navigation', () => {
     const certAdminCert = certAdminMenu.find((item) => item.key === 'certification')
     expect(certAdminCert).toBeDefined()
     expect(certAdminCert!.children!.map((child) => child.key)).toEqual([
-      'certification',
+      'certification/overview',
       'certification/h3c',
       'certification/renshe',
       'certification/sangfor',
@@ -110,12 +148,72 @@ describe('fixed administrator role navigation', () => {
   })
 
   it('denies non-quiz routes even when a quiz administrator opens a URL directly', () => {
-    const users = adminRoutes.find((route) => route.path === 'users')!
+    const users = findActiveRoute('users', adminRoutes)!
     const quizQuestions = adminRoutes
       .find((route) => route.path === 'quiz')!
       .children!.find((route) => route.path === 'questions')!
     expect(hasRouteAccess(users, ['quiz:list'], true, 'quiz_admin')).toBe(false)
     expect(hasRouteAccess(quizQuestions, ['quiz:list'], true, 'quiz_admin')).toBe(true)
+  })
+
+  it('keeps detail pages attached to their owning menu entries', () => {
+    const cases = [
+      { path: 'certification/renshe/batches/12', menuKey: 'certification/renshe' },
+      { path: 'certification/h3c/batches/34', menuKey: 'certification/h3c' },
+      { path: 'certification/nisp/batches/56', menuKey: 'certification/nisp' },
+      { path: 'courses/78', menuKey: 'courses/list' },
+      { path: 'classrooms/90', menuKey: 'classrooms' },
+    ]
+
+    for (const item of cases) {
+      const route = findActiveRoute(item.path, adminRoutes)
+      expect(route?.meta?.activeMenuKey).toBe(item.menuKey)
+    }
+  })
+
+  it('builds breadcrumbs for dynamic detail routes and real detail titles', () => {
+    expect(findBreadcrumb('certification/renshe/batches/12', adminRoutes, '', undefined)).toEqual([
+      { title: '认证报名' },
+      { title: '人社认证' },
+      { title: '人社批次工作台' },
+    ])
+    expect(findBreadcrumb(
+      'certification/renshe/batches/12',
+      adminRoutes,
+      '',
+      '2026 春季批次',
+    )).toEqual([
+      { title: '认证报名' },
+      { title: '人社认证' },
+      { title: '2026 春季批次' },
+    ])
+  })
+
+  it('opens every menu layer needed by a nested workbench', () => {
+    const menu = buildMenuItems(adminRoutes, ['*'], true, 'super_admin')
+    expect(getMenuAncestorKeys(menu, 'courses/list')).toEqual(['learning', 'courses'])
+    expect(getMenuAncestorKeys(menu, 'certification/h3c')).toEqual(['certification'])
+    expect(getMenuAncestorKeys(menu, 'operations/competitions')).toEqual(['content-operations'])
+  })
+
+  it('passes real business names into detail breadcrumbs', () => {
+    const paths = [
+      'src/pages/certification/components/vendors/h3c/BatchOverrides.tsx',
+      'src/pages/certification/components/vendors/nisp/BatchOverrides.tsx',
+      'src/pages/certification/components/vendors/renshe/BatchOverrides.tsx',
+      'src/pages/courses/List.tsx',
+      'src/pages/classrooms/index.tsx',
+    ]
+    for (const path of paths) {
+      expect(readFileSync(resolve(process.cwd(), path), 'utf8'), path)
+        .toContain('breadcrumbTitle')
+    }
+  })
+
+  it('keeps the sidebar at native size', () => {
+    const globalStyles = readFileSync(resolve(process.cwd(), 'src/styles/global.css'), 'utf8')
+    expect(globalStyles).not.toContain('--admin-shell-zoom')
+    expect(globalStyles).not.toContain('zoom:')
   })
 
   it('consolidates quiz navigation without hiding task monitoring from list-only admins', () => {

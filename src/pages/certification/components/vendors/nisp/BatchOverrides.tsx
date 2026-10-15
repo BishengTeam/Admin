@@ -324,7 +324,9 @@ export default function NispBatchOverrides() {
       page: pagination.current,
       scrollY: window.scrollY,
     }))
-    navigate(`/admin/certification/nisp/batches/${row.id}${status ? `?status=${status}` : ''}`)
+    navigate(`/admin/certification/nisp/batches/${row.id}${status ? `?status=${status}` : ''}`, {
+      state: { breadcrumbTitle: row.plan_name },
+    })
   }
 
   const columns: ColumnsType<NispBatch> = [

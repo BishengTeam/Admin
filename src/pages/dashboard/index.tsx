@@ -177,7 +177,7 @@ export default function Dashboard() {
 
   if (error) {
     return (
-      <PageContainer title='数据看板'>
+      <PageContainer title='数据概览'>
         <Result status='error' title='数据加载失败' subTitle={error}
           extra={<Button type='primary' onClick={() => refresh()}>重试</Button>} />
       </PageContainer>
@@ -186,7 +186,7 @@ export default function Dashboard() {
 
   if (loading || !data) {
     return (
-      <PageContainer title='数据看板'>
+      <PageContainer title='数据概览'>
         <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 400 }}>
           <Spin size='large' />
         </div>
@@ -197,7 +197,7 @@ export default function Dashboard() {
   const d: DashboardData = data
 
   return (
-    <PageContainer title='数据看板'>
+    <PageContainer title='数据概览'>
       {/* ── 核心指标 ── */}
       <Row gutter={[12, 12]} style={{ marginBottom: 16 }}>
         <Col xs={12} sm={8} md={4}>

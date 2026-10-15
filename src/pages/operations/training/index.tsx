@@ -149,7 +149,7 @@ export default function TrainingManagement() {
 
   return (
     <PageContainer
-      title="培训管理"
+      title="培训活动"
       extra={<Button type="primary" icon={<PlusOutlined />} onClick={handleAdd}>新增培训</Button>}
     >
       <Space style={{ marginBottom: 16 }}>

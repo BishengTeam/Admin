@@ -276,7 +276,9 @@ export default function BatchOverrides(_props: BatchOverridesProps) {
   }
 
   const openWorkbench = (plan: CertificationPlan) => {
-    navigate(`/admin/certification/renshe/batches/${plan.id}`)
+    navigate(`/admin/certification/renshe/batches/${plan.id}`, {
+      state: { breadcrumbTitle: plan.name },
+    })
   }
 
   const retryCleanup = async (run: RensheCleanupRun) => {

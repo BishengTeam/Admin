@@ -333,7 +333,7 @@ export default function QuizManagement() {
   const flatCategories = flattenCategories(tree)
 
   return (
-    <PageContainer title="题库管理">
+    <PageContainer title="题库工作台">
       <Row gutter={20} align="top">
         <Col xs={24} lg={6}>
           <CategoryTree categories={categories} selectedKey={selectedCategory} canWrite={canWrite} onSelect={handleSelectCategory} onCreate={openCreateCategory} onEdit={openEditCategory} onMove={openMoveCategory} onStatus={handleCategoryStatus} onDelete={handleCategoryDelete} />

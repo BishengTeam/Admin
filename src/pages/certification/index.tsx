@@ -24,7 +24,7 @@ export default function CertificationOverview() {
   const typesWithoutStats = CERT_TYPES.filter((t) => !typesWithStats.has(t))
 
   return (
-    <PageContainer title='认证管理'>
+    <PageContainer title='认证总览'>
       <Spin spinning={loading}>
         <Row gutter={[24, 24]}>
           {/* Types with data — show stat cards */}

@@ -4,9 +4,11 @@ import { describe, expect, it } from 'vitest'
 describe('VideoWeb code management', () => {
   it('registers the course code page behind course permissions', async () => {
     const routes = await readFile('src/routes.tsx', 'utf8')
+    const layout = await readFile('src/layouts/AdminLayout.tsx', 'utf8')
     expect(routes).toContain("import('@/pages/courses/Codes')")
     expect(routes).toContain("path: 'codes'")
     expect(routes).toContain("permission: 'course:read'")
+    expect(layout).toContain('KeyOutlined: <KeyOutlined />')
   })
 
   it('proxies list, create, revoke, and refund operations through the backend', async () => {

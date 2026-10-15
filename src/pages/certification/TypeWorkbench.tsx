@@ -79,7 +79,7 @@ export default function TypeWorkbench({ type: typeProp }: { type?: string }) {
   if (!meta) return <Navigate to='/admin/certification' replace />
 
   return (
-    <PageContainer title={`${meta.label}认证管理`}>
+    <PageContainer title={`${meta.label}认证`}>
       <Tabs items={tabs} activeKey={tabs.some(tab => tab.key === searchParams.get('tab')) ? searchParams.get('tab')! : tabs[0]?.key} onChange={key => setSearchParams({ tab: key })} />
     </PageContainer>
   )

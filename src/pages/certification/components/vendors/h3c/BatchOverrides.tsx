@@ -166,7 +166,9 @@ export default function BatchOverrides(_props: { type: CertType; productCode: st
       page: pagination.current,
       scrollY: window.scrollY,
     }))
-    navigate(`/admin/certification/h3c/batches/${row.id}${status ? `?status=${status}` : ''}`)
+    navigate(`/admin/certification/h3c/batches/${row.id}${status ? `?status=${status}` : ''}`, {
+      state: { breadcrumbTitle: row.name },
+    })
   }
 
   const validateSchedule = (

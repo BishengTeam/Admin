@@ -11,10 +11,12 @@ export interface RouteMeta {
   icon?: string
   hidden?: boolean
   roles?: AdminRole[]
+  activeMenuKey?: string
 }
 
 export interface AppRoute {
   path?: string
+  menuKey?: string
   index?: boolean
   element?: React.ReactNode
   children?: AppRoute[]
@@ -85,53 +87,220 @@ export const adminRoutes: AppRoute[] = [
   {
     path: 'dashboard',
     element: <Dashboard />,
-    meta: { title: '数据看板', icon: 'DashboardOutlined', permission: 'dashboard:view' },
+    meta: { title: '数据概览', icon: 'DashboardOutlined', permission: 'dashboard:view' },
   },
   {
-    path: 'users',
-    element: <UserList />,
-    meta: { title: '用户管理', icon: 'TeamOutlined', permission: 'user:list' },
-  },
-  {
-    path: 'tickets',
-    element: <TicketManagement />,
-    meta: { title: '客服工单', icon: 'CustomerServiceOutlined', permission: 'user:list' },
-  },
-  {
-    path: 'agreement-templates',
-    element: <Navigate to="/admin/content/agreement-templates" replace />,
-    meta: { title: '协议模板', hidden: true },
-  },
-  {
-    path: 'content',
-    meta: { title: '内容管理', icon: 'FileTextOutlined' },
+    menuKey: 'user-support',
+    meta: { title: '用户与客服', icon: 'TeamOutlined' },
     children: [
-      { index: true, element: <Navigate to="agreement-templates" replace /> },
       {
-        path: 'agreement-templates',
-        element: <AgreementTemplates />,
-        meta: { title: '协议模板', icon: 'AuditOutlined', permission: 'content:list' },
+        path: 'users',
+        element: <UserList />,
+        meta: { title: '用户管理', icon: 'TeamOutlined', permission: 'user:list' },
       },
       {
-        path: 'documents',
-        element: <DocumentManagement />,
-        meta: { title: '文档管理', icon: 'FilePdfOutlined', permission: 'document:read' },
+        path: 'tickets',
+        element: <TicketManagement />,
+        meta: { title: '客服工单', icon: 'CustomerServiceOutlined', permission: 'user:list' },
+      },
+      {
+        path: 'reviews',
+        element: <ReviewManagement />,
+        meta: { title: '审核记录', icon: 'AuditOutlined', permission: 'review:list' },
+      },
+      {
+        path: 'agreement-templates',
+        element: <Navigate to="/admin/content/agreement-templates" replace />,
+        meta: { title: '协议模板', hidden: true },
       },
     ],
   },
   {
-    path: 'orders',
-    element: <OrderList />,
-    meta: { title: '订单管理', icon: 'ShoppingOutlined', permission: 'order:list' },
- },
- {
-   path: 'reviews',
-    element: <ReviewManagement />,
-    meta: { title: '审核管理', icon: 'AuditOutlined', permission: 'review:list' },
+    path: 'certification',
+    meta: {
+      title: '认证报名',
+      icon: 'SafetyCertificateOutlined',
+      permissions: [
+        'content:list',
+        'h3c:review',
+        'h3c:export',
+        'h3c:refund',
+        'user:list',
+        'user:write',
+        'order:list',
+        'nisp:review',
+        'nisp:export',
+        'nisp:refund',
+      ],
+    },
+    children: [
+      {
+        index: true,
+        element: <Navigate to="overview" replace />,
+        meta: { title: '认证总览', hidden: true },
+      },
+      {
+        path: 'overview',
+        element: <CertificationOverview />,
+        meta: { title: '认证总览', icon: 'DashboardOutlined', permission: 'content:list' },
+      },
+      {
+        path: 'h3c',
+        element: <TypeWorkbench type='h3c' />,
+        meta: {
+          title: '新华三认证',
+          icon: 'ClusterOutlined',
+          permissions: ['h3c:review', 'h3c:export', 'h3c:refund'],
+        },
+      },
+      {
+        path: 'h3c/batches/:batchId',
+        element: <H3cBatchExportWorkbench />,
+        meta: {
+          title: 'H3C 批次工作台',
+          icon: 'FileZipOutlined',
+          permissions: ['h3c:review', 'h3c:export', 'h3c:refund'],
+          hidden: true,
+          activeMenuKey: 'certification/h3c',
+        },
+      },
+      {
+        path: 'h3c/export/:batchId',
+        element: <H3cBatchExportWorkbench />,
+        meta: {
+          title: 'H3C 批次工作台',
+          icon: 'FileZipOutlined',
+          permissions: ['h3c:review', 'h3c:export', 'h3c:refund'],
+          hidden: true,
+          activeMenuKey: 'certification/h3c',
+        },
+      },
+      {
+        path: 'renshe',
+        element: <TypeWorkbench type='renshe' />,
+        meta: {
+          title: '人社认证',
+          icon: 'AuditOutlined',
+          permissions: ['user:list', 'user:write', 'order:list'],
+        },
+      },
+      {
+        path: 'renshe/batches/:batchId',
+        element: <RensheBatchWorkbench />,
+        meta: {
+          title: '人社批次工作台',
+          icon: 'AuditOutlined',
+          permissions: ['user:list', 'user:write', 'order:list'],
+          hidden: true,
+          activeMenuKey: 'certification/renshe',
+        },
+      },
+      {
+        path: 'nisp',
+        element: <TypeWorkbench type='nisp' />,
+        meta: {
+          title: 'NISP认证',
+          icon: 'FileSearchOutlined',
+          permissions: ['nisp:review', 'nisp:export', 'nisp:refund'],
+        },
+      },
+      {
+        path: 'nisp/batches/:batchId',
+        element: <NispBatchWorkbench />,
+        meta: {
+          title: 'NISP 批次工作台',
+          icon: 'FileZipOutlined',
+          permissions: ['nisp:review', 'nisp:export', 'nisp:refund'],
+          hidden: true,
+          activeMenuKey: 'certification/nisp',
+        },
+      },
+      {
+        path: 'sangfor',
+        element: <TypeWorkbench type='sangfor' />,
+        meta: { title: '深信服认证', icon: 'SafetyCertificateOutlined', permission: 'content:list' },
+      },
+    ],
+  },
+  {
+    menuKey: 'learning',
+    meta: { title: '课程与教学', icon: 'ReadOutlined' },
+    children: [
+      {
+        path: 'courses',
+        meta: { title: '课程商品', icon: 'ReadOutlined', permission: 'course:read' },
+        children: [
+          { index: true, element: <Navigate to="list" replace /> },
+          {
+            path: 'list',
+            element: <CourseList />,
+            meta: { title: '课程列表', icon: 'ReadOutlined', permission: 'course:read' },
+          },
+          {
+            path: 'students',
+            element: <CourseStudents />,
+            meta: { title: '报名学员', icon: 'TeamOutlined', permission: 'course:read' },
+          },
+          {
+            path: 'codes',
+            element: <VideoWebCodes />,
+            meta: { title: '课程兑换码', icon: 'KeyOutlined', permission: 'course:read' },
+          },
+          {
+            path: 'categories',
+            element: <CourseCategories />,
+            meta: { title: '类目管理', icon: 'ClusterOutlined', permission: 'course:write' },
+          },
+          {
+            path: 'audit',
+            element: <CourseAudit />,
+            meta: { title: '课程审计', icon: 'AuditOutlined', permission: 'course:read' },
+          },
+          {
+            path: ':courseId',
+            element: <CourseDetail />,
+            meta: {
+              title: '课程工作台',
+              icon: 'PlayCircleOutlined',
+              permission: 'course:read',
+              hidden: true,
+              activeMenuKey: 'courses/list',
+            },
+          },
+        ],
+      },
+      {
+        path: 'classrooms',
+        meta: { title: '教学课堂', icon: 'TeamOutlined', permission: 'classroom:manage' },
+        children: [
+          {
+            index: true,
+            element: <ClassroomManagement />,
+            meta: {
+              title: '教学课堂',
+              permission: 'classroom:manage',
+              hidden: true,
+              activeMenuKey: 'classrooms',
+            },
+          },
+          {
+            path: ':classroomId',
+            element: <ClassroomWorkbench />,
+            meta: {
+              title: '课堂工作台',
+              icon: 'TeamOutlined',
+              permission: 'classroom:manage',
+              hidden: true,
+              activeMenuKey: 'classrooms',
+            },
+          },
+        ],
+      },
+    ],
   },
   {
     path: 'quiz',
-    meta: { title: '题库管理', icon: 'BookOutlined' },
+    meta: { title: '题库与考试', icon: 'BookOutlined' },
     children: [
       { index: true, element: <Navigate to="questions" replace /> },
       {
@@ -186,53 +355,64 @@ export const adminRoutes: AppRoute[] = [
       },
     ],
   },
-
   {
-    path: 'courses',
-    meta: { title: '课程管理', icon: 'ReadOutlined', permission: 'course:read' },
-    children: [
-      { index: true, element: <Navigate to="list" replace /> },
-      {
-        path: 'list',
-        element: <CourseList />,
-        meta: { title: '课程列表', icon: 'ReadOutlined', permission: 'course:read' },
-      },
-      {
-        path: 'categories',
-        element: <CourseCategories />,
-        meta: { title: '类目管理', icon: 'ClusterOutlined', permission: 'course:write' },
-      },
-      {
-        path: 'students',
-        element: <CourseStudents />,
-        meta: { title: '报名学员', icon: 'TeamOutlined', permission: 'course:read' },
-      },
-      {
-        path: 'codes',
-        element: <VideoWebCodes />,
-        meta: { title: '课程兑换码', icon: 'KeyOutlined', permission: 'course:read' },
-      },
-      {
-        path: 'audit',
-        element: <CourseAudit />,
-        meta: { title: '课程审计', icon: 'AuditOutlined', permission: 'course:read' },
-      },
-      {
-        path: ':courseId',
-        element: <CourseDetail />,
-        meta: { title: '课程工作台', icon: 'PlayCircleOutlined', permission: 'course:read', hidden: true },
-      },
-    ],
+    path: 'orders',
+    element: <OrderList />,
+    meta: { title: '订单管理', icon: 'ShoppingOutlined', permission: 'order:list' },
   },
   {
-    path: 'classrooms',
-    meta: { title: '课堂管理', icon: 'TeamOutlined', permission: 'classroom:manage' },
+    menuKey: 'content-operations',
+    meta: { title: '内容与运营', icon: 'AppstoreOutlined' },
     children: [
-      { index: true, element: <ClassroomManagement /> },
       {
-        path: ':classroomId',
-        element: <ClassroomWorkbench />,
-        meta: { title: '课堂工作台', icon: 'TeamOutlined', permission: 'classroom:manage', hidden: true },
+        path: 'content',
+        element: <Navigate to="/admin/content/agreement-templates" replace />,
+        meta: { title: '协议模板', hidden: true },
+      },
+      {
+        path: 'operations',
+        element: <Navigate to="/admin/operations/homepage" replace />,
+        meta: { title: '首页配置', hidden: true },
+      },
+      {
+        path: 'content/agreement-templates',
+        element: <AgreementTemplates />,
+        meta: { title: '协议模板', icon: 'AuditOutlined', permission: 'content:list' },
+      },
+      {
+        path: 'content/documents',
+        element: <DocumentManagement />,
+        meta: { title: '文档管理', icon: 'FilePdfOutlined', permission: 'document:read' },
+      },
+      {
+        path: 'operations/homepage',
+        element: <HomepageManagement />,
+        meta: { title: '首页配置', icon: 'PictureOutlined', permission: 'homepage:list' },
+      },
+      {
+        path: 'operations/jobs',
+        element: <JobManagement />,
+        meta: { title: '招聘管理', icon: 'IdcardOutlined', permission: 'job:list' },
+      },
+      {
+        path: 'operations/training',
+        element: <TrainingManagement />,
+        meta: { title: '培训活动', icon: 'SolutionOutlined', permission: 'training:list' },
+      },
+      {
+        path: 'operations/activities',
+        element: <ActivityManagement />,
+        meta: { title: '活动管理', icon: 'CalendarOutlined', permission: 'activity:list' },
+      },
+      {
+        path: 'operations/competitions',
+        element: <CompetitionManagement />,
+        meta: { title: '竞赛管理', icon: 'TrophyOutlined', permission: 'competition:list' },
+      },
+      {
+        path: 'operations/documents',
+        element: <Navigate to="/admin/content/documents" replace />,
+        meta: { title: '文档管理', hidden: true },
       },
     ],
   },
@@ -240,141 +420,6 @@ export const adminRoutes: AppRoute[] = [
     path: 'points-mall',
     element: <PointsMallManagement />,
     meta: { title: '积分商城', icon: 'GiftOutlined', permission: 'points:manage' },
-  },
-  {
-    path: 'certification',
-    meta: {
-      title: '认证管理',
-      icon: 'SafetyCertificateOutlined',
-      permissions: [
-        'content:list',
-        'h3c:review',
-        'h3c:export',
-        'h3c:refund',
-        'user:list',
-        'user:write',
-        'order:list',
-        'nisp:review',
-        'nisp:export',
-        'nisp:refund',
-      ],
-    },
-    children: [
-      {
-        index: true,
-        element: <CertificationOverview />,
-        meta: { title: '总览', icon: 'DashboardOutlined', permission: 'content:list' },
-      },
-      {
-        path: 'h3c',
-        element: <TypeWorkbench type='h3c' />,
-        meta: {
-          title: '新华三认证',
-          icon: 'ClusterOutlined',
-          permissions: ['h3c:review', 'h3c:export', 'h3c:refund'],
-        },
-      },
-      {
-        path: 'h3c/batches/:batchId',
-        element: <H3cBatchExportWorkbench />,
-        meta: {
-          title: 'H3C 批次工作台',
-          icon: 'FileZipOutlined',
-          permissions: ['h3c:review', 'h3c:export', 'h3c:refund'],
-          hidden: true,
-        },
-      },
-      {
-        path: 'h3c/export/:batchId',
-        element: <H3cBatchExportWorkbench />,
-        meta: {
-          title: 'H3C 批次工作台',
-          icon: 'FileZipOutlined',
-          permissions: ['h3c:review', 'h3c:export', 'h3c:refund'],
-          hidden: true,
-        },
-      },
-      {
-        path: 'renshe',
-        element: <TypeWorkbench type='renshe' />,
-        meta: {
-          title: '人社认证',
-          icon: 'AuditOutlined',
-          permissions: ['user:list', 'user:write', 'order:list'],
-        },
-      },
-      {
-        path: 'renshe/batches/:batchId',
-        element: <RensheBatchWorkbench />,
-        meta: {
-          title: '人社批次工作台',
-          icon: 'AuditOutlined',
-          permissions: ['user:list', 'user:write', 'order:list'],
-          hidden: true,
-        },
-      },
-      {
-        path: 'nisp',
-        element: <TypeWorkbench type='nisp' />,
-        meta: {
-          title: 'NISP认证',
-          icon: 'FileSearchOutlined',
-          permissions: ['nisp:review', 'nisp:export', 'nisp:refund'],
-        },
-      },
-      {
-        path: 'nisp/batches/:batchId',
-        element: <NispBatchWorkbench />,
-        meta: {
-          title: 'NISP 批次工作台',
-          icon: 'FileZipOutlined',
-          permissions: ['nisp:review', 'nisp:export', 'nisp:refund'],
-          hidden: true,
-        },
-      },
-      {
-        path: 'sangfor',
-        element: <TypeWorkbench type='sangfor' />,
-        meta: { title: '深信服认证', icon: 'SafetyCertificateOutlined', permission: 'content:list' },
-      },
-    ],
-  },
-  {
-    path: 'operations',
-    meta: { title: '运营中心', icon: 'AppstoreOutlined' },
-    children: [
-      { index: true, element: <Navigate to="homepage" replace /> },
-      {
-        path: 'homepage',
-        element: <HomepageManagement />,
-        meta: { title: '首页配置', icon: 'PictureOutlined', permission: 'homepage:list' },
-      },
-      {
-        path: 'jobs',
-        element: <JobManagement />,
-        meta: { title: '招聘管理', icon: 'IdcardOutlined', permission: 'job:list' },
-      },
-      {
-        path: 'training',
-        element: <TrainingManagement />,
-        meta: { title: '培训管理', icon: 'SolutionOutlined', permission: 'training:list' },
-      },
-      {
-        path: 'activities',
-        element: <ActivityManagement />,
-        meta: { title: '活动管理', icon: 'CalendarOutlined', permission: 'activity:list' },
-      },
-      {
-        path: 'competitions',
-        element: <CompetitionManagement />,
-        meta: { title: '竞赛管理', icon: 'TrophyOutlined', permission: 'competition:list' },
-      },
-      {
-        path: 'documents',
-        element: <Navigate to="/admin/content/documents" replace />,
-        meta: { title: '文档管理', hidden: true },
-      },
-    ],
   },
   {
     path: 'settings',

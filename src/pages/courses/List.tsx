@@ -65,7 +65,7 @@ export default function CourseListPage() {
     setOpen(false)
     setCover(null)
     setCoverPreview('')
-    navigate(`/admin/courses/${course.id}`)
+    navigate(`/admin/courses/${course.id}`, { state: { breadcrumbTitle: course.title } })
   }
 
   const columns: ColumnsType<CourseItem> = useMemo(() => [
@@ -89,7 +89,15 @@ export default function CourseListPage() {
       fixed: 'right',
       render: (_, record) => (
         <Space size={0} wrap>
-          <Button type="link" size="small" onClick={() => navigate(`/admin/courses/${record.id}`)}>管理</Button>
+          <Button
+            type="link"
+            size="small"
+            onClick={() => navigate(`/admin/courses/${record.id}`, {
+              state: { breadcrumbTitle: record.title },
+            })}
+          >
+            管理
+          </Button>
           {canPublish && record.status === 'draft' && (
             <ConfirmButton title="发布课程" description="发布前会校验封面、课程名和试看集数。" type="link" size="small" onConfirm={async () => { await courseManagementService.changeLifecycle(record.id, 'publish'); message.success('课程已发布'); refresh() }}>发布</ConfirmButton>
           )}

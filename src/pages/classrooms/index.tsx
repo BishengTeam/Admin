@@ -36,7 +36,7 @@ export default function ClassroomManagement() {
 
   return (
     <PageContainer
-      title={admin?.role === 'teacher' ? '我的课堂' : '课堂管理'}
+      title={admin?.role === 'teacher' ? '我的课堂' : '教学课堂'}
       extra={<Button type='primary' icon={<PlusOutlined />} onClick={handleAdd}>新建课堂</Button>}
     >
       <div style={{ marginBottom: 16 }}>
@@ -49,7 +49,9 @@ export default function ClassroomManagement() {
             <Col key={c.id} xs={24} sm={12} lg={8}>
               <Card
                 hoverable
-                onClick={() => navigate(`/admin/classrooms/${c.id}`)}
+                onClick={() => navigate(`/admin/classrooms/${c.id}`, {
+                  state: { breadcrumbTitle: c.name },
+                })}
                 style={{ height: '100%' }}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
