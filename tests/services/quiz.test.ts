@@ -131,6 +131,21 @@ describe('quizService frozen admin contract', () => {
     await expect(quizService.restoreV2Question(101, 2)).resolves.toEqual(v2Question)
   })
 
+  it('accepts status counts returned by the shared backend pagination envelope', async () => {
+    const { quizService } = await import('@/services/quiz')
+    const page = {
+      items: [question],
+      total: 1,
+      page: 1,
+      page_size: 20,
+      status_counts: { draft: 1 },
+    }
+    http.get.mockResolvedValueOnce(page)
+
+    await expect(quizService.listQuestions({})).resolves.toEqual(page)
+    expect(http.get).toHaveBeenCalledWith('/admin/quiz/questions', { params: {}, signal: undefined })
+  })
+
   it('loads migration issue details and sends an explicit migration recheck', async () => {
     const { quizService } = await import('@/services/quiz')
     const report = {

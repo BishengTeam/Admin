@@ -128,6 +128,7 @@ const pageSchema = <T extends z.ZodType>(item: T) => z.object({
   total: z.number(),
   page: z.number(),
   page_size: z.number(),
+  status_counts: z.record(z.string(), z.number()).optional(),
 }).strict()
 
 const CategoriesSchema = z.array(CategorySchema)

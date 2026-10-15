@@ -540,6 +540,7 @@ export const UserStatsPageSchema = z.object({
   total: z.number().int().min(0),
   page: positiveInt,
   page_size: positiveInt,
+  status_counts: z.record(z.string(), z.number()).optional(),
 }).strict()
 
 export const UserPracticeDaySchema = z.object({
@@ -829,6 +830,7 @@ export const PageDataSchema = <T extends z.ZodType>(itemSchema: T) =>
     total: z.number(),
     page: z.number(),
     page_size: z.number(),
+    status_counts: z.record(z.string(), z.number()).optional(),
   })
 
 // 用户 Schema（后续扩展）
@@ -856,4 +858,3 @@ export function validateRequestOrThrow<T>(schema: z.ZodType<T>, data: unknown): 
   if (!result.success) throw new Error(`请求模型校验失败: ${result.error.message}`)
   return result.data
 }
-
