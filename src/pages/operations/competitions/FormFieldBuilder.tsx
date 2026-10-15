@@ -145,7 +145,8 @@ export default function FormFieldBuilder({ value = [], onChange }: FormFieldBuil
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
         <Text type='secondary' style={{ fontSize: 12 }}>
-          固定字段（姓名、学校、手机号）始终显示，无需配置。以下为自定义字段：
+          固定字段（姓名、学校、手机号）始终必填。自定义字段里配置 姓名(name)/学校(school)/电话号码(phone_number)
+          时视为固定字段本身、按下方顺序显示，不会重复：
         </Text>
         <Space>
           <Button size='small' icon={<SettingOutlined />} onClick={() => setPresetOpen(true)}>
