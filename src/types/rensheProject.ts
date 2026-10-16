@@ -12,6 +12,14 @@ export interface RensheProjectConfig {
   export_template: string
   field_mapping: Record<string, string>
   attachment_layout: string
+  institution_types?: string[]
+  reporting_policy?: {
+    version?: string
+    confirmed_by_client?: boolean
+    commitment_template?: { filename: string; sha256: string; original_filename?: string }
+    attachment_names?: Record<string, string>
+    export_values?: Record<string, string>
+  }
 }
 
 export interface RensheProject {
@@ -43,4 +51,6 @@ export interface RensheCapabilities {
   material_names: Record<string, string>
   form_fields: string[]
   qualification_rules: Record<string, string>
+  institution_types?: Record<string, string>
+  review_checks?: Record<string, string>
 }

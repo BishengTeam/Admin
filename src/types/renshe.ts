@@ -19,6 +19,10 @@ export type RensheMaterialKind =
   | 'student_card'
   | 'xuexin_registration'
   | 'education_proof'
+  | 'registration_portrait'
+  | 'graduation_certificate'
+  | 'education_report'
+  | 'commitment_letter'
 
 export interface RensheApplicationFilter extends PageParams {
   plan_id?: number
@@ -67,9 +71,12 @@ export type RensheReviewStage = 'initial' | 'external'
 export type RensheReviewDecision = 'approved' | 'rejected'
 
 export interface RensheReviewPayload {
+  expected_version_id?: number
   decision: RensheReviewDecision
   reason?: string
   required_changes?: string[]
+  correction_due_at?: string
+  checklist?: Record<string, boolean>
 }
 
 export interface RensheReview {
@@ -83,6 +90,8 @@ export interface RensheReview {
   reviewer_id: number
   reviewed_at: string
   export_item_id: number | null
+  correction_due_at?: string | null
+  checklist?: Record<string, boolean> | null
 }
 
 export interface RensheReviewCorrectionPayload {
@@ -120,6 +129,7 @@ export interface RensheApplicationDetail {
   current_version_id: number | null
   status: RensheApplicationStatus
   draft_data: Record<string, unknown> | null
+  correction_due_at?: string | null
   submitted_at: string | null
   frozen_at: string | null
   freeze_reason: string | null
@@ -196,6 +206,7 @@ export interface RensheExportJob {
 }
 
 export interface RensheBatchExternalReviewTarget {
+  version_id?: number
   application_id: number
 }
 
@@ -204,6 +215,7 @@ export interface RensheBatchExternalReviewPayload {
   decision: RensheReviewDecision
   reason?: string
   required_changes?: string[]
+  correction_due_at?: string
 }
 
 export interface RensheBatchExternalReviewResult {

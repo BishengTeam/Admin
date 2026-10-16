@@ -46,3 +46,42 @@ test('人社项目采用列表与弹窗，并可直接创建所属项目的批�
   await expect(page.getByRole('dialog').getByText('新考', { exact: true })).toBeVisible()
   await page.screenshot({ path: 'test-results/renshe-batch-editor.png', fullPage: true, animations: 'disabled' })
 })
+
+test('已毕业学历型项目可上传下载模板并保留新规则配置', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 1050 })
+  await page.addInitScript(() => sessionStorage.setItem('admin_token', 'eyJhbGciOiJub25lIn0.eyJleHAiOjk5OTk5OTk5OTl9.'))
+  const template = { filename: `commitment_${'a'.repeat(64)}.pdf`, original_filename: '甲方承诺书.pdf', sha256: 'a'.repeat(64) }
+  const materials = Object.entries({ id_card_front: '身份证正面', id_card_back: '身份证背面', registration_portrait: '一寸白底近期证件照（≤500 KB）', graduation_certificate: '毕业证', education_report: '学信网学历备案表', commitment_letter: '承诺书（本人签字按手印）' }).map(([kind, name]) => ({ kind, name, required: true, extensions: ['education_report', 'commitment_letter'].includes(kind) ? ['.pdf'] : ['.jpg', '.jpeg'], max_count: 1 }))
+  const graduatedConfig = { ...config, qualification_rule: 'related_major_graduated_degree_v1', institution_types: ['technical', 'vocational', 'general_higher'], materials, export_template: 'renshe_graduated_v1', reporting_policy: {} }
+  let payload: Record<string, any> | undefined
+  const reply = (route: Route, data: unknown) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 0, data, message: 'ok' }) })
+  await page.route('**/admin/auth/me', route => reply(route, { admin: { id: 1, username: 'test', display_name: '测试管理员', role: 'super_admin', is_active: true, must_change_password: false, locked_until: null, last_login_at: null, created_at: '2026-10-15T00:00:00Z', updated_at: '2026-10-15T00:00:00Z' }, permissions: ['*'], session_mode: 'normal', must_change_password: false }))
+  await page.route('**/admin/cert-products/renshe/**', route => {
+    const path = new URL(route.request().url()).pathname
+    if (path.endsWith('/project-capabilities')) return reply(route, { default_config: graduatedConfig, templates: {}, material_names: {}, form_fields: config.form_fields, qualification_rules: { related_major_graduated_degree_v1: '已取得毕业证的本专业或相关专业' }, institution_types: { technical: '技工院校', vocational: '中等及以上职业院校', general_higher: '普通高等学校' } })
+    if (path.endsWith('/commitment-templates')) return reply(route, template)
+    if (path.includes('/commitment-templates/')) return route.fulfill({ status: 200, contentType: 'application/pdf', body: '%PDF-1.4 fixture' })
+    if (path.endsWith('/projects') && route.request().method() === 'POST') { payload = route.request().postDataJSON(); return reply(route, { ...project, status: 'draft' }) }
+    if (path.endsWith('/projects') || path.endsWith('/batches')) return reply(route, [])
+    return reply(route, {})
+  })
+  await page.goto('/admin/certification/renshe?tab=products')
+  await page.getByRole('button', { name: /新增项目/ }).click()
+  await page.getByLabel('项目名称', { exact: true }).fill('信息安全管理员已毕业学历型')
+  await page.getByRole('tab', { name: '报名规则与材料' }).click()
+  await expect(page.getByText('本期仅接受信息安全管理员四级／中级工、已取得毕业证的学历型申请；专业相关性由初审逐项核验。')).toBeVisible()
+  await page.screenshot({ path: 'test-results/renshe-graduated-rules.png', fullPage: true, animations: 'disabled' })
+  await page.getByRole('tab', { name: '导出配置' }).click()
+  await page.locator('input[type=file][accept=".pdf,.docx"]').setInputFiles({ name: '甲方承诺书.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4 fixture') })
+  await expect(page.getByText('甲方承诺书.pdf', { exact: true })).toBeVisible()
+  const downloaded = page.waitForEvent('download')
+  await page.getByRole('button', { name: '下载当前模板' }).click()
+  expect((await downloaded).suggestedFilename()).toBe('甲方承诺书.pdf')
+  await page.screenshot({ path: 'test-results/renshe-graduated-template.png', fullPage: true, animations: 'disabled' })
+  await page.getByRole('button', { name: /^保\s*存$/ }).click()
+  await expect.poll(() => payload?.config?.reporting_policy?.commitment_template?.sha256).toBe(template.sha256)
+  expect(payload?.config.qualification_rule).toBe('related_major_graduated_degree_v1')
+  expect(payload?.config.institution_types).toHaveLength(3)
+  expect(payload?.config.materials).toHaveLength(6)
+  expect(payload?.config.field_mapping).toEqual({})
+})

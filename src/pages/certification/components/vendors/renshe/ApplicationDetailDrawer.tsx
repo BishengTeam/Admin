@@ -2,6 +2,9 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Button,
+  Alert,
+  Checkbox,
+  DatePicker,
   Collapse,
   Descriptions,
   Drawer,
@@ -40,6 +43,8 @@ import {
   RENSHE_REVIEW_STAGE_LABELS,
 } from '@/utils/renshe'
 import MaterialPreview from './MaterialPreview'
+import dayjs, { type Dayjs } from 'dayjs'
+import { RENSHE_GRADUATED_CHECKS, RENSHE_GRADUATED_CHANGE_OPTIONS } from '@/utils/renshe'
 
 const { Text, Title } = Typography
 
@@ -57,6 +62,7 @@ const SNAPSHOT_LABELS: Record<string, string> = {
   gender: '性别',
   birth_date: '出生日期',
   ethnicity: '民族',
+  institution_type: '院校类型', graduation_date: '毕业日期', certificate_number: '毕业证书编号', graduated: '已取得毕业证',
 }
 
 const REQUIRED_CHANGE_OPTIONS = Object.entries(RENSHE_MATERIAL_LABELS).map(([value, label]) => ({ value, label }))
@@ -71,6 +77,7 @@ interface ApplicationDetailDrawerProps {
 interface RejectionFormValues {
   reason: string
   required_changes: string[]
+  correction_due_at?: Dayjs
 }
 
 interface CorrectionFormValues {
@@ -91,7 +98,7 @@ function renderSnapshot(snapshot: Record<string, unknown>) {
     <Descriptions bordered size="small" column={2} style={{ marginBottom: 16 }}>
       {entries.map(([key, value]) => (
         <Descriptions.Item key={key} label={SNAPSHOT_LABELS[key] ?? key}>
-          {typeof value === 'object' ? JSON.stringify(value) : String(value)}
+          {typeof value === 'boolean' ? (value ? '是' : '否') : typeof value === 'object' ? JSON.stringify(value) : ({ technical: '技工院校', vocational: '中等及以上职业院校', general_higher: '普通高等学校', secondary_vocational: '中专', associate: '大专', bachelor: '本科', master: '硕士', doctorate: '博士', student: '学生', social: '社会人员', enterprise: '企业人员' } as Record<string, string>)[String(value)] || String(value)}
         </Descriptions.Item>
       ))}
     </Descriptions>
@@ -108,6 +115,8 @@ export default function ApplicationDetailDrawer({
   const [detail, setDetail] = useState<RensheApplicationDetail | null>(null)
   const [loading, setLoading] = useState(false)
   const [reviewing, setReviewing] = useState(false)
+  const [checks, setChecks] = useState<string[]>([])
+  const graduated = detail?.plan.renshe_config?.qualification_rule === 'related_major_graduated_degree_v1'
   const [rejectionStage, setRejectionStage] = useState<RensheReviewStage | null>(null)
   const [correctingReview, setCorrectingReview] = useState<RensheReview | null>(null)
   const [rejectionForm] = Form.useForm<RejectionFormValues>()
@@ -122,6 +131,7 @@ export default function ApplicationDetailDrawer({
     setLoading(true)
     try {
       setDetail(await rensheService.getApplication(applicationId))
+      setChecks([])
     } finally {
       setLoading(false)
     }
@@ -140,6 +150,10 @@ export default function ApplicationDetailDrawer({
   }
 
   const submitApprovedReview = (stage: RensheReviewStage) => {
+    if (graduated && stage === 'initial' && checks.length !== Object.keys(RENSHE_GRADUATED_CHECKS).length) {
+      message.warning('请先逐项核对七项学历型初审核验内容')
+      return
+    }
     Modal.confirm({
       title: `确认${RENSHE_REVIEW_STAGE_LABELS[stage]}通过`,
       content: '审核结果会绑定当前报名版本。',
@@ -148,9 +162,12 @@ export default function ApplicationDetailDrawer({
         if (!applicationId) return
         setReviewing(true)
         try {
-          await rensheService.reviewApplication(applicationId, stage, { decision: 'approved' })
+          await rensheService.reviewApplication(applicationId, stage, { decision: 'approved', expected_version_id: detail?.current_version_id || undefined, ...(graduated && stage === 'initial' ? { checklist: Object.fromEntries(checks.map(key => [key, true])) } : {}) })
           message.success(`${RENSHE_REVIEW_STAGE_LABELS[stage]}已通过`)
           await finishMutation()
+        } catch (error) {
+          message.error(error instanceof Error ? error.message : '审核失败')
+          throw error
         } finally {
           setReviewing(false)
         }
@@ -165,13 +182,17 @@ export default function ApplicationDetailDrawer({
     try {
       await rensheService.reviewApplication(applicationId, rejectionStage, {
         decision: 'rejected',
+        expected_version_id: detail?.current_version_id || undefined,
         reason: values.reason.trim(),
         required_changes: values.required_changes,
+        correction_due_at: values.correction_due_at?.toISOString(),
       })
       message.success(`${RENSHE_REVIEW_STAGE_LABELS[rejectionStage]}已驳回`)
       setRejectionStage(null)
       rejectionForm.resetFields()
       await finishMutation()
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '驳回失败')
     } finally {
       setReviewing(false)
     }
@@ -259,7 +280,9 @@ export default function ApplicationDetailDrawer({
       render: (items: string[] | null) => items?.map((item) => RENSHE_MATERIAL_LABELS[item as keyof typeof RENSHE_MATERIAL_LABELS] ?? item).join('、') || '-',
     },
     { title: '时间', dataIndex: 'reviewed_at', width: 170, render: (value: string) => formatDate(value) },
-    ...(isSuperAdmin ? [{
+    { title: '补正截止', dataIndex: 'correction_due_at', render: (value?: string) => value ? formatDate(value) : '-' },
+    { title: '初审核验', render: (_: unknown, review: RensheReview) => review.checklist ? `${Object.values(review.checklist).filter(Boolean).length}/7 项已核验` : '-' },
+    ...(isSuperAdmin && !graduated ? [{
       title: '操作',
       width: 80,
       render: (_: unknown, review: RensheReview) => (
@@ -268,7 +291,7 @@ export default function ApplicationDetailDrawer({
         </Button>
       ),
     }] : []),
-  ], [isSuperAdmin])
+  ], [isSuperAdmin, graduated])
 
   const versionItems = useMemo(() => {
     if (!detail) return []
@@ -288,10 +311,10 @@ export default function ApplicationDetailDrawer({
           <>
             <Title level={5}>实名信息</Title>
             {renderSnapshot(version.realname_snapshot)}
-            <Title level={5}>学生信息</Title>
-            {renderSnapshot(version.student_snapshot)}
+            <Title level={5}>{graduated ? '毕业学历信息' : '学生信息'}</Title>
+            {renderSnapshot(graduated ? (version.form_data.education_info as Record<string, unknown> || {}) : version.student_snapshot)}
             <Title level={5}>报名信息</Title>
-            {renderSnapshot(version.form_data)}
+            {renderSnapshot(Object.fromEntries(Object.entries(version.form_data).filter(([key]) => !['materials', 'education_info', 'plan_id'].includes(key))))}
             <Title level={5}>材料</Title>
             {detail.plan.renshe_config && <Space wrap style={{ marginBottom: 12 }}>{detail.plan.renshe_config.materials.map(item => <Tag key={item.kind}>{item.name} · {item.required ? '必填' : '选填'} · {item.extensions.join('/')} · {item.max_count} 个</Tag>)}</Space>}
             <Table
@@ -313,7 +336,7 @@ export default function ApplicationDetailDrawer({
           </>
         ),
       }))
-  }, [detail, materialColumns, reviewColumns])
+  }, [detail, graduated, materialColumns, reviewColumns])
 
   const reviewActions = detail && canWrite ? (
     <Space>
@@ -413,6 +436,14 @@ export default function ApplicationDetailDrawer({
               )}
             </Descriptions>
 
+            {graduated && detail.status === 'pending_initial_review' && canWrite && <>
+              <Title level={5}>学历型初审核验</Title>
+              <Alert type='info' showIcon message='结合当前版本的实名、学历字段和材料逐项核验；专业别名或不明确匹配须人工判断。' style={{ marginBottom: 12 }} />
+              <Checkbox.Group value={checks} onChange={values => setChecks(values as string[])} style={{ marginBottom: 20 }}>
+                <Space direction='vertical'>{Object.entries(RENSHE_GRADUATED_CHECKS).map(([key, label]) => <Checkbox key={key} value={key}>{label}</Checkbox>)}</Space>
+              </Checkbox.Group>
+            </>}
+            {detail.correction_due_at && <Alert type='warning' message={`补正截止：${formatDate(detail.correction_due_at)}`} style={{ marginBottom: 16 }} />}
             <Title level={5}>版本记录</Title>
             <Collapse
               items={versionItems}
@@ -439,8 +470,9 @@ export default function ApplicationDetailDrawer({
             <Input.TextArea rows={4} maxLength={2000} showCount />
           </Form.Item>
           <Form.Item name="required_changes" label="待修改项" rules={[{ required: true, message: '请选择至少一个待修改项' }]}>
-            <Select mode="tags" options={detail?.plan.renshe_config?.materials.map(item => ({ value: item.kind, label: item.name })) ?? REQUIRED_CHANGE_OPTIONS} placeholder="选择材料或输入字段名" />
+            <Select mode={graduated ? 'multiple' : 'tags'} options={graduated ? RENSHE_GRADUATED_CHANGE_OPTIONS : detail?.plan.renshe_config?.materials.map(item => ({ value: item.kind, label: item.name })) ?? REQUIRED_CHANGE_OPTIONS} placeholder="选择需要补正的具体字段或材料" />
           </Form.Item>
+          {graduated && <Form.Item name='correction_due_at' label='补正截止时间' rules={[{ required: true, message: '请设置补正截止时间' }, { validator: (_, value?: Dayjs) => value && value.isAfter(dayjs()) ? Promise.resolve() : Promise.reject(new Error('截止时间必须晚于现在')) }]}><DatePicker showTime style={{ width: '100%' }} /></Form.Item>}
         </Form>
       </Modal>
 

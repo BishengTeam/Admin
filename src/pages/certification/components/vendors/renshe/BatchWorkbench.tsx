@@ -4,6 +4,7 @@ import {
   Alert,
   Button,
   Descriptions,
+  DatePicker,
   Drawer,
   Form,
   Input,
@@ -39,6 +40,8 @@ import type {
 import { formatDate, formatPrice } from '@/utils/format'
 import { RENSHE_APPLICATION_STATUS_MAP } from '@/utils/renshe'
 import ApplicationDetailDrawer from './ApplicationDetailDrawer'
+import dayjs, { type Dayjs } from 'dayjs'
+import { RENSHE_GRADUATED_CHANGE_OPTIONS } from '@/utils/renshe'
 
 const STATUS_OPTIONS = Object.entries(RENSHE_APPLICATION_STATUS_MAP).map(([value, item]) => ({
   value,
@@ -60,12 +63,14 @@ interface PeopleFilters {
 interface ReturnFormValues {
   reason: string
   required_changes: string[]
+  correction_due_at?: Dayjs
 }
 
 interface ExternalFormValues {
   decision: RensheReviewDecision
   reason?: string
   required_changes?: string[]
+  correction_due_at?: Dayjs
 }
 
 function mergeSelectedApplications(
@@ -106,6 +111,7 @@ export default function RensheBatchWorkbench() {
   const canExport = usePermission('renshe:export')
   const canRefund = usePermission('order:list')
   const [plan, setPlan] = useState<CertificationPlan | null>(null)
+  const graduated = plan?.renshe_config?.qualification_rule === 'related_major_graduated_degree_v1'
   const [filters, setFilters] = useState<PeopleFilters>(() => ({
     keyword: '',
     status: parseInitialStatus(searchParams.get('status')),
@@ -192,8 +198,10 @@ export default function RensheBatchWorkbench() {
     try {
       await rensheService.returnForCorrection(returnApplication.id, {
         decision: 'rejected',
+        expected_version_id: returnApplication.current_version_id || undefined,
         reason: values.reason,
         required_changes: values.required_changes,
+        correction_due_at: values.correction_due_at?.toISOString(),
       })
       message.success('已打回补正')
       setReturnApplication(null)
@@ -249,10 +257,11 @@ export default function RensheBatchWorkbench() {
     setExternalSubmitting(true)
     try {
       const result = await rensheService.batchExternalReview({
-        targets: selectedList.map(item => ({ application_id: item.id })),
+        targets: selectedList.map(item => ({ application_id: item.id, version_id: item.current_version_id || undefined })),
         decision: values.decision,
         reason: values.reason,
         required_changes: values.required_changes,
+        correction_due_at: values.correction_due_at?.toISOString(),
       })
       setExternalResults(result.items)
       setExternalOpen(false)
@@ -542,8 +551,9 @@ export default function RensheBatchWorkbench() {
             <Input.TextArea rows={4} maxLength={2000} showCount />
           </Form.Item>
           <Form.Item name='required_changes' label='待修改项' rules={[{ required: true, message: '请填写待修改项' }]}>
-            <Select mode='tags' placeholder='例如：学生证照片、通讯地址' />
+            <Select mode={graduated ? 'multiple' : 'tags'} options={graduated ? RENSHE_GRADUATED_CHANGE_OPTIONS : undefined} placeholder='选择需要补正的字段或材料' />
           </Form.Item>
+          {graduated && <Form.Item name='correction_due_at' label='补正截止时间' rules={[{ required: true }, { validator: (_, value?: Dayjs) => value?.isAfter(dayjs()) ? Promise.resolve() : Promise.reject(new Error('截止时间必须晚于现在')) }]}><DatePicker showTime /></Form.Item>}
         </Form>
       </Modal>
 
@@ -572,8 +582,9 @@ export default function RensheBatchWorkbench() {
                     <Input.TextArea rows={3} maxLength={2000} showCount />
                   </Form.Item>
                   <Form.Item name='required_changes' label='待修改项' rules={[{ required: true }]}>
-                    <Select mode='tags' />
+                    <Select mode={graduated ? 'multiple' : 'tags'} options={graduated ? RENSHE_GRADUATED_CHANGE_OPTIONS : undefined} />
                   </Form.Item>
+                  {graduated && <Form.Item name='correction_due_at' label='补正截止时间' rules={[{ required: true }, { validator: (_, value?: Dayjs) => value?.isAfter(dayjs()) ? Promise.resolve() : Promise.reject(new Error('截止时间必须晚于现在')) }]}><DatePicker showTime /></Form.Item>}
                 </>
               ) : (
                 <Alert type='info' showIcon message='外审通过将自动绑定当前版本的成功导出条目；资料更新后旧导出会失效。' />
