@@ -7,7 +7,7 @@ import type { RensheCapabilities, RensheProject } from '@/types/rensheProject'
 
 vi.mock('@/hooks/usePermission', () => ({ usePermission: () => true }))
 vi.mock('@/components/ImageUpload', () => ({ ImageUpload: () => <div>封面上传</div> }))
-vi.mock('@/services/renshe', () => ({ rensheService: { listProjects: vi.fn(), projectCapabilities: vi.fn(), createProject: vi.fn(), updateProject: vi.fn(), deleteProject: vi.fn() } }))
+vi.mock('@/services/renshe', () => ({ rensheService: { listProjects: vi.fn(), projectCapabilities: vi.fn(), createProject: vi.fn(), updateProject: vi.fn(), deleteProject: vi.fn(), uploadCommitmentTemplate: vi.fn(), downloadCommitmentTemplate: vi.fn() } }))
 
 const config: RensheProject['config'] = {
   occupation_name: '信息安全管理员', occupation_code: '4-04-04-02', skill_level: '中级工', export_skill_level: '四级',
@@ -34,6 +34,27 @@ beforeEach(() => {
 afterEach(cleanup)
 
 describe('人社报考项目管理', () => {
+  it('shows commitment upload directly for legacy projects without changing admission rules', async () => {
+    const template = { filename: `commitment_${'c'.repeat(64)}.pdf`, sha256: 'c'.repeat(64), original_filename: '确认承诺书.pdf' }
+    vi.mocked(rensheService.uploadCommitmentTemplate).mockResolvedValue(template)
+    render(<MemoryRouter><ProjectTable /></MemoryRouter>)
+    await screen.findByText('信息安全中级项目')
+    fireEvent.click(screen.getByRole('button', { name: '编辑' }))
+    fireEvent.click(await screen.findByRole('tab', { name: '导出说明' }))
+    expect(screen.getByRole('button', { name: /上传承诺书模板/ })).toBeTruthy()
+    expect(screen.queryByLabelText('已适配导出模板')).toBeNull()
+    expect(screen.queryByLabelText('附件目录与命名规则')).toBeNull()
+    fireEvent.change(screen.getByRole('dialog').querySelector('input[type=file]')!, { target: { files: [new File(['%PDF-1.4 fixture'], '确认承诺书.pdf', { type: 'application/pdf' })] } })
+    await screen.findByText('确认承诺书.pdf')
+    fireEvent.click(screen.getByRole('button', { name: '保 存' }))
+    await waitFor(() => expect(rensheService.updateProject).toHaveBeenCalledTimes(1))
+    const [id, payload] = vi.mocked(rensheService.updateProject).mock.calls[0]
+    expect(id).toBe(project.id)
+    expect(payload.config.qualification_rule).toBe(config.qualification_rule)
+    expect(payload.config.commitment_template).toEqual(template)
+    expect(payload.config.materials).toEqual(config.materials)
+  })
+
   it('shows a business-name table and saves a draft without manually entered technical identifiers', async () => {
     render(<MemoryRouter><ProjectTable /></MemoryRouter>)
     await screen.findByText('信息安全中级项目')
@@ -61,7 +82,7 @@ describe('人社报考项目管理', () => {
     fireEvent.change(name, { target: { value: '新的展示名称' } })
     fireEvent.click(screen.getByRole('tab', { name: '报名规则与材料' }))
     fireEvent.click(screen.getByRole('checkbox', { name: '学生证必填' }))
-    fireEvent.click(screen.getByRole('tab', { name: '导出配置' }))
+    fireEvent.click(screen.getByRole('tab', { name: '导出说明' }))
     fireEvent.click(screen.getByRole('button', { name: '保 存' }))
     await waitFor(() => expect(rensheService.updateProject).toHaveBeenCalledTimes(1))
     const [id, payload] = vi.mocked(rensheService.updateProject).mock.calls[0]

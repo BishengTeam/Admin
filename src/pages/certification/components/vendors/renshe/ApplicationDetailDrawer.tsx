@@ -318,7 +318,7 @@ export default function ApplicationDetailDrawer({
             {renderSnapshot(graduated ? (version.form_data.education_info as Record<string, unknown> || {}) : version.student_snapshot)}
             {graduated && <><Title level={5}>模板填报信息</Title>{renderSnapshot(version.form_data.reporting_info as Record<string, unknown> || {})}{!version.form_data.reporting_info && <Alert type='warning' message='该历史版本缺少模板填报信息，导出前请驳回补正后重新初审。' style={{ marginBottom: 16 }} />}</>}
             <Title level={5}>报名信息</Title>
-            {renderSnapshot(Object.fromEntries(Object.entries(version.form_data).filter(([key]) => !['materials', 'education_info', 'reporting_info', 'reporting_contract', 'reporting_config_id', 'plan_id'].includes(key))))}
+            {renderSnapshot(Object.fromEntries(Object.entries(version.form_data).filter(([key]) => !['materials', 'education_info', 'reporting_info', 'reporting_contract', 'reporting_config_id', 'commitment_template', 'plan_id'].includes(key))))}
             <Title level={5}>材料</Title>
             {detail.plan.renshe_config && <Space wrap style={{ marginBottom: 12 }}>{detail.plan.renshe_config.materials.map(item => <Tag key={item.kind}>{item.name} · {item.required ? '必填' : '选填'} · {item.extensions.join('/')} · {item.max_count} 个</Tag>)}</Space>}
             <Table

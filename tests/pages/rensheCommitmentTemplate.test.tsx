@@ -1,70 +1,55 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { Form } from 'antd'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
-import { GraduatedExportConfig } from '@/pages/certification/components/vendors/renshe/GraduatedConfig'
+import { ExportInstructions } from '@/pages/certification/components/vendors/renshe/ExportInstructions'
 import { rensheService } from '@/services/renshe'
 
-vi.mock('@/services/renshe', () => ({ rensheService: { uploadCommitmentTemplate: vi.fn(), downloadCommitmentTemplate: vi.fn() } }))
+vi.mock('@/services/renshe', () => ({ rensheService: { uploadCommitmentTemplate: vi.fn(), downloadCommitmentTemplate: vi.fn(), downloadRegistrationTemplate: vi.fn() } }))
 beforeAll(() => {
+  const getComputedStyle = window.getComputedStyle
+  window.getComputedStyle = element => getComputedStyle(element)
   Object.defineProperty(window, 'matchMedia', { writable: true, value: vi.fn().mockImplementation(() => ({ matches: false, addListener: vi.fn(), removeListener: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: vi.fn() })) })
 })
 afterEach(cleanup)
+const instructions = { registration_template: '报名信息.xlsx', work_template: '工作经历.xlsx', work_description: '原样附带甲方工作经历模板，不会自动填写经历。', directory_note: '目录示例，实际内容以报名材料为准', portrait_note: '保留真实扩展名', example_paths: [], file_tree: '人社报名_批次名称.zip\n└─ 报名信息.xlsx', columns: [{ column: 18, header: '参加工作日期（入学日期）', source: '使用真实参加工作日期，格式2022-9-21' }] }
 
-describe('人社承诺书模板', () => {
-  const condition = '取得本专业或相关专业的技工院校或中等及以上职业院校、专科及以上普通高等学校毕业证书（含在读应届毕业生）。'
-  const defaults = { contract_version: 2, version: 'registration-v2', confirmed_by_client: false, export_values: { candidate_source: '社会人员', application_condition: condition }, employment_reporting: { confirmed: false, date_rule: null, years_rule: null, allow_zero_years: null } }
-  it('uploads a new immutable template and clears the old confirmation', async () => {
+describe('人社导出说明和承诺书', () => {
+  it('uploads the business template without asking for export settings or confirmations', async () => {
     const metadata = { filename: `commitment_${'a'.repeat(64)}.pdf`, sha256: 'a'.repeat(64), original_filename: '甲方承诺书.pdf' }
     vi.mocked(rensheService.uploadCommitmentTemplate).mockResolvedValue(metadata)
     const submitted = vi.fn()
-    const { container } = render(<Form initialValues={{ config: { reporting_policy: { confirmed_by_client: true } } }} onFinish={submitted}>
-      <GraduatedExportConfig required={false} readOnly={false} materials={[]} />
-      <button type='submit'>保存测试配置</button>
+    const { container } = render(<Form onFinish={submitted}>
+      <ExportInstructions instructions={instructions} required readOnly={false} />
+      <button type='submit'>保存项目</button>
     </Form>)
     const file = new File(['%PDF-1.4 fixture'], '甲方承诺书.pdf', { type: 'application/pdf' })
     fireEvent.change(container.querySelector('input[type=file]')!, { target: { files: [file] } })
     await screen.findByText('甲方承诺书.pdf')
     expect(rensheService.uploadCommitmentTemplate).toHaveBeenCalledWith(file)
-    expect((screen.getByRole('checkbox') as HTMLInputElement).checked).toBe(false)
-    fireEvent.click(screen.getByText('保存测试配置'))
+    expect(screen.queryByRole('combobox')).toBeNull()
+    expect(screen.queryByRole('checkbox')).toBeNull()
+    expect(screen.queryByLabelText('报送口径版本')).toBeNull()
+    expect(screen.queryByText('切换第二版')).toBeNull()
+    fireEvent.click(screen.getByText('保存项目'))
     await waitFor(() => expect(submitted).toHaveBeenCalled())
-    const config = submitted.mock.calls[0][0].config
-    expect(config.reporting_policy.commitment_template.sha256).toBe(metadata.sha256)
-    expect(config.reporting_policy.confirmed_by_client).toBe(false)
+    expect(submitted.mock.calls[0][0].config).toEqual({ commitment_template: metadata })
   })
 
-  it('upgrades old reporting fields without retaining the obsolete graduation-status column', async () => {
-    const submitted = vi.fn()
-    const metadata = { filename: `commitment_${'b'.repeat(64)}.pdf`, sha256: 'b'.repeat(64) }
-    render(<Form initialValues={{ config: { reporting_policy: { version: 'old-v1', confirmed_by_client: true, commitment_template: metadata, attachment_names: { commitment_letter: '承诺书' }, export_values: { candidate_source: '社会人员', student_status: '已毕业', application_condition: '毕业证书' } } } }} onFinish={submitted}>
-      <GraduatedExportConfig required={false} readOnly={false} materials={[]} defaultPolicy={defaults} />
-      <button type='submit'>保存第二版</button>
-    </Form>)
-    fireEvent.click(screen.getByRole('button', { name: '切换第二版' }))
-    expect(screen.getByLabelText('U列学历型申报条件（模板原文）')).toHaveValue(condition)
-    expect(screen.getByLabelText('U列学历型申报条件（模板原文）')).toBeDisabled()
-    expect(screen.getByLabelText('F列考生来源')).toHaveValue('社会人员')
-    fireEvent.click(screen.getByText('保存第二版'))
-    await waitFor(() => expect(submitted).toHaveBeenCalled())
-    const policy = submitted.mock.calls[0][0].config.reporting_policy
-    expect(policy.contract_version).toBe(2)
-    expect(policy.export_values).toEqual(defaults.export_values)
-    expect(policy.commitment_template).toEqual(metadata)
-    expect(policy.employment_reporting.confirmed).toBe(false)
-    expect(policy.confirmed_by_client).toBe(false)
+  it('renders server-provided directory and read-only field instructions', async () => {
+    render(<Form><ExportInstructions instructions={instructions} required={false} readOnly={false} /></Form>)
+    expect(screen.getByText(instructions.directory_note)).toBeTruthy()
+    expect(screen.getByText(/原样附带甲方工作经历模板/)).toBeTruthy()
+    expect(screen.getByText(/人社报名_批次名称.zip/)).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: '查看字段填写说明' }))
+    expect(await screen.findByText('使用真实参加工作日期，格式2022-9-21')).toBeTruthy()
+    expect(screen.queryByRole('combobox')).toBeNull()
   })
 
-  it('clears the R/S confirmation when a date rule changes and preserves an explicit false zero-year choice', async () => {
-    const submitted = vi.fn()
-    render(<Form initialValues={{ config: { reporting_policy: { ...defaults, employment_reporting: { confirmed: true, date_rule: 'work_only', years_rule: 'required', allow_zero_years: false } } } }} onFinish={submitted}>
-      <GraduatedExportConfig required={false} readOnly={false} materials={[]} defaultPolicy={defaults} />
-      <button type='submit'>保存报送规则</button>
-    </Form>)
-    fireEvent.mouseDown(screen.getByLabelText('R列日期填报规则'))
-    fireEvent.click(screen.getByText('必须填入学日期'))
-    expect(screen.getByRole('checkbox', { name: /R、S列规则已获甲方确认/ })).not.toBeChecked()
-    fireEvent.click(screen.getByText('保存报送规则'))
-    await waitFor(() => expect(submitted).toHaveBeenCalled())
-    expect(submitted.mock.calls[0][0].config.reporting_policy.employment_reporting).toEqual({ confirmed: false, date_rule: 'enrollment_only', years_rule: 'required', allow_zero_years: false })
+  it('shows the existing file for download while upload is read-only', () => {
+    const template = { filename: `commitment_${'b'.repeat(64)}.pdf`, sha256: 'b'.repeat(64), original_filename: '当前承诺书.pdf' }
+    render(<Form initialValues={{ config: { commitment_template: template } }}><ExportInstructions instructions={instructions} required={false} readOnly /></Form>)
+    expect(screen.getByText('当前承诺书.pdf')).toBeTruthy()
+    expect(screen.getByRole('button', { name: /上传替换/ })).toBeDisabled()
+    expect(screen.getByRole('button', { name: /下载当前模板/ })).not.toBeDisabled()
   })
 })

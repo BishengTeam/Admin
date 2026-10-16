@@ -32,6 +32,7 @@ export interface RensheProgram {
 }
 
 export const rensheService = {
+  downloadRegistrationTemplate: () => http.get<Blob>('/admin/cert-products/renshe/export-template', { responseType: 'blob' }),
   uploadCommitmentTemplate: (file: File) => {
     const data = new FormData()
     data.append('file', file)

@@ -22,6 +22,18 @@ export interface RensheProjectConfig {
     export_values?: Record<string, string>
     employment_reporting?: { confirmed?: boolean; date_rule?: string | null; years_rule?: string | null; allow_zero_years?: boolean | null }
   }
+  commitment_template?: { filename: string; sha256: string; original_filename?: string } | null
+}
+
+export interface RensheExportInstructions {
+  registration_template: string
+  work_template: string
+  work_description: string
+  directory_note: string
+  portrait_note: string
+  file_tree: string
+  example_paths: string[]
+  columns: Array<{ column: number; header: string; source: string }>
 }
 
 export interface RensheProject {
@@ -56,4 +68,5 @@ export interface RensheCapabilities {
   institution_types?: Record<string, string>
   review_checks?: Record<string, string>
   reporting_contract?: { education_labels: Record<string, string>; application_condition: string }
+  export_instructions?: RensheExportInstructions
 }
