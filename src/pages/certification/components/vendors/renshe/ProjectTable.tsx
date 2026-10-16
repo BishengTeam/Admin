@@ -133,7 +133,7 @@ export default function ProjectTable() {
         form.setFieldValue('config', structuredClone(capabilities.default_config))
       }
     }} /></Form.Item>
-    <Alert type='info' showIcon message={graduated ? '本期仅接受信息安全管理员四级／中级工、已取得毕业证的学历型申请；专业相关性由初审逐项核验。' : '历史学生规则继续用于原批次，新开放批次须切换到已毕业学历型规则。'} style={{ marginBottom: 16 }} />
+    <Alert type='info' showIcon message={graduated ? '本期按甲方标准资料包收集九类材料；模板25列信息由考生按字典填报。' : '历史学生规则继续用于原批次，新开放批次须切换到标准报送规则。'} style={{ marginBottom: 16 }} />
     {graduated && <Form.Item name={['config', 'institution_types']} label='支持的院校类型'><Checkbox.Group options={Object.entries(capabilities?.institution_types ?? {}).map(([value, label]) => ({ value, label }))} /></Form.Item>}
     <Form.Item name={['config', 'education_levels']} label='允许的文化程度'><Checkbox.Group options={Object.entries(graduated && capabilities?.reporting_contract ? capabilities.reporting_contract.education_labels : EDUCATIONS).map(([value, label]) => ({ value, label }))} /></Form.Item>
     <Form.Item name={['config', 'form_fields']} label='报名信息字段'><Checkbox.Group options={['contact_phone', 'mailing_address', 'email'].map(value => ({ label: FIELD_LABELS[value], value }))} /></Form.Item>
@@ -145,12 +145,12 @@ export default function ProjectTable() {
         }))
       }} />
     </Form.Item>}
-    <Text type='secondary'>{graduated ? '身份证正反面复用本人实名材料。报名页直接上传专用一寸白底照片（≤500 KB）、毕业证、学历备案表及签字按手印承诺书，全部必填。' : '以下材料复用已审核的实名与学生资料，每类最多1个文件。'}</Text>
+    <Text type='secondary'>{graduated ? '身份证正反面、二寸免冠照片复用本人实名材料；社保、学信网、学历、职业资格、职称及承诺书由考生报名页上传，全部必填。' : '以下材料复用已审核的实名与学生资料，每类最多1个文件。'}</Text>
     <Form.List name={['config', 'materials']}>{fields => fields.map(({ key, name }) => <Row gutter={12} key={key} align='middle'>
       <Form.Item name={[name, 'kind']} hidden><Input /></Form.Item>
       <Form.Item name={[name, 'max_count']} hidden><Input /></Form.Item>
-      <Col span={10}><Form.Item name={[name, 'name']} label='材料名称'><Input maxLength={64} /></Form.Item></Col>
-      <Col span={10}><Form.Item name={[name, 'extensions']} label='文件格式'><Select mode='multiple' options={(['xuexin_registration', 'education_report'].includes(form.getFieldValue(['config', 'materials', name, 'kind'])) ? ['.pdf'] : ['graduation_certificate', 'commitment_letter'].includes(form.getFieldValue(['config', 'materials', name, 'kind'])) ? ['.jpg', '.jpeg', '.pdf'] : ['.jpg', '.jpeg']).map(value => ({ value, label: value }))} /></Form.Item></Col>
+      <Col span={10}><Form.Item name={[name, 'name']} label='材料名称'><Input maxLength={64} disabled={readOnly || graduated} /></Form.Item></Col>
+      <Col span={10}><Form.Item name={[name, 'extensions']} label='文件格式'><Select mode='multiple' disabled={readOnly || graduated} options={(['xuexin_registration', 'education_report', 'social_security_proof'].includes(form.getFieldValue(['config', 'materials', name, 'kind'])) ? ['.pdf'] : ['commitment_letter'].includes(form.getFieldValue(['config', 'materials', name, 'kind'])) ? ['.jpg', '.jpeg', '.pdf'] : ['.jpg', '.jpeg']).map(value => ({ value, label: value }))} /></Form.Item></Col>
       <Col span={4}><Form.Item name={[name, 'required']} label='必填' valuePropName='checked'><Checkbox aria-label={`${form.getFieldValue(['config', 'materials', name, 'name'])}必填`} disabled={readOnly || graduated || ['id_card_front', 'id_card_back', 'portrait'].includes(form.getFieldValue(['config', 'materials', name, 'kind']))} /></Form.Item></Col>
     </Row>)}</Form.List>
   </>

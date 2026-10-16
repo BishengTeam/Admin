@@ -5,6 +5,7 @@ import { rensheService } from '@/services/renshe'
 import type { RensheProjectConfig } from '@/types/rensheProject'
 
 type Template = NonNullable<NonNullable<RensheProjectConfig['reporting_policy']>['commitment_template']>
+const FIXED_EXPORT_NAMES = ['证件正面', '证件背面', '二寸免冠照片', '社保证明', '学信网电子注册表', '学历证明', '职业资格证书', '职称证书', '承诺书']
 
 export function CommitmentTemplateUpload({ value, onChange, disabled }: { value?: Template; onChange?: (value: Template) => void; disabled?: boolean }) {
   const [busy, setBusy] = useState(false)
@@ -39,16 +40,18 @@ export function GraduatedExportConfig({ required, readOnly, materials, defaultPo
     <Alert type='info' showIcon message='按甲方原25列模板报送' description='M列从事职业由申请人实际填报；U列使用原申报条件字典。学历资料保留在审核记录，不新增导入工作表。R、S列须确认报送口径后才能开放新批次。' style={{ marginBottom: 16 }} />
     {!upgraded && <Alert type='warning' showIcon message='当前为旧报送配置，仅保留历史记录；新批次需切换模板填报第二版。' action={!readOnly && defaultPolicy && <Button onClick={() => {
       const existing = form.getFieldValue(['config', 'reporting_policy']) || {}
-      form.setFieldValue(['config', 'reporting_policy'], { ...existing, ...structuredClone(defaultPolicy), commitment_template: existing.commitment_template, attachment_names: existing.attachment_names, confirmed_by_client: false })
+      form.setFieldValue(['config', 'reporting_policy'], { ...existing, ...structuredClone(defaultPolicy), commitment_template: existing.commitment_template, confirmed_by_client: false })
     }}>切换第二版</Button>} style={{ marginBottom: 16 }} />}
     <Form.Item name={['config', 'reporting_policy', 'contract_version']} hidden><Input /></Form.Item>
     {!upgraded && <Form.Item name={['config', 'reporting_policy', 'export_values', 'student_status']} hidden><Input /></Form.Item>}
     <Form.Item name={['config', 'export_template']} hidden><Input /></Form.Item>
     <Form.Item name={['config', 'field_mapping']} hidden><Input /></Form.Item>
+    <Form.Item name={['config', 'attachment_layout']} hidden><Input /></Form.Item>
     <Form.Item name={['config', 'reporting_policy', 'version']} label='报送口径版本' rules={[{ required, pattern: /^[A-Za-z0-9_-]{1,64}$/, message: '填写1–64位字母、数字、下划线或连字符' }]}><Input placeholder='如 graduated-v1' maxLength={64} /></Form.Item>
     <Form.Item name={['config', 'reporting_policy', 'commitment_template']} label='承诺书模板' getValueFromEvent={value => { form.setFieldValue(['config', 'reporting_policy', 'confirmed_by_client'], false); return value }} rules={[{ required, message: '请先上传甲方确认的模板' }]}><CommitmentTemplateUpload disabled={readOnly} /></Form.Item>
-    <Form.Item name={['config', 'attachment_layout']} label='附件目录'><Select onChange={() => form.setFieldValue(['config', 'reporting_policy', 'confirmed_by_client'], false)} options={[{ value: 'by_candidate', label: '材料／身份证号／身份证号_材料名.原扩展名' }, { value: 'by_material', label: '材料／材料类型／身份证号_材料名.原扩展名' }]} /></Form.Item>
-    {materials.map(item => <Form.Item key={item.kind} name={['config', 'reporting_policy', 'attachment_names', item.kind]} label={`${item.name} · 导出材料名`} rules={[{ required, whitespace: true, message: '填写甲方确认的文件名，不含扩展名' }]}><Input onChange={() => form.setFieldValue(['config', 'reporting_policy', 'confirmed_by_client'], false)} placeholder='不含身份证前缀和扩展名' maxLength={64} /></Form.Item>)}
+    <Typography.Paragraph type='secondary' style={{ marginBottom: 16 }}>
+      附件平铺在压缩包根目录，固定命名为“身份证号_材料名.原扩展名”：{FIXED_EXPORT_NAMES.join('、')}。材料要求与命名由代码控制，管理员无需填写。
+    </Typography.Paragraph>
     {Object.entries({ candidate_source: 'F列考生来源', application_condition: 'U列学历型申报条件（模板原文）' }).map(([key, label]) => <Form.Item key={key} name={['config', 'reporting_policy', 'export_values', key]} label={label} rules={[{ required: required && upgraded }]}><Input.TextArea autoSize disabled /></Form.Item>)}
     {upgraded && <>
       <Form.Item name={['config', 'reporting_policy', 'employment_reporting', 'date_rule']} label='R列日期填报规则' rules={[{ required, message: '请按甲方确认的规则选择' }]}><Select onChange={() => form.setFieldValue(['config', 'reporting_policy', 'employment_reporting', 'confirmed'], false)} options={[
@@ -58,6 +61,6 @@ export function GraduatedExportConfig({ required, readOnly, materials, defaultPo
       <Form.Item name={['config', 'reporting_policy', 'employment_reporting', 'allow_zero_years']} label='S列是否接受零年限' rules={[{ validator: (_, value) => !required || typeof value === 'boolean' ? Promise.resolve() : Promise.reject(new Error('须明确是否接受零年限')) }]}><Select onChange={() => form.setFieldValue(['config', 'reporting_policy', 'employment_reporting', 'confirmed'], false)} options={[{ value: true, label: '甲方确认可以报送0' }, { value: false, label: '不接受0，须联系管理员核实无工龄人员报送方式' }]} /></Form.Item>
       <Form.Item name={['config', 'reporting_policy', 'employment_reporting', 'confirmed']} valuePropName='checked'><Checkbox>R、S列规则已获甲方确认；以上是报送要求，不新增学历型工龄资格门槛</Checkbox></Form.Item>
     </>}
-    <Form.Item name={['config', 'reporting_policy', 'confirmed_by_client']} valuePropName='checked'><Checkbox>承诺书模板、附件目录及命名规则已获甲方确认</Checkbox></Form.Item>
+    <Form.Item name={['config', 'reporting_policy', 'confirmed_by_client']} valuePropName='checked'><Checkbox>承诺书模板及R、S列报送规则已获甲方确认</Checkbox></Form.Item>
   </>
 }

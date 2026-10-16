@@ -23,6 +23,9 @@ export type RensheMaterialKind =
   | 'graduation_certificate'
   | 'education_report'
   | 'commitment_letter'
+  | 'social_security_proof'
+  | 'vocational_qualification_certificate'
+  | 'professional_title_certificate'
 
 export interface RensheApplicationFilter extends PageParams {
   plan_id?: number
