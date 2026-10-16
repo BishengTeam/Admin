@@ -4,6 +4,7 @@ import {
   RiseOutlined, PercentageOutlined, BookOutlined, QuestionCircleOutlined,
   SafetyCertificateOutlined, TrophyOutlined, TeamOutlined, ReadOutlined,
   ClockCircleOutlined, FileDoneOutlined, AlertOutlined,
+  CommentOutlined, CustomerServiceOutlined, PayCircleOutlined,
 } from '@ant-design/icons'
 import ReactECharts from 'echarts-for-react'
 import { PageContainer } from '@/components/PageContainer'
@@ -217,6 +218,22 @@ export default function Dashboard() {
         </Col>
         <Col xs={12} sm={8} md={4}>
           <StatCard title='今日答题' value={d.quiz_attempts_today ?? 0} icon={<QuestionCircleOutlined />} color='#eb2f96' />
+        </Col>
+      </Row>
+
+      {/* ── AI 客服与支付质量 ── */}
+      <Row gutter={[12, 12]} style={{ marginBottom: 16 }}>
+        <Col xs={12} sm={8} md={6}>
+          <StatCard title='AI 对话量（近30日）' value={d.ai_conversations_30d ?? 0} icon={<CommentOutlined />} color='#2f54eb' />
+        </Col>
+        <Col xs={12} sm={8} md={6}>
+          <StatCard title='AI 对话量（累计）' value={d.ai_conversations_total ?? 0} icon={<CommentOutlined />} color='#2f54eb' />
+        </Col>
+        <Col xs={12} sm={8} md={6}>
+          <StatCard title='转人工率' value={d.manual_transfer_rate ?? 0} icon={<CustomerServiceOutlined />} color='#fa541c' suffix='%' />
+        </Col>
+        <Col xs={12} sm={8} md={6}>
+          <StatCard title='支付成功率' value={d.payment_success_rate ?? 0} icon={<PayCircleOutlined />} color='#52c41a' suffix='%' />
         </Col>
       </Row>
 

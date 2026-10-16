@@ -23,6 +23,14 @@ export interface DashboardData {
   recent_revenue_30d_fen: number
   conversion_rate: number
 
+  // AI 客服与支付质量（看板三指标）
+  payment_success_rate?: number
+  ai_conversations_total?: number
+  ai_conversations_30d?: number
+  tickets_total?: number
+  tickets_waiting_manual?: number
+  manual_transfer_rate?: number
+
   // Quiz
   quiz_questions_total?: number
   quiz_libraries_total?: number
