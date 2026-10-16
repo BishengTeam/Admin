@@ -21,6 +21,23 @@ const template = { filename: `commitment_${'a'.repeat(64)}.pdf`, original_filena
 const graduatedConfig = { ...config, qualification_rule: 'related_major_graduated_degree_v1', institution_types: ['technical', 'vocational', 'general_higher'], reporting_policy: { contract_version: 2 }, commitment_template: null,
   materials: Object.entries({ id_card_front: '身份证正面', id_card_back: '身份证背面', portrait: '二寸免冠照片', social_security_proof: '社保缴费证明', xuexin_registration: '学信网电子注册表', education_proof: '学历证明', vocational_qualification_certificate: '职业资格证书', professional_title_certificate: '职称证书', commitment_letter: '承诺书' }).map(([kind, name]) => ({ kind, name, required: true, extensions: ['social_security_proof', 'xuexin_registration', 'commitment_letter'].includes(kind) ? ['.pdf'] : ['.jpg', '.jpeg'], max_count: 1 })),
 }
+const admissionRequirements = {
+  scope: {
+    occupation_name: '信息安全管理员', occupation_code: '4-04-04-02-网络与信息安全管理员-信息安全管理员-中级工', skill_level: '中级工', export_skill_level: '四级',
+    application_types: ['学历型'], exam_types: ['新考'], qualification_rule: 'related_major_graduated_degree_v1',
+  },
+  form_sections: ['本人实名信息', '毕业学历信息', '联系信息', '报送模板要求的其他实际信息'],
+  education_options: [
+    { value: 'secondary_vocational', label: '中专' }, { value: 'technical_school', label: '技校' }, { value: 'vocational_high', label: '职高' },
+    { value: 'higher_vocational', label: '高职' }, { value: 'associate', label: '大专' }, { value: 'bachelor', label: '大学本科' },
+    { value: 'master', label: '硕士' }, { value: 'doctorate', label: '博士' },
+  ],
+  institution_types: [
+    { value: 'technical', label: '技工院校' }, { value: 'vocational', label: '中等及以上职业院校' }, { value: 'general_higher', label: '普通高等学校（专科及以上）' },
+  ],
+  materials: graduatedConfig.materials.map(item => ({ ...item, max_size_bytes: 10 * 1024 * 1024 })),
+  notes: ['文化程度选项全部展示，用于考生如实填报；是否符合本期资格仍由毕业证、院校类型、专业和初审共同判断。'],
+}
 
 async function prepare(page: Page, graduated = false) {
   await page.setViewportSize({ width: 1440, height: 1050 })
@@ -30,7 +47,7 @@ async function prepare(page: Page, graduated = false) {
   await page.route('**/admin/auth/me', route => reply(route, { admin: { id: 1, username: 'test', display_name: '测试管理员', role: 'super_admin', is_active: true, must_change_password: false, locked_until: null, last_login_at: null, created_at: '2026-10-15T00:00:00Z', updated_at: '2026-10-15T00:00:00Z' }, permissions: ['*'], session_mode: 'normal', must_change_password: false }))
   await page.route('**/admin/cert-products/renshe/**', route => {
     const path = new URL(route.request().url()).pathname
-    if (path.endsWith('/project-capabilities')) return reply(route, { default_config: graduatedConfig, templates: {}, export_instructions: exportInstructions, material_names: {}, form_fields: config.form_fields, qualification_rules: { related_major_current_graduating_student: '历史学生规则', related_major_graduated_degree_v1: '已毕业学历型' }, institution_types: { technical: '技工院校', vocational: '职业院校', general_higher: '普通高等学校' } })
+    if (path.endsWith('/project-capabilities')) return reply(route, { default_config: graduatedConfig, templates: {}, export_instructions: exportInstructions, material_names: {}, form_fields: config.form_fields, qualification_rules: { related_major_current_graduating_student: '历史学生规则', related_major_graduated_degree_v1: '已毕业学历型' }, institution_types: { technical: '技工院校', vocational: '职业院校', general_higher: '普通高等学校' }, admission_requirements: admissionRequirements })
     if (path.endsWith('/export-template')) return route.fulfill({ status: 200, contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', body: 'download-fixture' })
     if (path.endsWith('/commitment-templates')) return reply(route, template)
     if (path.includes('/commitment-templates/')) return route.fulfill({ status: 200, contentType: 'application/pdf', body: '%PDF-1.4 fixture' })
@@ -41,17 +58,20 @@ async function prepare(page: Page, graduated = false) {
   })
   await page.goto('/admin/certification/renshe?tab=products')
   await page.getByRole('button', { name: '编辑', exact: true }).click()
-  await page.getByRole('tab', { name: '导出说明' }).click()
   return () => payload
 }
 
 test('导出说明展示只读目录和25列说明，移除技术配置', async ({ page }) => {
   await prepare(page)
   await expect(page.getByText('文件结构预览', { exact: true })).toBeVisible()
+  await expect(page.getByText('报考要求（只读）', { exact: true })).toBeVisible()
   await expect(page.locator('pre')).toContainText(exportInstructions.file_tree)
   await expect(page.getByLabel('已适配导出模板')).toHaveCount(0)
   await expect(page.getByLabel('附件目录与命名规则')).toHaveCount(0)
   await expect(page.getByLabel('报送口径版本')).toHaveCount(0)
+  await expect(page.getByLabel('资格校验规则')).toHaveCount(0)
+  await expect(page.getByLabel('支持的考试类型')).toHaveCount(0)
+  await expect(page.getByLabel('允许的文化程度')).toHaveCount(0)
   await expect(page.getByText('切换第二版', { exact: true })).toHaveCount(0)
   await page.screenshot({ path: 'test-results/renshe-export-instructions.png', fullPage: true, animations: 'disabled' })
   await page.getByRole('button', { name: '查看字段填写说明' }).click()
@@ -74,12 +94,12 @@ test('已毕业项目上传承诺书并下载当前报名模板，无需填写�
   expect(payload()?.config.qualification_rule).toBe('related_major_graduated_degree_v1')
 })
 
-test('旧规则项目也可直接上传承诺书，不切换报名规则', async ({ page }) => {
+test('旧规则项目保存时采用后端当前报考要求', async ({ page }) => {
   const payload = await prepare(page)
   await page.locator('input[type=file][accept=".pdf,.docx"]').setInputFiles({ name: '甲方承诺书.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4 fixture') })
   await expect(page.getByText('甲方承诺书.pdf', { exact: true })).toBeVisible()
   await page.getByRole('button', { name: /^保\s*存$/ }).click()
   await expect.poll(() => payload()?.config?.commitment_template?.sha256).toBe(template.sha256)
-  expect(payload()?.config.qualification_rule).toBe(config.qualification_rule)
+  expect(payload()?.config.qualification_rule).toBe('related_major_graduated_degree_v1')
   expect(payload()?.expected_version).toBe(project.version)
 })

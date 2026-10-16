@@ -18,13 +18,14 @@ describe('人社导出说明和承诺书', () => {
     const metadata = { filename: `commitment_${'a'.repeat(64)}.pdf`, sha256: 'a'.repeat(64), original_filename: '甲方承诺书.pdf' }
     vi.mocked(rensheService.uploadCommitmentTemplate).mockResolvedValue(metadata)
     const submitted = vi.fn()
+    let commitment: unknown
     const { container } = render(<Form onFinish={submitted}>
-      <ExportInstructions instructions={instructions} required readOnly={false} />
+      <ExportInstructions instructions={instructions} required readOnly={false} onCommitmentTemplateChange={value => { commitment = value }} />
       <button type='submit'>保存项目</button>
     </Form>)
     const file = new File(['%PDF-1.4 fixture'], '甲方承诺书.pdf', { type: 'application/pdf' })
     fireEvent.change(container.querySelector('input[type=file]')!, { target: { files: [file] } })
-    await screen.findByText('甲方承诺书.pdf')
+    await waitFor(() => expect(commitment).toEqual(metadata))
     expect(rensheService.uploadCommitmentTemplate).toHaveBeenCalledWith(file)
     expect(screen.queryByRole('combobox')).toBeNull()
     expect(screen.queryByRole('checkbox')).toBeNull()
@@ -32,7 +33,7 @@ describe('人社导出说明和承诺书', () => {
     expect(screen.queryByText('切换第二版')).toBeNull()
     fireEvent.click(screen.getByText('保存项目'))
     await waitFor(() => expect(submitted).toHaveBeenCalled())
-    expect(submitted.mock.calls[0][0].config).toEqual({ commitment_template: metadata })
+    expect(commitment).toEqual(metadata)
   })
 
   it('renders server-provided directory and read-only field instructions', async () => {
@@ -47,7 +48,7 @@ describe('人社导出说明和承诺书', () => {
 
   it('shows the existing file for download while upload is read-only', () => {
     const template = { filename: `commitment_${'b'.repeat(64)}.pdf`, sha256: 'b'.repeat(64), original_filename: '当前承诺书.pdf' }
-    render(<Form initialValues={{ config: { commitment_template: template } }}><ExportInstructions instructions={instructions} required={false} readOnly /></Form>)
+    render(<ExportInstructions instructions={instructions} required={false} readOnly commitmentTemplate={template} />)
     expect(screen.getByText('当前承诺书.pdf')).toBeTruthy()
     expect(screen.getByRole('button', { name: /上传替换/ })).toBeDisabled()
     expect(screen.getByRole('button', { name: /下载当前模板/ })).not.toBeDisabled()

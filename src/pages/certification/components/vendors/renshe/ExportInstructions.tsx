@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Alert, Button, Form, Modal, Space, Table, Typography, Upload, message } from 'antd'
+import { Alert, Button, Modal, Space, Table, Typography, Upload, message } from 'antd'
 import { DownloadOutlined, UploadOutlined } from '@ant-design/icons'
 import { rensheService } from '@/services/renshe'
 import type { RensheProjectConfig, RensheExportInstructions } from '@/types/rensheProject'
@@ -31,7 +31,19 @@ export function CommitmentTemplateUpload({ value, onChange, disabled }: { value?
   </Space>
 }
 
-export function ExportInstructions({ instructions, required, readOnly }: { instructions?: RensheExportInstructions; required: boolean; readOnly: boolean }) {
+export function ExportInstructions({
+  instructions,
+  required,
+  readOnly,
+  commitmentTemplate,
+  onCommitmentTemplateChange,
+}: {
+  instructions?: RensheExportInstructions
+  required: boolean
+  readOnly: boolean
+  commitmentTemplate?: RensheProjectConfig['commitment_template']
+  onCommitmentTemplateChange?: (value: RensheProjectConfig['commitment_template']) => void
+}) {
   const [showColumns, setShowColumns] = useState(false)
   const [downloading, setDownloading] = useState(false)
   const downloadTemplate = async () => {
@@ -69,7 +81,8 @@ export function ExportInstructions({ instructions, required, readOnly }: { instr
     <section>
       <Typography.Title level={5}>承诺书模板</Typography.Title>
       <Typography.Paragraph type='secondary'>上传甲方确认的 PDF／DOCX（≤10 MB），保存项目后供申请人下载签署。</Typography.Paragraph>
-      <Form.Item name={['config', 'commitment_template']} label='当前文件' rules={[{ required, message: '请上传承诺书模板；暂未提供时可先保存草稿' }]}><CommitmentTemplateUpload disabled={readOnly} /></Form.Item>
+      {required && !commitmentTemplate && <Alert type='warning' showIcon message='请上传承诺书模板；暂未提供时可先保存草稿' style={{ marginBottom: 8 }} />}
+      <CommitmentTemplateUpload value={commitmentTemplate ?? undefined} disabled={readOnly} onChange={onCommitmentTemplateChange} />
     </section>
     <Modal title='25列字段填写说明' open={showColumns} onCancel={() => setShowColumns(false)} footer={<Button onClick={() => setShowColumns(false)}>关闭</Button>} width={760}>
       <Table rowKey='column' pagination={false} size='small' dataSource={instructions?.columns || []} scroll={{ y: 480 }} columns={[{ title: '列序', dataIndex: 'column', width: 64 }, { title: '模板字段', dataIndex: 'header', width: 190 }, { title: '填写来源与要求', dataIndex: 'source' }]} />

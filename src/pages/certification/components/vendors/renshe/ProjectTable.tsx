@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Alert, Button, Checkbox, Col, Divider, Form, Input, Modal, Row, Select, Space, Table, Tabs, Tag, Typography, message } from 'antd'
+import { Alert, Button, Collapse, Divider, Form, Input, Modal, Select, Space, Table, Tag, Typography, message } from 'antd'
 import { PlusOutlined, ReloadOutlined, SafetyCertificateOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import { useSearchParams } from 'react-router-dom'
@@ -8,17 +8,51 @@ import { ConfirmButton } from '@/components/ConfirmButton'
 import { usePermission } from '@/hooks/usePermission'
 import { rensheService } from '@/services/renshe'
 import type { RensheCapabilities, RensheProject, RensheProjectWrite } from '@/types/rensheProject'
+import { formatBytes } from '@/utils/renshe'
 import { ExportInstructions } from './ExportInstructions'
 
 const { Text } = Typography
 const STATUS = { draft: { label: '草稿', color: 'default' }, available: { label: '可用', color: 'success' }, disabled: { label: '已停用', color: 'default' } }
-const EDUCATIONS = { secondary_vocational: '中专', associate: '大专', bachelor: '本科', master: '硕士', doctorate: '博士' }
 const GRADUATED_RULE = 'related_major_graduated_degree_v1'
-const FIELD_LABELS: Record<string, string> = {
-  real_name: '姓名', gender: '性别', birth_date: '出生日期', id_type: '证件类型', id_card_number: '身份证号', candidate_source: '考生来源',
-  education: '学历', ethnicity: '民族', political_status: '政治面貌', contact_phone: '联系电话', mailing_address: '通讯地址', blank: '留空',
-  student_status: '从事职业', occupation_name: '职业／工种', export_skill_level: '等级导出值', enrollment_date: '参加工作日期／入学日期', occupation_code: '职业代码',
-  application_condition: '申报条件', application_type: '申报类型', exam_type: '考试类型', email: '电子邮箱', school: '学校', major: '专业',
+
+function AdmissionRequirements({ requirements }: { requirements?: RensheCapabilities['admission_requirements'] }) {
+  if (!requirements) return <Alert type='info' showIcon message='后端尚未提供当前报考要求，请更新后端后刷新页面。' />
+  const scope = requirements.scope
+  return <Space direction='vertical' size={16} style={{ width: '100%' }}>
+    <section>
+      <Typography.Title level={5}>适用范围</Typography.Title>
+      <Space direction='vertical' size={4}>
+        <Text>职业：{scope.occupation_name}（{scope.skill_level}，导出等级：{scope.export_skill_level}）</Text>
+        <Text>申报方式：{scope.application_types.join('、')}，仅接受已取得毕业证的申请人</Text>
+        <Text>考试类型：{scope.exam_types.join('、')}</Text>
+        <Text type='secondary'>职业代码：{scope.occupation_code}</Text>
+      </Space>
+    </section>
+    <section>
+      <Typography.Title level={5}>报名信息</Typography.Title>
+      <Space wrap>{requirements.form_sections.map(item => <Tag key={item}>{item}</Tag>)}</Space>
+      <Typography.Paragraph type='secondary' style={{ marginBottom: 0 }}>
+        文化程度为如实填报选项：{requirements.education_options.map(item => item.label).join('、')}。选项全部展示不代表自动符合资格，资格仍按毕业证、院校类型、专业和初审要求核验。
+      </Typography.Paragraph>
+      <Space wrap style={{ marginTop: 8 }}>{requirements.institution_types.map(item => <Tag key={item.value}>{item.label}</Tag>)}</Space>
+    </section>
+    <section>
+      <Typography.Title level={5}>必交材料</Typography.Title>
+      <Table
+        rowKey='kind'
+        pagination={false}
+        size='small'
+        dataSource={requirements.materials}
+        columns={[
+          { title: '材料', dataIndex: 'name' },
+          { title: '格式', dataIndex: 'extensions', render: (values: string[]) => values.join(' / ') },
+          { title: '大小', dataIndex: 'max_size_bytes', width: 110, render: (value: number) => formatBytes(value) },
+          { title: '要求', render: () => '必填 · 1 个文件' },
+        ]}
+      />
+      {requirements.notes.map(item => <Typography.Paragraph key={item} type='secondary' style={{ marginBottom: 0 }}>{item}</Typography.Paragraph>)}
+    </section>
+  </Space>
 }
 
 export default function ProjectTable() {
@@ -35,16 +69,10 @@ export default function ProjectTable() {
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<RensheProject | null>(null)
   const [readOnly, setReadOnly] = useState(false)
-  const [activeTab, setActiveTab] = useState('basic')
+  const [commitmentTemplate, setCommitmentTemplate] = useState<RensheProject['config']['commitment_template']>(null)
   const [form] = Form.useForm<RensheProjectWrite>()
   const projectStatus = Form.useWatch('status', form)
-  const qualificationRule = Form.useWatch(['config', 'qualification_rule'], form)
-  const occupationName = Form.useWatch(['config', 'occupation_name'], form)
-  const skillLevel = Form.useWatch(['config', 'skill_level'], form)
-  const graduated = qualificationRule === GRADUATED_RULE
-  const supportsGraduated = capabilities?.default_config.qualification_rule === GRADUATED_RULE
-  const canSwitchToGraduated = supportsGraduated && occupationName === capabilities.default_config.occupation_name && skillLevel === capabilities.default_config.skill_level
-  const materials = Form.useWatch(['config', 'materials'], form) as RensheProjectWrite['config']['materials'] | undefined
+  const graduated = capabilities?.default_config.qualification_rule === GRADUATED_RULE
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -61,21 +89,29 @@ export default function ProjectTable() {
     setEditing(item)
     setSaveError(undefined)
     setReadOnly(view || !canWrite)
-    setActiveTab('basic')
     form.resetFields()
+    setCommitmentTemplate(item?.config.commitment_template ?? item?.config.reporting_policy?.commitment_template ?? null)
     form.setFieldsValue(item ? {
       chinese_name: item.chinese_name, description: item.description, home_cover_url: item.home_cover_url,
-      status: item.status, config: { ...structuredClone(item.config), commitment_template: item.config.commitment_template || item.config.reporting_policy?.commitment_template }, expected_version: item.version || undefined,
-    } : { status: 'draft', config: structuredClone(capabilities!.default_config) })
+      status: item.status, expected_version: item.version || undefined,
+    } : { status: 'draft' })
     setOpen(true)
   }
 
   const save = async () => {
     let values: RensheProjectWrite
-    try { await form.validateFields(); values = form.getFieldsValue(true) } catch { setActiveTab('basic'); return }
+    try { await form.validateFields(); values = form.getFieldsValue(true) } catch { return }
     setSaving(true)
     try {
-      const payload = { ...values, expected_version: editing?.version || undefined }
+      if (values.status === 'available' && !commitmentTemplate) {
+        setSaveError('请先上传承诺书模板；暂未提供时可先保存草稿')
+        return
+      }
+      const payload = {
+        ...values,
+        expected_version: editing?.version || undefined,
+        config: capabilities ? { ...structuredClone(capabilities.default_config), commitment_template: commitmentTemplate } : undefined,
+      }
       const result = editing ? await rensheService.updateProject(editing.id, payload) : await rensheService.createProject(payload)
       message.success(result.status === 'draft' ? '项目草稿已保存' : '报考项目已保存')
       setOpen(false)
@@ -91,20 +127,6 @@ export default function ProjectTable() {
   const mutateProject = async (action: () => Promise<unknown>) => {
     try { await action(); await load() }
     catch (error) { message.error(error instanceof Error ? error.message : '项目操作失败'); throw error }
-  }
-
-  const switchToGraduated = () => {
-    if (readOnly || !canSwitchToGraduated || !capabilities) return
-    const previous = form.getFieldValue('config') as RensheProjectWrite['config']
-    const next = structuredClone(capabilities.default_config)
-    const levels = previous.education_levels.filter(value => next.education_levels.includes(value))
-    if (levels.length) next.education_levels = levels
-    const exams = previous.exam_types.filter(value => next.exam_types.includes(value))
-    if (exams.length) next.exam_types = exams
-    if (['by_candidate', 'by_material'].includes(previous.attachment_layout)) next.attachment_layout = previous.attachment_layout
-    form.setFieldValue('config', next)
-    form.setFieldValue('status', 'draft')
-    setSaveError(undefined)
   }
 
   const columns: ColumnsType<RensheProject> = [
@@ -129,49 +151,19 @@ export default function ProjectTable() {
   const basic = <>
     <Divider orientation='left' orientationMargin={0}><Text type='secondary' style={{ fontSize: 13 }}>基本信息</Text></Divider>
     <Form.Item name='chinese_name' label='项目名称' rules={[{ required: true, whitespace: true, message: '请输入项目名称' }]}><Input maxLength={128} placeholder='如：信息安全管理员（中级工）' /></Form.Item>
-    <Row gutter={16}>
-      <Col span={12}><Form.Item name={['config', 'occupation_name']} label='职业／工种' rules={[{ required: projectStatus === 'available', whitespace: true, message: '请输入职业／工种' }]}><Input maxLength={64} disabled={readOnly || Boolean(editing?.batch_count)} placeholder='实际报考职业名称' /></Form.Item></Col>
-      <Col span={12}><Form.Item name={['config', 'skill_level']} label='技能等级' rules={[{ required: projectStatus === 'available', whitespace: true, message: '请输入技能等级' }]}><Input maxLength={32} disabled={readOnly || Boolean(editing?.batch_count)} placeholder='如：中级工' /></Form.Item></Col>
-      <Col span={12}><Form.Item name={['config', 'occupation_code']} label='职业代码' tooltip='用于外部申报的职业代码' rules={[{ required: projectStatus === 'available', whitespace: true, message: '请输入职业代码' }]}><Input maxLength={160} /></Form.Item></Col>
-      <Col span={12}><Form.Item name={['config', 'export_skill_level']} label='等级导出值' tooltip='例如展示“中级工”，导出“四级”' rules={[{ required: projectStatus === 'available', whitespace: true, message: '请输入等级导出值' }]}><Input maxLength={32} placeholder='如：四级' /></Form.Item></Col>
-    </Row>
     <Form.Item name='description' label='项目介绍'><Input.TextArea rows={3} maxLength={512} showCount /></Form.Item>
     <Form.Item name='home_cover_url' label='首页认证横幅'>{readOnly ? (editing?.home_cover_url ? <img src={editing.home_cover_url} alt='项目封面' style={{ maxWidth: '100%', maxHeight: 180 }} /> : <Text type='secondary'>未上传封面</Text>) : <ImageUpload crop={{ width: 1404, height: 640, title: '首页认证横幅', fixed: true }} hint='首页认证专区通栏大图；固定裁剪输出 1404 × 640 px。' />}</Form.Item>
     <Form.Item name='status' label='配置状态'><Select options={Object.entries(STATUS).map(([value, meta]) => ({ value, label: meta.label }))} /></Form.Item>
-    <Text type='secondary'>可用项目须通过配置校验。项目变更生成新版本，已发布批次和历史报名继续使用原配置。</Text>
+    <Text type='secondary'>报名规则、材料清单和导出口径由系统维护。项目变更生成新版本；已发布批次和历史报名继续使用创建时冻结的要求。</Text>
+    <Collapse
+      bordered={false}
+      defaultActiveKey={['requirements', 'export']}
+      items={[
+        { key: 'requirements', label: '报考要求（只读）', children: <AdmissionRequirements requirements={capabilities?.admission_requirements} /> },
+        { key: 'export', label: '导出说明与承诺书模板', children: <ExportInstructions instructions={capabilities?.export_instructions} required={graduated && projectStatus === 'available'} readOnly={readOnly} commitmentTemplate={commitmentTemplate} onCommitmentTemplateChange={setCommitmentTemplate} /> },
+      ]}
+    />
   </>
-
-  const rules = <>
-    <Row gutter={16}>
-      <Col span={12}><Form.Item name={['config', 'exam_types']} label='支持的考试类型'><Select mode='multiple' options={['新考', '补考'].map(value => ({ label: value, value }))} /></Form.Item></Col>
-      <Col span={12}><Form.Item name={['config', 'application_types']} label='支持的申报类型'><Select mode='multiple' options={[{ label: '学历型', value: '学历型' }]} /></Form.Item></Col>
-    </Row>
-    <Form.Item name={['config', 'qualification_rule']} label='资格校验规则'><Select options={Object.entries(capabilities?.qualification_rules ?? {}).map(([value, label]) => ({ value, label, disabled: (value === 'related_major_current_graduating_student' && graduated) || (value === GRADUATED_RULE && !graduated && !canSwitchToGraduated) }))} onChange={value => {
-      if (value === GRADUATED_RULE) switchToGraduated()
-    }} /></Form.Item>
-    <Alert type='info' showIcon message={graduated ? '本期按甲方标准资料包收集九类材料；模板25列信息由考生按字典填报。' : '历史学生规则继续用于原批次，新开放批次须切换到标准报送规则。'} style={{ marginBottom: 16 }} />
-    {graduated && <Form.Item name={['config', 'institution_types']} label='支持的院校类型'><Checkbox.Group options={Object.entries(capabilities?.institution_types ?? {}).map(([value, label]) => ({ value, label }))} /></Form.Item>}
-    <Form.Item name={['config', 'education_levels']} label='允许的文化程度'><Checkbox.Group options={Object.entries(graduated && capabilities?.reporting_contract ? capabilities.reporting_contract.education_labels : EDUCATIONS).map(([value, label]) => ({ value, label }))} /></Form.Item>
-    <Form.Item name={['config', 'form_fields']} label='报名信息字段'><Checkbox.Group options={['contact_phone', 'mailing_address', 'email'].map(value => ({ label: FIELD_LABELS[value], value }))} /></Form.Item>
-    {!graduated && <Form.Item label='适用材料类型'>
-      <Checkbox.Group value={materials?.map(item => item.kind) ?? []} options={Object.entries(capabilities?.material_names ?? {}).map(([value, label]) => ({ value, label, disabled: ['id_card_front', 'id_card_back', 'portrait'].includes(value) }))} onChange={values => {
-        form.setFieldValue(['config', 'materials'], values.flatMap(kind => {
-          const requirement = materials?.find(item => item.kind === kind) ?? capabilities?.default_config.materials.find(item => item.kind === kind)
-          return requirement ? [requirement] : []
-        }))
-      }} />
-    </Form.Item>}
-    <Text type='secondary'>{graduated ? '身份证正反面、二寸免冠照片复用本人实名材料；社保、学信网、学历、职业资格、职称及承诺书由考生报名页上传，全部必填。' : '以下材料复用已审核的实名与学生资料，每类最多1个文件。'}</Text>
-    <Form.List name={['config', 'materials']}>{fields => fields.map(({ key, name }) => <Row gutter={12} key={key} align='middle'>
-      <Form.Item name={[name, 'kind']} hidden><Input /></Form.Item>
-      <Form.Item name={[name, 'max_count']} hidden><Input /></Form.Item>
-      <Col span={10}><Form.Item name={[name, 'name']} label='材料名称'><Input maxLength={64} disabled={readOnly || graduated} /></Form.Item></Col>
-      <Col span={10}><Form.Item name={[name, 'extensions']} label='文件格式'><Select mode='multiple' disabled={readOnly || graduated} options={(['xuexin_registration', 'education_report', 'social_security_proof'].includes(form.getFieldValue(['config', 'materials', name, 'kind'])) ? ['.pdf'] : ['commitment_letter'].includes(form.getFieldValue(['config', 'materials', name, 'kind'])) ? ['.jpg', '.jpeg', '.pdf'] : ['.jpg', '.jpeg']).map(value => ({ value, label: value }))} /></Form.Item></Col>
-      <Col span={4}><Form.Item name={[name, 'required']} label='必填' valuePropName='checked'><Checkbox aria-label={`${form.getFieldValue(['config', 'materials', name, 'name'])}必填`} disabled={readOnly || graduated || ['id_card_front', 'id_card_back', 'portrait'].includes(form.getFieldValue(['config', 'materials', name, 'kind']))} /></Form.Item></Col>
-    </Row>)}</Form.List>
-  </>
-
-  const exportConfig = <ExportInstructions instructions={capabilities?.export_instructions} required={graduated && projectStatus === 'available'} readOnly={readOnly} />
 
   return <>
     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16, gap: 16, flexWrap: 'wrap' }}>
@@ -187,7 +179,7 @@ export default function ProjectTable() {
     <Modal title={<Space><SafetyCertificateOutlined style={{ color: '#1677ff' }} /><span>{readOnly ? '查看报考项目' : editing ? '编辑报考项目' : '新增人社报考项目'}{editing?.version ? ` · V${editing.version}` : ''}</span></Space>} open={open} onCancel={() => setOpen(false)} onOk={save} okText='保存' cancelText='取消' confirmLoading={saving} width={760} styles={{ body: { maxHeight: 'calc(100vh - 240px)', overflowY: 'auto', paddingRight: 8 } }} destroyOnClose footer={readOnly ? <Button onClick={() => setOpen(false)}>关闭</Button> : undefined}>
       <Form form={form} layout='vertical' disabled={readOnly} style={{ marginTop: 20 }} requiredMark='optional' preserve>
         {saveError && <Alert type='error' showIcon message={saveError} style={{ marginBottom: 16 }} />}
-        <Tabs activeKey={activeTab} onChange={setActiveTab} items={[{ key: 'basic', label: '基本信息', children: basic, forceRender: true }, { key: 'rules', label: '报名规则与材料', children: rules, forceRender: true }, { key: 'export', label: '导出说明', children: exportConfig, forceRender: true }]} />
+        {basic}
       </Form>
     </Modal>
   </>

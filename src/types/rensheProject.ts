@@ -36,6 +36,30 @@ export interface RensheExportInstructions {
   columns: Array<{ column: number; header: string; source: string }>
 }
 
+export interface RensheAdmissionRequirements {
+  scope: {
+    occupation_name: string
+    occupation_code: string
+    skill_level: string
+    export_skill_level: string
+    application_types: string[]
+    exam_types: string[]
+    qualification_rule: string
+  }
+  form_sections: string[]
+  education_options: Array<{ value: string; label: string }>
+  institution_types: Array<{ value: string; label: string }>
+  materials: Array<{
+    kind: string
+    name: string
+    required: boolean
+    extensions: string[]
+    max_count: number
+    max_size_bytes: number
+  }>
+  notes: string[]
+}
+
 export interface RensheProject {
   id: number
   code: string
@@ -55,7 +79,7 @@ export interface RensheProjectWrite {
   description?: string | null
   home_cover_url?: string | null
   status: RensheProject['status']
-  config: RensheProjectConfig
+  config?: RensheProjectConfig | null
   expected_version?: number
 }
 
@@ -68,5 +92,6 @@ export interface RensheCapabilities {
   institution_types?: Record<string, string>
   review_checks?: Record<string, string>
   reporting_contract?: { education_labels: Record<string, string>; application_condition: string }
+  admission_requirements?: RensheAdmissionRequirements
   export_instructions?: RensheExportInstructions
 }
