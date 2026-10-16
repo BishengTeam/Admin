@@ -432,6 +432,15 @@ export const quizService = {
     return parsed(ImportJobSchema, await http.post('/admin/quiz/imports/json', payload, { signal }))
   },
 
+  async exportQuestionsCsv(libraryId: number, signal?: AbortSignal): Promise<Blob> {
+    return http.get<Blob>('/admin/quiz/questions/export/csv', {
+      params: { library_id: libraryId },
+      responseType: 'blob',
+      timeout: 60000,
+      signal,
+    })
+  },
+
   async listImports(params: ImportFilter = {}, signal?: AbortSignal): Promise<PageData<ImportJob>> {
     return parsed(ImportsPageSchema, await http.get('/admin/quiz/imports', queryConfig(params, signal)))
   },

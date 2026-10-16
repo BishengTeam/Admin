@@ -145,6 +145,7 @@ export default function QuizImports() {
   })
   const [fileList, setFileList] = useState<UploadFile[]>([])
   const [uploading, setUploading] = useState(false)
+  const [exporting, setExporting] = useState(false)
   const [filter, setFilter] = useState<ImportFilter>({ page: 1, page_size: 20 })
   const [data, setData] = useState<{ items: ImportJob[]; total: number; page: number; page_size: number } | null>(null)
   const [loading, setLoading] = useState(false)
@@ -518,6 +519,28 @@ export default function QuizImports() {
     },
   ]
 
+  const handleExportCsv = async () => {
+    if (!libraryId) { message.warning('请先选择题库'); return }
+    setExporting(true)
+    try {
+      const blob = await quizService.exportQuestionsCsv(libraryId)
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      const date = new Date().toISOString().slice(0, 10)
+      link.href = url
+      link.download = `题库题目_${libraries.find((library) => library.id === libraryId)?.name ?? libraryId}_${date}.csv`
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(url)
+      message.success('导出成功')
+    } catch (error) {
+      message.error(errorText(error))
+    } finally {
+      setExporting(false)
+    }
+  }
+
   return (
     <PageContainer title="导入任务">
       {canImport && <Card size="small" title="提交导入任务" style={{ marginBottom: 16 }}>
@@ -530,6 +553,7 @@ export default function QuizImports() {
           <Space wrap>
             <Button type="primary" icon={<UploadOutlined />} loading={uploading} disabled={!currentFile || !libraryId} onClick={handleUpload}>提交任务</Button>
             <Button icon={<DownloadOutlined />} href={`/templates/quiz-import-v2.${source}`} download={`quiz-import-v2.${source}`}>下载 v2 模板</Button>
+            <Button icon={<DownloadOutlined />} loading={exporting} disabled={!libraryId} onClick={() => void handleExportCsv()}>导出该题库 CSV</Button>
           </Space>
 
         </Space>
