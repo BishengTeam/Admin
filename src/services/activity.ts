@@ -24,4 +24,10 @@ export const activityService = {
       { params },
     )
   },
+  async exportRegistrations(): Promise<Blob> {
+    return http.get<Blob>('/admin/activities/export', {
+      responseType: 'blob',
+      timeout: 60000,
+    })
+  },
 }

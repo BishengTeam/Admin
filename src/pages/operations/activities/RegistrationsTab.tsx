@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Button, Select, Space, Table, Typography, message } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
-import { ReloadOutlined } from '@ant-design/icons'
+import { DownloadOutlined, ReloadOutlined } from '@ant-design/icons'
 import { usePagination } from '@/hooks/usePagination'
 import { activityService } from '@/services/activity'
 import { formatDate } from '@/utils/format'
@@ -16,6 +16,7 @@ interface RegistrationsTabProps {
 
 export default function RegistrationsTab({ activities }: RegistrationsTabProps) {
   const [activityId, setActivityId] = useState<number | null>(null)
+  const [exporting, setExporting] = useState(false)
 
   const empty: PageData<ActivityRegistration> = {
     items: [],
@@ -31,6 +32,27 @@ export default function RegistrationsTab({ activities }: RegistrationsTabProps) 
         : Promise.resolve(empty),
     [activityId],
   )
+
+  const handleExport = async () => {
+    setExporting(true)
+    try {
+      const blob = await activityService.exportRegistrations()
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      const date = new Date().toISOString().slice(0, 10)
+      link.href = url
+      link.download = `活动报名_全部_${date}.csv`
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(url)
+      message.success('导出成功')
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '导出失败')
+    } finally {
+      setExporting(false)
+    }
+  }
 
   const columns: ColumnsType<ActivityRegistration> = [
     { title: 'ID', dataIndex: 'id', width: 70 },
@@ -55,6 +77,7 @@ export default function RegistrationsTab({ activities }: RegistrationsTabProps) 
             allowClear
           />
           <Button icon={<ReloadOutlined />} loading={loading} onClick={refresh} disabled={!activityId}>刷新</Button>
+          <Button icon={<DownloadOutlined />} loading={exporting} onClick={handleExport}>导出全部 CSV</Button>
         </Space>
         <Text type='secondary'>
           已报 {data?.total ?? 0} 人
