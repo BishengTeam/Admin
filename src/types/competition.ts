@@ -64,3 +64,8 @@ export interface CompetitionRegistration {
   phone: string | null
   created_at: string | null
 }
+
+export interface CompetitionSchoolStat {
+  school: string
+  count: number
+}

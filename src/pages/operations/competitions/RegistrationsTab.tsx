@@ -1,11 +1,11 @@
 import { useMemo, useState } from 'react'
-import { Button, Descriptions, Select, Space, Table, Typography, message } from 'antd'
+import { Button, Descriptions, Modal, Select, Space, Table, Typography, message } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
-import { DownloadOutlined, ReloadOutlined } from '@ant-design/icons'
+import { BarChartOutlined, DownloadOutlined, ReloadOutlined } from '@ant-design/icons'
 import { usePagination } from '@/hooks/usePagination'
 import { competitionAdminService } from '@/services/competition'
 import { formatDate } from '@/utils/format'
-import type { Competition, CompetitionRegistration } from '@/types/competition'
+import type { Competition, CompetitionRegistration, CompetitionSchoolStat } from '@/types/competition'
 import type { PageData } from '@/types/api'
 
 const { Text } = Typography
@@ -36,6 +36,9 @@ export default function RegistrationsTab({ competitions }: RegistrationsTabProps
   const [competitionId, setCompetitionId] = useState<number | null>(null)
   const [trackId, setTrackId] = useState<number | null>(null)
   const [exporting, setExporting] = useState(false)
+  const [statsOpen, setStatsOpen] = useState(false)
+  const [statsLoading, setStatsLoading] = useState(false)
+  const [stats, setStats] = useState<CompetitionSchoolStat[]>([])
 
   const selected = competitions.find((c) => c.id === competitionId)
 
@@ -113,6 +116,34 @@ export default function RegistrationsTab({ competitions }: RegistrationsTabProps
     }
   }
 
+  const openSchoolStats = async () => {
+    if (!competitionId) return
+    setStatsOpen(true)
+    setStatsLoading(true)
+    try {
+      setStats(await competitionAdminService.getSchoolStats(competitionId, trackId ?? undefined))
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '统计加载失败')
+    } finally {
+      setStatsLoading(false)
+    }
+  }
+
+  const exportSchoolStats = () => {
+    const header = '学校,报名人数'
+    const lines = stats.map((item) => `${(item.school || '未填写').replace(/"/g, '""')},${item.count}`)
+    const csv = `\ufeff${header}\n${lines.join('\n')}`
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv; charset=utf-8' }))
+    const link = document.createElement('a')
+    const date = new Date().toISOString().slice(0, 10)
+    link.href = url
+    link.download = `竞赛按校统计_${selected?.name ?? competitionId}_${date}.csv`
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    URL.revokeObjectURL(url)
+  }
+
   return (
     <>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
@@ -150,6 +181,13 @@ export default function RegistrationsTab({ competitions }: RegistrationsTabProps
           >
             导出 CSV
           </Button>
+          <Button
+            icon={<BarChartOutlined />}
+            onClick={() => void openSchoolStats()}
+            disabled={!competitionId}
+          >
+            按学校统计
+          </Button>
         </Space>
         <Text type='secondary'>共 {data?.total ?? 0} 条报名</Text>
       </div>
@@ -186,6 +224,36 @@ export default function RegistrationsTab({ competitions }: RegistrationsTabProps
           },
         }}
       />
+      <Modal
+        title={`按学校统计${selected ? `：${selected.name}` : ''}`}
+        open={statsOpen}
+        onCancel={() => setStatsOpen(false)}
+        footer={[
+          <Button key="export" icon={<DownloadOutlined />} onClick={exportSchoolStats} disabled={stats.length === 0}>
+            导出统计 CSV
+          </Button>,
+          <Button key="close" type="primary" onClick={() => setStatsOpen(false)}>
+            关闭
+          </Button>,
+        ]}
+      >
+        <Text type='secondary' style={{ display: 'block', marginBottom: 12 }}>
+          共 {stats.length} 所学校 · 合计 {stats.reduce((sum, item) => sum + item.count, 0)} 条报名
+        </Text>
+        <Table<CompetitionSchoolStat>
+          rowKey='school'
+          size='small'
+          columns={[
+            { title: '学校', dataIndex: 'school', render: (v: string) => v || '未填写' },
+            { title: '报名人数', dataIndex: 'count', width: 100 },
+          ]}
+          dataSource={stats}
+          loading={statsLoading}
+          pagination={false}
+          scroll={{ y: 360 }}
+          locale={{ emptyText: '暂无报名数据' }}
+        />
+      </Modal>
     </>
   )
 }

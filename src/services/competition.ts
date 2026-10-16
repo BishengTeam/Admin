@@ -1,5 +1,5 @@
 import { http } from '@/core/request'
-import type { Competition, CompetitionPayload, CompetitionRegistration } from '@/types/competition'
+import type { Competition, CompetitionPayload, CompetitionRegistration, CompetitionSchoolStat } from '@/types/competition'
 import type { PageData, PageParams } from '@/types/api'
 
 export const competitionAdminService = {
@@ -49,6 +49,14 @@ export const competitionAdminService = {
         responseType: 'blob',
         timeout: 60000,
       },
+    )
+  },
+
+  /** 按学校聚合报名人数（可按赛道筛选） */
+  async getSchoolStats(competitionId: number, trackId?: number): Promise<CompetitionSchoolStat[]> {
+    return http.get<CompetitionSchoolStat[]>(
+      `/admin/competitions/${competitionId}/registrations/school-stats`,
+      { params: { track_id: trackId } },
     )
   },
 }
