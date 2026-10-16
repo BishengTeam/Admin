@@ -16,7 +16,7 @@ const EDUCATIONS = { secondary_vocational: '中专', associate: '大专', bachel
 const FIELD_LABELS: Record<string, string> = {
   real_name: '姓名', gender: '性别', birth_date: '出生日期', id_type: '证件类型', id_card_number: '身份证号', candidate_source: '考生来源',
   education: '学历', ethnicity: '民族', political_status: '政治面貌', contact_phone: '联系电话', mailing_address: '通讯地址', blank: '留空',
-  student_status: '学生身份', occupation_name: '职业／工种', export_skill_level: '等级导出值', enrollment_date: '入学时间', occupation_code: '职业代码',
+  student_status: '从事职业', occupation_name: '职业／工种', export_skill_level: '等级导出值', enrollment_date: '参加工作日期／入学日期', occupation_code: '职业代码',
   application_condition: '申报条件', application_type: '申报类型', exam_type: '考试类型', email: '电子邮箱', school: '学校', major: '专业',
 }
 
@@ -135,7 +135,7 @@ export default function ProjectTable() {
     }} /></Form.Item>
     <Alert type='info' showIcon message={graduated ? '本期仅接受信息安全管理员四级／中级工、已取得毕业证的学历型申请；专业相关性由初审逐项核验。' : '历史学生规则继续用于原批次，新开放批次须切换到已毕业学历型规则。'} style={{ marginBottom: 16 }} />
     {graduated && <Form.Item name={['config', 'institution_types']} label='支持的院校类型'><Checkbox.Group options={Object.entries(capabilities?.institution_types ?? {}).map(([value, label]) => ({ value, label }))} /></Form.Item>}
-    <Form.Item name={['config', 'education_levels']} label='允许的学历'><Checkbox.Group options={Object.entries(EDUCATIONS).map(([value, label]) => ({ value, label }))} /></Form.Item>
+    <Form.Item name={['config', 'education_levels']} label='允许的文化程度'><Checkbox.Group options={Object.entries(graduated && capabilities?.reporting_contract ? capabilities.reporting_contract.education_labels : EDUCATIONS).map(([value, label]) => ({ value, label }))} /></Form.Item>
     <Form.Item name={['config', 'form_fields']} label='报名信息字段'><Checkbox.Group options={['contact_phone', 'mailing_address', 'email'].map(value => ({ label: FIELD_LABELS[value], value }))} /></Form.Item>
     {!graduated && <Form.Item label='适用材料类型'>
       <Checkbox.Group value={materials?.map(item => item.kind) ?? []} options={Object.entries(capabilities?.material_names ?? {}).map(([value, label]) => ({ value, label, disabled: ['id_card_front', 'id_card_back', 'portrait'].includes(value) }))} onChange={values => {
@@ -155,7 +155,7 @@ export default function ProjectTable() {
     </Row>)}</Form.List>
   </>
 
-  const exportConfig = graduated ? <GraduatedExportConfig required={projectStatus === 'available'} readOnly={readOnly} materials={materials || []} /> : <>
+  const exportConfig = graduated ? <GraduatedExportConfig required={projectStatus === 'available'} readOnly={readOnly} materials={materials || []} defaultPolicy={capabilities?.default_config.reporting_policy} /> : <>
     <Form.Item name={['config', 'export_template']} label='已适配导出模板'><Select options={Object.entries(capabilities?.templates ?? {}).map(([value, template]) => ({ value, label: template.label }))} onChange={() => form.setFieldValue(['config', 'field_mapping'], {})} /></Form.Item>
     <Form.Item name={['config', 'attachment_layout']} label='附件目录与命名规则'><Select options={[{ value: 'by_candidate', label: '材料／身份证号／身份证号_材料名' }, { value: 'by_material', label: '材料／材料类型／身份证号_材料名' }]} /></Form.Item>
     <Divider orientation='left' orientationMargin={0}><Text type='secondary' style={{ fontSize: 13 }}>字段映射</Text></Divider>

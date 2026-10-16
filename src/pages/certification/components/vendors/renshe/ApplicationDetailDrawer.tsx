@@ -62,6 +62,9 @@ const SNAPSHOT_LABELS: Record<string, string> = {
   gender: '性别',
   birth_date: '出生日期',
   ethnicity: '民族',
+  political_status: '政治面貌', occupation_status: '从事职业', has_work_experience: '参加过工作',
+  work_start_date: '参加工作日期', enrollment_date: '入学日期', occupation_years: '实际职业年限（年）',
+  work_unit: '工作单位', social_insurance_unit: '社保参保单位',
   institution_type: '院校类型', graduation_date: '毕业日期', certificate_number: '毕业证书编号', graduated: '已取得毕业证',
 }
 
@@ -98,7 +101,7 @@ function renderSnapshot(snapshot: Record<string, unknown>) {
     <Descriptions bordered size="small" column={2} style={{ marginBottom: 16 }}>
       {entries.map(([key, value]) => (
         <Descriptions.Item key={key} label={SNAPSHOT_LABELS[key] ?? key}>
-          {typeof value === 'boolean' ? (value ? '是' : '否') : typeof value === 'object' ? JSON.stringify(value) : ({ technical: '技工院校', vocational: '中等及以上职业院校', general_higher: '普通高等学校', secondary_vocational: '中专', associate: '大专', bachelor: '本科', master: '硕士', doctorate: '博士', student: '学生', social: '社会人员', enterprise: '企业人员' } as Record<string, string>)[String(value)] || String(value)}
+          {typeof value === 'boolean' ? (value ? '是' : '否') : typeof value === 'object' ? JSON.stringify(value) : ({ technical: '技工院校', vocational: '中等及以上职业院校', general_higher: '普通高等学校', secondary_vocational: '中专', technical_school: '技校', vocational_high: '职高', higher_vocational: '高职', associate: '大专', bachelor: '大学本科', master: '硕士', doctorate: '博士', student: '学生', social: '社会人员', enterprise: '企业人员' } as Record<string, string>)[String(value)] || String(value)}
         </Descriptions.Item>
       ))}
     </Descriptions>
@@ -277,7 +280,7 @@ export default function ApplicationDetailDrawer({
       title: '待修改项',
       dataIndex: 'required_changes',
       width: 180,
-      render: (items: string[] | null) => items?.map((item) => RENSHE_MATERIAL_LABELS[item as keyof typeof RENSHE_MATERIAL_LABELS] ?? item).join('、') || '-',
+      render: (items: string[] | null) => items?.map((item) => RENSHE_GRADUATED_CHANGE_OPTIONS.find(option => option.value === item)?.label ?? RENSHE_MATERIAL_LABELS[item as keyof typeof RENSHE_MATERIAL_LABELS] ?? item).join('、') || '-',
     },
     { title: '时间', dataIndex: 'reviewed_at', width: 170, render: (value: string) => formatDate(value) },
     { title: '补正截止', dataIndex: 'correction_due_at', render: (value?: string) => value ? formatDate(value) : '-' },
@@ -313,8 +316,9 @@ export default function ApplicationDetailDrawer({
             {renderSnapshot(version.realname_snapshot)}
             <Title level={5}>{graduated ? '毕业学历信息' : '学生信息'}</Title>
             {renderSnapshot(graduated ? (version.form_data.education_info as Record<string, unknown> || {}) : version.student_snapshot)}
+            {graduated && <><Title level={5}>模板填报信息</Title>{renderSnapshot(version.form_data.reporting_info as Record<string, unknown> || {})}{!version.form_data.reporting_info && <Alert type='warning' message='该历史版本缺少模板填报信息，导出前请驳回补正后重新初审。' style={{ marginBottom: 16 }} />}</>}
             <Title level={5}>报名信息</Title>
-            {renderSnapshot(Object.fromEntries(Object.entries(version.form_data).filter(([key]) => !['materials', 'education_info', 'plan_id'].includes(key))))}
+            {renderSnapshot(Object.fromEntries(Object.entries(version.form_data).filter(([key]) => !['materials', 'education_info', 'reporting_info', 'reporting_contract', 'reporting_config_id', 'plan_id'].includes(key))))}
             <Title level={5}>材料</Title>
             {detail.plan.renshe_config && <Space wrap style={{ marginBottom: 12 }}>{detail.plan.renshe_config.materials.map(item => <Tag key={item.kind}>{item.name} · {item.required ? '必填' : '选填'} · {item.extensions.join('/')} · {item.max_count} 个</Tag>)}</Space>}
             <Table

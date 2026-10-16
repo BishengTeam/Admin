@@ -14,11 +14,13 @@ export interface RensheProjectConfig {
   attachment_layout: string
   institution_types?: string[]
   reporting_policy?: {
+    contract_version?: number
     version?: string
     confirmed_by_client?: boolean
     commitment_template?: { filename: string; sha256: string; original_filename?: string }
     attachment_names?: Record<string, string>
     export_values?: Record<string, string>
+    employment_reporting?: { confirmed?: boolean; date_rule?: string | null; years_rule?: string | null; allow_zero_years?: boolean | null }
   }
 }
 
@@ -53,4 +55,5 @@ export interface RensheCapabilities {
   qualification_rules: Record<string, string>
   institution_types?: Record<string, string>
   review_checks?: Record<string, string>
+  reporting_contract?: { education_labels: Record<string, string>; application_condition: string }
 }

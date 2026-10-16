@@ -41,6 +41,9 @@ export const RENSHE_GRADUATED_CHECKS: Record<string, string> = {
   report: '学历备案表信息对应、可验证，验证有效期设置为6个月', photo: '一寸、白底、近期且规格合格', commitment: '承诺书完整，本人亲笔签名并按手印',
 }
 export const RENSHE_GRADUATED_CHANGE_OPTIONS = Object.entries({
+  'reporting_info.occupation_status': '从事职业', 'reporting_info.ethnicity': '民族', 'reporting_info.political_status': '政治面貌',
+  'reporting_info.has_work_experience': '工作经历', 'reporting_info.work_start_date': '参加工作日期', 'reporting_info.enrollment_date': '入学日期',
+  'reporting_info.occupation_years': '职业年限', 'reporting_info.work_unit': '工作单位', 'reporting_info.social_insurance_unit': '社保参保单位',
   id_card_front: '身份证正面（需实名更正）', id_card_back: '身份证背面（需实名更正）',
   registration_portrait: '一寸白底证件照', graduation_certificate: '毕业证', education_report: '学历备案表', commitment_letter: '承诺书',
   'education_info.school': '毕业院校', 'education_info.institution_type': '院校类型', 'education_info.education': '学历层次',

@@ -52,7 +52,8 @@ test('已毕业学历型项目可上传下载模板并保留新规则配置', as
   await page.addInitScript(() => sessionStorage.setItem('admin_token', 'eyJhbGciOiJub25lIn0.eyJleHAiOjk5OTk5OTk5OTl9.'))
   const template = { filename: `commitment_${'a'.repeat(64)}.pdf`, original_filename: '甲方承诺书.pdf', sha256: 'a'.repeat(64) }
   const materials = Object.entries({ id_card_front: '身份证正面', id_card_back: '身份证背面', registration_portrait: '一寸白底近期证件照（≤500 KB）', graduation_certificate: '毕业证', education_report: '学信网学历备案表', commitment_letter: '承诺书（本人签字按手印）' }).map(([kind, name]) => ({ kind, name, required: true, extensions: ['education_report', 'commitment_letter'].includes(kind) ? ['.pdf'] : ['.jpg', '.jpeg'], max_count: 1 }))
-  const graduatedConfig = { ...config, qualification_rule: 'related_major_graduated_degree_v1', institution_types: ['technical', 'vocational', 'general_higher'], materials, export_template: 'renshe_graduated_v1', reporting_policy: {} }
+  const condition = '取得本专业或相关专业的技工院校或中等及以上职业院校、专科及以上普通高等学校毕业证书（含在读应届毕业生）。'
+  const graduatedConfig = { ...config, qualification_rule: 'related_major_graduated_degree_v1', institution_types: ['technical', 'vocational', 'general_higher'], materials, export_template: 'renshe_graduated_v1', reporting_policy: { contract_version: 2, version: 'registration-v2', confirmed_by_client: false, export_values: { candidate_source: '社会人员', application_condition: condition }, employment_reporting: { confirmed: false, date_rule: null, years_rule: null, allow_zero_years: null } } }
   let payload: Record<string, any> | undefined
   const reply = (route: Route, data: unknown) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 0, data, message: 'ok' }) })
   await page.route('**/admin/auth/me', route => reply(route, { admin: { id: 1, username: 'test', display_name: '测试管理员', role: 'super_admin', is_active: true, must_change_password: false, locked_until: null, last_login_at: null, created_at: '2026-10-15T00:00:00Z', updated_at: '2026-10-15T00:00:00Z' }, permissions: ['*'], session_mode: 'normal', must_change_password: false }))
@@ -72,6 +73,15 @@ test('已毕业学历型项目可上传下载模板并保留新规则配置', as
   await expect(page.getByText('本期仅接受信息安全管理员四级／中级工、已取得毕业证的学历型申请；专业相关性由初审逐项核验。')).toBeVisible()
   await page.screenshot({ path: 'test-results/renshe-graduated-rules.png', fullPage: true, animations: 'disabled' })
   await page.getByRole('tab', { name: '导出配置' }).click()
+  await expect(page.getByLabel('U列学历型申报条件（模板原文）')).toHaveValue(condition)
+  await expect(page.getByLabel('U列学历型申报条件（模板原文）')).toBeDisabled()
+  await page.getByLabel('R列日期填报规则').click()
+  await page.getByText('工作日期优先，无工作日期使用真实入学日期', { exact: true }).click()
+  await page.getByLabel('S列职业年限是否必填').click()
+  await page.getByText('必须按实填写', { exact: true }).click()
+  await page.getByLabel('S列是否接受零年限').click()
+  await page.getByText('甲方确认可以报送0', { exact: true }).click()
+  await page.getByRole('checkbox', { name: /R、S列规则已获甲方确认/ }).check()
   await page.locator('input[type=file][accept=".pdf,.docx"]').setInputFiles({ name: '甲方承诺书.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4 fixture') })
   await expect(page.getByText('甲方承诺书.pdf', { exact: true })).toBeVisible()
   const downloaded = page.waitForEvent('download')
@@ -84,4 +94,6 @@ test('已毕业学历型项目可上传下载模板并保留新规则配置', as
   expect(payload?.config.institution_types).toHaveLength(3)
   expect(payload?.config.materials).toHaveLength(6)
   expect(payload?.config.field_mapping).toEqual({})
+  expect(payload?.config.reporting_policy.export_values).toEqual({ candidate_source: '社会人员', application_condition: condition })
+  expect(payload?.config.reporting_policy.employment_reporting).toEqual({ confirmed: true, date_rule: 'work_or_enrollment', years_rule: 'required', allow_zero_years: true })
 })
