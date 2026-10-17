@@ -47,12 +47,15 @@ async function prepare(page: Page, graduated = false) {
   await page.route('**/admin/auth/me', route => reply(route, { admin: { id: 1, username: 'test', display_name: '测试管理员', role: 'super_admin', is_active: true, must_change_password: false, locked_until: null, last_login_at: null, created_at: '2026-10-15T00:00:00Z', updated_at: '2026-10-15T00:00:00Z' }, permissions: ['*'], session_mode: 'normal', must_change_password: false }))
   await page.route('**/admin/cert-products/renshe/**', route => {
     const path = new URL(route.request().url()).pathname
-    if (path.endsWith('/project-capabilities')) return reply(route, { default_config: graduatedConfig, templates: {}, export_instructions: exportInstructions, material_names: {}, form_fields: config.form_fields, qualification_rules: { related_major_current_graduating_student: '历史学生规则', related_major_graduated_degree_v1: '已毕业学历型' }, institution_types: { technical: '技工院校', vocational: '职业院校', general_higher: '普通高等学校' }, admission_requirements: admissionRequirements })
+    if (path.endsWith('/project-capabilities')) return reply(route, { default_config: graduatedConfig, supported_programs: [{ occupation_name: graduatedConfig.occupation_name, occupation_code: graduatedConfig.occupation_code, skill_level: graduatedConfig.skill_level, export_skill_level: graduatedConfig.export_skill_level, config: graduatedConfig, admission_requirements: { ...admissionRequirements, scope: { ...admissionRequirements.scope, occupation_code: graduatedConfig.occupation_code } } }], templates: {}, export_instructions: exportInstructions, material_names: {}, form_fields: config.form_fields, qualification_rules: { related_major_current_graduating_student: '历史学生规则', related_major_graduated_degree_v1: '已毕业学历型' }, institution_types: { technical: '技工院校', vocational: '职业院校', general_higher: '普通高等学校' }, admission_requirements: admissionRequirements })
     if (path.endsWith('/export-template')) return route.fulfill({ status: 200, contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', body: 'download-fixture' })
     if (path.endsWith('/commitment-templates')) return reply(route, template)
     if (path.includes('/commitment-templates/')) return route.fulfill({ status: 200, contentType: 'application/pdf', body: '%PDF-1.4 fixture' })
-    if (path.endsWith('/projects/1') && route.request().method() === 'PUT') { payload = route.request().postDataJSON(); return reply(route, { ...project, config: payload?.config, status: payload?.status }) }
-    if (path.endsWith('/projects')) return reply(route, [{ ...project, config: graduated ? graduatedConfig : config, status: graduated ? 'draft' : 'available' }])
+    if ((path.endsWith('/projects/1') && route.request().method() === 'PUT') || (path.endsWith('/projects') && route.request().method() === 'POST')) { payload = route.request().postDataJSON(); return reply(route, { ...project, config: graduated ? graduatedConfig : config, status: payload?.status }) }
+    if (path.endsWith('/projects')) {
+      const actualConfig = graduated ? graduatedConfig : config
+      return reply(route, [{ ...project, config: actualConfig, admission_requirements: { ...admissionRequirements, scope: { ...admissionRequirements.scope, ...actualConfig }, materials: actualConfig.materials.map(item => ({ ...item, max_size_bytes: 10 * 1024 * 1024 })) }, status: graduated ? 'draft' : 'available' }])
+    }
     if (path.endsWith('/batches')) return reply(route, [])
     return reply(route, {})
   })
@@ -90,16 +93,43 @@ test('已毕业项目上传承诺书并下载当前报名模板，无需填写�
   await page.getByRole('button', { name: '下载当前模板' }).click()
   expect((await pdf).suggestedFilename()).toBe('甲方承诺书.pdf')
   await page.getByRole('button', { name: /^保\s*存$/ }).click()
-  await expect.poll(() => payload()?.config?.commitment_template?.sha256).toBe(template.sha256)
-  expect(payload()?.config.qualification_rule).toBe('related_major_graduated_degree_v1')
+  await expect.poll(() => payload()?.commitment_template?.sha256).toBe(template.sha256)
+  expect(payload()?.occupation_code).toBe(graduatedConfig.occupation_code)
+  expect(payload()).not.toHaveProperty('config')
 })
 
-test('旧规则项目保存时采用后端当前报考要求', async ({ page }) => {
+test('旧规则项目编辑时展示并保留实际报名规则', async ({ page }) => {
   const payload = await prepare(page)
+  await expect(page.getByText(/历史报名规则，按原项目要求办理/)).toBeVisible()
+  await expect(page.getByLabel('职业／工种')).toBeDisabled()
+  await expect(page.getByLabel('技能等级')).toBeDisabled()
   await page.locator('input[type=file][accept=".pdf,.docx"]').setInputFiles({ name: '甲方承诺书.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4 fixture') })
   await expect(page.getByText('甲方承诺书.pdf', { exact: true })).toBeVisible()
   await page.getByRole('button', { name: /^保\s*存$/ }).click()
-  await expect.poll(() => payload()?.config?.commitment_template?.sha256).toBe(template.sha256)
-  expect(payload()?.config.qualification_rule).toBe('related_major_graduated_degree_v1')
+  await expect.poll(() => payload()?.commitment_template?.sha256).toBe(template.sha256)
+  expect(payload()?.occupation_code).toBe(config.occupation_code)
+  expect(payload()?.skill_level).toBe(config.skill_level)
+  expect(payload()).not.toHaveProperty('config')
   expect(payload()?.expected_version).toBe(project.version)
+})
+
+test('新增项目必须选择已适配职业和等级，自动展示对应要求', async ({ page }) => {
+  const payload = await prepare(page)
+  await page.getByRole('button', { name: /^取\s*消$/ }).click()
+  await page.getByRole('button', { name: /新增项目/ }).click()
+  await page.getByLabel('项目名称').fill('自主命名的信息安全项目')
+  await page.getByRole('button', { name: /^保\s*存$/ }).click()
+  await expect(page.getByText('请选择已适配的职业／工种', { exact: true })).toBeVisible()
+  expect(payload()).toBeUndefined()
+  await page.getByLabel('职业／工种').click()
+  await page.locator('.ant-select-item-option-content').filter({ hasText: /^信息安全管理员$/ }).click()
+  await page.getByLabel('技能等级').click()
+  await page.locator('.ant-select-item-option-content').filter({ hasText: /^四级／中级工$/ }).click()
+  await expect(page.getByText(/职业：信息安全管理员/)).toBeVisible()
+  await expect(page.getByText(/等级导出值：四级（系统自动带入）/)).toBeVisible()
+  await page.screenshot({ path: 'test-results/renshe-project-selection.png', fullPage: true, animations: 'disabled' })
+  await page.getByRole('button', { name: /^保\s*存$/ }).click()
+  await expect.poll(() => payload()?.occupation_code).toBe(graduatedConfig.occupation_code)
+  expect(payload()?.skill_level).toBe(graduatedConfig.skill_level)
+  expect(payload()).not.toHaveProperty('config')
 })

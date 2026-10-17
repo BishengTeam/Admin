@@ -56,6 +56,24 @@ const capabilities: RensheCapabilities = {
     notes: ['文化程度选项用于如实填报，不代表自动符合资格。'],
   },
 }
+capabilities.supported_programs = [{
+  occupation_name: currentConfig.occupation_name, occupation_code: currentConfig.occupation_code,
+  skill_level: currentConfig.skill_level, export_skill_level: currentConfig.export_skill_level,
+  config: currentConfig, admission_requirements: capabilities.admission_requirements!,
+}]
+project.admission_requirements = {
+  ...capabilities.admission_requirements!,
+  scope: { ...capabilities.admission_requirements!.scope, qualification_rule: legacyConfig.qualification_rule },
+  form_sections: ['本人实名信息', '学生资料', '联系信息'],
+  materials: legacyConfig.materials.map(item => ({ ...item, max_size_bytes: 10 * 1024 * 1024 })),
+}
+
+async function chooseProgram(name = '信息安全管理员', level = '四级／中级工') {
+  fireEvent.mouseDown(screen.getByLabelText('职业／工种'))
+  fireEvent.click(await screen.findByText(name, { selector: '.ant-select-item-option-content' }))
+  fireEvent.mouseDown(screen.getByLabelText('技能等级'))
+  fireEvent.click(await screen.findByText(level, { selector: '.ant-select-item-option-content' }))
+}
 
 beforeAll(() => {
   Object.defineProperty(window, 'matchMedia', { writable: true, value: vi.fn().mockImplementation(() => ({ matches: false, addListener: vi.fn(), removeListener: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: vi.fn() })) })
@@ -73,7 +91,7 @@ beforeEach(() => {
 afterEach(cleanup)
 
 describe('人社报考项目管理', () => {
-  it('shows read-only requirements and saves legacy projects with current rules', async () => {
+  it('shows actual legacy requirements and preserves its selection during metadata and template edits', async () => {
     const template = { filename: `commitment_${'c'.repeat(64)}.pdf`, sha256: 'c'.repeat(64), original_filename: '确认承诺书.pdf' }
     vi.mocked(rensheService.uploadCommitmentTemplate).mockResolvedValue(template)
     render(<MemoryRouter><ProjectTable /></MemoryRouter>)
@@ -81,6 +99,11 @@ describe('人社报考项目管理', () => {
     fireEvent.click(screen.getByRole('button', { name: '编辑' }))
     expect(await screen.findByText('报考要求（只读）')).toBeTruthy()
     expect(screen.getByText(/文化程度为如实填报选项/)).toBeTruthy()
+    expect(screen.getByText('学生资料')).toBeTruthy()
+    expect(screen.queryByText('社保缴费证明')).toBeNull()
+    expect(screen.getByLabelText('职业／工种')).toBeDisabled()
+    expect(screen.getByLabelText('技能等级')).toBeDisabled()
+    fireEvent.change(screen.getByLabelText('项目名称'), { target: { value: '修改名称' } })
     expect(screen.getByRole('button', { name: /上传承诺书模板/ })).toBeTruthy()
     expect(screen.queryByLabelText('资格校验规则')).toBeNull()
     expect(screen.queryByLabelText('支持的考试类型')).toBeNull()
@@ -92,26 +115,71 @@ describe('人社报考项目管理', () => {
     await waitFor(() => expect(rensheService.updateProject).toHaveBeenCalledTimes(1))
     const [id, payload] = vi.mocked(rensheService.updateProject).mock.calls[0]
     expect(id).toBe(project.id)
-    expect(payload.config?.qualification_rule).toBe('related_major_graduated_degree_v1')
-    expect(payload.config?.materials).toEqual(currentMaterials)
-    expect(payload.config?.commitment_template).toEqual(template)
+    expect(payload.chinese_name).toBe('修改名称')
+    expect(payload.occupation_code).toBe(legacyConfig.occupation_code)
+    expect(payload.skill_level).toBe(legacyConfig.skill_level)
+    expect(payload).not.toHaveProperty('config')
+    expect(payload.commitment_template).toEqual(template)
   })
 
-  it('creates a project from backend defaults without technical identifiers', async () => {
+  it('requires an explicit adapted occupation and level and sends selection without global default config', async () => {
     render(<MemoryRouter><ProjectTable /></MemoryRouter>)
     await screen.findByText('信息安全中级项目')
     fireEvent.click(screen.getByRole('button', { name: /新增项目/ }))
     const name = await screen.findByLabelText('项目名称')
     fireEvent.change(name, { target: { value: '新报考项目' } })
     expect(screen.queryByLabelText('产品编码')).toBeNull()
-    expect(screen.queryByLabelText('职业／工种')).toBeNull()
+    expect(screen.getByLabelText('职业／工种')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: '保 存' }))
+    expect(await screen.findByText('请选择已适配的职业／工种')).toBeTruthy()
+    expect(rensheService.createProject).not.toHaveBeenCalled()
+    await chooseProgram()
+    expect(await screen.findByText(/职业：信息安全管理员/)).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: '保 存' }))
     await waitFor(() => expect(rensheService.createProject).toHaveBeenCalledTimes(1))
     const payload = vi.mocked(rensheService.createProject).mock.calls[0][0]
     expect(payload.chinese_name).toBe('新报考项目')
     expect(payload.status).toBe('draft')
     expect(payload).not.toHaveProperty('code')
-    expect(payload.config).toEqual(currentConfig)
+    expect(payload.occupation_code).toBe(currentConfig.occupation_code)
+    expect(payload.skill_level).toBe(currentConfig.skill_level)
+    expect(payload).not.toHaveProperty('config')
+  })
+
+  it('uses each adapted selection for scope and clears the previous level when occupation changes', async () => {
+    const second = { ...currentConfig, occupation_name: '测试已适配职业', occupation_code: 'test-second', skill_level: '高级工', export_skill_level: '三级' }
+    vi.mocked(rensheService.projectCapabilities).mockResolvedValue({ ...capabilities, supported_programs: [
+      ...capabilities.supported_programs!,
+      { ...second, config: second, admission_requirements: { ...capabilities.admission_requirements!, scope: { ...capabilities.admission_requirements!.scope, ...second } } },
+    ] })
+    render(<MemoryRouter><ProjectTable /></MemoryRouter>)
+    await screen.findByText('信息安全中级项目')
+    fireEvent.click(screen.getByRole('button', { name: /新增项目/ }))
+    fireEvent.change(await screen.findByLabelText('项目名称'), { target: { value: '另一个报考项目' } })
+    await chooseProgram('测试已适配职业', '三级／高级工')
+    expect(await screen.findByText(/职业：测试已适配职业/)).toBeTruthy()
+    fireEvent.mouseDown(screen.getByLabelText('职业／工种'))
+    fireEvent.click(await screen.findByText('信息安全管理员', { selector: '.ant-select-item-option-content' }))
+    fireEvent.click(screen.getByRole('button', { name: '保 存' }))
+    expect(await screen.findByText('请选择该职业支持的技能等级')).toBeTruthy()
+    expect(rensheService.createProject).not.toHaveBeenCalled()
+  })
+
+  it('groups levels under the occupation even when each level has a different reporting code', async () => {
+    const higher = { ...currentConfig, occupation_code: 'same-occupation-higher-code', skill_level: '高级工', export_skill_level: '三级' }
+    vi.mocked(rensheService.projectCapabilities).mockResolvedValue({ ...capabilities, supported_programs: [
+      ...capabilities.supported_programs!,
+      { ...higher, config: higher, admission_requirements: { ...capabilities.admission_requirements!, scope: { ...capabilities.admission_requirements!.scope, ...higher } } },
+    ] })
+    render(<MemoryRouter><ProjectTable /></MemoryRouter>)
+    await screen.findByText('信息安全中级项目')
+    fireEvent.click(screen.getByRole('button', { name: /新增项目/ }))
+    fireEvent.change(await screen.findByLabelText('项目名称'), { target: { value: '另一等级项目' } })
+    await chooseProgram('信息安全管理员', '三级／高级工')
+    expect(await screen.findByText(/职业：信息安全管理员（高级工，导出等级：三级）/)).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: '保 存' }))
+    await waitFor(() => expect(rensheService.createProject).toHaveBeenCalledTimes(1))
+    expect(vi.mocked(rensheService.createProject).mock.calls[0][0]).toMatchObject({ occupation_code: higher.occupation_code, skill_level: '高级工' })
   })
 
   it('shows the server validation reason and keeps the editor open', async () => {

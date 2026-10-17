@@ -70,6 +70,7 @@ export interface RensheProject {
   config_id: number | null
   version: number
   config: RensheProjectConfig
+  admission_requirements?: RensheAdmissionRequirements
   validation_errors: string[]
   batch_count: number
 }
@@ -79,11 +80,22 @@ export interface RensheProjectWrite {
   description?: string | null
   home_cover_url?: string | null
   status: RensheProject['status']
+  occupation_code?: string
+  skill_level?: string
+  commitment_template?: RensheProjectConfig['commitment_template']
   config?: RensheProjectConfig | null
   expected_version?: number
 }
 
 export interface RensheCapabilities {
+  supported_programs?: Array<{
+    occupation_name: string
+    occupation_code: string
+    skill_level: string
+    export_skill_level: string
+    config: RensheProjectConfig
+    admission_requirements: RensheAdmissionRequirements
+  }>
   default_config: RensheProjectConfig
   templates: Record<string, { label: string; columns: string[] }>
   material_names: Record<string, string>
