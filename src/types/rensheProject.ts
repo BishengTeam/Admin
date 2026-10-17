@@ -1,4 +1,6 @@
 export interface RensheProjectConfig {
+  selection_id?: string | null
+  rule_profile?: Partial<RensheCombination>
   occupation_name: string
   occupation_code: string
   skill_level: string
@@ -37,6 +39,8 @@ export interface RensheExportInstructions {
 }
 
 export interface RensheAdmissionRequirements {
+  rule_profile?: Partial<RensheCombination>
+  review_checks?: Record<string, string>
   scope: {
     occupation_name: string
     occupation_code: string
@@ -71,11 +75,14 @@ export interface RensheProject {
   version: number
   config: RensheProjectConfig
   admission_requirements?: RensheAdmissionRequirements
+  export_instructions?: RensheExportInstructions | null
   validation_errors: string[]
   batch_count: number
+  review_notices?: string[]
 }
 
 export interface RensheProjectWrite {
+  selection_id?: string
   chinese_name: string
   description?: string | null
   home_cover_url?: string | null
@@ -88,6 +95,7 @@ export interface RensheProjectWrite {
 }
 
 export interface RensheCapabilities {
+  combinations?: RensheCombination[]
   supported_programs?: Array<{
     occupation_name: string
     occupation_code: string
@@ -106,4 +114,28 @@ export interface RensheCapabilities {
   reporting_contract?: { education_labels: Record<string, string>; application_condition: string }
   admission_requirements?: RensheAdmissionRequirements
   export_instructions?: RensheExportInstructions
+}
+
+export interface RensheCombination {
+  official_code?: string
+  level_label?: string
+  status?: string
+  selection_id: string
+  occupation_key: string
+  occupation_title: string
+  occupation_name: string
+  occupation_code: string
+  grade: number
+  skill_level: string
+  export_skill_level: string
+  application_type: string
+  adapted: boolean
+  missing: string[]
+  source_conditions: string[]
+  sources: string[]
+  related_majors: string
+  related_occupations: string
+  project_limits: string[]
+  config: RensheProjectConfig
+  admission_requirements: RensheAdmissionRequirements
 }

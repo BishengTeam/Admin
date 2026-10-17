@@ -517,11 +517,11 @@ export default function BatchOverrides(_props: BatchOverridesProps) {
           </Form.Item>
           <Form.Item name='project_config_id' hidden><InputNumber /></Form.Item>
           {selectedConfig && <>
-            <Alert style={{ marginBottom: 16 }} type='info' showIcon message={`${selectedConfig.occupation_name} · ${selectedConfig.skill_level}`} description={`学历型报名；${selectedConfig.materials.filter(item => item.required).length} 类必填材料；发布后固定本期项目配置，不能更换项目及核心报考属性。`} />
+            <Alert style={{ marginBottom: 16 }} type='info' showIcon message={`${selectedConfig.occupation_name} · ${selectedConfig.skill_level} · ${selectedConfig.application_types.join('、')}`} description={`${selectedConfig.materials.filter(item => item.required).length} 类必填材料；报考组合由产品带入，发布后固定本期项目配置。`} />
             {!coreLocked && editingPlan && selectedProject?.config_id !== editingPlan.renshe_config_id && configId === editingPlan.renshe_config_id && <Alert style={{ marginBottom: 16 }} type='warning' showIcon message={`项目存在新配置 V${selectedProject?.version}，本草稿仍使用原版本。`} action={<Button size='small' onClick={() => selectProject(projectCode)}>更新为最新配置</Button>} />}
             <Space align='start' style={{ display: 'flex' }} size={16}>
               <Form.Item name='exam_type' label='本期考试类型' rules={[{ required: true, message: '请选择考试类型' }]} style={{ flex: 1 }}><Select disabled={coreLocked} options={selectedConfig.exam_types.map(value => ({ value, label: value }))} /></Form.Item>
-              <Form.Item name='application_type' label='本期申报类型' rules={[{ required: true, message: '请选择申报类型' }]} style={{ flex: 1 }}><Select disabled={coreLocked} options={selectedConfig.application_types.map(value => ({ value, label: value }))} /></Form.Item>
+              <Form.Item name='application_type' hidden><Input /></Form.Item>
             </Space>
           </>}
           <Form.Item name="name" label="批次名称" rules={[{ required: true, whitespace: true, message: '请输入批次名称' }]}>

@@ -37,12 +37,14 @@ export function ExportInstructions({
   readOnly,
   commitmentTemplate,
   onCommitmentTemplateChange,
+  showCommitment = true,
 }: {
   instructions?: RensheExportInstructions
   required: boolean
   readOnly: boolean
   commitmentTemplate?: RensheProjectConfig['commitment_template']
   onCommitmentTemplateChange?: (value: RensheProjectConfig['commitment_template']) => void
+  showCommitment?: boolean
 }) {
   const [showColumns, setShowColumns] = useState(false)
   const [downloading, setDownloading] = useState(false)
@@ -78,12 +80,12 @@ export function ExportInstructions({
         <Button disabled={!instructions} onClick={() => setShowColumns(true)}>查看字段填写说明</Button>
       </Space>
     </section>
-    <section>
+    {showCommitment && <section>
       <Typography.Title level={5}>承诺书模板</Typography.Title>
       <Typography.Paragraph type='secondary'>上传甲方确认的 PDF／DOCX（≤10 MB），保存项目后供申请人下载签署。</Typography.Paragraph>
       {required && !commitmentTemplate && <Alert type='warning' showIcon message='请上传承诺书模板；暂未提供时可先保存草稿' style={{ marginBottom: 8 }} />}
       <CommitmentTemplateUpload value={commitmentTemplate ?? undefined} disabled={readOnly} onChange={onCommitmentTemplateChange} />
-    </section>
+    </section>}
     <Modal title='25列字段填写说明' open={showColumns} onCancel={() => setShowColumns(false)} footer={<Button onClick={() => setShowColumns(false)}>关闭</Button>} width={760}>
       <Table rowKey='column' pagination={false} size='small' dataSource={instructions?.columns || []} scroll={{ y: 480 }} columns={[{ title: '列序', dataIndex: 'column', width: 64 }, { title: '模板字段', dataIndex: 'header', width: 190 }, { title: '填写来源与要求', dataIndex: 'source' }]} />
     </Modal>

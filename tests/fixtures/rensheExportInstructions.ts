@@ -1,26 +1,22 @@
 import type { RensheExportInstructions } from '@/types/rensheProject'
 
-// Example API response generated from Backend's current shared definition.
 export const exportInstructions: RensheExportInstructions = {
   "registration_template": "报名信息.xlsx",
   "work_template": "工作经历.xlsx",
   "work_description": "原样附带甲方工作经历模板，目前不会按考生自动填写经历；后续按报送要求补充。",
   "directory_note": "目录示例，实际内容以报名材料为准；文件保留真实扩展名。",
-  "portrait_note": "新标准批次复用已审核实名二寸免冠照片；历史批次仍按原报名要求办理，导出使用固定材料名称。",
+  "portrait_note": "本期报名照片为一寸白底近期证件照、≤500 KB；文件名沿用甲方既定的二寸免冠照片，不改变真实格式。历史批次保留原材料要求。",
   "example_paths": [
     "报名信息.xlsx",
     "工作经历.xlsx",
     "110101********123X_证件正面.jpg",
     "110101********123X_证件背面.jpeg",
     "110101********123X_二寸免冠照片.jpg",
-    "110101********123X_社保证明.pdf",
+    "110101********123X_学历证明.pdf",
     "110101********123X_学信网电子注册表.pdf",
-    "110101********123X_学历证明.jpeg",
-    "110101********123X_职业资格证书.jpeg",
-    "110101********123X_职称证书.jpeg",
     "110101********123X_承诺书.pdf"
   ],
-  "file_tree": "人社报名_批次编号_第1卷.zip\n├─ 报名信息.xlsx\n├─ 工作经历.xlsx\n├─ 110101********123X_证件正面.jpg\n├─ 110101********123X_证件背面.jpeg\n├─ 110101********123X_二寸免冠照片.jpg\n├─ 110101********123X_社保证明.pdf\n├─ 110101********123X_学信网电子注册表.pdf\n├─ 110101********123X_学历证明.jpeg\n├─ 110101********123X_职业资格证书.jpeg\n├─ 110101********123X_职称证书.jpeg\n└─ 110101********123X_承诺书.pdf",
+  "file_tree": "人社报名_批次编号_第1卷.zip\n├─ 报名信息.xlsx\n├─ 工作经历.xlsx\n├─ 110101********123X_证件正面.jpg\n├─ 110101********123X_证件背面.jpeg\n├─ 110101********123X_二寸免冠照片.jpg\n├─ 110101********123X_学历证明.pdf\n├─ 110101********123X_学信网电子注册表.pdf\n└─ 110101********123X_承诺书.pdf",
   "columns": [
     {
       "column": 1,
@@ -90,12 +86,12 @@ export const exportInstructions: RensheExportInstructions = {
     {
       "column": 14,
       "header": "职业（工种）名称",
-      "source": "信息安全管理员"
+      "source": "批次所选职业／工种"
     },
     {
       "column": 15,
       "header": "职业（工种）等级",
-      "source": "四级"
+      "source": "批次所选技能等级的导出值"
     },
     {
       "column": 16,
@@ -120,17 +116,17 @@ export const exportInstructions: RensheExportInstructions = {
     {
       "column": 20,
       "header": "职业",
-      "source": "模板职业代码"
+      "source": "批次匹配的职业代码"
     },
     {
       "column": 21,
       "header": "申报条件",
-      "source": "模板完整学历型申报条件原文"
+      "source": "批次组合匹配的模板申报条件原文"
     },
     {
       "column": 22,
       "header": "申报类型",
-      "source": "学历型"
+      "source": "批次所选申报类型"
     },
     {
       "column": 23,
