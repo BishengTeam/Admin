@@ -13,6 +13,7 @@ export type RensheApplicationStatus =
 export type RenshePaymentStatus = 'pending' | 'paid' | 'completed' | 'refunded' | 'closed'
 
 export type RensheMaterialKind =
+  | 'work_proof'
   | 'id_card_front'
   | 'id_card_back'
   | 'portrait'

@@ -94,20 +94,53 @@ beforeEach(() => {
 afterEach(cleanup)
 
 describe('人社报考项目管理', () => {
+  it('previews newly adapted requirements when upgrading an unreferenced pending draft', async () => {
+    const selected = combinations.find(item => item.selection_id === 'human_resources:4:学历型')!
+    const pending: RensheProject = {
+      ...project, status: 'draft', batch_count: 0,
+      config: { ...selected.config, qualification_rule: 'unadapted', materials: [], form_fields: [], education_levels: [], institution_types: [] },
+      admission_requirements: { ...selected.admission_requirements, scope: { ...selected.admission_requirements.scope, qualification_rule: 'unadapted' }, materials: [] },
+    }
+    vi.mocked(rensheService.listProjects).mockResolvedValue([pending])
+    vi.mocked(rensheService.projectCapabilities).mockResolvedValue({ ...capabilities, combinations })
+    render(<MemoryRouter><ProjectTable /></MemoryRouter>)
+    await screen.findByText('信息安全中级项目')
+    fireEvent.click(screen.getByRole('button', { name: '编辑' }))
+    expect(await screen.findByText(/该草稿的报考组合现已完成适配/)).toBeTruthy()
+    expect(screen.getByText('一寸白底近期证件照（≤500 KB）')).toBeTruthy()
+    expect(screen.getByText(/职业：企业人力资源管理师/)).toBeTruthy()
+    expect(screen.queryByText(/该组合材料、资格及审核规则尚未适配/)).toBeNull()
+  })
+  it('uses the selected new trade requirements and identifier rather than the global default', async () => {
+    vi.mocked(rensheService.projectCapabilities).mockResolvedValue({ ...capabilities, combinations })
+    render(<MemoryRouter><ProjectTable /></MemoryRouter>)
+    await screen.findByText('信息安全中级项目')
+    fireEvent.click(screen.getByRole('button', { name: /新增项目/ }))
+    fireEvent.change(await screen.findByLabelText('项目名称'), { target: { value: '人力资源四级学历型' } })
+    await chooseProgram('企业人力资源管理师')
+    expect(screen.getByText(/职业：企业人力资源管理师/)).toBeTruthy()
+    expect(screen.getByText(/相关专业：.*劳动与社会保障/)).toBeTruthy()
+    expect(screen.queryByText(/相关专业：.*网络空间安全/)).toBeNull()
+    expect(screen.getAllByText(/职业代码：4-07-03-04/).length).toBeGreaterThan(0)
+    expect(screen.getByRole('button', { name: '保存并启用' })).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: '保存草稿' }))
+    await waitFor(() => expect(rensheService.createProject).toHaveBeenCalledTimes(1))
+    expect(vi.mocked(rensheService.createProject).mock.calls[0][0]).toMatchObject({ selection_id: 'human_resources:4:学历型', status: 'draft' })
+  })
   it('saves a sourced pending combination by identifier and cannot enable it', async () => {
     vi.mocked(rensheService.projectCapabilities).mockResolvedValue({ ...capabilities, combinations })
     render(<MemoryRouter><ProjectTable /></MemoryRouter>)
     await screen.findByText('信息安全中级项目')
     fireEvent.click(screen.getByRole('button', { name: /新增项目/ }))
     fireEvent.change(await screen.findByLabelText('项目名称'), { target: { value: '证书与工龄草稿' } })
-    await chooseProgram('网络与信息安全管理员／信息安全管理员', '四级／中级工', '复合型（待适配）')
+    await chooseProgram('网络与信息安全管理员／信息安全管理员', '三级／高级工', '复合型（待开发）')
     expect(screen.getByRole('button', { name: '保存并启用' })).toBeDisabled()
     expect(screen.getByText(/该组合材料、资格及审核规则尚未适配/)).toBeTruthy()
     expect(screen.queryByText('一寸白底近期证件照（≤500 KB）')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: '保存草稿' }))
     await waitFor(() => expect(rensheService.createProject).toHaveBeenCalledTimes(1))
     const payload = vi.mocked(rensheService.createProject).mock.calls[0][0]
-    expect(payload).toMatchObject({ selection_id: 'information_security:4:复合型', status: 'draft' })
+    expect(payload).toMatchObject({ selection_id: 'information_security:3:复合型', status: 'draft' })
     expect(payload).not.toHaveProperty('config')
     expect(payload).not.toHaveProperty('occupation_code')
   })
@@ -125,7 +158,7 @@ describe('人社报考项目管理', () => {
     expect(await screen.findByText('请选择该职业和等级对应的申报类型')).toBeTruthy()
     expect(rensheService.createProject).not.toHaveBeenCalled()
     fireEvent.mouseDown(screen.getByLabelText('申报类型'))
-    expect(await screen.findByText('无类型（待适配）', { selector: '.ant-select-item-option-content' })).toBeTruthy()
+    expect(await screen.findByText('无类型（待业务确认）', { selector: '.ant-select-item-option-content' })).toBeTruthy()
     expect(screen.queryByText('学历型（已适配）', { selector: '.ant-select-item-option-content' })).toBeNull()
   })
   it('shows actual legacy requirements and preserves its selection during metadata and template edits', async () => {

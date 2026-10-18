@@ -117,6 +117,9 @@ export interface RensheCapabilities {
 }
 
 export interface RensheCombination {
+  export_instructions?: RensheExportInstructions | null
+  adaptation_status?: '已适配' | '待开发' | '待业务确认' | '待联调'
+  institution_types?: string[]
   official_code?: string
   level_label?: string
   status?: string

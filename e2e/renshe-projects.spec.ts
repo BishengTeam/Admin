@@ -2,6 +2,35 @@ import { combinations } from '../tests/fixtures/rensheCombinations'
 import { exportInstructions } from '../tests/fixtures/rensheExportInstructions'
 import { expect, test, type Route, type Page } from '@playwright/test'
 
+for (const application of ['工龄型', '复合型']) {
+  test(`四级${application}按选择展示材料与导出目录，上传承诺书后可启用`, async ({ page }) => {
+    const payload = await prepare(page, false, false)
+    await page.getByRole('button', { name: /新增项目/ }).click()
+    await page.getByLabel('职业／工种').click()
+    await page.locator('.ant-select-item-option-content').filter({ hasText: /^企业人力资源管理师$/ }).click()
+    await page.getByLabel('技能等级').click()
+    await page.locator('.ant-select-item-option-content').filter({ hasText: /^四级／中级工$/ }).click()
+    await page.getByLabel('申报类型').click()
+    await page.locator('.ant-select-item-option-content').filter({ hasText: `${application}（已适配）` }).click()
+    await page.getByLabel('项目名称').fill(`人力资源四级${application}`)
+    await expect(page.getByText('工龄证明（单位鲜章、编号、手写内容及经办人信息）', { exact: true })).toBeVisible()
+    await expect(page.locator('pre')).toContainText('_工龄证明')
+    await expect(page.locator('pre')).not.toContainText('_毕业证')
+    if (application === '复合型') {
+      await expect(page.getByText('职业资格证书及网查截图（合并为同一份JPEG材料）', { exact: true })).toBeVisible()
+      await expect(page.locator('pre')).toContainText('_职业资格证书.jpeg')
+    }
+    await expect(page.getByRole('button', { name: '保存并启用' })).toBeDisabled()
+    await page.locator('input[type=file][accept=".pdf,.docx"]').setInputFiles({ name: '甲方承诺书.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4 fixture') })
+    await expect(page.getByRole('button', { name: '保存并启用' })).toBeEnabled()
+    await page.screenshot({ path: `test-results/renshe-${application}.png`, fullPage: true, animations: 'disabled' })
+    await page.getByRole('button', { name: '保存并启用' }).click()
+    await expect.poll(() => payload()?.selection_id).toBe(`human_resources:4:${application}`)
+    expect(payload()?.status).toBe('available')
+    expect(payload()).not.toHaveProperty('config')
+  })
+}
+
 const config = {
   occupation_name: '信息安全管理员', occupation_code: '4-04-04-02', skill_level: '中级工', export_skill_level: '四级',
   exam_types: ['新考'], application_types: ['学历型'], qualification_rule: 'related_major_current_graduating_student',
@@ -40,7 +69,7 @@ const admissionRequirements = {
   notes: ['文化程度选项全部展示，用于考生如实填报；是否符合本期资格仍由毕业证、院校类型、专业和初审共同判断。'],
 }
 
-async function prepare(page: Page, graduated = false) {
+async function prepare(page: Page, graduated = false, openEditor = true) {
   await page.setViewportSize({ width: 1440, height: 1050 })
   await page.addInitScript(() => sessionStorage.setItem('admin_token', 'eyJhbGciOiJub25lIn0.eyJleHAiOjk5OTk5OTk5OTl9.'))
   let payload: Record<string, any> | undefined
@@ -55,13 +84,13 @@ async function prepare(page: Page, graduated = false) {
     if ((path.endsWith('/projects/1') && route.request().method() === 'PUT') || (path.endsWith('/projects') && route.request().method() === 'POST')) { payload = route.request().postDataJSON(); return reply(route, { ...project, config: graduated ? graduatedConfig : config, status: payload?.status }) }
     if (path.endsWith('/projects')) {
       const actualConfig = graduated ? graduatedConfig : config
-      return reply(route, [{ ...project, config: actualConfig, admission_requirements: { ...admissionRequirements, scope: { ...admissionRequirements.scope, ...actualConfig }, materials: actualConfig.materials.map(item => ({ ...item, max_size_bytes: 10 * 1024 * 1024 })) }, status: graduated ? 'draft' : 'available' }])
+      return reply(route, [{ ...project, config: actualConfig, export_instructions: exportInstructions, admission_requirements: { ...admissionRequirements, scope: { ...admissionRequirements.scope, ...actualConfig }, materials: actualConfig.materials.map(item => ({ ...item, max_size_bytes: 10 * 1024 * 1024 })) }, status: graduated ? 'draft' : 'available' }])
     }
     if (path.endsWith('/batches')) return reply(route, [])
     return reply(route, {})
   })
   await page.goto('/admin/certification/renshe?tab=products')
-  await page.getByRole('button', { name: '编辑', exact: true }).click()
+  if (openEditor) await page.getByRole('button', { name: '编辑', exact: true }).click()
   return () => payload
 }
 
@@ -145,13 +174,62 @@ test('待适配申报类型可保存草稿，不能启用招生', async ({ page 
   await page.getByLabel('职业／工种').click()
   await page.locator('.ant-select-item-option-content').filter({ hasText: /^网络与信息安全管理员／信息安全管理员$/ }).click()
   await page.getByLabel('技能等级').click()
-  await page.locator('.ant-select-item-option-content').filter({ hasText: /^四级／中级工$/ }).click()
+  await page.locator('.ant-select-item-option-content').filter({ hasText: /^三级／高级工$/ }).click()
   await page.getByLabel('申报类型').click()
-  await page.locator('.ant-select-item-option-content').filter({ hasText: /^复合型（待适配）$/ }).click()
+  await page.locator('.ant-select-item-option-content').filter({ hasText: /^复合型（待开发）$/ }).click()
   await expect(page.getByRole('button', { name: '保存并启用' })).toBeDisabled()
   await expect(page.getByText(/该组合材料、资格及审核规则尚未适配/)).toBeVisible()
   await page.getByRole('button', { name: '保存草稿' }).click()
-  await expect.poll(() => payload()?.selection_id).toBe('information_security:4:复合型')
+  await expect.poll(() => payload()?.selection_id).toBe('information_security:3:复合型')
   expect(payload()?.status).toBe('draft')
+  expect(payload()).not.toHaveProperty('config')
+})
+
+test('直接新增及取消重开后，选择职业立即解锁等级和申报类型', async ({ page }) => {
+  const payload = await prepare(page, false, false)
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    await page.getByRole('button', { name: /新增项目/ }).click()
+    await expect(page.getByLabel('技能等级')).toBeDisabled()
+    await expect(page.getByLabel('申报类型')).toBeDisabled()
+    await page.getByLabel('职业／工种').click()
+    await page.locator('.ant-select-item-option-content').filter({ hasText: /^网络与信息安全管理员／信息安全管理员$/ }).click()
+    await expect(page.locator('.ant-select-selection-item').filter({ hasText: /^网络与信息安全管理员／信息安全管理员$/ })).toBeVisible()
+    await expect(page.getByLabel('技能等级')).toBeEnabled()
+    await expect(page.getByLabel('申报类型')).toBeDisabled()
+    await page.getByLabel('技能等级').click()
+    await page.locator('.ant-select-item-option-content').filter({ hasText: /^四级／中级工$/ }).click()
+    await expect(page.getByLabel('申报类型')).toBeEnabled()
+    await page.getByLabel('申报类型').click()
+    await page.locator('.ant-select-item-option-content').filter({ hasText: /^学历型（已适配）$/ }).click()
+    if (attempt === 0) {
+      await page.getByRole('button', { name: /^取\s*消$/ }).click()
+    } else {
+      await page.getByLabel('项目名称').fill('直接新增联动验证')
+      await page.getByRole('button', { name: '保存草稿' }).click()
+      await expect.poll(() => payload()?.selection_id).toBe('information_security:4:学历型')
+    }
+  }
+})
+
+test('新增其他已适配工种时，要求与保存标识跟随实际选择', async ({ page }) => {
+  const payload = await prepare(page, false, false)
+  await page.getByRole('button', { name: /新增项目/ }).click()
+  await page.getByLabel('职业／工种').click()
+  await page.locator('.ant-select-item-option-content').filter({ hasText: /^企业人力资源管理师$/ }).click()
+  await page.getByLabel('技能等级').click()
+  await page.locator('.ant-select-item-option-content').filter({ hasText: /^四级／中级工$/ }).click()
+  await page.getByLabel('申报类型').click()
+  await page.locator('.ant-select-item-option-content').filter({ hasText: /^学历型（已适配）$/ }).click()
+  await expect(page.getByText(/职业：企业人力资源管理师/)).toBeVisible()
+  await expect(page.getByText(/相关专业：.*劳动与社会保障/)).toBeVisible()
+  await expect(page.getByText(/相关专业：.*网络空间安全/)).toHaveCount(0)
+  await page.getByLabel('项目名称').fill('人力资源四级学历型')
+  await page.locator('input[type=file][accept=".pdf,.docx"]').setInputFiles({ name: '甲方承诺书.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4 fixture') })
+  await expect(page.getByText('甲方承诺书.pdf', { exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: '保存并启用' })).toBeEnabled()
+  await page.screenshot({ path: 'test-results/renshe-multi-degree.png', fullPage: true, animations: 'disabled' })
+  await page.getByRole('button', { name: '保存并启用' }).click()
+  await expect.poll(() => payload()?.selection_id).toBe('human_resources:4:学历型')
+  expect(payload()?.status).toBe('available')
   expect(payload()).not.toHaveProperty('config')
 })

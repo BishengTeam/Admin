@@ -23,6 +23,7 @@ export const RENSHE_PAYMENT_STATUS_MAP: Record<string, { text: string; color: st
 }
 
 export const RENSHE_MATERIAL_LABELS: Record<RensheMaterialKind, string> = {
+  work_proof: '工龄证明',
   id_card_front: '身份证正面',
   id_card_back: '身份证背面',
   portrait: '证件照',
@@ -48,7 +49,21 @@ export const RENSHE_DEGREE_CHECKS: Record<string, string> = {
   education: '院校类型与学历符合本期学历型条件', major: '本专业或资料列明相关专业，别名或不明确匹配人工核验',
   report: '学历备案表对应、可验证，验证有效期设置为6个月', photo: '一寸白底近期证件照，不超过500 KB', commitment: '承诺书完整、本人亲笔签名并按手印',
 }
+export const RENSHE_EMPLOYMENT_CHECKS: Record<string, string> = {
+  identity: '实名与全部证书、工作及社保材料属于同一人',
+  occupation: '实际从事本职业或资料列明相关职业，结合单位与岗位核验',
+  employment: '逐段核对工作经历、去除重叠，累计有效年限满足条件',
+  work_proof: '工龄证明单位鲜章、编号、手写内容、经办人及电话齐全，经办人不是考生本人',
+  social_security: '社保单位与工作单位一致，时长满足要求，验证码完整有效且可验证',
+  photo: '一寸白底近期证件照，不超过500 KB', commitment: '承诺书完整、本人亲笔签名并按手印',
+}
 export const RENSHE_GRADUATED_CHANGE_OPTIONS = Object.entries({
+  work_proof: '工龄证明',
+  'qualification_info.cultural_education': '文化程度', 'qualification_info.work_experiences': '逐段工作经历',
+  'qualification_info.skill_certificate.occupation_name': '证书职业／工种',
+  'qualification_info.skill_certificate.grade': '证书等级',
+  'qualification_info.skill_certificate.certificate_number': '证书编号',
+  'qualification_info.skill_certificate.issued_on': '证书取得日期',
   'reporting_info.occupation_status': '从事职业', 'reporting_info.ethnicity': '民族', 'reporting_info.political_status': '政治面貌',
   'reporting_info.has_work_experience': '工作经历', 'reporting_info.work_start_date': '参加工作日期', 'reporting_info.enrollment_date': '入学日期',
   'reporting_info.occupation_years': '职业年限', 'reporting_info.work_unit': '工作单位', 'reporting_info.social_insurance_unit': '社保参保单位',
