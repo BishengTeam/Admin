@@ -587,7 +587,7 @@ export default function RensheBatchWorkbench() {
                   {graduated && <Form.Item name='correction_due_at' label='补正截止时间' rules={[{ required: true }, { validator: (_, value?: Dayjs) => value?.isAfter(dayjs()) ? Promise.resolve() : Promise.reject(new Error('截止时间必须晚于现在')) }]}><DatePicker showTime /></Form.Item>}
                 </>
               ) : (
-                <Alert type='info' showIcon message='外审通过将自动绑定当前版本的成功导出条目；资料更新后旧导出会失效。' />
+                null
               )
             }}
           </Form.Item>

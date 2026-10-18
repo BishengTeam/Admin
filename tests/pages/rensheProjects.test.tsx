@@ -158,7 +158,8 @@ describe('人社报考项目管理', () => {
     expect(await screen.findByText('请选择该职业和等级对应的申报类型')).toBeTruthy()
     expect(rensheService.createProject).not.toHaveBeenCalled()
     fireEvent.mouseDown(screen.getByLabelText('申报类型'))
-    expect(await screen.findByText('无类型（待业务确认）', { selector: '.ant-select-item-option-content' })).toBeTruthy()
+    expect(await screen.findByText('工龄型（待业务确认）', { selector: '.ant-select-item-option-content' })).toBeTruthy()
+    expect(screen.queryByText('无类型（待业务确认）', { selector: '.ant-select-item-option-content' })).toBeNull()
     expect(screen.queryByText('学历型（已适配）', { selector: '.ant-select-item-option-content' })).toBeNull()
   })
   it('shows actual legacy requirements and preserves its selection during metadata and template edits', async () => {

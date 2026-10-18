@@ -132,6 +132,8 @@ export interface RensheCombination {
   skill_level: string
   export_skill_level: string
   application_type: string
+  implementation_ready?: boolean
+  reporting_confirmed?: boolean
   adapted: boolean
   missing: string[]
   source_conditions: string[]

@@ -153,8 +153,7 @@ beforeEach(() => {
     render(<QuizImports />)
     fireEvent.click(await screen.findByRole('button', { name: '错误明细' }))
 
-    expect(await screen.findByText('错误详情已永久脱敏')).toBeInTheDocument()
-    expect(screen.getByText('第 2 行')).toBeInTheDocument()
+    expect(await screen.findByText('第 2 行')).toBeInTheDocument()
     expect(screen.getAllByText('question_text').length).toBeGreaterThan(0)
     expect(screen.getByText('同一分类题干重复')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /下载 JSON/ })).toBeInTheDocument()

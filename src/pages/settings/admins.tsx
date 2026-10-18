@@ -372,12 +372,7 @@ export default function AdminAccountsPage() {
         </Space>
       )}
     >
-      <Alert
-        type="info"
-        showIcon
-        message="管理员账号不提供删除功能；系统最多存在一个超级管理员。"
-        style={{ marginBottom: 16 }}
-      />
+
       <Form<AdminAccountFilters> form={searchForm} layout="inline" onFinish={applyFilters} style={{ rowGap: 12, marginBottom: 16 }}>
         <Form.Item name="search" label="账号">
           <Input allowClear placeholder="用户名或显示名" style={{ width: 190 }} />

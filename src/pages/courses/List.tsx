@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Alert, Button, Form, Image, Input, InputNumber, Modal, Select, Space, Table, Tag, Upload, message } from 'antd'
+import { Button, Form, Image, Input, InputNumber, Modal, Select, Space, Table, Tag, Upload, message } from 'antd'
 import { PlusOutlined, ReloadOutlined, SearchOutlined, UploadOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import { useNavigate } from 'react-router-dom'
@@ -132,7 +132,7 @@ export default function CourseListPage() {
       <Table rowKey="id" columns={columns} dataSource={data?.items ?? []} loading={loading} pagination={pagination} scroll={{ x: 1250 }} />
 
       <Modal title="创建课程草稿" open={open} onOk={submit} onCancel={() => setOpen(false)} width={720} okText="保存并进入" cancelText="取消" destroyOnClose>
-        <Alert type="info" showIcon message="保存草稿后进入课程工作台，再批量上传课程视频。" style={{ marginBottom: 16 }} />
+
         <Form form={form} layout="vertical" initialValues={{ price_yuan: '0.00', preview_chapter_count: 0 }}>
           <Space style={{ width: '100%' }} size={16} wrap>
             <Form.Item name="title" label="课程标题" rules={[{ required: true, whitespace: true }]} style={{ minWidth: 360 }}><Input maxLength={256} /></Form.Item>

@@ -66,7 +66,7 @@ export function ExportInstructions({
         <Typography.Text>工作经历表：{instructions.work_description}</Typography.Text>
         <Typography.Text>考生材料：按既定报送要求平铺在压缩包根目录，以身份证号及固定材料名称命名，保留真实格式。补正后需要重新导出当前材料版本。</Typography.Text>
         <Typography.Text type='secondary'>{instructions.portrait_note}</Typography.Text>
-      </Space> : <Alert type='info' message='后端尚未提供当前导出说明，请更新后端后刷新页面。' />}
+      </Space> : <Typography.Text type='secondary'>暂无导出说明</Typography.Text>}
     </section>
     {instructions && <section>
       <Typography.Title level={5}>文件结构预览</Typography.Title>

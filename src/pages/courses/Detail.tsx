@@ -746,7 +746,7 @@ export default function CourseDetailPage() {
                   />
                 </Card>
               ) : (
-                <Alert type="info" showIcon message="题库绑定和回补需要超级管理员操作。" />
+                null
               )}
             </>
           ),

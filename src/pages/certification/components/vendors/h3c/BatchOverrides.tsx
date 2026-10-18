@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react'
 import dayjs from 'dayjs'
 import { useNavigate } from 'react-router-dom'
 import {
-  Alert,
   Button,
   Col,
   DatePicker,
@@ -638,15 +637,7 @@ export default function BatchOverrides(_props: { type: CertType; productCode: st
                 : undefined}
             />
           </Form.Item>
-          <Alert
-            type={selectedProduct ? 'success' : 'info'}
-            showIcon
-            message={
-              selectedProduct
-                ? `认证名称：${selectedProduct.chinese_name} · 考试代码：${selectedProduct.code}`
-                : '选择产品后自动关联认证、考试代码和身份标签'
-            }
-          />
+          {selectedProduct && <Typography.Paragraph>认证名称：{selectedProduct.chinese_name} · 考试代码：{selectedProduct.code}</Typography.Paragraph>}
 
           <Divider orientation='left' orientationMargin={0}>② 基本信息</Divider>
           <Form.Item

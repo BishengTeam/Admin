@@ -63,6 +63,7 @@ const SNAPSHOT_LABELS: Record<string, string> = {
   email: '邮箱',
   gender: '性别',
   birth_date: '出生日期',
+  age_as_of: '年龄核算基准日（首次正式提交，北京时间）',
   ethnicity: '民族',
   political_status: '政治面貌', occupation_status: '从事职业', has_work_experience: '参加过工作',
   work_start_date: '参加工作日期', enrollment_date: '入学日期', occupation_years: '实际职业年限（年）',
@@ -135,10 +136,12 @@ export default function ApplicationDetailDrawer({
   const [loading, setLoading] = useState(false)
   const [reviewing, setReviewing] = useState(false)
   const [checks, setChecks] = useState<string[]>([])
-  const employment = detail?.plan.renshe_config?.qualification_rule === 'documented_employment_v1'
+  const levelFive = detail?.plan.renshe_config?.qualification_rule === 'level_five_employment_v1'
+  const currentEligibility = detail?.versions.find(version => version.id === detail.current_version_id)?.form_data.eligibility_snapshot as Record<string, unknown> | undefined
+  const employment = levelFive || detail?.plan.renshe_config?.qualification_rule === 'documented_employment_v1'
   const compound = detail?.plan.renshe_config?.application_types[0] === '复合型'
   const graduated = employment || detail?.plan.renshe_config?.qualification_rule === 'related_major_graduated_degree_v1'
-  const reviewChecks: Record<string, string> = employment ? { ...RENSHE_EMPLOYMENT_CHECKS, ...(compound ? { certificate: '五级证书与同一材料内网查截图一致且可验证；证书取得后累计相关工作满3年' } : {}) } : detail?.plan.renshe_config?.materials.some(item => item.kind === 'registration_portrait') ? RENSHE_DEGREE_CHECKS : RENSHE_GRADUATED_CHECKS
+  const reviewChecks: Record<string, string> = employment ? { ...RENSHE_EMPLOYMENT_CHECKS, ...(levelFive ? { age: '首次正式提交日（北京时间）年满16周岁，按本人实名出生日期核验', employment: '五级工龄型：实际从事相关职业，不设最低工作年数', social_security: '单位与工作单位一致，时间信息与经历相符，验证码完整有效且可验证' } : {}), ...(compound ? { certificate: '五级证书与同一材料内网查截图一致且可验证；证书取得后累计相关工作满3年' } : {}) } : detail?.plan.renshe_config?.materials.some(item => item.kind === 'registration_portrait') ? RENSHE_DEGREE_CHECKS : RENSHE_GRADUATED_CHECKS
   const graduatedChangeOptions = RENSHE_GRADUATED_CHANGE_OPTIONS.filter(item => employment ? !item.value.startsWith('education_info.') && (compound || !item.value.startsWith('qualification_info.skill_certificate.')) : !item.value.startsWith('qualification_info.')).filter(item => item.value.includes('.') || ['contact_phone', 'email', 'mailing_address'].includes(item.value) || detail?.plan.renshe_config?.materials.some(material => material.kind === item.value))
   const [rejectionStage, setRejectionStage] = useState<RensheReviewStage | null>(null)
   const [correctingReview, setCorrectingReview] = useState<RensheReview | null>(null)
@@ -334,13 +337,14 @@ export default function ApplicationDetailDrawer({
           <>
             <Title level={5}>实名信息</Title>
             {renderSnapshot(version.realname_snapshot)}
-            {graduated && detail.plan.renshe_config?.rule_profile && <Alert type='info' showIcon style={{ marginBottom: 16 }} message={`${detail.plan.renshe_config.occupation_name} · ${detail.plan.renshe_config.export_skill_level} · ${detail.plan.renshe_config.application_types.join('、')}`} description={<>
+            {graduated && detail.plan.renshe_config?.rule_profile && <section style={{ marginBottom: 16 }}>
+              <Title level={5}>{`${detail.plan.renshe_config.occupation_name} · ${detail.plan.renshe_config.export_skill_level} · ${detail.plan.renshe_config.application_types.join('、')}`}</Title>
               {detail.plan.renshe_config.rule_profile.source_conditions?.map(item => <div key={item}>{item}</div>)}
               <div>相关专业：{detail.plan.renshe_config.rule_profile.related_majors}</div>
               <div>相关职业：{detail.plan.renshe_config.rule_profile.related_occupations}</div>
               {detail.plan.renshe_config.rule_profile.project_limits?.map(item => <div key={item}>{item}</div>)}
               <div>资料依据：{detail.plan.renshe_config.rule_profile.sources?.join('；')}</div>
-            </>} />}
+            </section>}
             <Title level={5}>{employment ? '工龄与证书信息' : graduated ? '毕业学历信息' : '学生信息'}</Title>
             {employment ? <EmploymentSnapshot info={version.form_data.qualification_info as Record<string, unknown> || {}} /> : renderSnapshot(graduated ? (version.form_data.education_info as Record<string, unknown> || {}) : version.student_snapshot)}
             {graduated && <><Title level={5}>模板填报信息</Title>{renderSnapshot(version.form_data.reporting_info as Record<string, unknown> || {})}{!version.form_data.reporting_info && <Alert type='warning' message='该历史版本缺少模板填报信息，导出前请驳回补正后重新初审。' style={{ marginBottom: 16 }} />}</>}
@@ -468,8 +472,9 @@ export default function ApplicationDetailDrawer({
             </Descriptions>
 
             {graduated && detail.status === 'pending_initial_review' && canWrite && <>
-              <Title level={5}>{employment ? '工龄与证书路径初审核验' : '学历型初审核验'}</Title>
-              <Alert type='info' showIcon message={employment ? '结合当前版本的逐段经历、单位岗位、工龄及社保证明核验；复合型还须核对证书及合并的网查截图、证书后工作年限。' : '结合当前版本的实名、学历字段和材料逐项核验；专业别名或不明确匹配须人工判断。'} style={{ marginBottom: 12 }} />
+              {levelFive && renderSnapshot({ birth_date: currentEligibility?.birth_date, age_as_of: currentEligibility?.age_as_of })}
+              <Title level={5}>{levelFive ? '五级工龄型初审核验' : employment ? '工龄与证书路径初审核验' : '学历型初审核验'}</Title>
+
               <Checkbox.Group value={checks} onChange={values => setChecks(values as string[])} style={{ marginBottom: 20 }}>
                 <Space direction='vertical'>{Object.entries(reviewChecks).map(([key, label]) => <Checkbox key={key} value={key}>{label}</Checkbox>)}</Space>
               </Checkbox.Group>

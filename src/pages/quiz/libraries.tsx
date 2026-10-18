@@ -18,7 +18,7 @@ import {
 } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { useNavigate } from 'react-router-dom'
-import { BookOutlined, LinkOutlined, PlusOutlined, ReloadOutlined, SearchOutlined, SwapOutlined } from '@ant-design/icons'
+import { LinkOutlined, PlusOutlined, ReloadOutlined, SearchOutlined, SwapOutlined } from '@ant-design/icons'
 import { PageContainer } from '@/components/PageContainer'
 import { quizService } from '@/services/quiz'
 import { ImageUpload } from '@/components/ImageUpload'
@@ -433,14 +433,7 @@ export default function QuizLibraries() {
       title="题库"
       extra={canManage ? <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>新建题库</Button> : undefined}
     >
-      <Alert
-        type="info"
-        showIcon
-        icon={<BookOutlined />}
-        style={{ marginBottom: 16 }}
-        message="题库是内容与课程权益边界"
-        description="只有知识点可以挂题。发布与开启 V2 用户入口是两个独立步骤；课程购买赠送题库还需配置有效课程绑定。归档为业务终态，只有归档题库可以删除。"
-      />
+
       <Space wrap style={{ marginBottom: 16 }}>
         <Input value={keyword} onChange={(event) => setKeyword(event.target.value)} onPressEnter={() => setFilter((current) => ({ ...current, keyword: keyword.trim() || undefined }))} allowClear prefix={<SearchOutlined />} placeholder="题库名称或编码" style={{ width: 240 }} />
         <Select allowClear placeholder="状态" value={filter.status} onChange={(status) => setFilter((current) => ({ ...current, status }))} options={Object.entries(statusLabels).map(([value, label]) => ({ value, label }))} style={{ width: 130 }} />

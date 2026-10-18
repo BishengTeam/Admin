@@ -2,6 +2,32 @@ import { combinations } from '../tests/fixtures/rensheCombinations'
 import { exportInstructions } from '../tests/fixtures/rensheExportInstructions'
 import { expect, test, type Route, type Page } from '@playwright/test'
 
+test('五级仅提供工龄型，报送未确认时只可保存草稿', async ({ page }) => {
+  const payload = await prepare(page, false, false)
+  await page.getByRole('button', { name: /新增项目/ }).click()
+  await page.getByLabel('职业／工种').click()
+  await page.locator('.ant-select-item-option-content').filter({ hasText: /^网络与信息安全管理员／信息安全管理员$/ }).click()
+  await page.getByLabel('技能等级').click()
+  await page.locator('.ant-select-item-option-content').filter({ hasText: /^五级／初级工$/ }).click()
+  await page.getByLabel('申报类型').click()
+  await expect(page.locator('.ant-select-item-option-content').filter({ hasText: /^工龄型（待业务确认）$/ })).toBeVisible()
+  await expect(page.locator('.ant-select-item-option-content').filter({ hasText: /无类型|学历型|复合型/ })).toHaveCount(0)
+  await page.locator('.ant-select-item-option-content').filter({ hasText: /^工龄型（待业务确认）$/ }).click()
+  await expect(page.getByText('年满16周岁，从事本职业或相关职业工作。', { exact: true })).toBeVisible()
+  await expect(page.getByText('工龄证明（单位鲜章、编号、手写内容及经办人信息）', { exact: true })).toBeVisible()
+  await expect(page.getByText('社保缴费证明（单位一致、验证码完整且有效）', { exact: true })).toBeVisible()
+  await expect(page.getByText(/不设置最低工作年数/)).toBeVisible()
+  await expect(page.locator('pre')).toContainText('_工龄证明')
+  await expect(page.locator('pre')).not.toContainText('_学历证明')
+  await page.getByLabel('项目名称').fill('五级工龄型草稿')
+  await page.locator('input[type=file][accept=".pdf,.docx"]').setInputFiles({ name: '承诺书.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4 fixture') })
+  await expect(page.getByRole('button', { name: '保存并启用' })).toBeDisabled()
+  await page.screenshot({ path: 'test-results/renshe-five-employment.png', fullPage: true, animations: 'disabled' })
+  await page.getByRole('button', { name: '保存草稿' }).click()
+  await expect.poll(() => payload()?.selection_id).toBe('information_security:5:工龄型')
+  expect(payload()?.status).toBe('draft')
+})
+
 for (const application of ['工龄型', '复合型']) {
   test(`四级${application}按选择展示材料与导出目录，上传承诺书后可启用`, async ({ page }) => {
     const payload = await prepare(page, false, false)

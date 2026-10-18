@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Alert, Button, Card, Col, Input, Progress, Row, Select, Space, Statistic, Table, Tag, Typography, message } from 'antd'
+import { Button, Card, Col, Input, Progress, Row, Select, Space, Statistic, Table, Tag, Typography, message } from 'antd'
 import { ReloadOutlined, SearchOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import { PageContainer } from '@/components/PageContainer'
@@ -104,13 +104,9 @@ export default function QuizStats() {
 
   return (
     <PageContainer title="题库聚合统计">
-      <Alert
-        showIcon
-        type="info"
-        style={{ marginBottom: 16 }}
-        message="管理端统计最多延迟 1 分钟，不提供用户下载或导出。"
-        description={`查询时间：${formatDate(overview?.calculated_at ?? null)}；聚合水位：${formatDate(overview?.aggregated_through ?? null)}`}
-      />
+      <Typography.Paragraph type="secondary">
+        查询时间：{formatDate(overview?.calculated_at ?? null)}；聚合水位：{formatDate(overview?.aggregated_through ?? null)}
+      </Typography.Paragraph>
       <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
         <Col xs={24} md={12} xl={6}><Card loading={loading}><Statistic title="题库" value={overview?.library_count ?? 0} suffix="个" /><Text type="secondary">草稿 {overview?.draft_library_count ?? 0} / 发布 {overview?.published_library_count ?? 0} / 停用 {overview?.suspended_library_count ?? 0} / 归档 {overview?.archived_library_count ?? 0}</Text></Card></Col>
         <Col xs={24} md={12} xl={6}><Card loading={loading}><Statistic title="模块" value={overview?.module_count ?? 0} suffix="个" /><Text type="secondary">启用 {overview?.active_module_count ?? 0} / 停用 {overview?.disabled_module_count ?? 0}</Text></Card></Col>

@@ -18,14 +18,14 @@ type ProjectFormValues = RensheProjectWrite & { occupation_name?: string; applic
 type ProjectSelection = Pick<ProjectFormValues, 'occupation_name' | 'skill_level' | 'application_type'>
 
 function AdmissionRequirements({ requirements }: { requirements?: RensheCapabilities['admission_requirements'] }) {
-  if (!requirements) return <Alert type='info' showIcon message='选择职业和技能等级后显示对应报考要求；已有项目若未显示要求，请更新后端后刷新。' />
+  if (!requirements) return null
   const scope = requirements.scope
   return <Space direction='vertical' size={16} style={{ width: '100%' }}>
     <section>
       <Typography.Title level={5}>适用范围</Typography.Title>
       <Space direction='vertical' size={4}>
         <Text>职业：{scope.occupation_name}（{scope.skill_level}，导出等级：{scope.export_skill_level}）</Text>
-        <Text>申报方式：{scope.application_types.join('、')}；{scope.qualification_rule === GRADUATED_RULE ? '仅接受已取得毕业证的申请人' : scope.qualification_rule === 'documented_employment_v1' ? '按相关工作经历及本路径证书核验资格，不要求毕业学历材料' : scope.qualification_rule === 'unadapted' ? '待适配，仅可保存草稿' : '历史报名规则，按原项目要求办理'}</Text>
+        <Text>申报方式：{scope.application_types.join('、')}；{scope.qualification_rule === GRADUATED_RULE ? '仅接受已取得毕业证的申请人' : ['documented_employment_v1', 'level_five_employment_v1'].includes(scope.qualification_rule) ? '按相关工作经历及本路径证书核验资格，不要求毕业学历材料' : scope.qualification_rule === 'unadapted' ? '待适配，仅可保存草稿' : '历史报名规则，按原项目要求办理'}</Text>
         <Text>考试类型：{scope.exam_types.join('、')}</Text>
         <Text type='secondary'>职业代码：{scope.occupation_code}</Text>
       </Space>
@@ -48,7 +48,7 @@ function AdmissionRequirements({ requirements }: { requirements?: RensheCapabili
     </section>
     <section>
       <Typography.Title level={5}>必交材料</Typography.Title>
-      {scope.qualification_rule === 'unadapted' && <Alert type='warning' message='该组合材料、资格及审核规则尚未适配，不采用其他产品的默认清单。' />}
+      {scope.qualification_rule === 'unadapted' && <Alert type='warning' message={requirements.rule_profile?.grade === 5 ? '五级拟适配材料，报送分类与规则尚待确认，当前只能保存草稿。' : '该组合材料、资格及审核规则尚未适配，不采用其他产品的默认清单。'} />}
       <Table
         rowKey='kind'
         pagination={false}
@@ -86,16 +86,15 @@ export default function ProjectTable() {
   const projectStatus = editing?.status ?? 'draft'
   const { occupation_name: occupationName, skill_level: skillLevel, application_type: applicationType } = selection
   const programs = capabilities?.combinations ?? capabilities?.supported_programs?.map(item => ({ ...item, export_instructions: capabilities?.export_instructions, application_type: item.config.application_types[0], adapted: true, adaptation_status: '已适配', missing: [] as string[], selection_id: item.config.selection_id, occupation_title: item.occupation_name })) ?? []
-  const adaptedCount = programs.filter(item => item.adapted).length
   const selectedProgram = programs.find(item => item.occupation_name === occupationName && item.skill_level === skillLevel && item.application_type === applicationType)
   const unchangedSelection = Boolean(editing && editing.config.occupation_name === occupationName && editing.config.skill_level === skillLevel && editing.config.application_types[0] === applicationType)
   const upgradingDraft = unchangedSelection && editing?.config.qualification_rule === 'unadapted' && selectedProgram?.adapted && !editing?.batch_count
   const persistedSelection = unchangedSelection && !upgradingDraft
   const activeConfig = persistedSelection ? editing?.config : selectedProgram?.config
   const requirements = persistedSelection ? editing?.admission_requirements : selectedProgram?.admission_requirements
-  const graduated = [GRADUATED_RULE, 'documented_employment_v1'].includes(activeConfig?.qualification_rule || '')
+  const pendingRequirements = requirements?.rule_profile?.adapted === false
+  const graduated = [GRADUATED_RULE, 'documented_employment_v1', 'level_five_employment_v1'].includes(activeConfig?.qualification_rule || '')
   const selectionLocked = readOnly || Boolean(editing?.batch_count)
-  const selectionLockReason = readOnly ? '当前为查看模式，请关闭后点击“编辑”。' : editing?.batch_count ? '该产品已被批次引用，报考组合不可更换；不同组合请新建产品。' : undefined
   const occupationOptions = Array.from(new Map(programs.map(item => [item.occupation_name, { value: item.occupation_name, label: item.occupation_title === item.occupation_name ? item.occupation_name : `${item.occupation_title}／${item.occupation_name}` }])).values())
   if (editing && !occupationOptions.some(item => item.value === editing.config.occupation_name)) {
     occupationOptions.push({ value: editing.config.occupation_name, label: `${editing.config.occupation_name || '未配置职业'}（历史配置）` })
@@ -104,8 +103,8 @@ export default function ProjectTable() {
   if (editing && occupationName === editing.config.occupation_name && !levelOptions.some(item => item.value === editing.config.skill_level)) {
     levelOptions.push({ value: editing.config.skill_level, label: `${editing.config.export_skill_level}／${editing.config.skill_level}（历史配置）` })
   }
-  const typeOptions = programs.filter(item => item.occupation_name === occupationName && item.skill_level === skillLevel).map(item => ({ value: item.application_type, label: `${item.application_type}（${item.adapted ? '已适配' : item.adaptation_status || '待适配'}）` }))
-  if (unchangedSelection && applicationType && !typeOptions.some(item => item.value === applicationType)) typeOptions.push({ value: applicationType, label: `${applicationType}（历史配置）` })
+  const typeOptions = programs.filter(item => item.occupation_name === occupationName && item.skill_level === skillLevel).map(item => ({ value: item.application_type, label: item.application_type }))
+  if (unchangedSelection && applicationType && !typeOptions.some(item => item.value === applicationType)) typeOptions.push({ value: applicationType, label: applicationType })
   const historicalProfile = unchangedSelection && selectedProgram?.selection_id !== activeConfig?.selection_id
   const canEnable = unchangedSelection ? editing?.status === 'available' || (selectedProgram?.adapted && !historicalProfile) : selectedProgram?.adapted
 
@@ -217,7 +216,6 @@ export default function ProjectTable() {
 
   const basic = <>
     <Divider orientation='left' orientationMargin={0}>报考设置</Divider>
-    {selectionLockReason && <Alert type='info' showIcon message={selectionLockReason} style={{ marginBottom: 16 }} />}
     {!programs.length && <Alert type='warning' showIcon message='报考选项尚未加载，请刷新后重试。' action={<Button size='small' onClick={() => void load()}>重新加载</Button>} style={{ marginBottom: 16 }} />}
     <Form.Item name='occupation_name' label='职业／工种' rules={[{ required: true, message: '请选择已适配的职业／工种' }]}>
       <Select placeholder='请选择职业及具体工种' options={occupationOptions} disabled={selectionLocked} onChange={value => changeSelection({ occupation_name: value })} />
@@ -227,13 +225,14 @@ export default function ProjectTable() {
     </Form.Item>
     <Form.Item name='application_type' label='申报类型' extra={!selectionLocked && (!occupationName ? '先选择职业／工种和技能等级，再选择申报类型。' : !skillLevel ? '请先选择技能等级，随后可选择对应申报类型。' : !typeOptions.length ? '当前组合暂无可用申报类型，请重新加载报考选项。' : undefined)} rules={[{ required: true, message: '请选择该职业和等级对应的申报类型' }]}><Select placeholder={!occupationName ? '请先选择职业／工种和技能等级' : !skillLevel ? '请先选择技能等级' : '请选择申报类型'} notFoundContent='当前组合暂无可用申报类型，请重新加载报考选项' options={typeOptions} disabled={selectionLocked || !skillLevel} onChange={value => changeSelection({ application_type: value })} /></Form.Item>
     {historicalProfile && <Alert type='warning' showIcon message='本产品保留历史资格与材料配置；新招生请创建采用当前规则的新产品，不通过修改展示信息替换历史要求。' style={{ marginBottom: 16 }} />}
-    {upgradingDraft && <Alert type='info' showIcon message='该草稿的报考组合现已完成适配，本次保存将使用下方展示的新报名要求。' style={{ marginBottom: 16 }} />}
-    <Alert type={selectedProgram && !selectedProgram.adapted ? 'warning' : 'info'} showIcon message={selectedProgram ? `${selectedProgram.adapted ? (commitmentTemplate ? '已适配，可启用' : '已适配，缺少承诺书模板') : `${selectedProgram.adaptation_status || '待适配'}，仅可保存草稿`}：${selectedProgram.occupation_name}／${selectedProgram.export_skill_level}／${selectedProgram.application_type}` : `当前有 ${adaptedCount} 个已适配组合；选择职业、等级及申报类型后查看具体要求和缺项。`} description={selectedProgram && !selectedProgram.adapted ? selectedProgram.missing.join('；') : graduated && !commitmentTemplate ? '请上传甲方确认的承诺书模板；暂未提供时仅可保存草稿。' : '同一组合的时间、价格、地点不同请创建多个批次；已有批次的产品不能更换报考组合。'} style={{ marginBottom: 16 }} />
+    {upgradingDraft && <Alert type='warning' showIcon message='该草稿的报考组合现已完成适配，本次保存将使用下方展示的新报名要求。' style={{ marginBottom: 16 }} />}
+    {selectedProgram && !selectedProgram.adapted && <Alert type='warning' showIcon message={`${selectedProgram.adaptation_status || '待适配'}，仅可保存草稿`} description={selectedProgram.missing.join('；')} style={{ marginBottom: 16 }} />}
+    {graduated && !commitmentTemplate && <Alert type='warning' showIcon message='缺少承诺书模板，仅可保存草稿' style={{ marginBottom: 16 }} />}
     {activeConfig && <Typography.Paragraph type='secondary'>职业代码：{activeConfig.occupation_code}；等级导出值：{activeConfig.export_skill_level}（系统自动带入）</Typography.Paragraph>}
     <Divider orientation='left' orientationMargin={0}>展示信息</Divider>
     <Form.Item name='chinese_name' label='项目名称' rules={[{ required: true, whitespace: true, message: '请输入项目名称' }]}><Input maxLength={128} placeholder='请输入产品名称，不影响实际报考组合' /></Form.Item>
     <Form.Item name='description' label='项目介绍'><Input.TextArea rows={3} maxLength={512} showCount /></Form.Item>
-    <Form.Item name='home_cover_url' label='首页认证横幅'>{readOnly ? (editing?.home_cover_url ? <img src={editing.home_cover_url} alt='项目封面' style={{ maxWidth: '100%', maxHeight: 180 }} /> : <Text type='secondary'>未上传封面</Text>) : <ImageUpload crop={{ width: 1404, height: 640, title: '首页认证横幅', fixed: true }} hint='首页认证专区通栏大图；固定裁剪输出 1404 × 640 px。' />}</Form.Item>
+    <Form.Item name='home_cover_url' label='产品封面'>{readOnly ? (editing?.home_cover_url ? <img src={editing.home_cover_url} alt='产品封面' style={{ maxWidth: '100%', maxHeight: 180 }} /> : <Text type='secondary'>未上传封面</Text>) : <ImageUpload crop={{ width: 1404, height: 640, title: '产品封面', fixed: true }} hint='产品封面；固定裁剪输出 1404 × 640 px。' />}</Form.Item>
     <Divider orientation='left' orientationMargin={0}>承诺书模板</Divider>
     <Typography.Paragraph type='secondary'>上传甲方确认的 PDF／DOCX（≤10 MB），保存后供申请人下载、签字按手印并上传。</Typography.Paragraph>
     <CommitmentTemplateUpload value={commitmentTemplate ?? undefined} disabled={readOnly} onChange={setCommitmentTemplate} />
@@ -242,7 +241,7 @@ export default function ProjectTable() {
       bordered={false}
       defaultActiveKey={['requirements', 'export']}
       items={[
-        { key: 'requirements', label: '报考要求（只读）', children: <AdmissionRequirements requirements={requirements} /> },
+        { key: 'requirements', label: '报考要求（只读）', children: <><Typography.Paragraph type='warning'>{pendingRequirements ? '拟适配要求：以下按资料展示，尚不能启用招生。' : ''}</Typography.Paragraph><AdmissionRequirements requirements={requirements} /></> },
         { key: 'export', label: '导出说明', children: activeConfig?.qualification_rule === 'unadapted' ? <Alert type='warning' showIcon message='该组合的导出取值、字典及附件规则尚未适配，不能套用其他产品的文件树。' /> : activeConfig ? <ExportInstructions instructions={(persistedSelection && editing?.export_instructions !== undefined ? editing.export_instructions : selectedProgram?.export_instructions ?? capabilities?.export_instructions) ?? undefined} required={graduated && projectStatus === 'available'} readOnly={readOnly} commitmentTemplate={commitmentTemplate} onCommitmentTemplateChange={setCommitmentTemplate} showCommitment={false} /> : <Text type='secondary'>选择完整报考组合后显示对应导出说明。</Text> },
       ]}
     />

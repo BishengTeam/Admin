@@ -410,7 +410,7 @@ export default function QuizV2Workbench() {
   return (
     <PageContainer title="题库内容工作台">
       <Space direction="vertical" style={{ width: '100%' }} size="middle">
-        <Alert type="info" showIcon message="固定层级：题库 → 模块 → 知识点 → 题目" description="题库和模块不能直接挂题。点击模块可查看整个模块题目；新增单题必须选择知识点，导入文件则自行携带完整的“模块 / 知识点”路径。发布后编辑生成待发布修订，不覆盖线上版本。" />
+
         <Space wrap>
           <Select aria-label="选择题库" showSearch optionFilterProp="label" placeholder="先选择题库" value={selectedLibraryId} onChange={(library_id) => updateParams({ library_id, module_id: undefined, knowledge_point_id: undefined, question_id: undefined, include_deleted: undefined })} options={libraries.filter((item) => item.status !== 'deleted').map((item) => ({ value: item.id, label: `${item.name} (${item.library_code})` }))} style={{ width: 360 }} />
           {selectedLibrary && <><Tag color={selectedLibrary.status === 'published' ? 'success' : 'default'}>{selectedLibrary.status}</Tag><Tag color={selectedLibrary.v2_enabled ? 'blue' : 'default'}>V2 {selectedLibrary.v2_enabled ? '已开放' : '未开放'}</Tag></>}

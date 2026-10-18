@@ -232,12 +232,7 @@ export default function QuizReviews() {
           </Space>
         }
       >
-        <Alert
-          type="info"
-          showIcon
-          style={{ marginBottom: 16 }}
-          message="含问答题的考试在评阅完成前不向学生显示任何分数；客观题（含填空）交卷即自动判分。"
-        />
+
         <Table
           rowKey="exam_id"
           columns={columns}
