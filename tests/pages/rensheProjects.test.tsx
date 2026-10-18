@@ -69,7 +69,7 @@ project.admission_requirements = {
   materials: legacyConfig.materials.map(item => ({ ...item, max_size_bytes: 10 * 1024 * 1024 })),
 }
 
-async function chooseProgram(name = '信息安全管理员', level = '四级／中级工', application = '学历型（已适配）') {
+async function chooseProgram(name = '信息安全管理员', level = '四级／中级工', application = '学历型') {
   fireEvent.mouseDown(screen.getByLabelText('职业／工种'))
   fireEvent.click(await screen.findByText(name, { selector: '.ant-select-item-option-content' }))
   fireEvent.mouseDown(screen.getByLabelText('技能等级'))
@@ -133,7 +133,7 @@ describe('人社报考项目管理', () => {
     await screen.findByText('信息安全中级项目')
     fireEvent.click(screen.getByRole('button', { name: /新增项目/ }))
     fireEvent.change(await screen.findByLabelText('项目名称'), { target: { value: '证书与工龄草稿' } })
-    await chooseProgram('网络与信息安全管理员／信息安全管理员', '三级／高级工', '复合型（待开发）')
+    await chooseProgram('网络与信息安全管理员／信息安全管理员', '三级／高级工', '复合型')
     expect(screen.getByRole('button', { name: '保存并启用' })).toBeDisabled()
     expect(screen.getByText(/该组合材料、资格及审核规则尚未适配/)).toBeTruthy()
     expect(screen.queryByText('一寸白底近期证件照（≤500 KB）')).toBeNull()
@@ -158,9 +158,9 @@ describe('人社报考项目管理', () => {
     expect(await screen.findByText('请选择该职业和等级对应的申报类型')).toBeTruthy()
     expect(rensheService.createProject).not.toHaveBeenCalled()
     fireEvent.mouseDown(screen.getByLabelText('申报类型'))
-    expect(await screen.findByText('工龄型（待业务确认）', { selector: '.ant-select-item-option-content' })).toBeTruthy()
-    expect(screen.queryByText('无类型（待业务确认）', { selector: '.ant-select-item-option-content' })).toBeNull()
-    expect(screen.queryByText('学历型（已适配）', { selector: '.ant-select-item-option-content' })).toBeNull()
+    expect(await screen.findByText('工龄型', { selector: '.ant-select-item-option-content' })).toBeTruthy()
+    expect(screen.queryByText('无类型', { selector: '.ant-select-item-option-content' })).toBeNull()
+    expect(screen.queryByText('学历型', { selector: '.ant-select-item-option-content' })).toBeNull()
   })
   it('shows actual legacy requirements and preserves its selection during metadata and template edits', async () => {
     const template = { filename: `commitment_${'c'.repeat(64)}.pdf`, sha256: 'c'.repeat(64), original_filename: '确认承诺书.pdf' }
