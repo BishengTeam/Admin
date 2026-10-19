@@ -1,5 +1,5 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { Form } from 'antd'
+import { Form, message } from 'antd'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { ExportInstructions } from '@/pages/certification/components/vendors/renshe/ExportInstructions'
 import { rensheService } from '@/services/renshe'
@@ -14,6 +14,19 @@ afterEach(cleanup)
 const instructions = { registration_template: '报名信息.xlsx', work_template: '工作经历.xlsx', work_description: '原样附带甲方工作经历模板，不会自动填写经历。', directory_note: '目录示例，实际内容以报名材料为准', portrait_note: '保留真实扩展名', example_paths: [], file_tree: '人社报名_批次名称.zip\n└─ 报名信息.xlsx', columns: [{ column: 18, header: '参加工作日期（入学日期）', source: '使用真实参加工作日期，格式2022-9-21' }] }
 
 describe('人社导出说明和承诺书', () => {
+  it('shows the server storage failure and preserves the previous template for retry', async () => {
+    const previous = { filename: `commitment_${'b'.repeat(64)}.pdf`, sha256: 'b'.repeat(64), original_filename: '当前承诺书.pdf' }
+    const error = vi.spyOn(message, 'error').mockImplementation(() => (() => undefined) as ReturnType<typeof message.error>)
+    vi.mocked(rensheService.uploadCommitmentTemplate).mockRejectedValueOnce(new Error('承诺书模板存储不可用，请联系管理员检查目录权限和持久化配置'))
+    const changed = vi.fn()
+    const { container } = render(<ExportInstructions instructions={instructions} required={false} readOnly={false} commitmentTemplate={previous} onCommitmentTemplateChange={changed} />)
+    fireEvent.change(container.querySelector('input[type=file]')!, { target: { files: [new File(['%PDF-1.4 fixture'], '替换.pdf', { type: 'application/pdf' })] } })
+    await waitFor(() => expect(error).toHaveBeenCalledWith('承诺书模板存储不可用，请联系管理员检查目录权限和持久化配置'))
+    expect(changed).not.toHaveBeenCalled()
+    expect(screen.getByText('当前承诺书.pdf')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /上传替换/ })).not.toBeDisabled()
+    error.mockRestore()
+  })
   it('uploads the business template without asking for export settings or confirmations', async () => {
     const metadata = { filename: `commitment_${'a'.repeat(64)}.pdf`, sha256: 'a'.repeat(64), original_filename: '甲方承诺书.pdf' }
     vi.mocked(rensheService.uploadCommitmentTemplate).mockResolvedValue(metadata)

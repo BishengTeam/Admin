@@ -60,7 +60,7 @@ function getFields(detail: unknown): ApiFieldError[] {
 }
 
 function isQuietBusinessError(status?: number, code?: number) {
-  return status === 409 || status === 422 || status === 429 || code === 40200 || code === 40201 || code === 40202
+  return status === 409 || status === 422 || status === 429 || code === 40200 || code === 40201 || code === 40202 || code === 50410
 }
 
 function toApiError(error: AxiosError): ApiError {

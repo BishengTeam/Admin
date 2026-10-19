@@ -28,6 +28,16 @@ vi.mock('antd', () => ({
 }))
 
 describe('request', () => {
+  it('keeps the actionable storage message without a duplicate generic server toast', async () => {
+    vi.resetModules()
+    await import('@/core/request')
+    const { default: axios } = await import('axios')
+    const { message } = await import('antd')
+    const instance = vi.mocked(axios.create).mock.results.at(-1)!.value
+    const reject = instance.interceptors.response.use.mock.calls[0][1]
+    await expect(reject({ config: { url: '/admin/cert-products/renshe/commitment-templates' }, response: { status: 503, data: { code: 50410, message: '承诺书模板存储不可用' } } })).rejects.toMatchObject({ message: '承诺书模板存储不可用', code: 50410, status: 503 })
+    expect(message.error).not.toHaveBeenCalled()
+  })
   beforeEach(() => {
     vi.clearAllMocks()
     localStorage.clear()

@@ -2,6 +2,21 @@ import { combinations } from '../tests/fixtures/rensheCombinations'
 import { exportInstructions } from '../tests/fixtures/rensheExportInstructions'
 import { expect, test, type Route, type Page } from '@playwright/test'
 
+test('承诺书存储不可用时显示具体原因，上传可重试且没有未捕获异常', async ({ page }) => {
+  await prepare(page, true)
+  const errors: string[] = []
+  page.on('pageerror', error => errors.push(error.message))
+  const reason = '承诺书模板存储不可用，请联系管理员检查目录权限和持久化配置'
+  await page.route('**/admin/cert-products/renshe/commitment-templates', route => route.fulfill({
+    status: 503, contentType: 'application/json', body: JSON.stringify({ code: 50410, message: reason, data: null }),
+  }))
+  await page.locator('input[type=file][accept=".pdf,.docx"]').setInputFiles({ name: '承诺书.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4 fixture') })
+  await expect(page.getByText(reason, { exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: '上传承诺书模板' })).toBeEnabled()
+  await expect(page.getByText('服务器暂时不可用，请稍后重试', { exact: true })).toHaveCount(0)
+  expect(errors).toEqual([])
+})
+
 test('五级仅提供工龄型，报送未确认时只可保存草稿', async ({ page }) => {
   const payload = await prepare(page, false, false)
   await page.getByRole('button', { name: /新增项目/ }).click()
@@ -10,9 +25,9 @@ test('五级仅提供工龄型，报送未确认时只可保存草稿', async ({
   await page.getByLabel('技能等级').click()
   await page.locator('.ant-select-item-option-content').filter({ hasText: /^五级／初级工$/ }).click()
   await page.getByLabel('申报类型').click()
-  await expect(page.locator('.ant-select-item-option-content').filter({ hasText: /^工龄型（待业务确认）$/ })).toBeVisible()
+  await expect(page.locator('.ant-select-item-option-content').filter({ hasText: /^工龄型$/ })).toBeVisible()
   await expect(page.locator('.ant-select-item-option-content').filter({ hasText: /无类型|学历型|复合型/ })).toHaveCount(0)
-  await page.locator('.ant-select-item-option-content').filter({ hasText: /^工龄型（待业务确认）$/ }).click()
+  await page.locator('.ant-select-item-option-content').filter({ hasText: /^工龄型$/ }).click()
   await expect(page.getByText('年满16周岁，从事本职业或相关职业工作。', { exact: true })).toBeVisible()
   await expect(page.getByText('工龄证明（单位鲜章、编号、手写内容及经办人信息）', { exact: true })).toBeVisible()
   await expect(page.getByText('社保缴费证明（单位一致、验证码完整且有效）', { exact: true })).toBeVisible()
@@ -37,7 +52,7 @@ for (const application of ['工龄型', '复合型']) {
     await page.getByLabel('技能等级').click()
     await page.locator('.ant-select-item-option-content').filter({ hasText: /^四级／中级工$/ }).click()
     await page.getByLabel('申报类型').click()
-    await page.locator('.ant-select-item-option-content').filter({ hasText: `${application}（已适配）` }).click()
+    await page.locator('.ant-select-item-option-content').filter({ hasText: `${application}` }).click()
     await page.getByLabel('项目名称').fill(`人力资源四级${application}`)
     await expect(page.getByText('工龄证明（单位鲜章、编号、手写内容及经办人信息）', { exact: true })).toBeVisible()
     await expect(page.locator('pre')).toContainText('_工龄证明')
@@ -182,7 +197,7 @@ test('新增项目必须选择已适配职业和等级，自动展示对应要�
   await page.getByLabel('技能等级').click()
   await page.locator('.ant-select-item-option-content').filter({ hasText: /^四级／中级工$/ }).click()
   await page.getByLabel('申报类型').click()
-  await page.locator('.ant-select-item-option-content').filter({ hasText: /^学历型（已适配）$/ }).click()
+  await page.locator('.ant-select-item-option-content').filter({ hasText: /^学历型$/ }).click()
   await expect(page.getByText(/职业：信息安全管理员/)).toBeVisible()
   await expect(page.getByText(/等级导出值：四级（系统自动带入）/)).toBeVisible()
   await page.screenshot({ path: 'test-results/renshe-project-selection.png', fullPage: true, animations: 'disabled' })
@@ -202,7 +217,7 @@ test('待适配申报类型可保存草稿，不能启用招生', async ({ page 
   await page.getByLabel('技能等级').click()
   await page.locator('.ant-select-item-option-content').filter({ hasText: /^三级／高级工$/ }).click()
   await page.getByLabel('申报类型').click()
-  await page.locator('.ant-select-item-option-content').filter({ hasText: /^复合型（待开发）$/ }).click()
+  await page.locator('.ant-select-item-option-content').filter({ hasText: /^复合型$/ }).click()
   await expect(page.getByRole('button', { name: '保存并启用' })).toBeDisabled()
   await expect(page.getByText(/该组合材料、资格及审核规则尚未适配/)).toBeVisible()
   await page.getByRole('button', { name: '保存草稿' }).click()
@@ -226,7 +241,7 @@ test('直接新增及取消重开后，选择职业立即解锁等级和申报�
     await page.locator('.ant-select-item-option-content').filter({ hasText: /^四级／中级工$/ }).click()
     await expect(page.getByLabel('申报类型')).toBeEnabled()
     await page.getByLabel('申报类型').click()
-    await page.locator('.ant-select-item-option-content').filter({ hasText: /^学历型（已适配）$/ }).click()
+    await page.locator('.ant-select-item-option-content').filter({ hasText: /^学历型$/ }).click()
     if (attempt === 0) {
       await page.getByRole('button', { name: /^取\s*消$/ }).click()
     } else {
@@ -245,7 +260,7 @@ test('新增其他已适配工种时，要求与保存标识跟随实际选择',
   await page.getByLabel('技能等级').click()
   await page.locator('.ant-select-item-option-content').filter({ hasText: /^四级／中级工$/ }).click()
   await page.getByLabel('申报类型').click()
-  await page.locator('.ant-select-item-option-content').filter({ hasText: /^学历型（已适配）$/ }).click()
+  await page.locator('.ant-select-item-option-content').filter({ hasText: /^学历型$/ }).click()
   await expect(page.getByText(/职业：企业人力资源管理师/)).toBeVisible()
   await expect(page.getByText(/相关专业：.*劳动与社会保障/)).toBeVisible()
   await expect(page.getByText(/相关专业：.*网络空间安全/)).toHaveCount(0)
