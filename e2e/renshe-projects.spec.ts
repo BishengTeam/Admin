@@ -17,7 +17,7 @@ test('承诺书存储不可用时显示具体原因，上传可重试且没有�
   expect(errors).toEqual([])
 })
 
-test('五级仅提供工龄型，报送未确认时只可保存草稿', async ({ page }) => {
+test('五级仅提供工龄型，上传承诺书后可保存并启用', async ({ page }) => {
   const payload = await prepare(page, false, false)
   await page.getByRole('button', { name: /新增项目/ }).click()
   await page.getByLabel('职业／工种').click()
@@ -31,17 +31,39 @@ test('五级仅提供工龄型，报送未确认时只可保存草稿', async ({
   await expect(page.getByText('年满16周岁，从事本职业或相关职业工作。', { exact: true })).toBeVisible()
   await expect(page.getByText('工龄证明（单位鲜章、编号、手写内容及经办人信息）', { exact: true })).toBeVisible()
   await expect(page.getByText('社保缴费证明（单位一致、验证码完整且有效）', { exact: true })).toBeVisible()
-  await expect(page.getByText(/不设置最低工作年数/)).toBeVisible()
+  await expect(page.getByText('工龄型须提供相关职业工作经历、工龄证明及社保证明；不设置最低工作年数，不要求前置证书或毕业学历材料', { exact: true })).toBeVisible()
   await expect(page.locator('pre')).toContainText('_工龄证明')
   await expect(page.locator('pre')).not.toContainText('_学历证明')
-  await page.getByLabel('项目名称').fill('五级工龄型草稿')
+  await page.getByLabel('项目名称').fill('五级工龄型产品')
   await page.locator('input[type=file][accept=".pdf,.docx"]').setInputFiles({ name: '承诺书.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4 fixture') })
-  await expect(page.getByRole('button', { name: '保存并启用' })).toBeDisabled()
+  await expect(page.getByRole('button', { name: '保存并启用' })).toBeEnabled()
   await page.screenshot({ path: 'test-results/renshe-five-employment.png', fullPage: true, animations: 'disabled' })
-  await page.getByRole('button', { name: '保存草稿' }).click()
+  await page.getByRole('button', { name: '保存并启用' }).click()
   await expect.poll(() => payload()?.selection_id).toBe('information_security:5:工龄型')
-  expect(payload()?.status).toBe('draft')
+  expect(payload()?.status).toBe('available')
 })
+
+for (const application of ['工龄型', '复合型', '学历型']) {
+  test(`三级${application}展示独立路径与材料，上传承诺书后可启用`, async ({ page }) => {
+    const payload = await prepare(page, false, false)
+    await page.getByRole('button', { name: /新增项目/ }).click()
+    await page.getByLabel('职业／工种').click()
+    await page.locator('.ant-select-item-option-content').filter({ hasText: /^网络与信息安全管理员／信息安全管理员$/ }).click()
+    await page.getByLabel('技能等级').click()
+    await page.locator('.ant-select-item-option-content').filter({ hasText: /^三级／高级工$/ }).click()
+    await page.getByLabel('申报类型').click()
+    await page.locator('.ant-select-item-option-content').filter({ hasText: new RegExp(`^${application}$`) }).click()
+    const chosen = combinations.find(item => item.selection_id === `information_security:3:${application}`)!
+    for (const condition of chosen.source_conditions) await expect(page.getByText(condition, { exact: true })).toBeVisible()
+    if (application === '复合型') await expect(page.getByText('初级职称证书及网查截图（合并为同一份JPEG材料）', { exact: true })).toBeVisible()
+    await page.getByLabel('项目名称').fill(`三级${application}产品`)
+    await page.locator('input[type=file][accept=".pdf,.docx"]').setInputFiles({ name: '承诺书.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4 fixture') })
+    await expect(page.getByRole('button', { name: '保存并启用' })).toBeEnabled()
+    await page.getByRole('button', { name: '保存并启用' }).click()
+    await expect.poll(() => payload()?.selection_id).toBe(chosen.selection_id)
+    expect(payload()?.status).toBe('available')
+  })
+}
 
 for (const application of ['工龄型', '复合型']) {
   test(`四级${application}按选择展示材料与导出目录，上传承诺书后可启用`, async ({ page }) => {
@@ -110,7 +132,7 @@ const admissionRequirements = {
   notes: ['文化程度选项全部展示，用于考生如实填报；是否符合本期资格仍由毕业证、院校类型、专业和初审共同判断。'],
 }
 
-async function prepare(page: Page, graduated = false, openEditor = true) {
+async function prepare(page: Page, graduated = false, openEditor = true, unreferencedDraft = false) {
   await page.setViewportSize({ width: 1440, height: 1050 })
   await page.addInitScript(() => sessionStorage.setItem('admin_token', 'eyJhbGciOiJub25lIn0.eyJleHAiOjk5OTk5OTk5OTl9.'))
   let payload: Record<string, any> | undefined
@@ -125,7 +147,7 @@ async function prepare(page: Page, graduated = false, openEditor = true) {
     if ((path.endsWith('/projects/1') && route.request().method() === 'PUT') || (path.endsWith('/projects') && route.request().method() === 'POST')) { payload = route.request().postDataJSON(); return reply(route, { ...project, config: graduated ? graduatedConfig : config, status: payload?.status }) }
     if (path.endsWith('/projects')) {
       const actualConfig = graduated ? graduatedConfig : config
-      return reply(route, [{ ...project, config: actualConfig, export_instructions: exportInstructions, admission_requirements: { ...admissionRequirements, scope: { ...admissionRequirements.scope, ...actualConfig }, materials: actualConfig.materials.map(item => ({ ...item, max_size_bytes: 10 * 1024 * 1024 })) }, status: graduated ? 'draft' : 'available' }])
+      return reply(route, [{ ...project, batch_count: unreferencedDraft ? 0 : project.batch_count, config: actualConfig, export_instructions: exportInstructions, admission_requirements: { ...admissionRequirements, scope: { ...admissionRequirements.scope, ...actualConfig }, materials: actualConfig.materials.map(item => ({ ...item, max_size_bytes: 10 * 1024 * 1024 })) }, status: graduated ? 'draft' : 'available' }])
     }
     if (path.endsWith('/batches')) return reply(route, [])
     return reply(route, {})
@@ -139,7 +161,7 @@ test('导出说明展示只读目录和25列说明，移除技术配置', async 
   await prepare(page)
   await expect(page.getByText('文件结构预览', { exact: true })).toBeVisible()
   await expect(page.getByText('报考要求（只读）', { exact: true })).toBeVisible()
-  await expect(page.locator('pre')).toContainText(exportInstructions.file_tree)
+  await expect(page.locator('pre')).toContainText(combinations.find(item => item.selection_id === 'information_security:4:学历型')!.export_instructions!.file_tree)
   await expect(page.getByLabel('已适配导出模板')).toHaveCount(0)
   await expect(page.getByLabel('附件目录与命名规则')).toHaveCount(0)
   await expect(page.getByLabel('报送口径版本')).toHaveCount(0)
@@ -169,9 +191,22 @@ test('已毕业项目上传承诺书并下载当前报名模板，无需填写�
   expect(payload()).not.toHaveProperty('config')
 })
 
-test('旧规则项目编辑时展示并保留实际报名规则', async ({ page }) => {
+test('编辑产品统一使用当前规则，上传承诺书后直接保存并启用', async ({ page }) => {
+  const payload = await prepare(page, true, true, true)
+  await page.locator('input[type=file][accept=".pdf,.docx"]').setInputFiles({ name: '甲方承诺书.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4 fixture') })
+  await expect(page.getByText('甲方承诺书.pdf', { exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: '使用当前规则' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: '保存并启用' })).toBeEnabled()
+  await page.getByRole('button', { name: '保存并启用' }).click()
+  await expect.poll(() => payload()?.status).toBe('available')
+  expect(payload()?.selection_id).toBe('information_security:4:学历型')
+  expect(payload()?.commitment_template).toEqual(template)
+  expect(payload()?.status).toBe('available')
+})
+
+test('产品编辑展示当前组合要求', async ({ page }) => {
   const payload = await prepare(page)
-  await expect(page.getByText(/历史报名规则，按原项目要求办理/)).toBeVisible()
+  await expect(page.getByText(/仅接受已取得毕业证的申请人/)).toBeVisible()
   await expect(page.getByLabel('职业／工种')).toBeDisabled()
   await expect(page.getByLabel('技能等级')).toBeDisabled()
   await page.locator('input[type=file][accept=".pdf,.docx"]').setInputFiles({ name: '甲方承诺书.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4 fixture') })
@@ -215,13 +250,13 @@ test('待适配申报类型可保存草稿，不能启用招生', async ({ page 
   await page.getByLabel('职业／工种').click()
   await page.locator('.ant-select-item-option-content').filter({ hasText: /^网络与信息安全管理员／信息安全管理员$/ }).click()
   await page.getByLabel('技能等级').click()
-  await page.locator('.ant-select-item-option-content').filter({ hasText: /^三级／高级工$/ }).click()
+  await page.locator('.ant-select-item-option-content').filter({ hasText: /^二级／技师$/ }).click()
   await page.getByLabel('申报类型').click()
   await page.locator('.ant-select-item-option-content').filter({ hasText: /^复合型$/ }).click()
   await expect(page.getByRole('button', { name: '保存并启用' })).toBeDisabled()
   await expect(page.getByText(/该组合材料、资格及审核规则尚未适配/)).toBeVisible()
   await page.getByRole('button', { name: '保存草稿' }).click()
-  await expect.poll(() => payload()?.selection_id).toBe('information_security:3:复合型')
+  await expect.poll(() => payload()?.selection_id).toBe('information_security:2:复合型')
   expect(payload()?.status).toBe('draft')
   expect(payload()).not.toHaveProperty('config')
 })

@@ -50,6 +50,7 @@ const { Text, Title } = Typography
 const ADDITIONAL_EDUCATION_LABELS: Record<string, string> = { primary: '小学', junior_high: '初中', senior_high: '高中', other: '其他' }
 
 const SNAPSHOT_LABELS: Record<string, string> = {
+  admission_path: '具体申报路径', title_name: '职称名称', level: '职称等级', training_level: '技工院校培养层次', evaluation_reference: '院校评估论证依据', application_condition: '申报条件',
   cultural_education: '文化程度', occupation_name: '证书职业／工种', grade: '证书等级', issued_on: '证书取得日期',
   real_name: '姓名',
   id_card: '身份证号',
@@ -104,7 +105,7 @@ function renderSnapshot(snapshot: Record<string, unknown>) {
     <Descriptions bordered size="small" column={2} style={{ marginBottom: 16 }}>
       {entries.map(([key, value]) => (
         <Descriptions.Item key={key} label={SNAPSHOT_LABELS[key] ?? key}>
-          {typeof value === 'boolean' ? (value ? '是' : '否') : typeof value === 'object' ? JSON.stringify(value) : ({ ...ADDITIONAL_EDUCATION_LABELS, technical: '技工院校', vocational: '中等及以上职业院校', general_higher: '普通高等学校', secondary_vocational: '中专', technical_school: '技校', vocational_high: '职高', higher_vocational: '高职', associate: '大专', bachelor: '大学本科', master: '硕士', doctorate: '博士', student: '学生', social: '社会人员', enterprise: '企业人员' } as Record<string, string>)[String(value)] || String(value)}
+          {typeof value === 'boolean' ? (value ? '是' : '否') : typeof value === 'object' ? JSON.stringify(value) : ({ ...ADDITIONAL_EDUCATION_LABELS, senior_worker: '高级工班', preparatory_technician: '预备技师班', technician: '技师班', work_10: '相关工作满10年', skill_4_work_4: '四级证书后工作满4年', title_work_1: '初级职称后工作满1年', skill_4_degree: '四级证书加对应毕业学历', technical_senior: '技工院校高级工班及以上毕业', evaluated_college: '经评估论证院校毕业', technical: '技工院校', vocational: '中等及以上职业院校', general_higher: '普通高等学校', secondary_vocational: '中专', technical_school: '技校', vocational_high: '职高', higher_vocational: '高职', associate: '大专', bachelor: '大学本科', master: '硕士', doctorate: '博士', student: '学生', social: '社会人员', enterprise: '企业人员' } as Record<string, string>)[String(value)] || String(value)}
         </Descriptions.Item>
       ))}
     </Descriptions>
@@ -114,8 +115,9 @@ function renderSnapshot(snapshot: Record<string, unknown>) {
 function EmploymentSnapshot({ info }: { info: Record<string, unknown> }) {
   const entries = (info.work_experiences || []) as Array<Record<string, unknown>>
   return <>
-    {renderSnapshot({ cultural_education: info.cultural_education })}
-    {Boolean(info.skill_certificate) && <><Title level={5}>五级技能证书</Title>{renderSnapshot({ ...info.skill_certificate as Record<string, unknown>, grade: '五级／初级工' })}</>}
+    {renderSnapshot({ cultural_education: info.cultural_education, admission_path: info.admission_path })}
+    {Boolean(info.skill_certificate) && <><Title level={5}>技能证书</Title>{renderSnapshot({ ...info.skill_certificate as Record<string, unknown>, grade: (info.skill_certificate as Record<string, unknown>).grade === 4 ? '四级／中级工' : '五级／初级工' })}</>}
+    {Boolean(info.title_certificate) && <><Title level={5}>初级职称证书</Title>{renderSnapshot({ ...info.title_certificate as Record<string, unknown>, level: '初级' })}</>}
     <Title level={5}>逐段工作经历</Title>
     <Table size='small' pagination={false} rowKey={(_, index) => String(index)} dataSource={entries} scroll={{ x: 700 }} columns={[
       { title: '工作单位', dataIndex: 'work_unit' }, { title: '岗位', dataIndex: 'position' },
@@ -136,13 +138,14 @@ export default function ApplicationDetailDrawer({
   const [loading, setLoading] = useState(false)
   const [reviewing, setReviewing] = useState(false)
   const [checks, setChecks] = useState<string[]>([])
+  const levelThree = detail?.plan.renshe_config?.qualification_rule === 'level_three_v1'
   const levelFive = detail?.plan.renshe_config?.qualification_rule === 'level_five_employment_v1'
   const currentEligibility = detail?.versions.find(version => version.id === detail.current_version_id)?.form_data.eligibility_snapshot as Record<string, unknown> | undefined
-  const employment = levelFive || detail?.plan.renshe_config?.qualification_rule === 'documented_employment_v1'
+  const employment = levelThree || levelFive || detail?.plan.renshe_config?.qualification_rule === 'documented_employment_v1'
   const compound = detail?.plan.renshe_config?.application_types[0] === '复合型'
   const graduated = employment || detail?.plan.renshe_config?.qualification_rule === 'related_major_graduated_degree_v1'
-  const reviewChecks: Record<string, string> = employment ? { ...RENSHE_EMPLOYMENT_CHECKS, ...(levelFive ? { age: '首次正式提交日（北京时间）年满16周岁，按本人实名出生日期核验', employment: '五级工龄型：实际从事相关职业，不设最低工作年数', social_security: '单位与工作单位一致，时间信息与经历相符，验证码完整有效且可验证' } : {}), ...(compound ? { certificate: '五级证书与同一材料内网查截图一致且可验证；证书取得后累计相关工作满3年' } : {}) } : detail?.plan.renshe_config?.materials.some(item => item.kind === 'registration_portrait') ? RENSHE_DEGREE_CHECKS : RENSHE_GRADUATED_CHECKS
-  const graduatedChangeOptions = RENSHE_GRADUATED_CHANGE_OPTIONS.filter(item => employment ? !item.value.startsWith('education_info.') && (compound || !item.value.startsWith('qualification_info.skill_certificate.')) : !item.value.startsWith('qualification_info.')).filter(item => item.value.includes('.') || ['contact_phone', 'email', 'mailing_address'].includes(item.value) || detail?.plan.renshe_config?.materials.some(material => material.kind === item.value))
+  const reviewChecks: Record<string, string> = levelThree ? detail?.plan.renshe_config?.rule_profile?.review_checks || {} : employment ? { ...RENSHE_EMPLOYMENT_CHECKS, ...(!levelFive ? { employment: compound ? '四级复合型：五级证书取得后累计相关工作满3年；证前经历不计入，重叠时间不重复累计' : '四级工龄型：累计相关工作满5年，重叠时间不重复累计，不以学历或证书代替工龄' } : {}), ...(levelFive ? { age: '首次正式提交日（北京时间）年满16周岁，按本人实名出生日期核验', employment: '五级工龄型：实际从事相关职业，不设最低工作年数', social_security: '单位与工作单位一致，时间信息与经历相符，验证码完整有效且可验证' } : {}), ...(compound ? { certificate: '五级证书与同一材料内网查截图一致且可验证；证书取得后累计相关工作满3年' } : {}) } : detail?.plan.renshe_config?.materials.some(item => item.kind === 'registration_portrait') ? RENSHE_DEGREE_CHECKS : RENSHE_GRADUATED_CHECKS
+  const graduatedChangeOptions = RENSHE_GRADUATED_CHANGE_OPTIONS.filter(item => levelThree ? true : employment ? !item.value.startsWith('education_info.') && (compound || !item.value.startsWith('qualification_info.skill_certificate.')) : !item.value.startsWith('qualification_info.')).filter(item => item.value.includes('.') || ['contact_phone', 'email', 'mailing_address'].includes(item.value) || detail?.plan.renshe_config?.materials.some(material => material.kind === item.value))
   const [rejectionStage, setRejectionStage] = useState<RensheReviewStage | null>(null)
   const [correctingReview, setCorrectingReview] = useState<RensheReview | null>(null)
   const [rejectionForm] = Form.useForm<RejectionFormValues>()
@@ -347,6 +350,7 @@ export default function ApplicationDetailDrawer({
             </section>}
             <Title level={5}>{employment ? '工龄与证书信息' : graduated ? '毕业学历信息' : '学生信息'}</Title>
             {employment ? <EmploymentSnapshot info={version.form_data.qualification_info as Record<string, unknown> || {}} /> : renderSnapshot(graduated ? (version.form_data.education_info as Record<string, unknown> || {}) : version.student_snapshot)}
+            {levelThree && Boolean(version.form_data.education_info) && <><Title level={5}>毕业学历及院校依据</Title>{renderSnapshot(version.form_data.education_info as Record<string, unknown>)}</>}
             {graduated && <><Title level={5}>模板填报信息</Title>{renderSnapshot(version.form_data.reporting_info as Record<string, unknown> || {})}{!version.form_data.reporting_info && <Alert type='warning' message='该历史版本缺少模板填报信息，导出前请驳回补正后重新初审。' style={{ marginBottom: 16 }} />}</>}
             <Title level={5}>报名信息</Title>
             {renderSnapshot(Object.fromEntries(Object.entries(version.form_data).filter(([key]) => !['materials', 'education_info', 'qualification_info', 'eligibility_snapshot', 'reporting_info', 'reporting_contract', 'reporting_config_id', 'commitment_template', 'plan_id'].includes(key))))}

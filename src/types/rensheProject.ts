@@ -117,6 +117,8 @@ export interface RensheCapabilities {
 }
 
 export interface RensheCombination {
+  admission_paths?: Array<{ id: string; type?: string; condition_index?: number; condition: string; material_kinds: string[]; work?: boolean; skill?: boolean; title?: boolean; education?: boolean; years: number }>
+  review_checks?: Record<string, string>
   export_instructions?: RensheExportInstructions | null
   adaptation_status?: '已适配' | '待开发' | '待业务确认' | '待联调'
   institution_types?: string[]

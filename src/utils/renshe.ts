@@ -46,7 +46,7 @@ export const RENSHE_GRADUATED_CHECKS: Record<string, string> = {
 }
 export const RENSHE_DEGREE_CHECKS: Record<string, string> = {
   identity: '实名、毕业证及学历报告属于同一人', graduated: '已取得毕业证，不接受在读替代证明',
-  education: '院校类型与学历符合本期学历型条件', major: '本专业或资料列明相关专业，别名或不明确匹配人工核验',
+  education: '院校类型与学历符合本期学历型条件；参加工作日期可为空，工作信息由管理员人工审核', major: '本专业或资料列明相关专业，别名或不明确匹配人工核验',
   report: '学历备案表对应、可验证，验证有效期设置为6个月', photo: '一寸白底近期证件照，不超过500 KB', commitment: '承诺书完整、本人亲笔签名并按手印',
 }
 export const RENSHE_EMPLOYMENT_CHECKS: Record<string, string> = {
@@ -58,6 +58,10 @@ export const RENSHE_EMPLOYMENT_CHECKS: Record<string, string> = {
   photo: '一寸白底近期证件照，不超过500 KB', commitment: '承诺书完整、本人亲笔签名并按手印',
 }
 export const RENSHE_GRADUATED_CHANGE_OPTIONS = Object.entries({
+  'qualification_info.admission_path': '三级具体申报路径',
+  'education_info.training_level': '技工院校培养层次', 'education_info.evaluation_reference': '院校评估论证依据',
+  'qualification_info.title_certificate.title_name': '初级职称名称', 'qualification_info.title_certificate.level': '职称等级',
+  'qualification_info.title_certificate.major': '职称专业', 'qualification_info.title_certificate.certificate_number': '职称证书编号', 'qualification_info.title_certificate.issued_on': '职称取得日期',
   work_proof: '工龄证明',
   'qualification_info.cultural_education': '文化程度', 'qualification_info.work_experiences': '逐段工作经历',
   'qualification_info.skill_certificate.occupation_name': '证书职业／工种',
