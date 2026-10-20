@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { Navigate, useLocation, Outlet } from 'react-router-dom'
-import { Spin } from 'antd'
+import { Spin, message } from 'antd'
 import { useAuthStore } from '@/stores/authStore'
 import AdminLayout from '@/layouts/AdminLayout'
 import RestrictedSessionLayout from '@/layouts/RestrictedSessionLayout'
@@ -32,8 +32,17 @@ export default function AuthGuard() {
     }
   }, [token, initialized, initFromServer])
 
-  // 无 token 或 token 已过期 → 重定向登录页
-  if (!token || isTokenExpired(token)) {
+  // 无 token 或 token 已过期 → 重定向登录页。
+  // token 存在但已过期说明本标签页曾登录过，给出明确提示，
+  // 避免"点着点着突然跳登录页"被误认为异常；首次访问（无 token）不提示。
+  const sessionExpired = Boolean(token && isTokenExpired(token))
+  useEffect(() => {
+    if (sessionExpired) {
+      message.warning('登录已过期，请重新登录')
+    }
+  }, [sessionExpired])
+
+  if (!token || sessionExpired) {
     return <Navigate to="/admin/login" state={{ from: location }} replace />
   }
 

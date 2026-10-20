@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { Form, Input, Button, Card, message, Alert } from 'antd'
 import { UserOutlined, LockOutlined } from '@ant-design/icons'
 import type { LoginError } from '@/services/auth'
@@ -12,12 +12,22 @@ interface LoginForm {
   password: string
 }
 
+/** AuthGuard 跳登录时把原位置放在 state.from；登录后回跳，避免用户丢失操作路径。 */
+function resolvePostLoginTarget(state: unknown): string | null {
+  const from = (state as { from?: { pathname?: unknown; search?: unknown } } | null)?.from
+  if (typeof from?.pathname !== 'string') return null
+  if (!from.pathname.startsWith('/admin/') || from.pathname.startsWith('/admin/login')) return null
+  const search = typeof from.search === 'string' && from.search ? from.search : ''
+  return `${from.pathname}${search}`
+}
+
 export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [errorAlert, setErrorAlert] = useState<string | null>(null)
   const [form] = Form.useForm<LoginForm>()
   const login = useAuthStore((s) => s.login)
   const navigate = useNavigate()
+  const location = useLocation()
 
   const handleSubmit = async (values: LoginForm) => {
     setLoading(true)
@@ -32,7 +42,7 @@ export default function LoginPage() {
       if (session.session_mode === 'restricted' || session.must_change_password) {
         navigate('/admin/change-password', { replace: true })
       } else {
-        navigate(getAdminLandingPath(session.admin.role), { replace: true })
+        navigate(resolvePostLoginTarget(location.state) ?? getAdminLandingPath(session.admin.role), { replace: true })
       }
     } catch (error) {
       const loginError = error as LoginError
