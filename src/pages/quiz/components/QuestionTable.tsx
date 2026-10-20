@@ -36,7 +36,7 @@ interface SelectedQuestion {
   question: Question
 }
 
-const typeLabels: Record<QuestionType, string> = { single_choice: '单选', multiple_choice: '多选', judge: '判断', fill_blank: '填空', essay: '问答' }
+const typeLabels: Record<QuestionType, string> = { single_choice: '单选', multiple_choice: '多选', uncertain_choice: '不定项', judge: '判断', fill_blank: '填空', essay: '问答', matching: '配对', ordering: '排序' }
 const statusLabels: Record<QuestionStatus, string> = { draft: '草稿', published: '已发布', disabled: '已停用' }
 const statusColors: Record<QuestionStatus, string> = { draft: 'default', published: 'success', disabled: 'warning' }
 

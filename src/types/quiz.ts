@@ -1,8 +1,8 @@
-export type QuestionType = 'single_choice' | 'multiple_choice' | 'judge' | 'fill_blank' | 'essay'
+export type QuestionType = 'single_choice' | 'multiple_choice' | 'uncertain_choice' | 'judge' | 'fill_blank' | 'essay' | 'matching' | 'ordering'
 export type QuestionStatus = 'draft' | 'published' | 'disabled'
 export type StatsQuestionStatus = QuestionStatus | 'deleted'
 export type CategoryStatus = 'active' | 'disabled'
-export type ImportSourceType = 'csv' | 'json'
+export type ImportSourceType = 'csv' | 'json' | 'xlsx'
 export type ImportStatus =
   | 'queued'
   | 'validating'
@@ -13,10 +13,10 @@ export type ImportStatus =
   | 'failed'
   | 'cancelled'
   | 'expired'
-export type AnswerKey = 'A' | 'B' | 'C' | 'D'
+export type AnswerKey = 'A' | 'B' | 'C' | 'D' | 'E' | 'F'
 /** fill_blank: 每空一组候选答案；essay: 参考答案文本 */
 export type FillBlankAnswer = string[][]
-export type Answer = AnswerKey | AnswerKey[] | FillBlankAnswer | string
+export type Answer = AnswerKey | AnswerKey[] | FillBlankAnswer | string[] | string
 export type ReviewVerdict = 'wrong' | 'partial' | 'correct'
 export type ReviewStatus = 'none' | 'pending' | 'in_progress' | 'recalled' | 'completed'
 export type CategoryImpactAction = 'disable' | 'move' | 'delete'
@@ -221,6 +221,8 @@ export interface QuizV2Question {
   explanation: string | null
   image_urls: string[]
   option_image_urls: Record<string, string>
+  score: number | null
+  tags: string[]
   ever_published: boolean
   published_at: string | null
   disabled_at: string | null
@@ -265,6 +267,8 @@ export interface QuizV2QuestionCreate {
   explanation?: string | null
   image_urls?: string[]
   option_image_urls?: Record<string, string>
+  score?: number | null
+  tags?: string[]
 }
 
 export interface QuizV2QuestionUpdate {
@@ -277,6 +281,8 @@ export interface QuizV2QuestionUpdate {
   explanation?: string | null
   image_urls?: string[]
   option_image_urls?: Record<string, string>
+  score?: number | null
+  tags?: string[] | null
 }
 
 export interface QuizV2QuestionFilter {
@@ -764,7 +770,7 @@ export interface QuizTaskProbe {
   quiz_tasks: QuizTaskSnapshot
 }
 
-export const QUESTION_OPTION_KEYS = ['A', 'B', 'C', 'D'] as const
+export const QUESTION_OPTION_KEYS = ['A', 'B', 'C', 'D', 'E', 'F'] as const
 export type QuestionOptionKey = (typeof QUESTION_OPTION_KEYS)[number]
 
 export function answerToArray(answer: Answer | null | undefined): string[] {
@@ -777,7 +783,7 @@ export function answerToArray(answer: Answer | null | undefined): string[] {
 
 export function answerToPayload(answer: unknown, type: QuestionType): Answer | null {
   if (answer == null || answer === '') return null
-  if (type === 'multiple_choice') {
+  if (type === 'multiple_choice' || type === 'uncertain_choice') {
     if (!Array.isArray(answer)) return null
     if (answer.length === 0) return null
     return Array.from(new Set(answer.map(String))).sort() as AnswerKey[]
@@ -824,9 +830,12 @@ export function formatAnswerForDisplay(answer: Answer | null | undefined): strin
 export const QUESTION_TYPE_LABELS: Record<QuestionType, string> = {
   single_choice: '单选题',
   multiple_choice: '多选题',
+  uncertain_choice: '不定项选择题',
   judge: '判断题',
   fill_blank: '填空题',
   essay: '问答题',
+  matching: '配对题',
+  ordering: '排序题',
 }
 
 export function countFillBlankPlaceholders(questionText: string): number {

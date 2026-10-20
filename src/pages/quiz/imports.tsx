@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Alert, Button, Card, Descriptions, Drawer, Empty, Modal, Progress, Segmented, Select, Space, Table, Tag, Tooltip, Tree, Upload, message } from 'antd'
+import { Alert, Button, Card, Descriptions, Drawer, Empty, Modal, Progress, Segmented, Select, Space, Table, Tag, Tooltip, Tree, Typography, Upload, message } from 'antd'
 import { CloseCircleOutlined, DownloadOutlined, FileOutlined, FolderOpenOutlined, ReloadOutlined, SafetyCertificateOutlined, SyncOutlined, UploadOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import type { DataNode } from 'antd/es/tree'
@@ -298,6 +298,9 @@ export default function QuizImports() {
         if (header !== 'category_path,question_type,question_text,options,correct_answer,explanation') throw new Error('CSV 表头不符合冻结契约')
         if (records < 2 || records - 1 > 5000) throw new Error('CSV 必须包含 1 至 5,000 条数据行')
         job = await quizService.importCsv(currentFile, { filename: currentFile.name, size_bytes: currentFile.size }, libraryId)
+      } else if (source === 'xlsx') {
+        // 《试题导入模板》为二进制 xlsx，服务端按扩展名分流解析（只读第一个工作表）。
+        job = await quizService.importCsv(currentFile, { filename: currentFile.name, size_bytes: currentFile.size }, libraryId)
       } else {
         const parsed = validateJsonShape(JSON.parse(await readUtf8(currentFile)), libraryId)
         job = await quizService.importJson(parsed)
@@ -519,16 +522,19 @@ export default function QuizImports() {
     },
   ]
 
-  const handleExportCsv = async () => {
+  const exportQuestions = async (format: 'csv' | 'xlsx') => {
     if (!libraryId) { message.warning('请先选择题库'); return }
     setExporting(true)
     try {
-      const blob = await quizService.exportQuestionsCsv(libraryId)
+      const blob = format === 'xlsx'
+        ? await quizService.exportQuestionsXlsx(libraryId)
+        : await quizService.exportQuestionsCsv(libraryId)
       const url = URL.createObjectURL(blob)
       const link = document.createElement('a')
       const date = new Date().toISOString().slice(0, 10)
+      const name = libraries.find((library) => library.id === libraryId)?.name ?? libraryId
       link.href = url
-      link.download = `题库题目_${libraries.find((library) => library.id === libraryId)?.name ?? libraryId}_${date}.csv`
+      link.download = `题库题目_${name}_${date}.${format}`
       document.body.appendChild(link)
       link.click()
       link.remove()
@@ -541,26 +547,32 @@ export default function QuizImports() {
     }
   }
 
+  const handleExportCsv = () => void exportQuestions('csv')
+  const handleExportXlsx = () => void exportQuestions('xlsx')
+
   return (
     <PageContainer title="导入任务">
       {canImport && <Card size="small" title="提交导入任务" style={{ marginBottom: 16 }}>
         <Space direction="vertical" style={{ width: '100%' }} size="middle">
           <Select aria-label="导入目标题库" showSearch optionFilterProp="label" placeholder="选择目标题库（必选）" value={libraryId} onChange={setLibraryId} options={libraries.map((library) => ({ value: library.id, label: `${library.name} (${library.library_code})` }))} style={{ width: 420 }} />
-          <Segmented value={source} onChange={(value) => { setSource(value as ImportSourceType); setFileList([]) }} options={[{ label: 'CSV', value: 'csv' }, { label: 'JSON', value: 'json' }]} />
-          <Upload beforeUpload={() => false} maxCount={1} accept={source === 'csv' ? '.csv' : '.json'} fileList={fileList} onChange={({ fileList: next }) => setFileList(next)}>
+          <Segmented value={source} onChange={(value) => { setSource(value as ImportSourceType); setFileList([]) }} options={[{ label: 'Excel 模板', value: 'xlsx' }, { label: 'CSV', value: 'csv' }, { label: 'JSON', value: 'json' }]} />
+          <Upload beforeUpload={() => false} maxCount={1} accept={source === 'csv' ? '.csv' : source === 'xlsx' ? '.xlsx' : '.json'} fileList={fileList} onChange={({ fileList: next }) => setFileList(next)}>
             <Button icon={<UploadOutlined />}>选择 .{source} 文件</Button>
           </Upload>
+          {source === 'xlsx' && <Typography.Text type="secondary">支持《试题导入模板》全部 8 种题型（含不定项/配对/排序）与分数、标签；只读取第一个工作表。</Typography.Text>}
           <Space wrap>
             <Button type="primary" icon={<UploadOutlined />} loading={uploading} disabled={!currentFile || !libraryId} onClick={handleUpload}>提交任务</Button>
-            <Button icon={<DownloadOutlined />} href={`/templates/quiz-import-v2.${source}`} download={`quiz-import-v2.${source}`}>下载 v2 模板</Button>
-            <Button icon={<DownloadOutlined />} loading={exporting} disabled={!libraryId} onClick={() => void handleExportCsv()}>导出该题库 CSV</Button>
+            {source !== 'xlsx' && <Button icon={<DownloadOutlined />} href={`/templates/quiz-import-v2.${source}`} download={`quiz-import-v2.${source}`}>下载 v2 模板</Button>}
+            <Button icon={<DownloadOutlined />} href="/templates/quiz-import-template.xlsx" download="试题导入模板.xlsx">下载试题导入模板（Excel）</Button>
+            <Button icon={<DownloadOutlined />} loading={exporting} disabled={!libraryId} onClick={handleExportCsv}>导出该题库 CSV</Button>
+            <Button icon={<DownloadOutlined />} loading={exporting} disabled={!libraryId} onClick={handleExportXlsx}>导出该题库 Excel</Button>
           </Space>
 
         </Space>
       </Card>}
       <Space style={{ marginBottom: 16 }} wrap>
         <Select allowClear placeholder="状态" value={filter.status} onChange={(value) => setFilter((current) => ({ ...current, status: value, page: 1 }))} options={Object.entries(statusLabels).map(([value, label]) => ({ value, label }))} style={{ width: 140 }} />
-        <Select allowClear placeholder="来源" value={filter.source_type} onChange={(value) => setFilter((current) => ({ ...current, source_type: value, page: 1 }))} options={[{ value: 'csv', label: 'CSV' }, { value: 'json', label: 'JSON' }]} style={{ width: 120 }} />
+        <Select allowClear placeholder="来源" value={filter.source_type} onChange={(value) => setFilter((current) => ({ ...current, source_type: value, page: 1 }))} options={[{ value: 'xlsx', label: 'Excel' }, { value: 'csv', label: 'CSV' }, { value: 'json', label: 'JSON' }]} style={{ width: 120 }} />
         <Button icon={<ReloadOutlined />} onClick={() => load(filter)}>刷新</Button>
       </Space>
       <Table<ImportJob> rowKey="id" scroll={{ x: 1450 }} columns={columns} dataSource={data?.items ?? []} loading={loading} pagination={{ current: data?.page ?? 1, pageSize: data?.page_size ?? 20, total: data?.total ?? 0, showSizeChanger: true, onChange: (page, pageSize) => setFilter((current) => ({ ...current, page, page_size: pageSize })) }} />

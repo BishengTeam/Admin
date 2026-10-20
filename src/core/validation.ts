@@ -31,23 +31,25 @@ export const CategorySchema = z.object({
   updated_at: dateString,
 }).strict()
 
-const answerKeySchema = z.enum(['A', 'B', 'C', 'D'])
-export const questionTypeSchema = z.enum(['single_choice', 'multiple_choice', 'judge', 'fill_blank', 'essay'])
+const answerKeySchema = z.enum(['A', 'B', 'C', 'D', 'E', 'F'])
+export const questionTypeSchema = z.enum(['single_choice', 'multiple_choice', 'uncertain_choice', 'judge', 'fill_blank', 'essay', 'matching', 'ordering'])
 const fillBlankAnswerSchema = z.array(
   z.array(z.string().min(1).max(200)).min(1).max(5),
 ).min(1).max(5)
 const answerSchema = z.union([
   answerKeySchema,
-  z.array(answerKeySchema).min(1).max(4).refine((value) => new Set(value).size === value.length, { message: '答案不能重复' }),
+  z.array(answerKeySchema).min(1).max(6).refine((value) => new Set(value).size === value.length, { message: '答案不能重复' }),
+  // 配对题/排序题的标准答案与用户答案是按选项顺序对齐的文本数组
+  z.array(z.string().min(1).max(1024)).min(1).max(6),
   fillBlankAnswerSchema,
   z.string().max(5000),
 ])
 const optionSchema = z.record(z.string(), z.string()).superRefine((value, ctx) => {
   const keys = Object.keys(value)
-  if (keys.length > 4 || keys.some((key) => !['A', 'B', 'C', 'D'].includes(key))) {
-    ctx.addIssue({ code: 'custom', message: '选项键只能为 A-D，最多 4 个' })
+  if (keys.length > 6 || keys.some((key) => !['A', 'B', 'C', 'D', 'E', 'F'].includes(key))) {
+    ctx.addIssue({ code: 'custom', message: '选项键只能为 A-F，最多 6 个' })
   }
-  const expected = ['A', 'B', 'C', 'D'].slice(0, keys.length)
+  const expected = ['A', 'B', 'C', 'D', 'E', 'F'].slice(0, keys.length)
   if (keys.some((key, index) => key !== expected[index])) {
     ctx.addIssue({ code: 'custom', message: '选项键必须从 A 开始连续排列' })
   }
@@ -56,14 +58,21 @@ const optionSchema = z.record(z.string(), z.string()).superRefine((value, ctx) =
 })
 const imageUrlSchema = z.array(z.string().trim().url().max(1024)).max(9)
 const imageUrlsResponseSchema = imageUrlSchema.default([])
-const optionImageUrlsSchema = z.record(z.string().regex(/^[A-D]$/, '选项键只能为 A-D'), z.string().trim().url().max(1024))
+const optionImageUrlsSchema = z.record(z.string().regex(/^[A-F]$/, '选项键只能为 A-F'), z.string().trim().url().max(1024))
 const optionImageUrlsResponseSchema = optionImageUrlsSchema.default({})
 
 function questionShapeRules(value: {
-  question_type?: 'single_choice' | 'multiple_choice' | 'judge' | 'fill_blank' | 'essay'
+  question_type?: 'single_choice' | 'multiple_choice' | 'uncertain_choice' | 'judge' | 'fill_blank' | 'essay' | 'matching' | 'ordering'
   options?: Record<string, string> | null
   correct_answer?: string | string[] | string[][] | null
 }, ctx: z.RefinementCtx) {
+  if (value.question_type === 'matching' || value.question_type === 'ordering') {
+    // 配对/排序的答案是按选项顺序对齐的文本数组，与选项键无关。
+    if (value.correct_answer != null && (!Array.isArray(value.correct_answer) || !value.correct_answer.every((item) => typeof item === 'string'))) {
+      ctx.addIssue({ code: 'custom', path: ['correct_answer'], message: '配对题和排序题答案必须是文本数组' })
+    }
+    return
+  }
   if (value.question_type === 'fill_blank' || value.question_type === 'essay') {
     if (value.options && Object.keys(value.options).length > 0) {
       ctx.addIssue({ code: 'custom', path: ['options'], message: '填空题和问答题不支持选项' })
@@ -76,14 +85,20 @@ function questionShapeRules(value: {
     }
     return
   }
-  if (value.question_type === 'multiple_choice' && typeof value.correct_answer === 'string') {
-    ctx.addIssue({ code: 'custom', path: ['correct_answer'], message: '多选题答案必须使用数组' })
+  if ((value.question_type === 'multiple_choice' || value.question_type === 'uncertain_choice') && typeof value.correct_answer === 'string') {
+    ctx.addIssue({ code: 'custom', path: ['correct_answer'], message: '多选题和不定项选择题答案必须使用数组' })
   }
   // `question_type` is optional on partial update requests.  When it is
   // omitted, leave the answer shape check to the server, which can apply the
   // existing question's type; otherwise a multiple-choice answer-only edit
   // would be rejected as if it were a single-choice question.
-  if (value.question_type && value.question_type !== 'multiple_choice' && Array.isArray(value.correct_answer)) {
+  if (
+    value.question_type
+    && value.question_type !== 'multiple_choice'
+    && value.question_type !== 'uncertain_choice'
+    && Array.isArray(value.correct_answer)
+    && !Array.isArray(value.correct_answer[0])
+  ) {
     ctx.addIssue({ code: 'custom', path: ['correct_answer'], message: '单选题和判断题答案必须使用单个选项键' })
   }
   if (value.question_type === 'judge' && value.options && (value.options.A !== '正确' || value.options.B !== '错误' || Object.keys(value.options).length !== 2)) {
@@ -158,6 +173,8 @@ export const QuestionCreateSchema = z.object({
   explanation: z.string().max(1024).nullable().optional(),
   image_urls: imageUrlSchema.optional(),
   option_image_urls: optionImageUrlsSchema.optional(),
+  score: z.number().min(0).max(100).nullable().optional(),
+  tags: z.array(z.string().min(1).max(32)).max(10).optional(),
 }).strict().superRefine(questionShapeRules)
 
 export const QuestionUpdateSchema = z.object({
@@ -170,6 +187,8 @@ export const QuestionUpdateSchema = z.object({
   explanation: z.string().max(1024).nullable().optional(),
   image_urls: imageUrlSchema.optional(),
   option_image_urls: optionImageUrlsSchema.optional(),
+  score: z.number().min(0).max(100).nullable().optional(),
+  tags: z.array(z.string().min(1).max(32)).max(10).nullable().optional(),
 }).strict().refine((value) => Object.keys(value).some((key) => key !== 'lock_version'), { message: '至少需要一个题目变更字段' }).superRefine(questionShapeRules)
 
 export const VersionRequestSchema = z.object({ lock_version: positiveInt }).strict()
@@ -178,7 +197,7 @@ export const BatchRequestSchema = z.object({
   items: z.array(z.object({ question_id: positiveInt, lock_version: positiveInt }).strict()).min(1).max(100),
 }).strict().refine((value) => new Set(value.items.map((item) => item.question_id)).size === value.items.length, { message: 'question_id 不能重复' })
 
-export const CsvImportMetadataSchema = z.object({ filename: z.string().min(1).max(255).regex(/\.csv$/i, '文件名必须以 .csv 结尾'), size_bytes: z.number().int().min(1).max(10 * 1024 * 1024) }).strict()
+export const CsvImportMetadataSchema = z.object({ filename: z.string().min(1).max(255).regex(/\.(csv|xlsx)$/i, '文件名必须以 .csv 或 .xlsx 结尾'), size_bytes: z.number().int().min(1).max(10 * 1024 * 1024) }).strict()
 
 export const JsonImportQuestionSchema = z.object({
   category_path: z.array(z.string().min(1)).min(1).max(3),
@@ -205,6 +224,8 @@ export const QuestionSchema = z.object({
   explanation: nullableString,
   image_urls: imageUrlsResponseSchema,
   option_image_urls: optionImageUrlsResponseSchema,
+  score: z.number().nullable().default(null),
+  tags: z.array(z.string()).default([]),
   ever_published: z.boolean(),
   published_at: nullableString,
   disabled_at: nullableString,
@@ -229,6 +250,8 @@ export const QuizV2QuestionSchema = z.object({
   explanation: nullableString,
   image_urls: imageUrlsResponseSchema,
   option_image_urls: optionImageUrlsResponseSchema,
+  score: z.number().nullable().default(null),
+  tags: z.array(z.string()).default([]),
   ever_published: z.boolean(),
   published_at: nullableString,
   disabled_at: nullableString,
@@ -612,7 +635,7 @@ export const ImportJobSchema = z.object({
   id: z.number(),
   admin_id: z.number().nullable(),
   library_id: z.number().nullable().optional(),
-  source_type: z.enum(['csv', 'json']),
+  source_type: z.enum(['csv', 'json', 'xlsx']),
   status: z.enum([
     'queued',
     'validating',
