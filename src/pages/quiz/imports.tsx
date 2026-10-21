@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Alert, Button, Card, Descriptions, Drawer, Empty, Modal, Progress, Segmented, Select, Space, Table, Tag, Tooltip, Tree, Typography, Upload, message } from 'antd'
+import { Alert, Button, Card, Descriptions, Drawer, Empty, Modal, Progress, Select, Space, Table, Tag, Tooltip, Tree, Typography, Upload, message } from 'antd'
 import { CloseCircleOutlined, DownloadOutlined, FileOutlined, FolderOpenOutlined, ReloadOutlined, SafetyCertificateOutlined, SyncOutlined, UploadOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import type { DataNode } from 'antd/es/tree'
@@ -8,7 +8,7 @@ import { PageContainer } from '@/components/PageContainer'
 import { quizService } from '@/services/quiz'
 import { ApiError, isConflictError, isNotFoundError } from '@/core/request'
 import { usePermission } from '@/hooks/usePermission'
-import type { ImportCategoryImpact, ImportCategoryImpactNode, ImportErrorFilter, ImportErrorItem, ImportErrorPage, ImportFilter, ImportJob, ImportSourceType, ImportStatus, JsonImportRequest } from '@/types/quiz'
+import type { ImportCategoryImpact, ImportCategoryImpactNode, ImportErrorFilter, ImportErrorItem, ImportErrorPage, ImportFilter, ImportJob, ImportSourceType, ImportStatus } from '@/types/quiz'
 import { notifyQuizImportSucceeded } from '@/utils/quizEvents'
 import type { QuizLibrary } from '@/types/quiz'
 
@@ -59,53 +59,10 @@ function downloadSignedFile(url: string, filename: string) {
   link.click()
   link.remove()
 }
-function countCsvRecords(text: string) {
-  let quoted = false
-  let records = 0
-  let hasContent = false
-  for (let index = 0; index < text.length; index += 1) {
-    const char = text[index]
-    if (char === '"') {
-      if (quoted && text[index + 1] === '"') { index += 1; continue }
-      quoted = !quoted
-      hasContent = true
-    } else if ((char === '\n' || char === '\r') && !quoted) {
-      if (hasContent) records += 1
-      hasContent = false
-      if (char === '\r' && text[index + 1] === '\n') index += 1
-    } else if (char.trim()) hasContent = true
-  }
-  if (hasContent) records += 1
-  return records
-}
-
-async function readUtf8(file: File) {
-  const bytes = new Uint8Array(await file.arrayBuffer())
-  try { return new TextDecoder('utf-8', { fatal: true }).decode(bytes).replace(/^\uFEFF/, '') }
-  catch { throw new Error('文件必须使用 UTF-8 编码，不支持 GBK') }
-}
-
-function validateFile(file: File, source: ImportSourceType) {
+function validateXlsxFile(file: File) {
   const extension = file.name.toLowerCase().split('.').pop()
-  if (extension !== source) throw new Error(`请选择 .${source} 文件`)
+  if (extension !== 'xlsx') throw new Error('请选择 .xlsx 文件（试题导入模板）')
   if (file.size < 1 || file.size > MAX_SIZE) throw new Error('文件大小必须在 1 B 至 10 MiB 之间')
-}
-
-function validateJsonShape(value: unknown, libraryId: number): JsonImportRequest {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('JSON 顶层必须是包含 questions 的对象')
-  const keys = Object.keys(value as object)
-  if (keys.length !== 1 || keys[0] !== 'questions') throw new Error('JSON 顶层仅允许 questions 字段')
-  const questions = (value as { questions?: unknown }).questions
-  if (!Array.isArray(questions) || questions.length < 1 || questions.length > 5000) throw new Error('questions 必须包含 1 至 5000 道题目')
-  const allowed = new Set(['category_path', 'question_type', 'question_text', 'options', 'correct_answer', 'explanation'])
-  questions.forEach((question, index) => {
-    if (!question || typeof question !== 'object' || Array.isArray(question)) throw new Error(`第 ${index + 1} 题必须是对象`)
-    const unknown = Object.keys(question).filter((key) => !allowed.has(key))
-    if (unknown.length) throw new Error(`第 ${index + 1} 题包含不允许的字段：${unknown.join(', ')}`)
-    const questionType = (question as { question_type?: unknown }).question_type
-    if (questionType === 'single' || questionType === 'multi') throw new Error(`第 ${index + 1} 题必须使用 single_choice 或 multiple_choice`)
-  })
-  return { library_id: libraryId, questions } as JsonImportRequest
 }
 
 function rowProgress(job: ImportJob) {
@@ -137,7 +94,6 @@ function errorLocation(item: ImportErrorItem) {
 export default function QuizImports() {
   const canImport = usePermission('quiz:import')
   const canWrite = usePermission('quiz:write')
-  const [source, setSource] = useState<ImportSourceType>('csv')
   const [libraries, setLibraries] = useState<QuizLibrary[]>([])
   const [libraryId, setLibraryId] = useState<number | undefined>(() => {
     const value = typeof window === 'undefined' ? 0 : Number(new URLSearchParams(window.location.search).get('library_id'))
@@ -288,23 +244,10 @@ export default function QuizImports() {
     if (!canImport || !currentFile) { message.warning('请选择要导入的文件'); return }
     if (!libraryId) { message.warning('请先选择目标题库'); return }
     try {
-      validateFile(currentFile, source)
+      validateXlsxFile(currentFile)
       setUploading(true)
-      let job: ImportJob
-      if (source === 'csv') {
-        const csvText = await readUtf8(currentFile)
-        const records = countCsvRecords(csvText)
-        const header = csvText.split(/\r?\n/, 1)[0]
-        if (header !== 'category_path,question_type,question_text,options,correct_answer,explanation') throw new Error('CSV 表头不符合冻结契约')
-        if (records < 2 || records - 1 > 5000) throw new Error('CSV 必须包含 1 至 5,000 条数据行')
-        job = await quizService.importCsv(currentFile, { filename: currentFile.name, size_bytes: currentFile.size }, libraryId)
-      } else if (source === 'xlsx') {
-        // 《试题导入模板》为二进制 xlsx，服务端按扩展名分流解析（只读第一个工作表）。
-        job = await quizService.importCsv(currentFile, { filename: currentFile.name, size_bytes: currentFile.size }, libraryId)
-      } else {
-        const parsed = validateJsonShape(JSON.parse(await readUtf8(currentFile)), libraryId)
-        job = await quizService.importJson(parsed)
-      }
+      // 《试题导入模板》为二进制 xlsx，服务端按扩展名分流解析（只读第一个工作表）。
+      const job = await quizService.importCsv(currentFile, { filename: currentFile.name, size_bytes: currentFile.size }, libraryId)
       submitted.current.add(job.id)
       setFileList([])
       setFilter((current) => ({ ...current, page: 1 }))
@@ -522,19 +465,17 @@ export default function QuizImports() {
     },
   ]
 
-  const exportQuestions = async (format: 'csv' | 'xlsx') => {
+  const exportQuestions = async () => {
     if (!libraryId) { message.warning('请先选择题库'); return }
     setExporting(true)
     try {
-      const blob = format === 'xlsx'
-        ? await quizService.exportQuestionsXlsx(libraryId)
-        : await quizService.exportQuestionsCsv(libraryId)
+      const blob = await quizService.exportQuestionsXlsx(libraryId)
       const url = URL.createObjectURL(blob)
       const link = document.createElement('a')
       const date = new Date().toISOString().slice(0, 10)
       const name = libraries.find((library) => library.id === libraryId)?.name ?? libraryId
       link.href = url
-      link.download = `题库题目_${name}_${date}.${format}`
+      link.download = `题库题目_${name}_${date}.xlsx`
       document.body.appendChild(link)
       link.click()
       link.remove()
@@ -547,25 +488,21 @@ export default function QuizImports() {
     }
   }
 
-  const handleExportCsv = () => void exportQuestions('csv')
-  const handleExportXlsx = () => void exportQuestions('xlsx')
+  const handleExportXlsx = () => void exportQuestions()
 
   return (
     <PageContainer title="导入任务">
       {canImport && <Card size="small" title="提交导入任务" style={{ marginBottom: 16 }}>
         <Space direction="vertical" style={{ width: '100%' }} size="middle">
           <Select aria-label="导入目标题库" showSearch optionFilterProp="label" placeholder="选择目标题库（必选）" value={libraryId} onChange={setLibraryId} options={libraries.map((library) => ({ value: library.id, label: `${library.name} (${library.library_code})` }))} style={{ width: 420 }} />
-          <Segmented value={source} onChange={(value) => { setSource(value as ImportSourceType); setFileList([]) }} options={[{ label: 'Excel 模板', value: 'xlsx' }, { label: 'CSV', value: 'csv' }, { label: 'JSON', value: 'json' }]} />
-          <Upload beforeUpload={() => false} maxCount={1} accept={source === 'csv' ? '.csv' : source === 'xlsx' ? '.xlsx' : '.json'} fileList={fileList} onChange={({ fileList: next }) => setFileList(next)}>
-            <Button icon={<UploadOutlined />}>选择 .{source} 文件</Button>
+          <Upload beforeUpload={() => false} maxCount={1} accept=".xlsx" fileList={fileList} onChange={({ fileList: next }) => setFileList(next)}>
+            <Button icon={<UploadOutlined />}>选择 .xlsx 文件</Button>
           </Upload>
-          {source === 'xlsx' && <Typography.Text type="secondary">支持《试题导入模板》全部 8 种题型（含不定项/配对/排序）与分数、标签；只读取第一个工作表。</Typography.Text>}
+          <Typography.Text type="secondary">使用《试题导入模板》：支持全部 8 种题型（含不定项/配对/排序）与分数、标签；只读取第一个工作表。</Typography.Text>
           <Space wrap>
             <Button type="primary" icon={<UploadOutlined />} loading={uploading} disabled={!currentFile || !libraryId} onClick={handleUpload}>提交任务</Button>
-            {source !== 'xlsx' && <Button icon={<DownloadOutlined />} href={`/templates/quiz-import-v2.${source}`} download={`quiz-import-v2.${source}`}>下载 v2 模板</Button>}
-            <Button icon={<DownloadOutlined />} href="/templates/quiz-import-template.xlsx" download="试题导入模板.xlsx">下载试题导入模板（Excel）</Button>
-            <Button icon={<DownloadOutlined />} loading={exporting} disabled={!libraryId} onClick={handleExportCsv}>导出该题库 CSV</Button>
-            <Button icon={<DownloadOutlined />} loading={exporting} disabled={!libraryId} onClick={handleExportXlsx}>导出该题库 Excel</Button>
+            <Button icon={<DownloadOutlined />} href="/templates/quiz-import-template.xlsx" download="试题导入模板.xlsx">下载试题导入模板</Button>
+            <Button icon={<DownloadOutlined />} loading={exporting} disabled={!libraryId} onClick={handleExportXlsx}>导出该题库</Button>
           </Space>
 
         </Space>

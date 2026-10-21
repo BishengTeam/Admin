@@ -20,7 +20,6 @@ import {
   ImportConfirmCategoriesRequestSchema,
   ImportErrorPageSchema,
   ImportJobSchema,
-  JsonImportRequestSchema,
   QuestionSchema,
   QuestionCreateSchema,
   QuestionStatsSchema,
@@ -79,7 +78,6 @@ import type {
   ImportErrorFilter,
   ImportErrorPage,
   ImportJob,
-  JsonImportRequest,
   Question,
   QuestionCreate,
   QuestionFilter,
@@ -425,20 +423,6 @@ export const quizService = {
     body.append('size_bytes', String(payload.size_bytes))
     if (libraryId != null) body.append('library_id', String(libraryId))
     return parsed(ImportJobSchema, await http.post('/admin/quiz/imports/csv', body, { signal }))
-  },
-
-  async importJson(data: JsonImportRequest, signal?: AbortSignal): Promise<ImportJob> {
-    const payload = requestParsed(JsonImportRequestSchema, omitUndefined(data))
-    return parsed(ImportJobSchema, await http.post('/admin/quiz/imports/json', payload, { signal }))
-  },
-
-  async exportQuestionsCsv(libraryId: number, signal?: AbortSignal): Promise<Blob> {
-    return http.get<Blob>('/admin/quiz/questions/export/csv', {
-      params: { library_id: libraryId },
-      responseType: 'blob',
-      timeout: 60000,
-      signal,
-    })
   },
 
   async exportQuestionsXlsx(libraryId: number, signal?: AbortSignal): Promise<Blob> {
