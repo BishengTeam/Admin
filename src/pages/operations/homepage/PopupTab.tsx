@@ -418,7 +418,7 @@ export default function PopupTab() {
           <Form.Item name="image_url" label="海报图（每条独立上传）" rules={[requiredRule('海报图')]}>
             <ImageUpload
               crop={{ width: 1280, height: 1080, title: '弹窗海报' }}
-              hint={'小程序登录后弹窗海报\n固定裁剪输出：1280 × 1080 px\n上传后可拖动/缩放调整裁剪区域\n同时多条上架时仅展示排序最小的一条\n输出 JPG，单张 ≤ 5MB'}
+              hint={'小程序登录后弹窗海报\n固定裁剪输出：1280 × 1080 px\n上传后可拖动/缩放调整裁剪区域\n同时多条上架时小程序端随机展示其中一条\n输出 JPG，单张 ≤ 5MB'}
             />
           </Form.Item>
 
@@ -446,7 +446,7 @@ export default function PopupTab() {
           {jumpMode === 'activity' && resourceField('activity')}
           {jumpMode === 'job' && resourceField('job')}
 
-          <Form.Item name="sort" label="排序（数字越小越靠前，多条上架时取最小值的一条展示）">
+          <Form.Item name="sort" label="排序（仅后台列表展示顺序，多条上架时小程序端随机展示）">
             <InputNumber min={0} style={{ width: '100%' }} />
           </Form.Item>
 
