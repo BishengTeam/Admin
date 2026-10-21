@@ -64,7 +64,7 @@ export default function JobManagement() {
 
   const columns: ColumnsType<Job> = [
     { title: '职位', dataIndex: 'title', ellipsis: true },
-    { title: '公司', dataIndex: 'company', ellipsis: true },
+    { title: '公司', dataIndex: 'company', ellipsis: true, render: (v: string | null) => v || '-' },
     { title: '地点', dataIndex: 'location', width: 120, render: (v: string | null) => v || '-' },
     { title: '薪资', dataIndex: 'salary_range', width: 130, render: (v: string | null) => v ? <Tag color='cyan'>{v}</Tag> : '-' },
     {
@@ -160,7 +160,7 @@ export default function JobManagement() {
               </Form.Item>
             </Col>
             <Col span={12}>
-              <Form.Item name="company" label="公司" rules={[{ required: true, message: '请输入公司' }]}>
+              <Form.Item name="company" label="公司">
                 <Input placeholder="如：新华三集团" maxLength={128} />
               </Form.Item>
             </Col>

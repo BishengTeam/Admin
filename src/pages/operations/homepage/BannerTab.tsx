@@ -124,7 +124,7 @@ export default function BannerTab() {
       setTitles({
         course: new Map(courses?.items.map((c) => [c.id, c.title]) ?? []),
         activity: new Map(activities?.items.map((a) => [a.id, a.title]) ?? []),
-        job: new Map(jobs?.items.map((j) => [j.id, `${j.title}（${j.company}）`]) ?? []),
+        job: new Map(jobs?.items.map((j) => [j.id, j.company ? `${j.title}（${j.company}）` : j.title]) ?? []),
       })
     })
   }, [data])
@@ -145,7 +145,7 @@ export default function BannerTab() {
     job: (query) => {
       jobService
         .list({ keyword: query || undefined, page: 1, page_size: 20 })
-        .then((res) => setJobOptions(res.items.map((j) => ({ label: `${j.title}（${j.company}）`, value: j.id }))))
+        .then((res) => setJobOptions(res.items.map((j) => ({ label: j.company ? `${j.title}（${j.company}）` : j.title, value: j.id }))))
         .catch(() => setJobOptions([]))
     },
   }
