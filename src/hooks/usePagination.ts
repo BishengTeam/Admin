@@ -29,7 +29,7 @@ export function usePagination<T>(
   fetchFnRef.current = fetchFn
 
   const fetch = useCallback(
-    async (page?: number, pageSize?: number) => {
+    async (page?: number, pageSize?: number, throwOnError = false) => {
       const currentPage = page ?? pagination.current
       const currentPageSize = pageSize ?? pagination.pageSize
       const seq = ++requestSeqRef.current
@@ -60,6 +60,7 @@ export function usePagination<T>(
             message.error(error instanceof Error ? error.message : '请求失败')
           }
         }
+        if (throwOnError) throw error
       } finally {
         if (mountedRef.current && seq === requestSeqRef.current) {
           setLoading(false)
@@ -84,6 +85,8 @@ export function usePagination<T>(
     fetch(pagination.current, pagination.pageSize)
   }, [fetch, pagination.current, pagination.pageSize])
 
+  const refreshOrThrow = useCallback(() => fetch(pagination.current, pagination.pageSize, true), [fetch, pagination.current, pagination.pageSize])
+
   const handlePageChange = useCallback(
     (page: number, pageSize: number) => {
       fetch(page, pageSize)
@@ -104,5 +107,6 @@ export function usePagination<T>(
       onChange: handlePageChange,
     },
     refresh,
+    refreshOrThrow,
   }
 }

@@ -38,12 +38,12 @@ const TYPE_LABELS: Record<H3cRegistrationType, string> = {
 
 const STATUS_LABELS: Record<H3cRegistrationStatus, { text: string; color: string }> = {
   pending_payment: { text: '待支付', color: 'orange' },
-  pending_review: { text: '待初审', color: 'blue' },
+  pending_review: { text: '待初审', color: 'orange' },
   rejected_awaiting_resubmission: { text: '待补正', color: 'red' },
   pending_refund_confirmation: { text: '待确认退款', color: 'volcano' },
   refund_processing: { text: '退款中', color: 'processing' },
   approved: { text: '初审通过', color: 'green' },
-  final_approved: { text: '终审通过', color: 'cyan' },
+  final_approved: { text: '终审通过', color: 'green' },
   refunded_closed: { text: '已退款关闭', color: 'default' },
   cancelled: { text: '已取消', color: 'default' },
 }
@@ -69,10 +69,11 @@ function statusTag(
 const { Text } = Typography
 
 interface Props {
+  batchLabel?: string
   registration: H3cRegistration | null
   open: boolean
   onClose: () => void
-  onReviewed?: (registration: H3cRegistration) => void
+  onReviewed?: (registration: H3cRegistration) => void | Promise<void>
   onNextPending?: () => void
 }
 
@@ -86,6 +87,7 @@ interface ReviewFormValues {
 
 export default function RegistrationReviewDrawer({
   registration,
+  batchLabel,
   open,
   onClose,
   onReviewed,
@@ -122,7 +124,9 @@ export default function RegistrationReviewDrawer({
     }
   },[open, registration])
 
-  const current = detail ?? registration
+  useEffect(() => { setRefundOpen(false); setReviewOpen(false) }, [registration?.id, open])
+
+  const current = detail?.id === registration?.id ? detail : registration
   const currentMaterials = (current?.materials ?? []).filter((material) => material.is_current)
 
   const openReview = (decision: ReviewFormValues['decision']) => {
@@ -147,7 +151,7 @@ export default function RegistrationReviewDrawer({
       message.success('审核结果已提交')
       setReviewOpen(false)
       setDetail(result)
-      onReviewed?.(result)
+      try { await onReviewed?.(result) } catch { message.warning('操作已保存，列表刷新失败，请刷新工作台') }
     } catch (error) {
       message.error(error instanceof Error ? error.message : '审核提交失败，请重试')
     } finally {
@@ -165,11 +169,11 @@ export default function RegistrationReviewDrawer({
         reason_code: 'review_rejected',
         reason_detail: refundReason.trim(),
       }, token)
-      message.success('已授权退款，等待微信处理')
+      message.success('退款申请已处理，请在退款工作台继续办理')
       setRefundOpen(false)
       setRefundReason('')
       setDetail(result)
-      onReviewed?.(result)
+      try { await onReviewed?.(result) } catch { message.warning('操作已保存，列表刷新失败，请刷新工作台') }
     } catch (error) {
       message.error(error instanceof Error ? error.message : '拒绝并退款失败')
     } finally {
@@ -194,7 +198,7 @@ export default function RegistrationReviewDrawer({
       )
       message.success('终审通过')
       setDetail(result)
-      onReviewed?.(result)
+      try { await onReviewed?.(result) } catch { message.warning('操作已保存，列表刷新失败，请刷新工作台') }
     } catch (error) {
       message.error(error instanceof Error ? error.message : '终审失败')
     } finally {
@@ -209,6 +213,15 @@ export default function RegistrationReviewDrawer({
     <>
       {current && (
         <ReviewDetailDrawer
+          key={current.id}
+          payment={detail?.id === current.id ? detail.payment_summary : null}
+          name={String(current.candidate_snapshot.candidate_name || '')}
+          batch={batchLabel || `H3C · 批次 #${current.batch_id}`}
+          onRefresh={async () => {
+            const result = await h3cService.getRegistration(current.id)
+            setDetail(result)
+            await onReviewed?.(result)
+          }}
           registrationNo={current.registration_no}
           open={open}
           onClose={onClose}

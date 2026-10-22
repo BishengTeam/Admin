@@ -1,5 +1,7 @@
+import RegistrationProcessingDrawer from './RegistrationProcessingDrawer'
+import type { RegistrationPaymentSummary } from './RegistrationPayment'
 import type { ReactNode } from 'react'
-import { Descriptions, Drawer, Space, Spin } from 'antd'
+import { Descriptions, Space, Spin } from 'antd'
 
 export interface ReviewDetailItem {
   label: ReactNode
@@ -8,6 +10,10 @@ export interface ReviewDetailItem {
 }
 
 interface ReviewDetailDrawerProps {
+  payment?: RegistrationPaymentSummary | null
+  onRefresh: () => Promise<void>
+  name?: string
+  batch?: string
   registrationNo: string
   open: boolean
   onClose: () => void
@@ -32,6 +38,7 @@ function renderItems(items: ReviewDetailItem[]) {
 }
 
 export default function ReviewDetailDrawer({
+  payment, onRefresh, name, batch,
   registrationNo,
   open,
   onClose,
@@ -43,19 +50,18 @@ export default function ReviewDetailDrawer({
   materialLoading = false,
 }: ReviewDetailDrawerProps) {
   return (
-    <Drawer
-      title={`报名详情 - ${registrationNo}`}
+    <RegistrationProcessingDrawer
+      payment={payment} onRefresh={onRefresh} name={name} batch={batch} status={statusItems.find(item => item.label === '状态')?.content} registrationNo={registrationNo} loading={materialLoading}
       open={open}
       onClose={onClose}
-      width={720}
       footer={footer}
     >
       <Space direction='vertical' size={16} style={{ width: '100%' }}>
-        <Descriptions title='状态' column={2} bordered size='small'>
-          {renderItems(statusItems)}
+        <Descriptions title='报考信息' column={{ xs: 1, sm: 2 }} bordered size='small'>
+          {renderItems(statusItems.filter(item => item.label !== '状态'))}
         </Descriptions>
 
-        <Descriptions title='报名信息' column={2} bordered size='small'>
+        <Descriptions title='报名信息' column={{ xs: 1, sm: 2 }} bordered size='small'>
           {renderItems(informationItems)}
         </Descriptions>
 
@@ -72,11 +78,11 @@ export default function ReviewDetailDrawer({
         </Descriptions>
 
         {latestReviewItems?.length ? (
-          <Descriptions title='最新审核' column={2} bordered size='small'>
+          <Descriptions title='最新审核' column={{ xs: 1, sm: 2 }} bordered size='small'>
             {renderItems(latestReviewItems)}
           </Descriptions>
         ) : null}
       </Space>
-    </Drawer>
+    </RegistrationProcessingDrawer>
   )
 }

@@ -45,4 +45,24 @@ describe('offline payment evidence permissions', () => {
     expect(screen.queryByText('确认到账')).toBeNull()
     expect(screen.queryByText('驳回补交')).toBeNull()
   })
+  it('embedded registration finance exposes no generic refund or duplicate registration link', async () => {
+    state.permissions = ['*']
+    state.detail.mockResolvedValue({ ...payment, order_status: 'paid', status: 'confirmed', refund_business: 'order', business_link: { vendor: 'nisp', batch_id: 2, registration_id: 3 } })
+    render(<OfflinePaymentSection orderId={12} mode='registration' />)
+    expect(await screen.findByText('测试收款公司')).toBeTruthy()
+    expect(screen.queryByText('审批退款')).toBeNull()
+    expect(screen.queryByText('登记线下退款')).toBeNull()
+    expect(screen.queryByText('进入报名详情')).toBeNull()
+  })
+  it('renders finance operations once in the shared fixed footer', async () => {
+    state.permissions = ['*']
+    const host = document.createElement('div')
+    document.body.appendChild(host)
+    render(<OfflinePaymentSection orderId={12} mode='registration' actionContainer={host} />)
+    const confirm = await screen.findByRole('button', { name: '确认到账' })
+    expect(host.contains(confirm)).toBe(true)
+    expect(screen.getAllByRole('button', { name: '确认到账' })).toHaveLength(1)
+    cleanup()
+    host.remove()
+  })
 })

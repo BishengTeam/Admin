@@ -7,7 +7,7 @@ import type { Dayjs } from 'dayjs'
 
 export default function OfflineDecisionModal({ payment, action, refund, onClose, onChanged }: {
   payment: OfflinePayment | null; action: 'confirm' | 'return' | 'exception' | 'refund' | 'resolve' | 'refund-approval' | null
-  refund?: { kind: RefundVendor | 'order'; id: number }; onClose: () => void; onChanged: () => void
+  refund?: { kind: RefundVendor | 'order'; id: number }; onClose: () => void; onChanged: () => void | Promise<void>
 }) {
   const [form] = Form.useForm<{ amount: number; bank_time: Dayjs; bank_reference: string; note: string; deadline?: Dayjs; refund_bank_time?: Dayjs; refund_bank_reference?: string }>()
   const [materials, setMaterials] = useState<PaymentMaterial[]>([])
@@ -35,7 +35,8 @@ export default function OfflineDecisionModal({ payment, action, refund, onClose,
       const result = await offlinePaymentService.decide(payment.order_id, action, { ...body, request_key: request.current!.key }, token || undefined)
       if (result.status === 'exception') message.warning('已转异常待处理，未确认付款或发放权益')
       else message.success(action === 'refund' ? '实际退款已登记完成' : action === 'confirm' ? '到账已确认，后续资料审核按原流程进行' : '处理已保存')
-      onChanged(); onClose()
+      onClose()
+      try { await onChanged() } catch { message.error('操作已保存，最新状态刷新失败，请刷新后继续办理') }
     } catch (reason) { if (reason instanceof Error) setError(reason.message) }
     finally { lock.current = false; setBusy(false) }
   }

@@ -1,3 +1,4 @@
+import type { RegistrationPaymentSummary } from '@/types/registrationPayment'
 import type { PageParams } from '@/types/api'
 
 export type RensheApplicationStatus =
@@ -35,9 +36,11 @@ export interface RensheApplicationFilter extends PageParams {
   keyword?: string
   submitted_at_start?: string
   submitted_at_end?: string
+  payment_state?: string
 }
 
 export interface RensheApplicationListItem {
+  payment_summary?: RegistrationPaymentSummary | null
   id: number
   plan_id: number
   user_id: number
@@ -62,7 +65,7 @@ export interface RensheMaterial {
   id: number
   application_id: number
   version_id: number
-  kind: RensheMaterialKind
+  kind: string
   original_filename: string
   content_type: string
   size_bytes: number
@@ -96,6 +99,7 @@ export interface RensheReview {
   export_item_id: number | null
   correction_due_at?: string | null
   checklist?: Record<string, boolean> | null
+  checklist_snapshot?: RensheChecklistSnapshot | null
 }
 
 export interface RensheReviewCorrectionPayload {
@@ -115,6 +119,8 @@ export interface RensheReviewCorrection {
 }
 
 export interface RensheApplicationVersion {
+  project_config_id?: number | null
+  review_requirements?: RensheReviewRequirements | null
   id: number
   version_no: number
   submitted_at: string
@@ -127,6 +133,7 @@ export interface RensheApplicationVersion {
 }
 
 export interface RensheApplicationDetail {
+  payment_summary?: RegistrationPaymentSummary | null
   id: number
   plan_id: number
   user_id: number
@@ -225,7 +232,7 @@ export interface RensheBatchExternalReviewPayload {
 export interface RensheBatchExternalReviewResult {
   application_id: number
   success: boolean
-  status: 'success' | 'failed'
+  status: 'success' | 'skipped' | 'failed'
   reason: string | null
   review: RensheReview | null
 }
@@ -294,4 +301,26 @@ export interface RensheCleanupRun {
   retry_count: number
   rebase_count: number
   last_error: string | null
+}
+
+
+export interface RensheReviewCheck {
+  key: string
+  label: string
+  description: string
+  group_id: string
+  related_material_kinds: string[]
+  related_field_paths: string[]
+}
+export interface RensheRuleReference { document_id: string; title: string; locator: string; action: 'preview' | 'download' }
+export interface RensheReviewPath {
+  id?: string; label?: string; occupation?: string; level?: string; application_type?: string; condition?: string
+  related_majors?: string | null; related_occupations?: string | null; institution_types?: string[]
+}
+export interface RensheChecklistSnapshot { version_id: number; project_config_id: number | null; path: RensheReviewPath; checks: RensheReviewCheck[] }
+export interface RensheReviewRequirements extends RensheChecklistSnapshot {
+  status: 'resolved' | 'unresolved' | 'cleared'; block_reason: string | null
+  groups: { id: string; title: string; field_paths: string[] }[]
+  material_requirements: { kind: string; name: string; required: boolean; extensions: string[]; max_bytes: number | null; group_id: string; material_id: number | null; valid: boolean; error: string | null }[]
+  references: RensheRuleReference[]; source_notes: string[]; correction_fields: string[]
 }

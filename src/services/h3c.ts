@@ -53,6 +53,7 @@ export const h3cService = {
   listRegistrations(params: PageParams & {
     batch_id?: number
     registration_type?: H3cRegistrationType
+    payment_state?: string
     status?: H3cRegistrationStatus
     keyword?: string
     has_valid_export?: boolean

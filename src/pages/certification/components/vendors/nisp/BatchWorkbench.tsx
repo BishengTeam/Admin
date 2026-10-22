@@ -1,3 +1,4 @@
+import { PaymentStatusTag, PAYMENT_FILTER_OPTIONS } from '../../shared/RegistrationPayment'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
@@ -57,12 +58,12 @@ const LEVEL_LABELS: Record<string, string> = {
 
 const STATUS_LABELS: Record<string, { text: string; color: string }> = {
   pending_payment: { text: '待支付', color: 'orange' },
-  pending_review: { text: '待初审', color: 'blue' },
+  pending_review: { text: '待初审', color: 'orange' },
   rejected_awaiting_resubmission: { text: '待补正', color: 'red' },
   pending_refund_confirmation: { text: '待退款确认', color: 'volcano' },
   refund_processing: { text: '退款中', color: 'processing' },
   approved: { text: '初审通过', color: 'green' },
-  final_approved: { text: '终审通过', color: 'cyan' },
+  final_approved: { text: '终审通过', color: 'green' },
   refunded_closed: { text: '已退款关闭', color: 'default' },
   cancelled: { text: '已取消', color: 'default' },
 }
@@ -75,6 +76,7 @@ const JOB_STATUS_LABELS: Record<string, { text: string; color: string }> = {
 }
 
 interface RegistrationFilters {
+  payment_state?: string
   keyword: string
   status: string | undefined
   has_valid_export: boolean | undefined
@@ -100,7 +102,7 @@ export function mergeSelectedRegistrations(
 }
 
 function parseInitialStatus(value: string | null) {
-  return value && value in STATUS_LABELS ? value : 'pending_review'
+  return value && value in STATUS_LABELS ? value : undefined
 }
 
 export default function NispBatchWorkbench() {
@@ -147,9 +149,10 @@ export default function NispBatchWorkbench() {
       batch_id: Number.isInteger(parsedBatchId) ? parsedBatchId : undefined,
       keyword: filters.keyword || undefined,
       status: filters.status,
+      payment_state: filters.payment_state,
       has_valid_export: filters.has_valid_export,
     }),
-    [parsedBatchId, filters.keyword, filters.status, filters.has_valid_export],
+    [parsedBatchId, filters.keyword, filters.status, filters.payment_state, filters.has_valid_export],
   )
 
   const exportJobs = usePagination<NispExportJob>(
@@ -189,7 +192,7 @@ export default function NispBatchWorkbench() {
   useEffect(() => {
     setSelectedRegistrationIds(new Set())
     setSelectedRegistrations({})
-  }, [filters.keyword, filters.status, filters.has_valid_export, parsedBatchId])
+  }, [filters.keyword, filters.status, filters.payment_state, filters.has_valid_export, parsedBatchId])
 
   useEffect(() => {
     const rows = registrations.data?.items ?? []
@@ -275,7 +278,7 @@ export default function NispBatchWorkbench() {
         setPrechecking(false)
       }
     },
-    [filters.keyword, filters.status, parsedBatchId, selectedRegistrationIds],
+    [filters.keyword, filters.status, filters.payment_state, parsedBatchId, selectedRegistrationIds],
   )
 
   const selectFilteredResult = async () => {
@@ -347,21 +350,21 @@ export default function NispBatchWorkbench() {
     setReviewOpen(true)
   }
 
-  const handleReviewed = (row: NispRegistration) => {
+  const handleReviewed = async (row: NispRegistration) => {
     setSelectedRegistrations((previous) => {
       const next = { ...previous }
       if (selectedRegistrationIds.has(row.id)) next[row.id] = row
       else delete next[row.id]
       return next
     })
-    registrations.refresh()
+    await Promise.all([registrations.refreshOrThrow(), nispService.getBatch(parsedBatchId).then(setBatch)])
   }
 
   const nextPending = () => {
     const rows = registrations.data?.items ?? []
     const currentIndex = reviewRegistration ? rows.findIndex((row) => row.id === reviewRegistration.id) : -1
-    const candidate = rows.slice(currentIndex + 1).find((row) => row.status === 'pending_review')
-      ?? rows.find((row) => row.status === 'pending_review')
+    const candidate = rows.slice(currentIndex + 1).find((row) => row.status === 'pending_review' && row.payment_summary?.review_payment_allowed)
+      ?? rows.find((row) => row.status === 'pending_review' && row.payment_summary?.review_payment_allowed)
     if (!candidate) {
       message.info('当前页没有其他待初审人员')
       return
@@ -434,6 +437,7 @@ export default function NispBatchWorkbench() {
       ellipsis: true,
       render: (_, row) => String(row.candidate_snapshot?.school ?? '-'),
     },
+    { title: '核账状态', width: 130, render: (_, row) => <PaymentStatusTag summary={row.payment_summary} /> },
     {
       title: '审核状态',
       dataIndex: 'status',
@@ -477,13 +481,7 @@ export default function NispBatchWorkbench() {
       fixed: 'right',
       render: (_, row) => (
         <Space size={0}>
-          <Button type='link' size='small' icon={<EyeOutlined />} onClick={() => openDetail(row)}>详情</Button>
-          {row.status === 'pending_review' && (
-            <Button type='link' size='small' onClick={() => openDetail(row)}>初审</Button>
-          )}
-          {row.status === 'approved' && (
-            <Button type='link' size='small' onClick={() => openDetail(row)}>补正 / 终审</Button>
-          )}
+          <Button type='link' size='small' icon={<EyeOutlined />} onClick={() => openDetail(row)}>办理</Button>
         </Space>
       ),
     },
@@ -600,6 +598,9 @@ export default function NispBatchWorkbench() {
         >
           <Space direction='vertical' size={12} style={{ width: '100%' }}>
             <Space wrap>
+              <Button onClick={() => setFilters(previous => ({ ...previous, status: undefined, payment_state: 'under_review' }))}>待核账</Button>
+              <Button onClick={() => setFilters(previous => ({ ...previous, status: 'pending_review', payment_state: 'confirmed' }))}>待审核</Button>
+              <Select placeholder='核账状态' allowClear style={{ width: 160 }} options={PAYMENT_FILTER_OPTIONS} value={filters.payment_state} onChange={value => setFilters(previous => ({ ...previous, payment_state: value }))} />
               <Input.Search
                 allowClear
                 value={keywordInput}
@@ -661,7 +662,7 @@ export default function NispBatchWorkbench() {
                 preserveSelectedRowKeys: true,
                 onChange: updatePeopleSelection,
                 getCheckboxProps: (row) => ({
-                  disabled: row.status !== 'approved' && row.status !== 'final_approved',
+                  disabled: !row.payment_summary?.review_payment_allowed || (row.status !== 'approved' && row.status !== 'final_approved'),
                 }),
               } : undefined}
             />
@@ -729,6 +730,8 @@ export default function NispBatchWorkbench() {
       <Tabs activeKey={activeTab} onChange={setActiveTab} items={tabItems} />
 
       <RegistrationReviewDrawer
+        key={reviewRegistration?.id}
+        batchLabel={batch ? `NISP · ${batch.plan_name}` : undefined}
         registration={reviewRegistration}
         open={reviewOpen}
         onClose={() => setReviewOpen(false)}

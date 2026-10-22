@@ -1,3 +1,4 @@
+import type { RegistrationPaymentSummary } from '@/types/registrationPayment'
 export type H3cRegistrationType = 'coupon' | 'student' | 'full'
 export type H3cExportRegistrationType = H3cRegistrationType | 'mixed'
 export type H3cExportArtifactType = 'embedded_xlsx' | 'images_zip' | 'full_package'
@@ -81,6 +82,7 @@ export interface H3cReview {
 }
 
 export interface H3cRegistration {
+  payment_summary?: RegistrationPaymentSummary | null
   id: number
   registration_no: string
   batch_id: number

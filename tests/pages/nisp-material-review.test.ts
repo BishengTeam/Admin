@@ -7,12 +7,12 @@ describe('certification review materials', () => {
     const page = readFileSync(
       resolve(
         process.cwd(),
-        'src/pages/certification/components/vendors/nisp/ReviewTab.tsx',
+        'src/pages/certification/components/vendors/nisp/RegistrationReviewDrawer.tsx',
       ),
       'utf8',
     )
 
-    expect(page).toContain("nispService.getRegistration(reg.id)")
+    expect(page).toContain("nispService.getRegistration(registration.id)")
     expect(page).toContain("MaterialPreview")
     expect(page).toContain("'身份证双面'")
     expect(page).toContain("'寸照'")
@@ -24,7 +24,7 @@ describe('certification review materials', () => {
     const page = readFileSync(
       resolve(
         process.cwd(),
-        'src/pages/certification/components/vendors/h3c/ReviewTab.tsx',
+        'src/pages/certification/components/vendors/h3c/RegistrationReviewDrawer.tsx',
       ),
       'utf8',
     )
@@ -37,11 +37,11 @@ describe('certification review materials', () => {
 
   it('uses one two-column review drawer style for H3C and NISP', () => {
     const h3c = readFileSync(
-      resolve(process.cwd(), 'src/pages/certification/components/vendors/h3c/ReviewTab.tsx'),
+      resolve(process.cwd(), 'src/pages/certification/components/vendors/h3c/RegistrationReviewDrawer.tsx'),
       'utf8',
     )
     const nisp = readFileSync(
-      resolve(process.cwd(), 'src/pages/certification/components/vendors/nisp/ReviewTab.tsx'),
+      resolve(process.cwd(), 'src/pages/certification/components/vendors/nisp/RegistrationReviewDrawer.tsx'),
       'utf8',
     )
     const shared = readFileSync(
@@ -54,9 +54,8 @@ describe('certification review materials', () => {
 
     expect(h3c).toContain("from '../../shared/ReviewDetailDrawer'")
     expect(nisp).toContain("from '../../shared/ReviewDetailDrawer'")
-    expect(shared).toContain("<Drawer")
-    expect(shared).toContain("width={720}")
-    expect((shared.match(/column=\{2\}/g) ?? []).length).toBeGreaterThanOrEqual(3)
+    expect(shared).toContain("<RegistrationProcessingDrawer")
+    expect((shared.match(/column=\{\{ xs: 1, sm: 2 \}\}/g) ?? []).length).toBeGreaterThanOrEqual(3)
     expect(shared).toContain("title='报名信息'")
     expect(shared).toContain("title='报名材料'")
   })

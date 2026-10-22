@@ -17,7 +17,7 @@ export default defineConfig(({ command }) => ({
                  img-src 'self' data: blob: https:;
                  media-src 'self' blob: https:;
                  connect-src 'self' https://materials-20260909-1.oss-cn-chengdu.aliyuncs.com;
-                 frame-src 'self' https:;
+                 frame-src 'self' blob: https:;
                  font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'" />`,
         )
       },

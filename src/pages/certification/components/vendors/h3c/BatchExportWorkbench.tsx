@@ -1,3 +1,4 @@
+import { PaymentStatusTag, PAYMENT_FILTER_OPTIONS } from '../../shared/RegistrationPayment'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
@@ -65,12 +66,12 @@ const EXPORT_TYPE_LABELS: Record<string, string> = {
 
 const STATUS_LABELS: Record<H3cRegistrationStatus, { text: string; color: string }> = {
   pending_payment: { text: '待支付', color: 'orange' },
-  pending_review: { text: '待初审', color: 'blue' },
+  pending_review: { text: '待初审', color: 'orange' },
   rejected_awaiting_resubmission: { text: '待补正', color: 'red' },
   pending_refund_confirmation: { text: '待确认退款', color: 'volcano' },
   refund_processing: { text: '退款中', color: 'processing' },
   approved: { text: '初审通过', color: 'green' },
-  final_approved: { text: '终审通过', color: 'cyan' },
+  final_approved: { text: '终审通过', color: 'green' },
   refunded_closed: { text: '已退款关闭', color: 'default' },
   cancelled: { text: '已取消', color: 'default' },
 }
@@ -83,6 +84,7 @@ const JOB_STATUS_LABELS: Record<string, { text: string; color: string }> = {
 }
 
 interface RegistrationFilters {
+  payment_state?: string
   keyword: string
   registration_type: H3cRegistrationType | undefined
   status: H3cRegistrationStatus | undefined
@@ -126,7 +128,7 @@ export function mergeSelectedRegistrations(
 }
 
 function parseInitialStatus(value: string | null) {
-  return value && value in STATUS_LABELS ? value as H3cRegistrationStatus : 'pending_review'
+  return value && value in STATUS_LABELS ? value as H3cRegistrationStatus : undefined
 }
 
 export default function BatchExportWorkbench() {
@@ -175,9 +177,10 @@ export default function BatchExportWorkbench() {
       keyword: filters.keyword || undefined,
       registration_type: filters.registration_type,
       status: filters.status,
+      payment_state: filters.payment_state,
       has_valid_export: filters.has_valid_export,
     }),
-    [parsedBatchId, filters.keyword, filters.registration_type, filters.status, filters.has_valid_export],
+    [parsedBatchId, filters.keyword, filters.registration_type, filters.status, filters.payment_state, filters.has_valid_export],
   )
 
   const exportJobs = usePagination<H3cExportJob>(
@@ -219,7 +222,7 @@ export default function BatchExportWorkbench() {
   useEffect(() => {
     setSelectedRegistrationIds(new Set())
     setSelectedRegistrations({})
-  }, [filters.keyword, filters.registration_type, filters.status, filters.has_valid_export, parsedBatchId])
+  }, [filters.keyword, filters.registration_type, filters.status, filters.payment_state, filters.has_valid_export, parsedBatchId])
 
   // Keep metadata for cross-page selections. Keys are authoritative; a row is
   // removed as soon as its key is no longer selected, even when the current
@@ -309,7 +312,7 @@ export default function BatchExportWorkbench() {
         setPrechecking(false)
       }
     },
-    [filters.keyword, filters.registration_type, filters.status, parsedBatchId, selectedRegistrationIds],
+    [filters.keyword, filters.registration_type, filters.status, filters.payment_state, parsedBatchId, selectedRegistrationIds],
   )
 
   const selectFilteredResult = async () => {
@@ -388,21 +391,21 @@ export default function BatchExportWorkbench() {
     setReviewOpen(true)
   }
 
-  const handleReviewed = (row: H3cRegistration) => {
+  const handleReviewed = async (row: H3cRegistration) => {
     setSelectedRegistrations((previous) => {
       const next = { ...previous }
       if (selectedRegistrationIds.has(row.id)) next[row.id] = row
       else delete next[row.id]
       return next
     })
-    registrations.refresh()
+    await Promise.all([registrations.refreshOrThrow(), h3cService.getBatch(parsedBatchId).then(setBatch)])
   }
 
   const nextPending = () => {
     const rows = registrations.data?.items ?? []
     const currentIndex = reviewRegistration ? rows.findIndex((row) => row.id === reviewRegistration.id) : -1
-    const candidate = rows.slice(currentIndex + 1).find((row) => row.status === 'pending_review')
-      ?? rows.find((row) => row.status === 'pending_review')
+    const candidate = rows.slice(currentIndex + 1).find((row) => row.status === 'pending_review' && row.payment_summary?.review_payment_allowed)
+      ?? rows.find((row) => row.status === 'pending_review' && row.payment_summary?.review_payment_allowed)
     if (!candidate) {
       message.info('当前页没有其他待初审人员')
       return
@@ -474,6 +477,7 @@ export default function BatchExportWorkbench() {
       ),
     },
     { title: '类型', dataIndex: 'registration_type', width: 75, render: (value: H3cRegistrationType) => TYPE_LABELS[value] },
+    { title: '核账状态', width: 130, render: (_, row) => <PaymentStatusTag summary={row.payment_summary} /> },
     {
       title: '审核状态',
       dataIndex: 'status',
@@ -517,13 +521,7 @@ export default function BatchExportWorkbench() {
       fixed: 'right',
       render: (_, row) => (
         <Space size={0}>
-          <Button type='link' size='small' icon={<EyeOutlined />} onClick={() => openDetail(row)}>详情</Button>
-          {row.status === 'pending_review' && (
-            <Button type='link' size='small' onClick={() => openDetail(row)}>初审</Button>
-          )}
-          {row.status === 'approved' && (
-            <Button type='link' size='small' onClick={() => openDetail(row)}>补正 / 终审</Button>
-          )}
+          <Button type='link' size='small' icon={<EyeOutlined />} onClick={() => openDetail(row)}>办理</Button>
         </Space>
       ),
     },
@@ -634,6 +632,9 @@ export default function BatchExportWorkbench() {
         >
           <Space direction='vertical' size={12} style={{ width: '100%' }}>
             <Space wrap>
+              <Button onClick={() => setFilters(previous => ({ ...previous, status: undefined, payment_state: 'under_review' }))}>待核账</Button>
+              <Button onClick={() => setFilters(previous => ({ ...previous, status: 'pending_review', payment_state: 'confirmed' }))}>待审核</Button>
+              <Select placeholder='核账状态' allowClear style={{ width: 160 }} options={PAYMENT_FILTER_OPTIONS} value={filters.payment_state} onChange={value => setFilters(previous => ({ ...previous, payment_state: value }))} />
               <Input.Search
                 allowClear
                 value={keywordInput}
@@ -769,6 +770,8 @@ export default function BatchExportWorkbench() {
       <Tabs activeKey={activeTab} onChange={setActiveTab} items={tabItems} />
 
       <RegistrationReviewDrawer
+        key={reviewRegistration?.id}
+        batchLabel={batch ? `H3C · ${batch.name}` : undefined}
         registration={reviewRegistration}
         open={reviewOpen}
         onClose={() => setReviewOpen(false)}

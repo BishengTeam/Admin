@@ -120,3 +120,42 @@ export function isPlanExportLocked(
   if (!plan || ['draft', 'cancelled', 'archived'].includes(plan.status)) return true
   return isPlanCleanupLocked(plan, runs, now)
 }
+
+
+export const RENSHE_FIELD_LABELS: Record<string, string> = {
+  realname_snapshot: '实名信息', student_snapshot: '学生信息', education_info: '毕业学历信息', qualification_info: '资格信息', reporting_info: '个人补充信息',
+  real_name: '姓名', id_card: '身份证号', id_card_number: '身份证号', gender: '性别', birth_date: '出生日期',
+  ethnicity: '民族', political_status: '政治面貌', user_type: '用户类型', student_status: '学籍状态', candidate_source: '考生来源',
+  education: '学历', school: '毕业院校／学校', major: '所学专业', enrollment_date: '入学日期',
+  graduated: '已取得毕业证', institution_type: '院校类型', graduation_date: '毕业日期', certificate_number: '证书编号',
+  training_level: '培养层次', evaluation_reference: '院校评估论证依据', cultural_education: '文化程度',
+  occupation_name: '职业／工种', occupation_status: '从事职业', grade: '技能等级', title_name: '职称名称', level: '职称等级',
+  issued_on: '证书取得日期', position: '岗位', start_date: '工作开始日期', end_date: '工作结束日期', work_unit: '工作单位',
+  social_insurance_unit: '社保参保单位', work_start_date: '参加工作日期', occupation_years: '职业年限',
+  has_work_experience: '参加过工作', work_experiences: '逐段工作经历', admission_path: '具体申报路径',
+  skill_certificate: '技能证书', title_certificate: '职称证书', contact_phone: '联系电话', phone: '手机号',
+  email: '邮箱', mailing_address: '通讯地址', as_of: '工作年限核算基准日', age_as_of: '年龄核算基准日',
+  required_years: '所需职业年限', effective_years: '有效职业年限', application_condition: '申报条件',
+}
+const EDUCATION_NAMES: Record<string, string> = { primary: '小学', junior_high: '初中', senior_high: '高中', secondary_vocational: '中专', technical_school: '技校', vocational_high: '职高', higher_vocational: '高职', associate: '大专', bachelor: '大学本科', master: '硕士', doctorate: '博士', other: '其他' }
+const REVIEW_ENUMS: Record<string, Record<string, string>> = {
+  level: { primary: '初级', '初级': '初级' },
+  user_type: { student: '学生', enterprise: '企业人员', social: '社会人员' },
+  gender: { male: '男', female: '女', '男': '男', '女': '女' },
+  education: EDUCATION_NAMES, cultural_education: EDUCATION_NAMES,
+  institution_type: { technical: '技工院校', vocational: '职业院校', general_higher: '普通高等学校' },
+  training_level: { senior_worker: '高级工班', preparatory_technician: '预备技师班', technician: '技师班' },
+  student_status: { current_graduating_student: '在读应届毕业生' },
+  admission_path: { work_10: '累计工作满10年', skill_4_work_4: '四级证书后工作满4年', title_work_1: '初级职称后工作满1年', skill_4_degree: '四级证书加毕业学历', technical_senior: '技工院校高级工班及以上毕业', evaluated_college: '经评估论证院校毕业' },
+  grade: { '5': '五级／初级工', '4': '四级／中级工', '3': '三级／高级工', '2': '二级／技师', '1': '一级／高级技师' },
+}
+export function rensheDisplayValue(field: string, value: unknown): string {
+  if (value == null || value === '') return '未填写'
+  if (typeof value === 'boolean') return value ? '是' : '否'
+  const key = field.split('.').slice(-1)[0] || field
+  const values = REVIEW_ENUMS[key]
+  return values ? values[String(value)] || '未知类型' : String(value)
+}
+export function rensheFieldLabel(path: string) {
+  return RENSHE_GRADUATED_CHANGE_OPTIONS.find(item => item.value === path)?.label || RENSHE_FIELD_LABELS[path.split('.').slice(-1)[0] || path] || (RENSHE_MATERIAL_LABELS as Record<string, string>)[path] || '其他兼容信息'
+}

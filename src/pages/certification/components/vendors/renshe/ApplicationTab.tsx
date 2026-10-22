@@ -206,6 +206,7 @@ export default function ApplicationTab(_props: ApplicationTabProps) {
       />
 
       <ApplicationDetailDrawer
+        key={selectedApplicationId}
         applicationId={selectedApplicationId}
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}

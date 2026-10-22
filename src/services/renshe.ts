@@ -32,6 +32,7 @@ export interface RensheProgram {
 }
 
 export const rensheService = {
+  referenceContent: (id: string) => http.get<Blob>(`/admin/cert-products/renshe/references/${encodeURIComponent(id)}`, { responseType: 'blob' }),
   downloadRegistrationTemplate: () => http.get<Blob>('/admin/cert-products/renshe/export-template', { responseType: 'blob' }),
   uploadCommitmentTemplate: (file: File) => {
     const data = new FormData()

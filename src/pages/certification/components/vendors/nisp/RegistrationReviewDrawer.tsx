@@ -19,12 +19,12 @@ const { Text } = Typography
 
 const STATUS_LABELS: Record<string, { text: string; color: string }> = {
   pending_payment: { text: '待支付', color: 'orange' },
-  pending_review: { text: '待初审', color: 'blue' },
+  pending_review: { text: '待初审', color: 'orange' },
   rejected_awaiting_resubmission: { text: '待补正', color: 'red' },
   pending_refund_confirmation: { text: '待退款确认', color: 'volcano' },
   refund_processing: { text: '退款中', color: 'processing' },
   approved: { text: '初审通过', color: 'green' },
-  final_approved: { text: '终审通过', color: 'cyan' },
+  final_approved: { text: '终审通过', color: 'green' },
   refunded_closed: { text: '已退款关闭', color: 'default' },
   cancelled: { text: '已取消', color: 'default' },
 }
@@ -55,15 +55,17 @@ const MATERIAL_LABELS: Record<NispMaterial['material_type'], string> = {
 }
 
 interface Props {
+  batchLabel?: string
   registration: NispRegistration | null
   open: boolean
   onClose: () => void
-  onReviewed?: (registration: NispRegistration) => void
+  onReviewed?: (registration: NispRegistration) => void | Promise<void>
   onNextPending?: () => void
 }
 
 export default function RegistrationReviewDrawer({
   registration,
+  batchLabel,
   open,
   onClose,
   onReviewed,
@@ -102,7 +104,9 @@ export default function RegistrationReviewDrawer({
     }
   }, [open, registration])
 
-  const current = detail ?? registration
+  useEffect(() => { setRefundOpen(false); setRejectOpen(false) }, [registration?.id, open])
+
+  const current = detail?.id === registration?.id ? detail : registration
   const currentMaterials = (current?.materials ?? []).filter((material) => material.is_current)
 
   const approve = async () => {
@@ -112,7 +116,7 @@ export default function RegistrationReviewDrawer({
       const result = await nispService.reviewRegistration(current.id, { decision: 'approved' })
       message.success('初审通过')
       setDetail(result)
-      onReviewed?.(result)
+      try { await onReviewed?.(result) } catch { message.warning('操作已保存，列表刷新失败，请刷新工作台') }
     } catch (error) {
       message.error(error instanceof Error ? error.message : '初审失败')
     } finally {
@@ -144,7 +148,7 @@ export default function RegistrationReviewDrawer({
       message.success('已打回补正')
       setRejectOpen(false)
       setDetail(result)
-      onReviewed?.(result)
+      try { await onReviewed?.(result) } catch { message.warning('操作已保存，列表刷新失败，请刷新工作台') }
     } catch (error) {
       message.error(error instanceof Error ? error.message : '打回补正失败')
     } finally {
@@ -162,11 +166,11 @@ export default function RegistrationReviewDrawer({
         reason_code: 'review_rejected',
         reason_detail: refundReason.trim(),
       }, token)
-      message.success('已授权退款，等待微信处理')
+      message.success('退款申请已处理，请在退款工作台继续办理')
       setRefundOpen(false)
       setRefundReason('')
       setDetail(result)
-      onReviewed?.(result)
+      try { await onReviewed?.(result) } catch { message.warning('操作已保存，列表刷新失败，请刷新工作台') }
     } catch (error) {
       message.error(error instanceof Error ? error.message : '拒绝并退款失败')
     } finally {
@@ -191,7 +195,7 @@ export default function RegistrationReviewDrawer({
       )
       message.success('终审通过')
       setDetail(result)
-      onReviewed?.(result)
+      try { await onReviewed?.(result) } catch { message.warning('操作已保存，列表刷新失败，请刷新工作台') }
     } catch (error) {
       message.error(error instanceof Error ? error.message : '终审失败')
     } finally {
@@ -208,6 +212,15 @@ export default function RegistrationReviewDrawer({
     <>
       {current && (
         <ReviewDetailDrawer
+          key={current.id}
+          payment={detail?.id === current.id ? detail.payment_summary : null}
+          name={String(current.candidate_snapshot.name || '')}
+          batch={batchLabel || `NISP · 批次 #${current.batch_id}`}
+          onRefresh={async () => {
+            const result = await nispService.getRegistration(current.id)
+            setDetail(result)
+            await onReviewed?.(result)
+          }}
           registrationNo={current.registration_no}
           open={open}
           onClose={onClose}

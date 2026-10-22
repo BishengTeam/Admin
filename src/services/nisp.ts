@@ -1,3 +1,4 @@
+import type { RegistrationPaymentSummary } from '@/types/registrationPayment'
 import { http } from '@/core/request'
 import type { PageData, PageParams } from '@/types/api'
 
@@ -31,6 +32,7 @@ export interface NispBatch {
 }
 
 export interface NispRegistration {
+  payment_summary?: RegistrationPaymentSummary | null
   id: number
   registration_no: string
   batch_id: number
@@ -266,6 +268,7 @@ export const nispService = {
   listRegistrations(params: PageParams & {
     batch_id?: number
     level?: string
+    payment_state?: string
     status?: string
     keyword?: string
     has_valid_export?: boolean

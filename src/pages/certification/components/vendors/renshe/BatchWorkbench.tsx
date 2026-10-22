@@ -1,3 +1,4 @@
+import { PaymentStatusTag, PAYMENT_FILTER_OPTIONS } from '../../shared/RegistrationPayment'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
@@ -56,6 +57,7 @@ const JOB_STATUS: Record<string, { text: string; color: string }> = {
 }
 
 interface PeopleFilters {
+  payment_state?: string
   keyword: string
   status: RensheApplicationStatus | undefined
 }
@@ -160,8 +162,9 @@ export default function RensheBatchWorkbench() {
       plan_id: planId,
       keyword: filters.keyword || undefined,
       status: filters.status,
+      payment_state: filters.payment_state,
     }),
-    [planId, filters.keyword, filters.status],
+    [planId, filters.keyword, filters.status, filters.payment_state],
   )
 
   const loadJobs = useCallback(async () => {
@@ -285,9 +288,11 @@ export default function RensheBatchWorkbench() {
         </Button>
       ),
     },
+    { title: '报名编号', dataIndex: 'id', width: 100 },
     { title: '身份证号', dataIndex: 'id_card_masked', width: 160, render: value => value || '-' },
+    { title: '核账状态', width: 130, render: (_, row) => <PaymentStatusTag summary={row.payment_summary} /> },
     {
-      title: '状态',
+      title: '报名审核状态',
       dataIndex: 'status',
       width: 145,
       render: (status: RensheApplicationStatus) => {
@@ -295,7 +300,6 @@ export default function RensheBatchWorkbench() {
         return <Tag color={config?.color}>{config?.text ?? status}</Tag>
       },
     },
-    { title: '支付', dataIndex: 'payment_status', width: 90, render: value => value || '-' },
     {
       title: '当前版本导出',
       dataIndex: 'current_version_exported',
@@ -313,8 +317,8 @@ export default function RensheBatchWorkbench() {
       fixed: 'right',
       render: (_, row) => (
         <Space size={4}>
-          <Button size='small' onClick={() => openApplication(row.id)}>审核 / 详情</Button>
-          {canWrite && row.status === 'pending_external_review' && (
+          <Button size='small' onClick={() => openApplication(row.id)}>办理</Button>
+          {canWrite && row.payment_summary?.review_payment_allowed && row.status === 'pending_external_review' && (
             <Button size='small' danger onClick={() => {
               setReturnApplication(row)
               returnForm.resetFields()
@@ -428,7 +432,10 @@ export default function RensheBatchWorkbench() {
           { key: 'people', label: '报名人员', children: (
             <>
               <Space style={{ marginBottom: 16 }} wrap>
-                <Input.Search
+                <Button onClick={() => setFilters(previous => ({ ...previous, status: undefined, payment_state: 'under_review' }))}>待核账</Button>
+              <Button onClick={() => setFilters(previous => ({ ...previous, status: 'pending_initial_review', payment_state: 'confirmed' }))}>待审核</Button>
+              <Select placeholder='核账状态' allowClear style={{ width: 160 }} options={PAYMENT_FILTER_OPTIONS} value={filters.payment_state} onChange={value => setFilters(previous => ({ ...previous, payment_state: value }))} />
+              <Input.Search
                   allowClear
                   placeholder='姓名 / 身份证 / 手机号'
                   value={keywordInput}
@@ -495,6 +502,7 @@ export default function RensheBatchWorkbench() {
                 loading={applications.loading}
                 pagination={applications.pagination}
                 rowSelection={{
+                  getCheckboxProps: row => ({ disabled: !row.payment_summary?.review_payment_allowed }),
                   selectedRowKeys: selectedList.map(item => item.id),
                   onChange: (keys, rows) => setSelectedApplications(
                     mergeSelectedApplications(selectedApplications, keys, rows),
@@ -523,7 +531,7 @@ export default function RensheBatchWorkbench() {
                 batchId={planId}
                 registrationId={Number.isInteger(refundApplicationId) ? refundApplicationId : undefined}
                 embedded
-                onChanged={applications.refresh}
+                onChanged={async () => { await Promise.all([applications.refreshOrThrow(), loadPlan()]) }}
               />
             ),
           }] : []),
@@ -531,10 +539,11 @@ export default function RensheBatchWorkbench() {
       />
 
       <ApplicationDetailDrawer
+        key={drawerId}
         applicationId={drawerId}
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
-        onChanged={applications.refresh}
+        onChanged={async () => { await Promise.all([applications.refreshOrThrow(), loadPlan()]) }}
       />
 
       <Modal
@@ -613,7 +622,7 @@ export default function RensheBatchWorkbench() {
               dataIndex: 'status',
               render: value => value === 'success'
                 ? <Tag color='green'>成功</Tag>
-                : <Tag color='red'>失败</Tag>,
+                : value === 'skipped' ? <Tag>跳过</Tag> : <Tag color='red'>失败</Tag>,
             },
             { title: '原因', dataIndex: 'reason', render: value => value || '-' },
           ]}
