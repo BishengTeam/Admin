@@ -227,7 +227,11 @@ export default function OrderList() {
       <Tabs activeKey={activeTab} onChange={handleTabChange} items={statusTabs} style={{ marginBottom: 16 }} />
 
       <Space style={{ marginBottom: 16 }} wrap>
-        {['under_review', 'returned', 'exception'].map(value => <Button key={value} type={filters.offline_status === value ? 'primary' : 'default'} onClick={() => setFilters(f => ({ ...f, payment_channel: 'bank_transfer', offline_status: value }))}>{OFFLINE_STATUS[value].text}（{summary?.counts[value] ?? '—'}）</Button>)}
+        {['under_review', 'returned', 'exception'].map(value => <Button key={value} type={filters.offline_status === value ? 'primary' : 'default'} onClick={() => {
+          setActiveTab('')
+          setSearchPhone('')
+          setFilters({ payment_channel: 'bank_transfer', offline_status: value })
+        }}>{OFFLINE_STATUS[value].text}（{summary?.counts[value] ?? '—'}）</Button>)}
         {(permissions.includes('*') || permissions.includes('offline:settings')) && <Button onClick={() => setSettingsOpen(true)}>收款设置</Button>}
       </Space>
       <Space style={{ marginBottom: 16 }} wrap>

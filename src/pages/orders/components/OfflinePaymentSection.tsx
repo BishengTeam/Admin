@@ -60,7 +60,8 @@ export default function OfflinePaymentSection({ orderId, onChanged }: { orderId:
     </Space>) }]} />
     {payment.business_link && can(`${payment.business_link.vendor}:review`) && <Link to={`/admin/certification/${payment.business_link.vendor}/batches/${payment.business_link.batch_id}?openRegistrationId=${payment.business_link.registration_id}`}>进入报名详情</Link>}
     {error && <Typography.Text type='danger'>{error}</Typography.Text>}
-    {payment.order_status === 'pending' && ['under_review', 'returned', 'exception'].includes(payment.status) && <Space wrap>
+    {payment.order_status === 'pending' && payment.status === 'returned' && <Typography.Text type='secondary'>等待用户补交新版本</Typography.Text>}
+    {payment.order_status === 'pending' && ['under_review', 'exception'].includes(payment.status) && <Space wrap>
       {can('offline:return') && <Button onClick={() => setAction('return')}>驳回补交</Button>}
       {can('offline:confirm') && <><Button onClick={() => setAction('exception')}>标记异常</Button><Button type='primary' onClick={() => setAction('confirm')}>确认到账</Button></>}
     </Space>}

@@ -37,4 +37,12 @@ describe('offline payment evidence permissions', () => {
     expect(await screen.findByText('确认到账')).toBeTruthy()
     expect(screen.queryByText('审核通过')).toBeNull()
   })
+  it('returned evidence waits for a new submission without offering confirmation', async () => {
+    state.permissions = ['offline:view', 'offline:confirm', 'offline:return']
+    state.detail.mockResolvedValue({ ...payment, status: 'returned', status_label: '待补交' })
+    render(<OfflinePaymentSection orderId={12} />)
+    expect(await screen.findByText('等待用户补交新版本')).toBeTruthy()
+    expect(screen.queryByText('确认到账')).toBeNull()
+    expect(screen.queryByText('驳回补交')).toBeNull()
+  })
 })

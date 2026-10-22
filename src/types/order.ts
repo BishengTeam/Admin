@@ -98,6 +98,7 @@ export interface OrderDetail extends Order {
 }
 
 export interface ReconciliationData {
+  timezone?: string
   bank_transfer_total?: number
   wechat_total?: number
   date: string

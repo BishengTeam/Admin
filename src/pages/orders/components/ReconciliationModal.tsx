@@ -66,14 +66,14 @@ export default function ReconciliationModal({ open, onClose }: ReconciliationMod
         </Tooltip>
       </Space>
 
-      <p>按订单创建日期统计已收退款；线下数据来自人工核账记录，不代表银行自动对账。</p>
+      <p>按{data?.timezone || 'Asia/Shanghai'}自然日统计：线下款项使用银行实际发生日，微信使用到账及退款成功时间。未登记或缺少实际时间的历史款项不计入；线下记录不代表银行自动对账。</p>
       {data ? (
         <Descriptions bordered size="small" column={2}>
           <Descriptions.Item label="线下已核账净额">{formatPrice(data.bank_transfer_total || 0)}</Descriptions.Item>
           <Descriptions.Item label="历史微信净额">{formatPrice(data.wechat_total || 0)}</Descriptions.Item>
-          <Descriptions.Item label="对账日期">{data.date}</Descriptions.Item>
-          <Descriptions.Item label="订单数">{data.order_count}</Descriptions.Item>
-          <Descriptions.Item label="订单总额">{formatPrice(data.order_total)}</Descriptions.Item>
+          <Descriptions.Item label="资金发生日期">{data.date}</Descriptions.Item>
+          <Descriptions.Item label="涉及订单数">{data.order_count}</Descriptions.Item>
+          <Descriptions.Item label="收款总额">{formatPrice(data.order_total)}</Descriptions.Item>
           <Descriptions.Item label="退款总额">{formatPrice(data.refund_total)}</Descriptions.Item>
           <Descriptions.Item label="净收入" span={2}>
             <strong>{formatPrice(data.net_income)}</strong>
