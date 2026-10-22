@@ -12,6 +12,11 @@ describe('ConfirmButton failure handling', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'OK' }))
     expect(await screen.findByRole('alert')).toHaveTextContent('批次配置不可发布，请重新选择项目配置')
     expect(action).toHaveBeenCalledTimes(1)
+    // The alert can render before ConfirmButton's final loading-state update.
+    // Wait for that update before retrying, otherwise this click is ignored.
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'OK' })).not.toHaveClass('ant-btn-loading')
+    )
     fireEvent.click(screen.getByRole('button', { name: 'OK' }))
     await waitFor(() => expect(action).toHaveBeenCalledTimes(2))
     await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument())
