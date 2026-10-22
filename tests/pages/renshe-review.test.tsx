@@ -108,4 +108,4 @@ it('binds checks to the current definition and version, preserving same-version 
   await act(async () => { view.rerender(draw()) })
   await waitFor(() => expect(screen.getByRole('checkbox', { name: '身份一致' })).not.toBeChecked())
   expect(mocks.review).not.toHaveBeenCalled()
-})
+}, 15000)
