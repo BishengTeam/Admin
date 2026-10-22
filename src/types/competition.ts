@@ -23,6 +23,9 @@ export interface Competition {
   end_time: string | null
   registration_deadline: string | null
   is_active: boolean
+  /** 详情页展示开关：关闭后小程序不渲染对应区块 */
+  show_schedule?: boolean
+  show_signup?: boolean
   tracks: CompetitionTrack[]
   total_enrolled?: number
   created_at: string
@@ -48,6 +51,8 @@ export interface CompetitionPayload {
   end_time?: string | null
   registration_deadline?: string | null
   is_active?: boolean
+  show_schedule?: boolean
+  show_signup?: boolean
   tracks?: CompetitionTrackInput[]
   custom_fields?: unknown[] | null
   attachments?: CompetitionAttachment[] | null

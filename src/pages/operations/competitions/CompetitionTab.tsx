@@ -30,6 +30,8 @@ type FormValues = {
   time_range?: [dayjs.Dayjs | null, dayjs.Dayjs | null]
   registration_deadline?: dayjs.Dayjs | null
   is_active?: boolean
+  show_schedule?: boolean
+  show_signup?: boolean
   tracks?: { id?: number | null; name: string; max_participants: number; sort_order: number }[]
   custom_fields?: FormField[]
 }
@@ -50,7 +52,7 @@ export default function CompetitionTab() {
   const handleAdd = () => {
     setEditingItem(null)
     form.resetFields()
-    form.setFieldsValue({ is_active: true, tracks: [{ name: '', max_participants: 0, sort_order: 0 }] })
+    form.setFieldsValue({ is_active: true, show_schedule: true, show_signup: true, tracks: [{ name: '', max_participants: 0, sort_order: 0 }] })
     setModalOpen(true)
   }
 
@@ -68,6 +70,8 @@ export default function CompetitionTab() {
       ],
       registration_deadline: item.registration_deadline ? dayjs(item.registration_deadline) : undefined,
       is_active: item.is_active,
+      show_schedule: item.show_schedule ?? true,
+      show_signup: item.show_signup ?? true,
       tracks: item.tracks.map((t) => ({
         id: t.id,
         name: t.name,
@@ -107,6 +111,8 @@ export default function CompetitionTab() {
         ? values.registration_deadline.toISOString()
         : null,
       is_active: values.is_active ?? true,
+      show_schedule: values.show_schedule ?? true,
+      show_signup: values.show_signup ?? true,
       tracks: (values.tracks ?? []).map((t, i) => ({
         id: t.id ?? null,
         name: t.name,
@@ -357,6 +363,30 @@ export default function CompetitionTab() {
           <Form.Item name='is_active' label='发布状态' valuePropName='checked' initialValue={true} style={{ marginTop: 16 }}>
             <Switch checkedChildren='发布' unCheckedChildren='下架' />
           </Form.Item>
+
+          <Divider orientation='left' orientationMargin={0} style={{ margin: '8px 0 16px' }}>
+            <Text type='secondary' style={{ fontSize: 13 }}>小程序详情页展示</Text>
+          </Divider>
+          <Row gutter={24}>
+            <Col span={12}>
+              <Form.Item
+                name='show_schedule' label='比赛时间区块' valuePropName='checked' initialValue={true}
+                tooltip='关闭后小程序详情页不展示“比赛时间 / 报名截止”；时间本身仍生效（用于截止判断）'
+                style={{ marginBottom: 12 }}
+              >
+                <Switch checkedChildren='显示' unCheckedChildren='隐藏' />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item
+                name='show_signup' label='赛道报名区块' valuePropName='checked' initialValue={true}
+                tooltip='关闭后小程序详情页不展示“选择赛道报名”，且线上报名接口同步关闭（如报名走线下渠道时使用）'
+                style={{ marginBottom: 12 }}
+              >
+                <Switch checkedChildren='显示' unCheckedChildren='隐藏' />
+              </Form.Item>
+            </Col>
+          </Row>
 
           <Text type='secondary' style={{ fontSize: 12 }}>
             发布后赛事展示在小程序竞赛专区；用户按赛道报名，赛道名额满后自动截止。
