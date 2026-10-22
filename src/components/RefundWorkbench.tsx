@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import OfflineDecisionModal from '@/pages/orders/components/OfflineDecisionModal'
+import { offlinePaymentService, CHANNEL_LABELS, type OfflinePayment } from '@/services/offlinePayment'
 import { useNavigate } from 'react-router-dom'
 import {
   Alert,
@@ -99,7 +101,7 @@ function waitingText(row: RefundWorkbenchRecord): string {
 
 function nextStepText(row: RefundWorkbenchRecord): string {
   if (row.status === 'requested') return '等待管理员处理'
-  if (row.status === 'approved') return '已确认，等待渠道处理'
+  if (row.status === 'approved') return row.paymentChannel === 'bank_transfer' ? '已审批，等待实际退款及登记' : '已确认，等待渠道处理'
   if (row.status === 'processing') return '渠道处理中，可查询结果确认'
   if (row.status === 'failed') return '退款异常，需要人工处理或重试'
   if (row.status === 'succeeded') return '退款已完成'
@@ -114,6 +116,7 @@ export function RefundWorkbench({
   embedded = false,
   onChanged,
 }: RefundWorkbenchProps) {
+  const [offlineRefund, setOfflineRefund] = useState<{ payment: OfflinePayment; row: RefundWorkbenchRecord } | null>(null)
   const navigate = useNavigate()
   const { admin, permissions } = useAuth()
   const isSuperAdmin = admin?.role === 'super_admin' || permissions.includes('*')
@@ -205,7 +208,7 @@ export function RefundWorkbench({
   const confirmH3c = (row: RefundWorkbenchRecord) => {
     Modal.confirm({
       title: '确认 H3C 退款',
-      content: `人员：${row.candidateName || row.registrationNo || row.registrationId}，金额 ${formatPrice(row.amountCents)}。确认后将提交微信退款并关闭报名。`,
+      content: `人员：${row.candidateName || row.registrationNo || row.registrationId}，金额 ${formatPrice(row.amountCents)}。${row.paymentChannel === 'bank_transfer' ? '审批后等待实际线下退款，登记完成后关闭报名。' : '确认后将提交微信退款并关闭报名。'}`,
       okText: '重新验证并确认',
       okButtonProps: { danger: true },
       onOk: async () => {
@@ -214,7 +217,7 @@ export function RefundWorkbench({
           const token = await ensureReauthenticated()
           if (!token) throw new Error('请重新验证管理员密码')
           const updated = await h3cService.confirmRefund(row.id, token)
-          message.success('H3C 退款已确认提交')
+          message.success(row.paymentChannel === 'bank_transfer' ? '线下退款已审批，等待实际退款及登记' : 'H3C 退款已确认提交')
           setSelectedRecord(refundWorkbenchService.normalize('h3c', updated))
           refreshAfterChange()
         } catch (error) {
@@ -229,14 +232,14 @@ export function RefundWorkbench({
   const confirmNisp = (row: RefundWorkbenchRecord) => {
     Modal.confirm({
       title: '确认 NISP 退款',
-      content: `人员：${row.candidateName || row.registrationNo || row.registrationId}，金额 ${formatPrice(row.amountCents)}。确认后将提交微信退款。`,
+      content: `人员：${row.candidateName || row.registrationNo || row.registrationId}，金额 ${formatPrice(row.amountCents)}。${row.paymentChannel === 'bank_transfer' ? '审批后等待实际线下退款及登记。' : '确认后将提交微信退款。'}`,
       okText: '确认退款',
       okButtonProps: { danger: true },
       onOk: async () => {
         setProcessingId(row.id)
         try {
           const updated = await nispService.confirmRefund(row.id)
-          message.success('NISP 退款已提交')
+          message.success(row.paymentChannel === 'bank_transfer' ? '线下退款已审批，等待实际退款及登记' : 'NISP 退款已提交')
           setSelectedRecord(refundWorkbenchService.normalize('nisp', updated))
           refreshAfterChange()
         } catch (error) {
@@ -266,7 +269,7 @@ export function RefundWorkbench({
     Modal.confirm({
       title: retry ? '重试人社退款' : '批准人社退款',
       content: `人员：${row.candidateName || row.registrationNo || row.registrationId}，金额 ${formatPrice(row.amountCents)}。${
-        retry ? '将使用原退款单号重新发起。' : '批准后将提交微信退款。'
+        row.paymentChannel === 'bank_transfer' ? '批准后等待实际线下退款及登记。' : retry ? '将使用原退款单号重新发起。' : '批准后将提交微信退款。'
       }`,
       okText: retry ? '确认重试' : '确认批准',
       onOk: async () => {
@@ -311,10 +314,14 @@ export function RefundWorkbench({
   }
 
   const primaryAction = (row: RefundWorkbenchRecord) => {
+    if (row.paymentChannel === 'bank_transfer' && row.status === 'approved') {
+      if (!permissions.includes('*') && !permissions.includes('offline:refund')) return null
+      return <Button onClick={async () => { try { setOfflineRefund({ payment: await offlinePaymentService.detail(row.orderId), row }) } catch (error) { uncertain(error) } }}>登记线下退款</Button>
+    }
     if (vendor === 'h3c' && ['requested', 'failed'].includes(row.status)) {
       return (
         <Button danger loading={processingId === row.id} onClick={() => confirmH3c(row)}>
-          确认退款
+          {row.paymentChannel === 'bank_transfer' ? '审批退款' : '确认退款'}
         </Button>
       )
     }
@@ -323,7 +330,7 @@ export function RefundWorkbench({
         <Space size={4}>
           {row.status !== 'processing' && (
             <Button type='primary' loading={processingId === row.id} onClick={() => confirmNisp(row)}>
-              确认退款
+              {row.paymentChannel === 'bank_transfer' ? '审批退款' : '确认退款'}
             </Button>
           )}
           {['approved', 'processing', 'failed'].includes(row.status) && (
@@ -368,6 +375,7 @@ export function RefundWorkbench({
         </Space>
       ),
     }] : []),
+    { title: '支付方式', width: 140, render: (_, row) => CHANNEL_LABELS[row.paymentChannel || 'unknown'] },
     { title: '金额', width: 105, render: (_, row) => formatPrice(row.amountCents) },
     {
       title: '原因',
@@ -605,6 +613,7 @@ export function RefundWorkbench({
           </Form.Item>
         </Form>
       </Modal>
+      <OfflineDecisionModal payment={offlineRefund?.payment || null} action={offlineRefund ? 'refund' : null} refund={offlineRefund ? { kind: vendor, id: offlineRefund.row.id } : undefined} onClose={() => setOfflineRefund(null)} onChanged={refreshAfterChange} />
       {reauthDialog}
     </>
   )

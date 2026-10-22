@@ -169,6 +169,7 @@ export interface H3cBatchFinalReviewResult {
 }
 
 export interface H3cRefund {
+  payment_channel?: string
   id: number
   registration_id: number
   order_id: number

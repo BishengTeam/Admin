@@ -245,6 +245,7 @@ export interface RensheRefundFilter extends PageParams {
 }
 
 export interface RensheRefund {
+  payment_channel?: string
   id: number
   application_id: number
   order_id: number

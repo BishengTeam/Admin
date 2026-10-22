@@ -4,6 +4,8 @@ import { StatusTag } from '@/components/StatusTag'
 import { ORDER_STATUS_MAP } from '@/core/constants'
 import { formatDate, formatPrice } from '@/utils/format'
 import type { OrderDetail } from '@/types/order'
+import OfflinePaymentSection from './OfflinePaymentSection'
+import { CHANNEL_LABELS } from '@/services/offlinePayment'
 import ReviewHistory from '@/components/ReviewHistory'
 import { isRensheProduct } from '@/utils/renshe'
 
@@ -60,12 +62,14 @@ interface OrderDetailDrawerProps {
   order: OrderDetail | null
   open: boolean
   onClose: () => void
+  onChanged?: () => void
 }
 
 export default function OrderDetailDrawer({
   order,
   open,
   onClose,
+  onChanged,
 }: OrderDetailDrawerProps) {
   if (!order) return null
 
@@ -81,6 +85,7 @@ export default function OrderDetailDrawer({
       onClose={onClose}
       width={640}
     >
+      {order.payment_channel === 'bank_transfer' && <OfflinePaymentSection key={order.id} orderId={order.id} onChanged={onChanged} />}
       {/* 基本信息 */}
       <Descriptions column={2} size="small" bordered style={{ marginBottom: 24 }}>
         <Descriptions.Item label="订单号" span={2}>
@@ -91,6 +96,7 @@ export default function OrderDetailDrawer({
         <Descriptions.Item label="订单类型">
           {order.order_kind === 'course' ? '课程' : '认证报名'}
         </Descriptions.Item>
+        <Descriptions.Item label="支付方式">{CHANNEL_LABELS[order.payment_channel || "unknown"]}</Descriptions.Item>
         <Descriptions.Item label="商品类型">{order.product_type}</Descriptions.Item>
         <Descriptions.Item label="金额">
           <Text strong>{formatPrice(order.price)}</Text>

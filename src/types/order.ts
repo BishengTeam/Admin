@@ -58,6 +58,9 @@ export type CertExtraData =
 // ── 订单 ──
 
 export interface Order {
+  payment_channel?: string
+  offline_status?: string | null
+  offline_submitted_at?: string | null
   id: number
   out_trade_no: string
   order_kind: OrderKind
@@ -73,6 +76,10 @@ export interface Order {
 }
 
 export interface OrderFilter {
+  payment_channel?: string
+  offline_status?: string
+  keyword?: string
+  plan_id?: number
   status?: OrderStatus
   start_time?: string
   end_time?: string
@@ -91,6 +98,8 @@ export interface OrderDetail extends Order {
 }
 
 export interface ReconciliationData {
+  bank_transfer_total?: number
+  wechat_total?: number
   date: string
   order_total: number
   refund_total: number

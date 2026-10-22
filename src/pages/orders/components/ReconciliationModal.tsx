@@ -47,7 +47,7 @@ export default function ReconciliationModal({ open, onClose }: ReconciliationMod
 
   return (
     <Modal
-      title="每日对账"
+      title="每日收退款统计"
       open={open}
       onCancel={onClose}
       destroyOnClose
@@ -66,8 +66,11 @@ export default function ReconciliationModal({ open, onClose }: ReconciliationMod
         </Tooltip>
       </Space>
 
+      <p>按订单创建日期统计已收退款；线下数据来自人工核账记录，不代表银行自动对账。</p>
       {data ? (
         <Descriptions bordered size="small" column={2}>
+          <Descriptions.Item label="线下已核账净额">{formatPrice(data.bank_transfer_total || 0)}</Descriptions.Item>
+          <Descriptions.Item label="历史微信净额">{formatPrice(data.wechat_total || 0)}</Descriptions.Item>
           <Descriptions.Item label="对账日期">{data.date}</Descriptions.Item>
           <Descriptions.Item label="订单数">{data.order_count}</Descriptions.Item>
           <Descriptions.Item label="订单总额">{formatPrice(data.order_total)}</Descriptions.Item>

@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react'
-import { Table, Tabs, Input, Select, DatePicker, Button, Avatar, Space, message } from 'antd'
+import { Table, Tabs, Input, Select, DatePicker, Button, Avatar, Space, Tag, message } from 'antd'
 import { useLocation, useNavigate } from 'react-router-dom'
 import dayjs from 'dayjs'
 import { AccountBookOutlined, DownloadOutlined, EyeOutlined } from '@ant-design/icons'
@@ -16,6 +16,10 @@ import type { Order, OrderFilter, OrderStatus, OrderDetail } from '@/types/order
 import OrderDetailDrawer from './components/OrderDetailDrawer'
 import ReconciliationModal from './components/ReconciliationModal'
 
+import { offlinePaymentService, OFFLINE_STATUS, CHANNEL_LABELS } from '@/services/offlinePayment'
+import { useAuth } from '@/hooks/useAuth'
+import OfflineSettingsModal from './components/OfflineSettingsModal'
+
 const { RangePicker } = DatePicker
 
 const statusTabs: { key: string; label: string }[] = [
@@ -27,14 +31,6 @@ const statusTabs: { key: string; label: string }[] = [
   { key: 'closed', label: '已关闭' },
 ]
 
-const productOptions = [
-  { label: 'H3CNE-RS+', value: 'H3CNE-RS+' },
-  { label: 'H3CSE-RS+', value: 'H3CSE-RS+' },
-  { label: 'H3CIE-RS+', value: 'H3CIE-RS+' },
-  { label: '深信服安全', value: '深信服安全' },
-  { label: 'NISP一级', value: 'NISP一级' },
-  { label: '人社 RS-ZY', value: 'RS-ZY' },
-]
 
 // ── 商品类型 → 列表摘要字段 ──
 // 每个 product_type 取 2-3 个最关键的 extra_data 字段在列表中展示
@@ -72,6 +68,10 @@ function renderExtraSummary(record: Order): string {
 }
 
 export default function OrderList() {
+  const { permissions } = useAuth()
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [summary, setSummary] = useState<Awaited<ReturnType<typeof offlinePaymentService.summary>> | null>(null)
+  useEffect(() => { offlinePaymentService.summary().then(setSummary).catch(() => {}) }, [])
   const [filters, setFilters] = useState<OrderFilter>({})
   const [activeTab, setActiveTab] = useState('')
   const [searchPhone, setSearchPhone] = useState('')
@@ -82,7 +82,7 @@ export default function OrderList() {
   const location = useLocation()
   const navigate = useNavigate()
 
-  const { data, loading, pagination } = usePagination(
+  const { data, loading, pagination, refresh } = usePagination(
     (page) => orderService.list({ ...filters, ...page }),
     [filters],
   )
@@ -93,7 +93,7 @@ export default function OrderList() {
   }
 
   const handleSearch = useCallback(() => {
-    setFilters((f) => ({ ...f, phone: searchPhone || undefined }))
+    setFilters((f) => ({ ...f, keyword: searchPhone.trim() || undefined }))
   }, [searchPhone])
 
   const handleReset = useCallback(() => {
@@ -106,7 +106,7 @@ export default function OrderList() {
     startExport()
     try {
       const blob = await orderService.export(filters)
-      downloadBlob(blob, `订单导出_${new Date().toISOString().slice(0, 10)}.xlsx`)
+      downloadBlob(blob, `订单导出_${new Date().toISOString().slice(0, 10)}.csv`)
       message.success('导出成功')
     } finally {
       finishExport()
@@ -131,6 +131,9 @@ export default function OrderList() {
   }, [location.pathname, location.state, navigate])
 
   const columns: ColumnsType<Order> = [
+    { title: '支付方式', width: 140, render: (_, row) => CHANNEL_LABELS[row.payment_channel || 'unknown'] || row.payment_channel },
+    { title: '线下收款进度', width: 150, render: (_, row) => row.offline_status ? <Tag color={OFFLINE_STATUS[row.offline_status]?.color}>{OFFLINE_STATUS[row.offline_status]?.text || row.offline_status}</Tag> : '—' },
+    { title: '凭证提交时间', dataIndex: 'offline_submitted_at', width: 175, render: (value: string | null) => value ? formatDate(value) : '—' },
     {
       title: '订单号',
       dataIndex: 'out_trade_no',
@@ -224,18 +227,25 @@ export default function OrderList() {
       <Tabs activeKey={activeTab} onChange={handleTabChange} items={statusTabs} style={{ marginBottom: 16 }} />
 
       <Space style={{ marginBottom: 16 }} wrap>
+        {['under_review', 'returned', 'exception'].map(value => <Button key={value} type={filters.offline_status === value ? 'primary' : 'default'} onClick={() => setFilters(f => ({ ...f, payment_channel: 'bank_transfer', offline_status: value }))}>{OFFLINE_STATUS[value].text}（{summary?.counts[value] ?? '—'}）</Button>)}
+        {(permissions.includes('*') || permissions.includes('offline:settings')) && <Button onClick={() => setSettingsOpen(true)}>收款设置</Button>}
+      </Space>
+      <Space style={{ marginBottom: 16 }} wrap>
+        <Select placeholder='支付方式' allowClear style={{ width: 170 }} options={Object.entries(CHANNEL_LABELS).map(([value, label]) => ({ value, label }))} value={filters.payment_channel} onChange={value => setFilters(f => ({ ...f, payment_channel: value }))} />
+        <Select placeholder='线下收款进度' allowClear style={{ width: 160 }} options={Object.entries(OFFLINE_STATUS).map(([value, config]) => ({ value, label: config.text }))} value={filters.offline_status} onChange={value => setFilters(f => ({ ...f, offline_status: value }))} />
+        <Select placeholder='所属批次' allowClear showSearch optionFilterProp='label' style={{ width: 200 }} options={summary?.batches || []} value={filters.plan_id} onChange={value => setFilters(f => ({ ...f, plan_id: value }))} />
         <Input
-          placeholder="用户手机号"
+          placeholder="订单号 / 姓名 / 手机 / 银行流水"
           value={searchPhone}
           onChange={(e) => setSearchPhone(e.target.value)}
-          style={{ width: 160 }}
+          style={{ width: 270 }}
           onPressEnter={handleSearch}
         />
         <Select
           placeholder="商品类型"
           allowClear
           style={{ width: 150 }}
-          options={productOptions}
+          options={summary?.products || []}
           value={filters.product_type}
           onChange={(val) => setFilters((f) => ({ ...f, product_type: val || undefined }))}
         />
@@ -258,12 +268,19 @@ export default function OrderList() {
         dataSource={data?.items}
         loading={loading}
         pagination={pagination}
+        scroll={{ x: 1800 }}
       />
 
+      <OfflineSettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
       <OrderDetailDrawer
         order={detailOrder}
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
+        onChanged={() => {
+          void refresh()
+          if (detailOrder) void orderService.detail(detailOrder.id).then(setDetailOrder).catch(() => message.warning('订单信息更新失败，请重新查看'))
+          void offlinePaymentService.summary().then(setSummary).catch(() => {})
+        }}
       />
 
       <ReconciliationModal

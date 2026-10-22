@@ -9,6 +9,7 @@ import type { RensheRefund } from '@/types/renshe'
 export type RefundVendor = 'h3c' | 'nisp' | 'renshe'
 
 export interface RefundWorkbenchRecord {
+  paymentChannel?: string
   id: number
   registrationId: number
   orderId: number
@@ -49,6 +50,7 @@ export interface RefundWorkbenchParams extends PageParams {
 function fromH3c(row: H3cRefund): RefundWorkbenchRecord {
   return {
     id: row.id,
+    paymentChannel: row.payment_channel,
     registrationId: row.registration_id,
     orderId: row.order_id,
     outTradeNo: row.out_trade_no ?? null,
@@ -75,6 +77,7 @@ function fromH3c(row: H3cRefund): RefundWorkbenchRecord {
 function fromNisp(row: NispRefund): RefundWorkbenchRecord {
   return {
     id: row.id,
+    paymentChannel: row.payment_channel,
     registrationId: row.registration_id,
     orderId: row.order_id,
     outTradeNo: row.out_trade_no ?? null,
@@ -101,6 +104,7 @@ function fromNisp(row: NispRefund): RefundWorkbenchRecord {
 function fromRenshe(row: RensheRefund): RefundWorkbenchRecord {
   return {
     id: row.id,
+    paymentChannel: row.payment_channel,
     registrationId: row.application_id,
     orderId: row.order_id,
     outTradeNo: row.out_trade_no ?? null,

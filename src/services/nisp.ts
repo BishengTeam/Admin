@@ -110,6 +110,7 @@ export interface NispExportJob {
 }
 
 export interface NispRefund {
+  payment_channel?: string
   id: number
   registration_id: number
   order_id: number
