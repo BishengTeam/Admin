@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Form, Input, Modal, Typography, message } from 'antd'
+import { Alert, Form, Input, Modal, Typography, message } from 'antd'
 import { LockOutlined } from '@ant-design/icons'
 import { authService } from '@/services/auth'
 import { getReauthToken, setReauthCredential } from '@/core/reauth'
@@ -11,9 +11,11 @@ interface ReauthFormValues {
   password: string
 }
 
-export function useReauthentication() {
+export function useReauthentication(options?: { description?: string }) {
   const [open, setOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState('')
+  const submitLock = useRef(false)
   const [form] = Form.useForm<ReauthFormValues>()
   const resolverRef = useRef<((token: string | null) => void) | null>(null)
   const promiseRef = useRef<Promise<string | null> | null>(null)
@@ -23,6 +25,7 @@ export function useReauthentication() {
     resolverRef.current = null
     promiseRef.current = null
     form.resetFields()
+    setError('')
     setOpen(false)
   }, [form])
 
@@ -42,15 +45,23 @@ export function useReauthentication() {
   }, [])
 
   const submit = async () => {
-    const values = await form.validateFields()
-    setSubmitting(true)
+    if (submitLock.current) return
+    submitLock.current = true
     try {
+      const values = await form.validateFields()
+      setSubmitting(true); setError('')
       const result = await authService.reauthenticate(values.password)
       setReauthCredential(result.reauth_token, result.expires_in)
       settle(result.reauth_token)
     } catch (error) {
-      message.error(isApiError(error) ? error.message : '身份验证失败，请重试')
+      if ((error as { errorFields?: unknown }).errorFields) return
+      const text = isApiError(error) ? error.message : '身份验证失败，请重试'
+      if (options?.description) {
+        if (isApiError(error) && error.status === 422) form.setFields([{ name: 'password', errors: [text] }])
+        else setError(text)
+      } else message.error(text)
     } finally {
+      submitLock.current = false
       setSubmitting(false)
     }
   }
@@ -68,8 +79,9 @@ export function useReauthentication() {
       onCancel={() => settle(null)}
     >
       <Paragraph type="secondary">
-        此操作会影响管理员账号安全，请输入当前超级管理员密码。验证结果最多在当前页面内复用 10 分钟。
+        {options?.description || '此操作会影响管理员账号安全，请输入当前超级管理员密码。验证结果最多在当前页面内复用 10 分钟。'}
       </Paragraph>
+      {error && <Alert type='error' message={error} style={{ marginBottom: 16 }} />}
       <Form<ReauthFormValues> form={form} layout="vertical">
         <Form.Item name="password" label="当前密码" rules={[{ required: true, message: '请输入当前密码' }]}>
           <Input.Password

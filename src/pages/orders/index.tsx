@@ -68,7 +68,7 @@ function renderExtraSummary(record: Order): string {
 }
 
 export default function OrderList() {
-  const { permissions } = useAuth()
+  const { permissions, admin } = useAuth()
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [summary, setSummary] = useState<Awaited<ReturnType<typeof offlinePaymentService.summary>> | null>(null)
   useEffect(() => { offlinePaymentService.summary().then(setSummary).catch(() => {}) }, [])
@@ -232,7 +232,7 @@ export default function OrderList() {
           setSearchPhone('')
           setFilters({ payment_channel: 'bank_transfer', offline_status: value })
         }}>{OFFLINE_STATUS[value].text}（{summary?.counts[value] ?? '—'}）</Button>)}
-        {(permissions.includes('*') || permissions.includes('offline:settings')) && <Button onClick={() => setSettingsOpen(true)}>收款设置</Button>}
+        {(admin?.role === 'super_admin' || permissions.includes('*') || permissions.includes('offline:settings')) && <Button onClick={() => setSettingsOpen(true)}>收款设置</Button>}
       </Space>
       <Space style={{ marginBottom: 16 }} wrap>
         <Select placeholder='支付方式' allowClear style={{ width: 170 }} options={Object.entries(CHANNEL_LABELS).map(([value, label]) => ({ value, label }))} value={filters.payment_channel} onChange={value => setFilters(f => ({ ...f, payment_channel: value }))} />
