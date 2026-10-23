@@ -41,6 +41,7 @@ export const AdminAccountPageSchema = z.object({
   total: z.number().int().min(0),
   page: positiveInt,
   page_size: positiveInt,
+  status_counts: z.record(z.string(), z.number().int().nonnegative()).optional(),
 }).strict()
 
 export const AdminAccountMutationResultSchema = z.object({
@@ -69,6 +70,7 @@ export const SecurityAuditPageSchema = z.object({
   total: z.number().int().min(0),
   page: positiveInt,
   page_size: positiveInt,
+  status_counts: z.record(z.string(), z.number().int().nonnegative()).optional(),
 }).strict()
 
 export const SystemUpdateVersionSchema = z.object({

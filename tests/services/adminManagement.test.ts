@@ -25,6 +25,11 @@ const mutation = {
   admin: { ...account, must_change_password: true },
   temporary_password: 'GeneratedSecureValue2026',
 }
+const auditItem = {
+  id: -31, action: 'admin_account.disable', result: 'succeeded', reason_code: 'legacy_event',
+  actor_admin_id: 1, target_admin_id: 7, username: 'quiz.ops', request_id: 'request-1',
+  source_ip: '100.64.0.3', user_agent: 'test-agent', summary: {}, created_at: now,
+}
 
 describe('administrator management service contract', () => {
   beforeEach(() => {
@@ -242,5 +247,55 @@ describe('administrator management service contract', () => {
     } finally {
       errorSpy.mockRestore()
     }
+  })
+
+  describe.each(['admins', 'security-audit'] as const)('%s pagination response', endpoint => {
+    async function list() {
+      const { adminManagementService } = await import('@/services/adminManagement')
+      const params = { page: 2, page_size: 10 }
+      return endpoint === 'admins' ? adminManagementService.listAdmins(params) : adminManagementService.listSecurityAudit(params)
+    }
+    const item = endpoint === 'admins' ? account : auditItem
+    const page = { items: [item], total: 21, page: 2, page_size: 10 }
+
+    it.each([
+      { label: 'absent statistics', extra: {} },
+      { label: 'empty statistics', extra: { status_counts: {} } },
+      { label: 'nonnegative integer statistics', extra: { status_counts: { active: 21, locked: 0 } } },
+    ])('accepts $label and preserves list and pagination', async ({ extra }) => {
+      const response = { ...page, ...extra }
+      http.get.mockResolvedValueOnce(response)
+      await expect(list()).resolves.toEqual(response)
+      expect(http.get).toHaveBeenLastCalledWith(`/admin/settings/${endpoint}`, expect.objectContaining({ params: { page: 2, page_size: 10 } }))
+    })
+
+    it('accepts an empty list with empty statistics', async () => {
+      const response = { items: [], total: 0, page: 1, page_size: 10, status_counts: {} }
+      http.get.mockResolvedValueOnce(response)
+      await expect(list()).resolves.toEqual(response)
+    })
+
+    it.each([
+      { label: 'string value', counts: { active: '1' } },
+      { label: 'negative value', counts: { active: -1 } },
+      { label: 'fractional value', counts: { active: 1.5 } },
+      { label: 'null', counts: null },
+      { label: 'array', counts: [] },
+      { label: 'scalar', counts: 1 },
+    ])('rejects $label statistics', async ({ counts }) => {
+      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      try {
+        http.get.mockResolvedValueOnce({ ...page, status_counts: counts })
+        await expect(list()).rejects.toThrow('API response validation failed')
+      } finally { errorSpy.mockRestore() }
+    })
+
+    it('still rejects unknown pagination fields alongside valid statistics', async () => {
+      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      try {
+        http.get.mockResolvedValueOnce({ ...page, status_counts: {}, unexpected: true })
+        await expect(list()).rejects.toThrow('API response validation failed')
+      } finally { errorSpy.mockRestore() }
+    })
   })
 })
