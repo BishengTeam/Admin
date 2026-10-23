@@ -1,7 +1,7 @@
 import type { BannerJumpMode } from '@/types/banner'
 
-/** 弹窗海报仅支持站内跳转，不提供外链模式 */
-export type PopupJumpMode = Exclude<BannerJumpMode, 'link'>
+/** 与Banner复用相同的跳转能力，仍使用jump_link存储。 */
+export type PopupJumpMode = BannerJumpMode
 
 /** 弹窗海报列表项，对应后端 PopupListItem */
 export interface Popup {

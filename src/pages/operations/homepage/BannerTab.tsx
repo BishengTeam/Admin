@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Table, Button, Input, Switch, Space, Modal, Form, Select, InputNumber, DatePicker, Tag, Image, Radio, message } from 'antd'
+import { Table, Button, Input, Switch, Space, Modal, Form, InputNumber, DatePicker, Tag, Image, message } from 'antd'
 import { PlusOutlined, SearchOutlined, DeleteOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import type { TableRowSelection } from 'antd/es/table/interface'
@@ -8,36 +8,28 @@ import { ConfirmButton } from '@/components/ConfirmButton'
 import { ImageUpload } from '@/components/ImageUpload'
 import { usePagination } from '@/hooks/usePagination'
 import { bannerService } from '@/services/banner'
-import { courseManagementService } from '@/services/courseManagement'
 import { activityService } from '@/services/activity'
 import { jobService } from '@/services/job'
 import { formatDate } from '@/utils/format'
 import { requiredRule } from '@/utils/validator'
-import { BANNER_PAGES, parseJumpMode, type Banner, type BannerJumpMode } from '@/types/banner'
+import { buildJumpLink, pageTargetLabel, pageTargetError, parseJumpMode, type JumpTargetValues, type Banner, type BannerJumpMode } from '@/types/banner'
+import { JumpTargetFields } from './JumpTargetFields'
 
 const { RangePicker } = DatePicker
 
-type FormValues = {
+type FormValues = JumpTargetValues & {
   image_url?: string
-  jump_mode: BannerJumpMode
-  page_path?: string
-  course_id?: number
-  activity_id?: number
-  job_id?: number
-  link_url?: string
   sort?: number
   time_range?: [dayjs.Dayjs | null, dayjs.Dayjs | null]
   is_active?: boolean
 }
 
 type ResourceTitles = {
-  course: Map<number, string>
   activity: Map<number, string>
   job: Map<number, string>
 }
 
 const EMPTY_TITLES: ResourceTitles = {
-  course: new Map(),
   activity: new Map(),
   job: new Map(),
 }
@@ -45,7 +37,6 @@ const EMPTY_TITLES: ResourceTitles = {
 const MODE_LABELS: Record<BannerJumpMode, string> = {
   none: '无',
   page: '页面',
-  course: '课程',
   activity: '活动',
   job: '岗位',
   link: '链接',
@@ -54,7 +45,6 @@ const MODE_LABELS: Record<BannerJumpMode, string> = {
 const MODE_COLORS: Record<BannerJumpMode, string> = {
   none: 'default',
   page: 'geekblue',
-  course: 'green',
   activity: 'purple',
   job: 'cyan',
   link: 'orange',
@@ -68,14 +58,7 @@ function describeJump(jumpLink: string | null, titles: ResourceTitles) {
     case 'none':
       return { tag, text: '-' }
     case 'page':
-      return { tag, text: BANNER_PAGES.find((p) => p.value === parsed.path)?.label ?? parsed.path }
-    case 'course':
-      return {
-        tag,
-        text: parsed.resourceId
-          ? titles.course.get(parsed.resourceId) ?? `课程 #${parsed.resourceId}`
-          : '无效链接',
-      }
+      return { tag, text: pageTargetLabel(parsed.path) ?? pageTargetError(parsed.path) }
     case 'activity':
       return {
         tag,
@@ -104,7 +87,6 @@ export default function BannerTab() {
   const [form] = Form.useForm<FormValues>()
 
   const jumpMode = Form.useWatch('jump_mode', form)
-  const [courseOptions, setCourseOptions] = useState<{ label: string; value: number }[]>([])
   const [activityOptions, setActivityOptions] = useState<{ label: string; value: number }[]>([])
   const [jobOptions, setJobOptions] = useState<{ label: string; value: number }[]>([])
   const [titles, setTitles] = useState<ResourceTitles>(EMPTY_TITLES)
@@ -117,25 +99,17 @@ export default function BannerTab() {
   /** 为列表回显拉资源标题映射 */
   useEffect(() => {
     Promise.all([
-      courseManagementService.listCourses({ page: 1, page_size: 100 }).catch(() => null),
       activityService.list({ page: 1, page_size: 100 }).catch(() => null),
       jobService.list({ page: 1, page_size: 100 }).catch(() => null),
-    ]).then(([courses, activities, jobs]) => {
+    ]).then(([activities, jobs]) => {
       setTitles({
-        course: new Map(courses?.items.map((c) => [c.id, c.title]) ?? []),
         activity: new Map(activities?.items.map((a) => [a.id, a.title]) ?? []),
         job: new Map(jobs?.items.map((j) => [j.id, j.company ? `${j.title}（${j.company}）` : j.title]) ?? []),
       })
     })
   }, [data])
 
-  const SEARCHERS: Record<'course' | 'activity' | 'job', (query: string) => void> = {
-    course: (query) => {
-      courseManagementService
-        .listCourses({ keyword: query || undefined, page: 1, page_size: 20 })
-        .then((res) => setCourseOptions(res.items.map((c) => ({ label: c.title, value: c.id }))))
-        .catch(() => setCourseOptions([]))
-    },
+  const SEARCHERS: Record<'activity' | 'job', (query: string) => void> = {
     activity: (query) => {
       activityService
         .list({ keyword: query || undefined, page: 1, page_size: 20 })
@@ -152,7 +126,6 @@ export default function BannerTab() {
 
   useEffect(() => {
     if (!modalOpen) return
-    if (jumpMode === 'course' && courseOptions.length === 0) SEARCHERS.course('')
     if (jumpMode === 'activity' && activityOptions.length === 0) SEARCHERS.activity('')
     if (jumpMode === 'job' && jobOptions.length === 0) SEARCHERS.job('')
   }, [modalOpen, jumpMode]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -171,7 +144,6 @@ export default function BannerTab() {
       image_url: item.image_url || '',
       jump_mode: parsed.mode,
       page_path: parsed.path,
-      course_id: parsed.mode === 'course' ? parsed.resourceId : undefined,
       activity_id: parsed.mode === 'activity' ? parsed.resourceId : undefined,
       job_id: parsed.mode === 'job' ? parsed.resourceId : undefined,
       link_url: parsed.url,
@@ -183,10 +155,6 @@ export default function BannerTab() {
       ],
     })
     // 资源模式回显标题
-    if (parsed.mode === 'course' && parsed.resourceId) {
-      const known = titles.course.get(parsed.resourceId)
-      setCourseOptions([{ label: known ?? `课程 #${parsed.resourceId}`, value: parsed.resourceId }])
-    }
     if (parsed.mode === 'activity' && parsed.resourceId) {
       const known = titles.activity.get(parsed.resourceId)
       setActivityOptions([{ label: known ?? `活动 #${parsed.resourceId}`, value: parsed.resourceId }])
@@ -218,26 +186,14 @@ export default function BannerTab() {
   }
 
   const handleSubmit = async () => {
-    const values = await form.validateFields()
-    let jumpLink: string | null = null
-    switch (values.jump_mode) {
-      case 'page':
-        jumpLink = values.page_path ?? null
-        break
-      case 'course':
-        jumpLink = values.course_id ? `/pages/course/detail?id=${values.course_id}` : null
-        break
-      case 'activity':
-        jumpLink = values.activity_id ? `/pages/activity-zone/detail?id=${values.activity_id}` : null
-        break
-      case 'job':
-        jumpLink = values.job_id ? `/pages/employment-zone/detail?id=${values.job_id}` : null
-        break
-      case 'link':
-        jumpLink = values.link_url?.trim() || null
-        break
-      case 'none':
-        jumpLink = null
+    let values: FormValues
+    let jumpLink: string | null
+    try {
+      values = await form.validateFields()
+      jumpLink = buildJumpLink(values)
+    } catch (error) {
+      if (error instanceof Error) message.error(error.message)
+      return
     }
     const [start, end] = values.time_range || []
     const payload = {
@@ -351,23 +307,6 @@ export default function BannerTab() {
     [titles], // eslint-disable-line react-hooks/exhaustive-deps
   )
 
-  const resourceField = (mode: 'course' | 'activity' | 'job') => {
-    const names = { course: 'course_id', activity: 'activity_id', job: 'job_id' } as const
-    const labels = { course: '选择课程', activity: '选择活动', job: '选择岗位' } as const
-    const options = { course: courseOptions, activity: activityOptions, job: jobOptions }[mode]
-    return (
-      <Form.Item name={names[mode]} label={labels[mode]} rules={[{ required: true, message: `请选择${labels[mode].slice(2)}` }]}>
-        <Select
-          placeholder={`输入关键词搜索${labels[mode].slice(2)}`}
-          showSearch
-          filterOption={false}
-          onSearch={SEARCHERS[mode]}
-          options={options}
-          notFoundContent={options.length === 0 ? '输入关键词搜索' : undefined}
-        />
-      </Form.Item>
-    )
-  }
 
   return (
     <>
@@ -433,48 +372,7 @@ export default function BannerTab() {
             />
           </Form.Item>
 
-          <Form.Item name="jump_mode" label="点击跳转" initialValue="none">
-            <Radio.Group
-              options={[
-                { label: '不跳转', value: 'none' },
-                { label: '页面', value: 'page' },
-                { label: '课程', value: 'course' },
-                { label: '活动', value: 'activity' },
-                { label: '岗位', value: 'job' },
-                { label: '链接', value: 'link' },
-              ]}
-              optionType="button"
-              buttonStyle="solid"
-            />
-          </Form.Item>
-
-          {jumpMode === 'page' && (
-            <Form.Item name="page_path" label="选择页面" rules={[{ required: true, message: '请选择页面' }]}>
-              <Select placeholder="选择要跳转的页面" options={BANNER_PAGES} showSearch optionFilterProp="label" />
-            </Form.Item>
-          )}
-
-          {jumpMode === 'course' && resourceField('course')}
-          {jumpMode === 'activity' && resourceField('activity')}
-          {jumpMode === 'job' && resourceField('job')}
-
-          {jumpMode === 'link' && (
-            <Form.Item
-              name="link_url"
-              label="跳转链接"
-              rules={[
-                { required: true, message: '请输入链接' },
-                {
-                  validator: (_, value: string) =>
-                    !value || value.startsWith('http') || value.startsWith('/pages/')
-                      ? Promise.resolve()
-                      : Promise.reject(new Error('链接需以 http(s):// 或 /pages/ 开头')),
-                },
-              ]}
-            >
-              <Input placeholder="https://example.com 或 /pages/xxx/index" />
-            </Form.Item>
-          )}
+          <JumpTargetFields options={{ activity: activityOptions, job: jobOptions }} onSearch={SEARCHERS} />
 
           <Form.Item name="sort" label="排序（数字越小越靠前）">
             <InputNumber min={0} style={{ width: '100%' }} />
