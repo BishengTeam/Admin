@@ -1,35 +1,11 @@
 import { useState } from 'react'
-import { Alert, Button, Modal, Space, Table, Typography, Upload, message } from 'antd'
-import { DownloadOutlined, UploadOutlined } from '@ant-design/icons'
+import { Alert, Button, Modal, Space, Table, Typography, message } from 'antd'
+import { DownloadOutlined } from '@ant-design/icons'
 import { rensheService } from '@/services/renshe'
 import type { RensheProjectConfig, RensheExportInstructions } from '@/types/rensheProject'
 
-type Template = NonNullable<RensheProjectConfig['commitment_template']>
-
-export function CommitmentTemplateUpload({ value, onChange, disabled }: { value?: Template; onChange?: (value: Template) => void; disabled?: boolean }) {
-  const [busy, setBusy] = useState(false)
-  return <Space direction='vertical'>
-    <Space wrap>
-      <Upload accept='.pdf,.docx' showUploadList={false} disabled={disabled || busy} beforeUpload={async file => {
-        if (file.size > 10 * 1024 * 1024 || !/\.(pdf|docx)$/i.test(file.name)) { message.error('模板仅支持PDF/DOCX，最大10 MB'); return false }
-        setBusy(true)
-        try { onChange?.(await rensheService.uploadCommitmentTemplate(file)); message.success('承诺书已上传，保存项目后生效') }
-        catch (error) { message.error(error instanceof Error ? error.message : '上传失败') }
-        finally { setBusy(false) }
-        return false
-      }}><Button icon={<UploadOutlined />} loading={busy} disabled={disabled}>{value ? '上传替换' : '上传承诺书模板'}</Button></Upload>
-      {value && <Button disabled={false} icon={<DownloadOutlined />} onClick={async () => {
-        try {
-          const blob = await rensheService.downloadCommitmentTemplate(value.filename)
-          const url = URL.createObjectURL(blob)
-          const anchor = document.createElement('a'); anchor.href = url; anchor.download = value.original_filename || value.filename
-          anchor.click(); setTimeout(() => URL.revokeObjectURL(url), 1000)
-        } catch (error) { message.error(error instanceof Error ? error.message : '下载失败') }
-      }}>下载当前模板</Button>}
-    </Space>
-    <Typography.Text type='secondary'>{value?.original_filename || '暂无模板，可先保存项目草稿。保存后供申请人下载当前模板、签字按手印并回传。'}</Typography.Text>
-  </Space>
-}
+import CommitmentTemplateUpload from './CommitmentTemplateUpload'
+export { default as CommitmentTemplateUpload } from './CommitmentTemplateUpload'
 
 export function ExportInstructions({
   instructions,

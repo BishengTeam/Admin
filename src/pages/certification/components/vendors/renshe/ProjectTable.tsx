@@ -2,14 +2,14 @@ import { useCallback, useEffect, useState } from 'react'
 import { Alert, Button, Collapse, Divider, Form, Input, Modal, Select, Space, Table, Tag, Typography, message } from 'antd'
 import { PlusOutlined, ReloadOutlined, SafetyCertificateOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { ImageUpload } from '@/components/ImageUpload'
 import { ConfirmButton } from '@/components/ConfirmButton'
 import { usePermission } from '@/hooks/usePermission'
 import { rensheService } from '@/services/renshe'
 import type { RensheCapabilities, RensheProject, RensheProjectWrite } from '@/types/rensheProject'
 import { formatBytes } from '@/utils/renshe'
-import { ExportInstructions, CommitmentTemplateUpload } from './ExportInstructions'
+import { ExportInstructions } from './ExportInstructions'
 
 const { Text } = Typography
 const STATUS = { draft: { label: '草稿', color: 'default' }, available: { label: '可用', color: 'success' }, disabled: { label: '已停用', color: 'default' } }
@@ -69,6 +69,8 @@ function AdmissionRequirements({ requirements }: { requirements?: RensheCapabili
 export default function ProjectTable() {
   const canWrite = usePermission('content:write')
   const canManageBatch = usePermission('user:write')
+  const canManageTemplates = usePermission('content:read')
+  const canOpenDocuments = usePermission('document:read')
   const [, setSearchParams] = useSearchParams()
   const [items, setItems] = useState<RensheProject[]>([])
   const [capabilities, setCapabilities] = useState<RensheCapabilities | null>(null)
@@ -136,7 +138,7 @@ export default function ProjectTable() {
       skill_level: item.config.skill_level,
       application_type: item.config.application_types[0],
     } : {})
-    setCommitmentTemplate(item?.config.commitment_template ?? item?.config.reporting_policy?.commitment_template ?? null)
+    setCommitmentTemplate(item?.commitment_template ?? item?.config.commitment_template ?? item?.config.reporting_policy?.commitment_template ?? null)
     form.setFieldsValue(item ? {
       chinese_name: item.chinese_name, description: item.description, home_cover_url: item.home_cover_url,
       status: item.status, expected_version: item.version || undefined,
@@ -157,7 +159,7 @@ export default function ProjectTable() {
       }
       if (targetStatus === 'available' && !canEnable) { setSaveError('该组合尚未适配，仅可保存草稿'); return }
       if (graduated && targetStatus === 'available' && !commitmentTemplate) {
-        setSaveError('请先上传承诺书模板；暂未提供时可先保存草稿')
+        setSaveError('请先保存草稿，再前往文档管理配置承诺书模板')
         return
       }
       const payload = {
@@ -165,7 +167,6 @@ export default function ProjectTable() {
         home_cover_url: values.home_cover_url, status: targetStatus,
         selection_id: selectedProgram.selection_id,
         expected_version: editing?.version || undefined,
-        commitment_template: commitmentTemplate,
       }
       const result = editing ? await rensheService.updateProject(editing.id, payload) : await rensheService.createProject(payload)
       message.success(result.status === 'draft' ? '项目草稿已保存' : '报考项目已保存')
@@ -220,8 +221,12 @@ export default function ProjectTable() {
     <Form.Item name='description' label='项目介绍'><Input.TextArea rows={3} maxLength={512} showCount /></Form.Item>
     <Form.Item name='home_cover_url' label='产品封面'>{readOnly ? (editing?.home_cover_url ? <img src={editing.home_cover_url} alt='产品封面' style={{ maxWidth: '100%', maxHeight: 180 }} /> : <Text type='secondary'>未上传封面</Text>) : <ImageUpload crop={{ width: 1404, height: 640, title: '产品封面', fixed: true }} hint='产品封面；固定裁剪输出 1404 × 640 px。' />}</Form.Item>
     <Divider orientation='left' orientationMargin={0}>承诺书模板</Divider>
-    <Typography.Paragraph type='secondary'>上传甲方确认的 PDF／DOCX（≤10 MB），保存后供申请人下载、签字按手印并上传。</Typography.Paragraph>
-    <CommitmentTemplateUpload value={commitmentTemplate ?? undefined} disabled={readOnly} onChange={setCommitmentTemplate} />
+    <Typography.Paragraph type='secondary'>承诺书空白模板统一在文档管理维护，供考生下载、亲笔签名并按手印后回传。</Typography.Paragraph>
+    <Space direction='vertical' size={8} style={{ marginBottom: 16 }}>
+      <Text>{commitmentTemplate?.original_filename || commitmentTemplate?.filename || '未配置承诺书模板'}</Text>
+      {commitmentTemplate && <Text type='secondary'>{commitmentTemplate.filename.endsWith('.docx') ? 'DOCX' : 'PDF'} · {commitmentTemplate.size_bytes != null ? formatBytes(commitmentTemplate.size_bytes) : '大小暂无'}</Text>}
+      {canManageTemplates && canOpenDocuments && (editing ? <Link to={`/admin/content/documents?renshe_product_id=${editing.id}`} target='_blank' rel='noopener noreferrer'>前往文档管理</Link> : <Text type='secondary'>请先保存产品草稿，再到文档管理选择该产品维护模板。</Text>)}
+    </Space>
     <Text type='secondary'>报名规则、材料清单和导出口径由系统根据所选组合自动匹配。</Text>
     <Collapse
       bordered={false}

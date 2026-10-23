@@ -11,6 +11,12 @@ const http = {
 vi.mock('@/core/request', () => ({ http }))
 
 describe('renshe admin services', () => {
+  it('saves only a target product template reference and expected version', async () => {
+    const { rensheService } = await import('@/services/renshe')
+    const template = { filename: `commitment_${'a'.repeat(64)}.pdf`, sha256: 'a'.repeat(64), original_filename: '空白模板.pdf' }
+    await rensheService.saveCommitmentTemplate(7, template, 3)
+    expect(http.put).toHaveBeenCalledWith('/admin/cert-products/renshe/projects/7/commitment-template', { commitment_template: template, expected_version: 3 })
+  })
   beforeEach(() => {
     vi.clearAllMocks()
     http.get.mockResolvedValue({})

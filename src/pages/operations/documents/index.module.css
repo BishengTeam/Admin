@@ -24,6 +24,10 @@
   min-width: 0;
 }
 
+.templateCard { border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; max-width: 760px; background: #fff; }
+.templateIcon { font-size: 40px; color: #64748b; margin-right: 12px; }
+.templateFilename { overflow-wrap: anywhere; }
+
 .coverRegion {
   position: relative;
   aspect-ratio: 3 / 4;

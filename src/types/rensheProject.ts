@@ -1,3 +1,11 @@
+export interface RensheCommitmentTemplate {
+  filename: string
+  sha256: string
+  original_filename?: string
+  size_bytes?: number
+  content_type?: string
+}
+
 export interface RensheProjectConfig {
   selection_id?: string | null
   rule_profile?: Partial<RensheCombination>
@@ -19,12 +27,12 @@ export interface RensheProjectConfig {
     contract_version?: number
     version?: string
     confirmed_by_client?: boolean
-    commitment_template?: { filename: string; sha256: string; original_filename?: string }
+    commitment_template?: RensheCommitmentTemplate
     attachment_names?: Record<string, string>
     export_values?: Record<string, string>
     employment_reporting?: { confirmed?: boolean; date_rule?: string | null; years_rule?: string | null; allow_zero_years?: boolean | null }
   }
-  commitment_template?: { filename: string; sha256: string; original_filename?: string } | null
+  commitment_template?: RensheCommitmentTemplate | null
 }
 
 export interface RensheExportInstructions {
@@ -65,6 +73,8 @@ export interface RensheAdmissionRequirements {
 }
 
 export interface RensheProject {
+  commitment_template?: RensheCommitmentTemplate | null
+  commitment_template_error?: string | null
   id: number
   code: string
   chinese_name: string

@@ -21,14 +21,14 @@ describe('人社导出说明和承诺书', () => {
     const changed = vi.fn()
     const { container } = render(<ExportInstructions instructions={instructions} required={false} readOnly={false} commitmentTemplate={previous} onCommitmentTemplateChange={changed} />)
     fireEvent.change(container.querySelector('input[type=file]')!, { target: { files: [new File(['%PDF-1.4 fixture'], '替换.pdf', { type: 'application/pdf' })] } })
-    await waitFor(() => expect(error).toHaveBeenCalledWith('承诺书模板存储不可用，请联系管理员检查目录权限和持久化配置'))
+    expect(await screen.findByRole('alert')).toHaveTextContent('承诺书模板存储不可用，请联系管理员检查目录权限和持久化配置')
     expect(changed).not.toHaveBeenCalled()
     expect(screen.getByText('当前承诺书.pdf')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /上传替换/ })).not.toBeDisabled()
     error.mockRestore()
   })
   it('uploads the business template without asking for export settings or confirmations', async () => {
-    const metadata = { filename: `commitment_${'a'.repeat(64)}.pdf`, sha256: 'a'.repeat(64), original_filename: '甲方承诺书.pdf' }
+    const metadata = { filename: `commitment_${'a'.repeat(64)}.pdf`, sha256: 'a'.repeat(64), original_filename: '甲方承诺书.pdf', size_bytes: 16 }
     vi.mocked(rensheService.uploadCommitmentTemplate).mockResolvedValue(metadata)
     const submitted = vi.fn()
     let commitment: unknown

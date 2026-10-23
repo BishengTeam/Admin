@@ -113,7 +113,7 @@ describe('人社报考项目管理', () => {
     fireEvent.click(screen.getByRole('button', { name: '保存并启用' }))
     await waitFor(() => expect(rensheService.updateProject).toHaveBeenCalledWith(draft.id, expect.objectContaining({
       selection_id: selected.selection_id, expected_version: 2,
-      status: 'available', commitment_template: template,
+      status: 'available',
     })))
   })
   it('previews current requirements for the selected adapted combination', async () => {
@@ -196,13 +196,12 @@ describe('人社报考项目管理', () => {
     expect(screen.getByLabelText('职业／工种')).toBeDisabled()
     expect(screen.getByLabelText('技能等级')).toBeDisabled()
     fireEvent.change(screen.getByLabelText('项目名称'), { target: { value: '修改名称' } })
-    expect(screen.getByRole('button', { name: /上传承诺书模板/ })).toBeTruthy()
+    expect(screen.getByRole('link', { name: '前往文档管理' })).toHaveAttribute('href', `/admin/content/documents?renshe_product_id=${project.id}`)
     expect(screen.queryByLabelText('资格校验规则')).toBeNull()
     expect(screen.queryByLabelText('支持的考试类型')).toBeNull()
     expect(screen.queryByLabelText('允许的文化程度')).toBeNull()
     expect(screen.queryByRole('checkbox', { name: /必填/ })).toBeNull()
-    fireEvent.change(screen.getByRole('dialog').querySelector('input[type=file]')!, { target: { files: [new File(['%PDF-1.4 fixture'], '确认承诺书.pdf', { type: 'application/pdf' })] } })
-    await screen.findByText('确认承诺书.pdf')
+    expect(screen.getByRole('dialog').querySelector('input[type=file]')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: '保存草稿' }))
     await waitFor(() => expect(rensheService.updateProject).toHaveBeenCalledTimes(1))
     const [id, payload] = vi.mocked(rensheService.updateProject).mock.calls[0]
@@ -211,7 +210,7 @@ describe('人社报考项目管理', () => {
     expect(payload).not.toHaveProperty('occupation_code')
     expect(payload).not.toHaveProperty('skill_level')
     expect(payload).not.toHaveProperty('config')
-    expect(payload.commitment_template).toEqual(template)
+    expect(payload).not.toHaveProperty('commitment_template')
   })
 
   it('requires an explicit adapted occupation and level and sends selection without global default config', async () => {
@@ -282,8 +281,6 @@ describe('人社报考项目管理', () => {
     fireEvent.click(screen.getByRole('button', { name: '编辑' }))
     const template = { filename: `commitment_${'d'.repeat(64)}.pdf`, sha256: 'd'.repeat(64), original_filename: '确认承诺书.pdf' }
     vi.mocked(rensheService.uploadCommitmentTemplate).mockResolvedValue(template)
-    fireEvent.change(screen.getByRole('dialog').querySelector('input[type=file]')!, { target: { files: [new File(['%PDF-1.4 fixture'], '确认承诺书.pdf', { type: 'application/pdf' })] } })
-    await screen.findByText('确认承诺书.pdf')
     fireEvent.click(screen.getByRole('button', { name: '保存草稿' }))
     expect(await screen.findByText('导出模板需要适配')).toBeTruthy()
     expect(screen.getByRole('dialog')).toBeTruthy()

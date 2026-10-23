@@ -31,6 +31,7 @@ import { documentService } from '@/services/document'
 import { formatDate } from '@/utils/format'
 import type { DocumentResource } from '@/types/document'
 import styles from './index.module.css'
+import RensheCommitmentTemplates from './RensheCommitmentTemplates'
 
 const { Text } = Typography
 const MAX_PDF_BYTES = 20 * 1024 * 1024
@@ -403,6 +404,8 @@ export default function DocumentManagement() {
           <Pagination {...pagination} className={styles.pagination} />
         )}
       </section>
+
+      <RensheCommitmentTemplates />
 
       <Modal
         title={editingItem ? `编辑文档 · ${editingItem.title}` : '配置文档'}

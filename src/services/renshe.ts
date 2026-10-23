@@ -1,5 +1,5 @@
 import { http } from '@/core/request'
-import type { RensheProject, RensheProjectWrite, RensheCapabilities } from '@/types/rensheProject'
+import type { RensheProject, RensheProjectWrite, RensheCapabilities, RensheCommitmentTemplate } from '@/types/rensheProject'
 import type { CertificationPlan } from '@/types/certification'
 import type { PageData } from '@/types/api'
 import type {
@@ -37,13 +37,14 @@ export const rensheService = {
   uploadCommitmentTemplate: (file: File) => {
     const data = new FormData()
     data.append('file', file)
-    return http.post<{ filename: string; sha256: string; original_filename: string }>('/admin/cert-products/renshe/commitment-templates', data, { timeout: 60000 })
+    return http.post<RensheCommitmentTemplate>('/admin/cert-products/renshe/commitment-templates', data, { timeout: 60000 })
   },
   downloadCommitmentTemplate: (filename: string) => http.get<Blob>(`/admin/cert-products/renshe/commitment-templates/${encodeURIComponent(filename)}`, { responseType: 'blob' }),
   listProjects: () => http.get<RensheProject[]>('/admin/cert-products/renshe/projects'),
   projectCapabilities: () => http.get<RensheCapabilities>('/admin/cert-products/renshe/project-capabilities'),
   createProject: (data: RensheProjectWrite) => http.post<RensheProject>('/admin/cert-products/renshe/projects', data),
   updateProject: (id: number, data: RensheProjectWrite) => http.put<RensheProject>(`/admin/cert-products/renshe/projects/${id}`, data),
+  saveCommitmentTemplate: (id: number, template: RensheCommitmentTemplate, expectedVersion: number) => http.put<RensheProject>(`/admin/cert-products/renshe/projects/${id}/commitment-template`, { commitment_template: template, expected_version: expectedVersion }),
   deleteProject: (id: number) => http.delete<void>(`/admin/cert-products/renshe/projects/${id}`),
   listBatches: () => http.get<CertificationPlan[]>('/admin/cert-products/renshe/batches'),
   async listPrograms(): Promise<RensheProgram[]> {
