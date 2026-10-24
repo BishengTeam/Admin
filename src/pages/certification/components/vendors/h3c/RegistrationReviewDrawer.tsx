@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button, Checkbox, Form, Input, Modal, Radio, Select, Space, Tag, Typography, message } from 'antd'
 import { usePermission } from '@/hooks/usePermission'
@@ -23,6 +23,7 @@ const FIELD_LABELS: Record<string, string> = {
   last_name_en: '英文名（姓）',
   coupon_code: '考券号',
   verify_code: '学信网验证码',
+  student_verification_method: '学生资格核验方式',
 }
 
 const MATERIAL_LABELS: Record<string, string> = {
@@ -99,7 +100,8 @@ export default function RegistrationReviewDrawer({
   const [detailLoading, setDetailLoading] = useState(false)
   const [reviewOpen, setReviewOpen] = useState(false)
   const [refundOpen, setRefundOpen] = useState(false)
-  const [refundReason, setRefundReason] = useState('')
+  const [refundForm] = Form.useForm<{ reason_detail: string }>()
+  const refundLock = useRef(false)
   const [submitting, setSubmitting] = useState(false)
   const { ensureReauthenticated, reauthDialog } = useReauthentication()
   const [form] = Form.useForm<ReviewFormValues>()
@@ -124,10 +126,16 @@ export default function RegistrationReviewDrawer({
     }
   },[open, registration])
 
-  useEffect(() => { setRefundOpen(false); setReviewOpen(false) }, [registration?.id, open])
+  useEffect(() => { setRefundOpen(false); setReviewOpen(false); refundForm.resetFields() }, [registration?.id, open, refundForm])
 
   const current = detail?.id === registration?.id ? detail : registration
   const currentMaterials = (current?.materials ?? []).filter((material) => material.is_current)
+  const studentMethod = current?.candidate_snapshot.student_verification_method
+  const methodLabel = studentMethod === 'stamped_certificate' ? '无学信网在线验证码'
+    : studentMethod === 'online_code' ? '有学信网在线验证码' : '有学信网在线验证码（历史记录）'
+  const materialLabel = (key: string) => key === 'student_proof'
+    ? studentMethod === 'stamped_certificate' ? '学院盖章的学籍证图片' : '身份证人像面图片'
+    : MATERIAL_LABELS[key] ?? key
 
   const openReview = (decision: ReviewFormValues['decision']) => {
     form.resetFields()
@@ -160,24 +168,34 @@ export default function RegistrationReviewDrawer({
   }
 
   const submitRefund = async () => {
-    if (!current || !refundReason.trim()) return
+    if (!current || refundLock.current) return
+    let reason: string
+    try {
+      reason = (await refundForm.validateFields()).reason_detail.trim()
+    } catch {
+      refundForm.getFieldInstance('reason_detail')?.focus()
+      return
+    }
+    if (refundLock.current) return
+    refundLock.current = true
     setSubmitting(true)
     try {
       const token = await ensureReauthenticated()
-      if (!token) throw new Error('请重新验证管理员密码')
+      if (!token) return
       const result = await h3cService.rejectAndRefund(current.id, {
         reason_code: 'review_rejected',
-        reason_detail: refundReason.trim(),
+        reason_detail: reason,
       }, token)
       message.success('退款申请已处理，请在退款工作台继续办理')
       setRefundOpen(false)
-      setRefundReason('')
+      refundForm.resetFields()
       setDetail(result)
       try { await onReviewed?.(result) } catch { message.warning('操作已保存，列表刷新失败，请刷新工作台') }
     } catch (error) {
       message.error(error instanceof Error ? error.message : '拒绝并退款失败')
     } finally {
       setSubmitting(false)
+      refundLock.current = false
     }
   }
 
@@ -256,16 +274,17 @@ export default function RegistrationReviewDrawer({
             { label: '有效导出', content: current.latest_valid_export_finished_at ? formatDate(current.latest_valid_export_finished_at) : '未导出' },
             { label: '终审条件', content: current.status === 'approved' ? (current.final_review_ready ? '可终审' : current.final_review_block_reason ?? '暂不可终审') : '-' },
           ]}
-          informationItems={Object.entries(current.candidate_snapshot)
-            .filter(([key]) => FIELD_LABELS[key])
+          informationItems={[...Object.entries(current.candidate_snapshot)
+            .filter(([key]) => FIELD_LABELS[key] && (key !== 'student_verification_method' || current.registration_type === 'student'))
             .map(([key, value]) => ({
               label: FIELD_LABELS[key],
-              content: String(value ?? '-'),
-            }))}
+              content: key === 'student_verification_method' ? methodLabel : String(value ?? '-'),
+            })), ...(current.registration_type === 'student' && !studentMethod
+              ? [{ label: '学生资格核验方式', content: methodLabel }] : [])]}
           materialItems={currentMaterials.map((material) => ({
             label: (
               <Space size={4}>
-                {MATERIAL_LABELS[material.material_type] ?? material.material_type}
+                {materialLabel(material.material_type)}
                 <Tag>v{material.version_no}</Tag>
               </Space>
             ),
@@ -289,7 +308,7 @@ export default function RegistrationReviewDrawer({
             ...(current.latest_review.rejected_material_types?.length ? [{
               label: '驳回材料',
               content: current.latest_review.rejected_material_types
-                .map((item) => MATERIAL_LABELS[item] ?? item)
+                .map(materialLabel)
                 .join('、'),
               span: 2,
             }] : []),
@@ -306,7 +325,7 @@ export default function RegistrationReviewDrawer({
                 <Button type='primary' onClick={submitFinalReview} loading={submitting}>终审通过</Button>
               )}
               {canRefund && (
-                <Button danger onClick={() => setRefundOpen(true)}>拒绝并退款</Button>
+                <Button danger onClick={() => { refundForm.resetFields(); setRefundOpen(true) }}>拒绝并退款</Button>
               )}
               {current.status === 'pending_review' && onNextPending && (
                 <Button onClick={onNextPending}>下一位待初审</Button>
@@ -349,7 +368,9 @@ export default function RegistrationReviewDrawer({
                       { label: '邮箱', value: 'email' },
                       { label: '学校/单位', value: 'school' },
                       { label: '通信地址', value: 'address' },
-                      { label: '学籍验证码', value: 'verify_code' },
+                      ...(current?.registration_type === 'student' ? [
+                        { label: '学生核验方式及验证码', value: 'student_verification_method' },
+                      ] : []),
                     ]}
                   />
                 </Form.Item>
@@ -357,9 +378,10 @@ export default function RegistrationReviewDrawer({
                   <Checkbox.Group
                     options={(current?.materials ?? [])
                       .filter((material) => material.is_current)
-                      .map((material) => ({ label: MATERIAL_LABELS[material.material_type] ?? material.material_type, value: material.material_type }))}
+                      .map((material) => ({ label: materialLabel(material.material_type), value: material.material_type }))}
                   />
                 </Form.Item>
+                {current?.registration_type === 'student' && <Text type='secondary'>选择学生核验信息或学生图片后，将同时开放核验方式、验证码和对应图片补正，考生须重新上传。</Text>}
                 <Form.Item name='reason_detail' label='补充说明'>
                   <Input.TextArea rows={3} maxLength={1000} />
                 </Form.Item>
@@ -374,18 +396,26 @@ export default function RegistrationReviewDrawer({
         open={refundOpen}
         confirmLoading={submitting}
         onOk={submitRefund}
-        onCancel={() => setRefundOpen(false)}
+        onCancel={() => { if (!submitting) { setRefundOpen(false); refundForm.resetFields() } }}
+        closable={!submitting}
+        maskClosable={!submitting}
+        cancelButtonProps={{ disabled: submitting }}
         okText='授权退款'
         okButtonProps={{ danger: true }}
       >
+        <Form form={refundForm} layout='vertical'>
+          <Form.Item name='reason_detail' label='拒绝及退款原因' rules={[
+            { required: true, whitespace: true, transform: value => value?.trim(), message: '请填写拒绝及退款原因，该原因将向用户展示。' },
+            { max: 1000, message: '拒绝及退款原因不能超过1000字符' },
+          ]}>
         <Input.TextArea
           rows={4}
-          value={refundReason}
-          onChange={(event) => setRefundReason(event.target.value)}
           placeholder='请填写用户可见的拒绝与退款原因'
           maxLength={1000}
           showCount
         />
+          </Form.Item>
+        </Form>
       </Modal>
       {reauthDialog}
     </>

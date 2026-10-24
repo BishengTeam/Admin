@@ -194,7 +194,7 @@ function renderBatch() {
     expect(screen.getAllByText('学生报名').length).toBeGreaterThan(0)
     expect(screen.getAllByText('全额报名').length).toBeGreaterThan(0)
     expect(screen.getByText('考生需填写有效考券编号，并上传考券证明材料。')).toBeInTheDocument()
-    expect(screen.getByText('考生需填写学籍在线验证码，并上传学生证明材料。')).toBeInTheDocument()
+    expect(screen.getByText('考生选择核验方式：有学信网在线验证码时，填写验证码并上传身份证人像面；无验证码时，上传学院盖章的学籍证图片。')).toBeInTheDocument()
     expect(screen.getByText('考生仅填写基础报名信息，无需考券或学生证明材料。')).toBeInTheDocument()
     expect(screen.queryByText('身份标签')).not.toBeInTheDocument()
     expect(screen.queryByText('单图上限（MB）')).not.toBeInTheDocument()

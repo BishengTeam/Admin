@@ -56,7 +56,7 @@ const TYPE_LABELS: Record<H3cRegistrationType, string> = {
 
 const REGISTRATION_REQUIREMENTS: Record<H3cRegistrationType, string> = {
   coupon: '考生需填写有效考券编号，并上传考券证明材料。',
-  student: '考生需填写学籍在线验证码，并上传学生证明材料。',
+  student: '考生选择核验方式：有学信网在线验证码时，填写验证码并上传身份证人像面；无验证码时，上传学院盖章的学籍证图片。',
   full: '考生仅填写基础报名信息，无需考券或学生证明材料。',
 }
 
