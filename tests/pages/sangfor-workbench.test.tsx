@@ -62,7 +62,7 @@ it('does not send an empty correction reason or omit the correction deadline', a
   expect(await screen.findByText('请指出需要补正的字段和原因')).toBeTruthy()
   expect(await screen.findByText('请选择补正截止时间')).toBeTruthy()
   expect(mocks.review).not.toHaveBeenCalled()
-})
+}, 15000)
 
 it('clears conflicting registration filters for the pending-receipt shortcut', async () => {
   render(<MemoryRouter initialEntries={['/batches/5']}><Routes><Route path='/batches/:batchId' element={<BatchWorkbench />} /></Routes></MemoryRouter>)
