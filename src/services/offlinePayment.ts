@@ -20,7 +20,7 @@ export interface OfflinePayment {
   order_id: number; order_status: string; amount_cents: number; current_version: number; status: string
   status_label: string; out_trade_no: string; account: PaymentSettings; message: string | null; deadline: string | null
   refund_business: string; generic_refund_approved: boolean
-  business_link?: { vendor: 'h3c' | 'nisp' | 'renshe'; registration_id: number; batch_id: number } | null
+  business_link?: { vendor: 'h3c' | 'nisp' | 'renshe' | 'sangfor'; registration_id: number; batch_id: number } | null
   confirmed_at: string | null; submissions: PaymentSubmission[]; materials: PaymentMaterial[]
   entries: Array<{ kind: string; amount_cents: number; bank_reference: string; bank_time: string; created_at: string; material_ids: number[] }>
   audits: Array<{ action: string; actor_id: number; created_at: string; summary: { note?: string; version: number; amount_cents?: number | null; bank_reference?: string | null; bank_time?: string | null; deadline?: string | null; result?: string } }>

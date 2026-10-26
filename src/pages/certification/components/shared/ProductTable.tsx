@@ -141,7 +141,7 @@ export default function ProductTable({ type }: ProductTableProps) {
       const studentPrice = item.prices?.find(price => price.user_type === 'student')?.price_cents
       const normalPrice = item.prices?.find(price => price.user_type === 'normal')?.price_cents
       form.setFieldsValue({
-        catalog_id: item.id,
+        catalog_id: type === 'sangfor' ? null : item.id,
         chinese_name: item.name,
         name: displayNameFromCode(code),
         student_price_yuan: studentPrice != null ? studentPrice / 100 : undefined,
@@ -282,7 +282,7 @@ export default function ProductTable({ type }: ProductTableProps) {
           <Row gutter={16}>
             <Col span={isSuperAdmin && !editingItem ? 16 : 24}>
               <Form.Item
-                name='code' label='产品编码'
+                name='code' label={type === 'sangfor' ? '报考方向' : '产品编码'}
                 rules={[{ required: true, message: customCode ? '请输入产品编码' : '请选择产品' }]}
                 tooltip='产品编码使用厂商官方考试代码（如 GB0-192），创建后不可修改'
               >
@@ -296,12 +296,12 @@ export default function ProductTable({ type }: ProductTableProps) {
                     optionFilterProp='label'
                     disabled={Boolean(editingItem)}
                     onChange={handleCodeChange}
-                    notFoundContent={catalog.length === 0 ? '目录为空，请联系超级管理员在「产品设置」导入价格表' : undefined}
+                    notFoundContent={catalog.length === 0 ? type === 'sangfor' ? '暂无已确认报考方向，请刷新或联系管理员' : '目录为空，请联系超级管理员在「产品设置」导入价格表' : undefined}
                   />
                 )}
               </Form.Item>
             </Col>
-            {isSuperAdmin && !editingItem && (
+            {isSuperAdmin && !editingItem && type !== 'sangfor' && (
               <Col span={8}>
                 <Form.Item label=' ' colon={false}>
                   <Button

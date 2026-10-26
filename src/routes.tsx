@@ -47,6 +47,7 @@ const TypeWorkbench = lazy(() => import('@/pages/certification/TypeWorkbench'))
 const H3cBatchExportWorkbench = lazy(() => import('@/pages/certification/components/vendors/h3c/BatchExportWorkbench'))
 const NispBatchWorkbench = lazy(() => import('@/pages/certification/components/vendors/nisp/BatchWorkbench'))
 const RensheBatchWorkbench = lazy(() => import('@/pages/certification/components/vendors/renshe/BatchWorkbench'))
+const SangforBatchWorkbench = lazy(() => import('@/pages/certification/components/vendors/sangfor/BatchWorkbench'))
 const JobManagement = lazy(() => import('@/pages/operations/jobs'))
 const TrainingManagement = lazy(() => import('@/pages/operations/training'))
 const ActivityManagement = lazy(() => import('@/pages/operations/activities'))
@@ -219,6 +220,11 @@ export const adminRoutes: AppRoute[] = [
         path: 'sangfor',
         element: <TypeWorkbench type='sangfor' />,
         meta: { title: '深信服认证', icon: 'SafetyCertificateOutlined', permission: 'content:list' },
+      },
+      {
+        path: 'sangfor/batches/:batchId',
+        element: <SangforBatchWorkbench />,
+        meta: { title: '深信服批次工作台', icon: 'SafetyCertificateOutlined', permissions: ['order:list'], hidden: true, activeMenuKey: 'certification/sangfor' },
       },
     ],
   },

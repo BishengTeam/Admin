@@ -74,7 +74,8 @@ export default function OrderDetailDrawer({
   if (!order) return null
 
   const extra = order.extra_data as Record<string, unknown> | null
-  const fieldKeys = certFieldOrder[order.product_type] ?? []
+  const fieldKeys = extra?.business_type === 'sangfor' ? certFieldOrder.sangfor : certFieldOrder[order.product_type] ?? []
+  const displayExtra = extra?.business_type === 'sangfor' ? extra.candidate_snapshot as Record<string, unknown> : extra
   const isRenshe = isRensheProduct(order.product_type)
   const attachments = isRenshe ? [] : order.attachments ?? []
 
@@ -130,7 +131,7 @@ export default function OrderDetailDrawer({
           <Text strong style={{ display: 'block', marginBottom: 12 }}>报名信息</Text>
           <Descriptions column={2} size="small" bordered style={{ marginBottom: 24 }}>
             {fieldKeys.map((key) => {
-              const value = extra[key]
+              const value = displayExtra?.[key]
               if (value == null || value === '') return null
               return (
                 <Descriptions.Item key={key} label={fieldLabelMap[key] ?? key}>

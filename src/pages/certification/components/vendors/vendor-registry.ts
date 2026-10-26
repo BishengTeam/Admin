@@ -72,6 +72,9 @@ const vendorRegistry: VendorProfile[] = [
   },
   {
     type: 'sangfor',
+    batchFirst: true,
+    productTabLabel: '产品设置',
+    batchOverrides: lazy(() => import('./sangfor/BatchOverrides')),
     tabs: [],
   },
 ]
