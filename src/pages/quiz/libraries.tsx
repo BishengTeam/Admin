@@ -104,8 +104,7 @@ function convertWarning(_current: QuizLibraryAccessMode, target: QuizLibraryAcce
 
 function publicationBlockers(library: QuizLibrary) {
   const blockers: string[] = []
-  if (!library.cover_url) blockers.push('缺少封面')
-  if (!library.description) blockers.push('缺少简介')
+  // 封面与简介自 2026-10-27 起可选：后端发布检查已同步放开，小程序有空值占位。
   if (library.access_mode === 'access_mode_pending') blockers.push('访问模式未确认')
   if (library.open_migration_issue_count) blockers.push(`仍有 ${library.open_migration_issue_count} 个迁移问题`)
   if (!library.question_count) blockers.push('没有可发布题目路径')
@@ -120,7 +119,7 @@ function lifecycleCopy(library: QuizLibrary, action: QuizLibraryLifecycleAction)
   }
   if (action === 'publish') return {
     title: `发布题库「${library.name}」？`,
-    body: '发布前服务端会重新检查封面、简介、访问模式、迁移问题和有效的“模块 → 知识点 → 已发布题目”路径。发布后仍需单独开启 V2 用户入口。',
+    body: '发布前服务端会重新检查访问模式、迁移问题和有效的“模块 → 知识点 → 已发布题目”路径。发布后仍需单独开启 V2 用户入口。',
     okText: '确认发布',
   }
   if (action === 'suspend') return {
