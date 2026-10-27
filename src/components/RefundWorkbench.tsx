@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import OfflineDecisionModal from '@/pages/orders/components/OfflineDecisionModal'
+import OfflineRefundDrawer from '@/pages/orders/components/OfflineRefundDrawer'
 import { offlinePaymentService, CHANNEL_LABELS, type OfflinePayment } from '@/services/offlinePayment'
 import { useNavigate } from 'react-router-dom'
 import {
@@ -49,6 +50,7 @@ interface RefundWorkbenchProps {
   registrationId?: number
   embedded?: boolean
   onChanged?: () => void
+  refreshToken?: number
 }
 
 const GROUP_STATUS: Record<Exclude<RefundGroup, 'all'>, string[]> = {
@@ -64,6 +66,12 @@ const STATUS_CONFIG: Record<string, { text: string; color: string }> = {
   succeeded: { text: '已退款', color: 'green' },
   rejected: { text: '已驳回', color: 'default' },
   failed: { text: '退款异常', color: 'red' },
+}
+
+const SANGFOR_STATUS_CONFIG: typeof STATUS_CONFIG = {
+  approved: { text: '待退款登记', color: 'blue' },
+  exception: { text: '异常待处理', color: 'red' },
+  succeeded: { text: '已退款', color: 'green' },
 }
 
 const REASON_OPTIONS: Record<RefundVendor, Array<{ value: string; label: string }>> = {
@@ -83,10 +91,14 @@ const REASON_OPTIONS: Record<RefundVendor, Array<{ value: string; label: string 
     { value: 'batch_cancel', label: '批次取消退款' },
     { value: 'batch_finalize', label: '批次终结退款' },
   ],
+  sangfor: [
+    { value: 'normal', label: '订单退款' },
+    { value: 'exception', label: '异常来款退回' },
+  ],
 }
 
-function statusTag(status: string) {
-  const config = STATUS_CONFIG[status] ?? { text: status, color: 'default' }
+function statusTag(status: string, statuses = STATUS_CONFIG) {
+  const config = statuses[status] ?? { text: status, color: 'default' }
   return <Tag color={config.color}>{config.text}</Tag>
 }
 
@@ -99,6 +111,10 @@ function waitingText(row: RefundWorkbenchRecord): string {
   return `${Math.floor(hours / 24)}天`
 }
 
+function refundAmount(row: RefundWorkbenchRecord): string {
+  return row.amountCents === null ? '待核实' : formatPrice(row.amountCents)
+}
+
 function nextStepText(row: RefundWorkbenchRecord): string {
   if (row.status === 'requested') return '等待管理员处理'
   if (row.status === 'approved') return row.paymentChannel === 'bank_transfer' ? '已审批，等待实际退款及登记' : '已确认，等待渠道处理'
@@ -106,6 +122,7 @@ function nextStepText(row: RefundWorkbenchRecord): string {
   if (row.status === 'failed') return '退款异常，需要人工处理或重试'
   if (row.status === 'succeeded') return '退款已完成'
   if (row.status === 'rejected') return '退款已驳回'
+  if (row.status === 'exception') return '核实实际来款后，登记异常转账已退回'
   return '状态未知'
 }
 
@@ -115,15 +132,22 @@ export function RefundWorkbench({
   registrationId,
   embedded = false,
   onChanged,
+  refreshToken,
 }: RefundWorkbenchProps) {
   const [offlineRefund, setOfflineRefund] = useState<{ payment: OfflinePayment; row: RefundWorkbenchRecord } | null>(null)
+  const [sangforOrderId, setSangforOrderId] = useState<number | null>(null)
   const navigate = useNavigate()
   const { admin, permissions } = useAuth()
   const isSuperAdmin = admin?.role === 'super_admin' || permissions.includes('*')
   const canOpenRegistration = permissions.includes('*')
-    || permissions.includes(vendor === 'h3c' ? 'h3c:review' : vendor === 'nisp' ? 'nisp:review' : 'user:list')
+    || permissions.includes(vendor === 'h3c' ? 'h3c:review' : vendor === 'nisp' ? 'nisp:review' : vendor === 'sangfor' ? 'sangfor:review' : 'user:list')
+  const canViewOffline = permissions.includes('*') || permissions.includes('offline:view')
+  const canRecordRefund = permissions.includes('*') || permissions.includes('offline:refund')
+  const canOpenBatch = vendor !== 'sangfor' || permissions.includes('*') || permissions.includes('content:read')
+  const statuses = vendor === 'sangfor' ? SANGFOR_STATUS_CONFIG : STATUS_CONFIG
+  const renderStatus = (value: string) => statusTag(value, statuses)
   const { ensureReauthenticated, reauthDialog } = useReauthentication()
-  const [group, setGroup] = useState<RefundGroup>(embedded ? 'all' : 'pending')
+  const [group, setGroup] = useState<RefundGroup>(embedded ? 'all' : vendor === 'sangfor' ? 'processing' : 'pending')
   const [keyword, setKeyword] = useState('')
   const [reason, setReason] = useState<string>()
   const [status, setStatus] = useState<string>()
@@ -169,7 +193,7 @@ export function RefundWorkbench({
         throw error
       }
     },
-    [batchFilter, group, keyword, range, reason, registrationId, status, vendor],
+    [batchFilter, group, keyword, range, reason, registrationId, status, vendor, refreshToken],
   )
 
   const selected = useMemo(
@@ -180,7 +204,8 @@ export function RefundWorkbench({
   const statusCounts = data?.status_counts ?? {}
   const groupCount = (value: RefundGroup) => {
     if (value === 'all') return Object.values(statusCounts).reduce((sum, count) => sum + count, 0)
-    return GROUP_STATUS[value].reduce(
+    const values = vendor === 'sangfor' && value === 'abnormal' ? ['exception'] : GROUP_STATUS[value]
+    return values.reduce(
       (sum, statusValue) => sum + (statusCounts[statusValue] ?? 0),
       0,
     )
@@ -208,7 +233,7 @@ export function RefundWorkbench({
   const confirmH3c = (row: RefundWorkbenchRecord) => {
     Modal.confirm({
       title: '确认 H3C 退款',
-      content: `人员：${row.candidateName || row.registrationNo || row.registrationId}，金额 ${formatPrice(row.amountCents)}。${row.paymentChannel === 'bank_transfer' ? '审批后等待实际线下退款，登记完成后关闭报名。' : '确认后将提交微信退款并关闭报名。'}`,
+      content: `人员：${row.candidateName || row.registrationNo || row.registrationId}，金额 ${refundAmount(row)}。${row.paymentChannel === 'bank_transfer' ? '审批后等待实际线下退款，登记完成后关闭报名。' : '确认后将提交微信退款并关闭报名。'}`,
       okText: '重新验证并确认',
       okButtonProps: { danger: true },
       onOk: async () => {
@@ -232,7 +257,7 @@ export function RefundWorkbench({
   const confirmNisp = (row: RefundWorkbenchRecord) => {
     Modal.confirm({
       title: '确认 NISP 退款',
-      content: `人员：${row.candidateName || row.registrationNo || row.registrationId}，金额 ${formatPrice(row.amountCents)}。${row.paymentChannel === 'bank_transfer' ? '审批后等待实际线下退款及登记。' : '确认后将提交微信退款。'}`,
+      content: `人员：${row.candidateName || row.registrationNo || row.registrationId}，金额 ${refundAmount(row)}。${row.paymentChannel === 'bank_transfer' ? '审批后等待实际线下退款及登记。' : '确认后将提交微信退款。'}`,
       okText: '确认退款',
       okButtonProps: { danger: true },
       onOk: async () => {
@@ -268,7 +293,7 @@ export function RefundWorkbench({
   const approveRenshe = (row: RefundWorkbenchRecord, retry = false) => {
     Modal.confirm({
       title: retry ? '重试人社退款' : '批准人社退款',
-      content: `人员：${row.candidateName || row.registrationNo || row.registrationId}，金额 ${formatPrice(row.amountCents)}。${
+      content: `人员：${row.candidateName || row.registrationNo || row.registrationId}，金额 ${refundAmount(row)}。${
         row.paymentChannel === 'bank_transfer' ? '批准后等待实际线下退款及登记。' : retry ? '将使用原退款单号重新发起。' : '批准后将提交微信退款。'
       }`,
       okText: retry ? '确认重试' : '确认批准',
@@ -314,6 +339,12 @@ export function RefundWorkbench({
   }
 
   const primaryAction = (row: RefundWorkbenchRecord) => {
+    if (vendor === 'sangfor') {
+      if (!canViewOffline) return null
+      const label = canRecordRefund && row.status === 'approved' ? '登记线下退款'
+        : canRecordRefund && row.status === 'exception' ? '处理异常来款' : '查看收退款'
+      return <Button onClick={() => setSangforOrderId(row.orderId)}>{label}</Button>
+    }
     if (row.paymentChannel === 'bank_transfer' && row.status === 'approved') {
       if (!permissions.includes('*') && !permissions.includes('offline:refund')) return null
       return <Button onClick={async () => { try { setOfflineRefund({ payment: await offlinePaymentService.detail(row.orderId), row }) } catch (error) { uncertain(error) } }}>登记线下退款</Button>
@@ -376,16 +407,21 @@ export function RefundWorkbench({
       ),
     }] : []),
     { title: '支付方式', width: 140, render: (_, row) => CHANNEL_LABELS[row.paymentChannel || 'unknown'] },
-    { title: '金额', width: 105, render: (_, row) => formatPrice(row.amountCents) },
+    { title: '金额', width: 130, render: (_, row) => <Space direction='vertical' size={0}>
+      <Text>{refundAmount(row)}</Text>
+      {row.amountSource === 'submission' && <Text type='secondary'>用户申报</Text>}
+      {row.amountSource === 'verified' && <Text type='secondary'>管理员核验</Text>}
+      {row.amountSource === 'order' && <Text type='secondary'>订单应退金额</Text>}
+    </Space> },
     {
       title: '原因',
       width: 145,
       ellipsis: true,
       render: (_, row) => REASON_OPTIONS[vendor].find(item => item.value === row.requestKind)?.label || row.reasonCode,
     },
-    { title: '状态', width: 100, render: (_, row) => statusTag(row.status) },
+    { title: '状态', width: 110, render: (_, row) => renderStatus(row.status) },
     {
-      title: '申请 / 等待',
+      title: vendor === 'sangfor' ? '处理 / 等待' : '申请 / 等待',
       width: 175,
       render: (_, row) => (
         <Space direction='vertical' size={0}>
@@ -439,9 +475,9 @@ export function RefundWorkbench({
           setStatus(undefined)
         }}
         items={[
-          { key: 'pending', label: `待处理（${groupCount('pending')}）` },
-          { key: 'processing', label: `处理中（${groupCount('processing')}）` },
-          { key: 'abnormal', label: `异常（${groupCount('abnormal')}）` },
+          ...(vendor === 'sangfor' ? [] : [{ key: 'pending', label: `待处理（${groupCount('pending')}）` }]),
+          { key: 'processing', label: `${vendor === 'sangfor' ? '待退款登记' : '处理中'}（${groupCount('processing')}）` },
+          { key: 'abnormal', label: `${vendor === 'sangfor' ? '异常来款' : '异常'}（${groupCount('abnormal')}）` },
           { key: 'all', label: `全部记录（${groupCount('all')}）` },
         ]}
       />
@@ -460,14 +496,14 @@ export function RefundWorkbench({
         )}
         <Input.Search
           allowClear
-          placeholder='姓名 / 订单号 / 退款单号'
+          placeholder={vendor === 'sangfor' ? '姓名 / 手机号 / 订单号' : '姓名 / 订单号 / 退款单号'}
           style={{ width: 260 }}
           defaultValue={keyword}
           onSearch={setKeyword}
         />
         <Select
           allowClear
-          placeholder='退款原因'
+          placeholder={vendor === 'sangfor' ? '退款类型' : '退款原因'}
           style={{ width: 155 }}
           value={reason}
           onChange={setReason}
@@ -482,7 +518,7 @@ export function RefundWorkbench({
             setStatus(value)
             setGroup('all')
           }}
-          options={Object.entries(STATUS_CONFIG).map(([value, config]) => ({
+          options={Object.entries(statuses).map(([value, config]) => ({
             value,
             label: config.text,
           }))}
@@ -523,16 +559,16 @@ export function RefundWorkbench({
         }}
         extra={!embedded && selected?.batchId && (
           <Space>
-            {canOpenRegistration && (
+            {canOpenRegistration && canOpenBatch && (
               <Button onClick={() => navigate(
                 `/admin/certification/${vendor}/batches/${selected.batchId}?openRegistrationId=${selected.registrationId}`,
               )}>
                 进入报名详情
               </Button>
             )}
-            <Button onClick={() => navigate(`/admin/certification/${vendor}/batches/${selected.batchId}`)}>
+            {canOpenBatch && <Button onClick={() => navigate(`/admin/certification/${vendor}/batches/${selected.batchId}`)}>
               进入批次工作台
-            </Button>
+            </Button>}
           </Space>
         )}
       >
@@ -540,7 +576,7 @@ export function RefundWorkbench({
           <Space direction='vertical' size={20} style={{ width: '100%' }}>
             <Descriptions bordered size='small' column={1}>
               <Descriptions.Item label='当前状态'>
-                <Space>{statusTag(selected.status)}<Text type='secondary'>{nextStepText(selected)}</Text></Space>
+                <Space>{renderStatus(selected.status)}<Text type='secondary'>{nextStepText(selected)}</Text></Space>
               </Descriptions.Item>
               <Descriptions.Item label='报名人员'>
                 {selected.candidateName || '-'} / {selected.registrationNo || `#${selected.registrationId}`}
@@ -548,14 +584,14 @@ export function RefundWorkbench({
               <Descriptions.Item label='批次'>
                 {selected.batchName || '-'} / {selected.productLabel || '-'}
               </Descriptions.Item>
-              <Descriptions.Item label='退款金额'>{formatPrice(selected.amountCents)}</Descriptions.Item>
+              <Descriptions.Item label={selected.status === 'exception' ? '来款金额（待核实）' : '退款金额'}>{refundAmount(selected)}{selected.amountSource === 'submission' ? '（用户申报）' : ''}</Descriptions.Item>
               <Descriptions.Item label='退款原因'>
                 {REASON_OPTIONS[vendor].find(item => item.value === selected.requestKind)?.label || selected.reasonCode}
                 {selected.reasonDetail ? ` · ${selected.reasonDetail}` : ''}
               </Descriptions.Item>
-              <Descriptions.Item label='申请时间'>{formatDate(selected.requestedAt)}</Descriptions.Item>
+              <Descriptions.Item label={vendor === 'sangfor' ? '处理时间' : '申请时间'}>{formatDate(selected.requestedAt)}</Descriptions.Item>
               <Descriptions.Item label='关联订单'>{selected.outTradeNo || `#${selected.orderId}`}</Descriptions.Item>
-              <Descriptions.Item label='退款单号'>{selected.outRefundNo || '-'}</Descriptions.Item>
+              {vendor !== 'sangfor' && <Descriptions.Item label='退款单号'>{selected.outRefundNo || '-'}</Descriptions.Item>}
               {selected.approvedAt && (
                 <Descriptions.Item label='决策时间'>{formatDate(selected.approvedAt)}</Descriptions.Item>
               )}
@@ -613,7 +649,10 @@ export function RefundWorkbench({
           </Form.Item>
         </Form>
       </Modal>
-      <OfflineDecisionModal payment={offlineRefund?.payment || null} action={offlineRefund ? 'refund' : null} refund={offlineRefund ? { kind: vendor, id: offlineRefund.row.id } : undefined} onClose={() => setOfflineRefund(null)} onChanged={refreshAfterChange} />
+      <OfflineDecisionModal payment={offlineRefund?.payment || null} action={offlineRefund ? 'refund' : null} refund={offlineRefund && vendor !== 'sangfor' ? { kind: vendor, id: offlineRefund.row.id } : undefined} onClose={() => setOfflineRefund(null)} onChanged={refreshAfterChange} />
+      {vendor === 'sangfor' && <OfflineRefundDrawer orderId={sangforOrderId} onClose={() => setSangforOrderId(null)} onChanged={() => {
+        setSelectedId(null); setSelectedRecord(null); refreshAfterChange()
+      }} />}
       {reauthDialog}
     </>
   )

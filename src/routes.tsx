@@ -219,7 +219,7 @@ export const adminRoutes: AppRoute[] = [
       {
         path: 'sangfor',
         element: <TypeWorkbench type='sangfor' />,
-        meta: { title: '深信服认证', icon: 'SafetyCertificateOutlined', permission: 'content:list' },
+        meta: { title: '深信服认证', icon: 'SafetyCertificateOutlined', permissions: ['content:list', 'order:list'] },
       },
       {
         path: 'sangfor/batches/:batchId',

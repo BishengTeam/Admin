@@ -2,11 +2,12 @@ import { certificationService } from '@/services/certification'
 import { h3cService } from '@/services/h3c'
 import { nispService, type NispRefund } from '@/services/nisp'
 import { rensheService } from '@/services/renshe'
+import { sangforService, type SangforRefund } from '@/services/sangfor'
 import type { PageData, PageParams } from '@/types/api'
 import type { H3cRefund } from '@/types/h3c'
 import type { RensheRefund } from '@/types/renshe'
 
-export type RefundVendor = 'h3c' | 'nisp' | 'renshe'
+export type RefundVendor = 'h3c' | 'nisp' | 'renshe' | 'sangfor'
 
 export interface RefundWorkbenchRecord {
   paymentChannel?: string
@@ -17,7 +18,8 @@ export interface RefundWorkbenchRecord {
   requestKind: string
   reasonCode: string
   reasonDetail: string | null
-  amountCents: number
+  amountCents: number | null
+  amountSource?: SangforRefund['amount_source']
   status: string
   requestedAt: string
   approvedAt: string | null
@@ -130,13 +132,27 @@ function fromRenshe(row: RensheRefund): RefundWorkbenchRecord {
   }
 }
 
+function fromSangfor(row: SangforRefund): RefundWorkbenchRecord {
+  return {
+    id: row.id, paymentChannel: row.payment_channel, registrationId: row.registration_id,
+    orderId: row.order_id, outTradeNo: row.out_trade_no, requestKind: row.request_kind,
+    reasonCode: row.request_kind, reasonDetail: row.reason_detail, amountCents: row.amount_cents, amountSource: row.amount_source,
+    status: row.status, requestedAt: row.requested_at, approvedAt: row.approved_at,
+    outRefundNo: null, processingAt: null, succeededAt: row.succeeded_at,
+    lastError: row.last_error, retryCount: 0, candidateName: row.candidate_name,
+    registrationNo: row.registration_no, batchId: row.batch_id, batchName: row.batch_name,
+    productLabel: row.product_label,
+  }
+}
+
 export const refundWorkbenchService = {
   normalize(
     vendor: RefundVendor,
-    row: H3cRefund | NispRefund | RensheRefund,
+    row: H3cRefund | NispRefund | RensheRefund | SangforRefund,
   ): RefundWorkbenchRecord {
     if (vendor === 'h3c') return fromH3c(row as H3cRefund)
     if (vendor === 'nisp') return fromNisp(row as NispRefund)
+    if (vendor === 'sangfor') return fromSangfor(row as SangforRefund)
     return fromRenshe(row as RensheRefund)
   },
 
@@ -151,6 +167,10 @@ export const refundWorkbenchService = {
     if (vendor === 'nisp') {
       const result = await nispService.listRefunds(params)
       return { ...result, items: result.items.map(fromNisp) }
+    }
+    if (vendor === 'sangfor') {
+      const result = await sangforService.refunds({ ...params })
+      return { ...result, items: result.items.map(fromSangfor) }
     }
     const { registration_id, ...paramsWithoutRegistration } = params
     const result = await rensheService.listRefunds({
@@ -171,6 +191,9 @@ export const refundWorkbenchService = {
     if (vendor === 'nisp') {
       const result = await nispService.listBatches({ page: 1, page_size: 100 })
       return result.items.map(item => ({ value: item.id, label: item.plan_name }))
+    }
+    if (vendor === 'sangfor') {
+      return (await sangforService.refundBatches()).map(item => ({ value: item.id, label: item.name }))
     }
     const items = await certificationService.listPlans('RS-ZY')
     return items.map(item => ({ value: item.id, label: item.name }))

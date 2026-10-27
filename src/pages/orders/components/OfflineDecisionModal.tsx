@@ -7,7 +7,7 @@ import type { Dayjs } from 'dayjs'
 
 export default function OfflineDecisionModal({ payment, action, refund, onClose, onChanged }: {
   payment: OfflinePayment | null; action: 'confirm' | 'return' | 'exception' | 'refund' | 'resolve' | 'refund-approval' | null
-  refund?: { kind: RefundVendor | 'order'; id: number }; onClose: () => void; onChanged: () => void | Promise<void>
+  refund?: { kind: Exclude<RefundVendor, 'sangfor'> | 'order'; id: number }; onClose: () => void; onChanged: () => void | Promise<void>
 }) {
   const [form] = Form.useForm<{ amount: number; bank_time: Dayjs; bank_reference: string; note: string; deadline?: Dayjs; refund_bank_time?: Dayjs; refund_bank_reference?: string }>()
   const [materials, setMaterials] = useState<PaymentMaterial[]>([])

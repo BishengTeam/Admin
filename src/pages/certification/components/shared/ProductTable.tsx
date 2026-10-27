@@ -68,6 +68,11 @@ export default function ProductTable({ type }: ProductTableProps) {
   )
 
   const typeMeta = CERT_TYPE_META[type]
+  const hasCatalogMetadata = Boolean(selectedCatalog && (
+    selectedCatalog.duration_minutes || selectedCatalog.question_count || selectedCatalog.total_score
+    || selectedCatalog.pass_score || selectedCatalog.cert_validity_years || selectedCatalog.remark?.trim()
+    || (selectedCatalog.prerequisite?.trim() && selectedCatalog.prerequisite.trim() !== '无')
+  ))
 
   const loadCatalog = () => {
     certProductService.getCatalog(type).then(setCatalog).catch(() => setCatalog([]))
@@ -109,7 +114,7 @@ export default function ProductTable({ type }: ProductTableProps) {
     setSelectedCatalog(null)
     setCustomCode(false)
     form.resetFields()
-    form.setFieldsValue({ ...defaultFormValues, type })
+    form.setFieldsValue({ ...defaultFormValues, type, code: undefined })
     loadCatalog()
     setModalOpen(true)
   }
@@ -280,17 +285,17 @@ export default function ProductTable({ type }: ProductTableProps) {
           )}
 
           <Row gutter={16}>
-            <Col span={isSuperAdmin && !editingItem ? 16 : 24}>
+            <Col span={isSuperAdmin && !editingItem && type !== 'sangfor' ? 16 : 24}>
               <Form.Item
                 name='code' label={type === 'sangfor' ? '报考方向' : '产品编码'}
-                rules={[{ required: true, message: customCode ? '请输入产品编码' : '请选择产品' }]}
-                tooltip='产品编码使用厂商官方考试代码（如 GB0-192），创建后不可修改'
+                rules={[{ required: true, message: type === 'sangfor' ? '请选择报考方向' : customCode ? '请输入产品编码' : '请选择产品' }]}
+                tooltip={type === 'sangfor' ? '选择深信服官方报考方向（如 SCSA-T），创建后不可修改' : '产品编码使用厂商官方考试代码（如 GB0-192），创建后不可修改'}
               >
                 {customCode ? (
                   <Input placeholder='如 GB0-999' maxLength={32} />
                 ) : (
                   <Select
-                    placeholder='从产品目录中选择'
+                    placeholder={type === 'sangfor' ? '请选择报考方向' : '从产品目录中选择'}
                     options={codeOptions}
                     showSearch
                     optionFilterProp='label'
@@ -320,19 +325,19 @@ export default function ProductTable({ type }: ProductTableProps) {
             )}
           </Row>
 
-          {selectedCatalog && (
+          {selectedCatalog && hasCatalogMetadata && (
             <Row gutter={8} style={{ marginBottom: 16 }}>
               <Col span={24}>
-                <div style={{ padding: '10px 14px', background: '#fafafa', borderRadius: 8, border: '1px solid #f0f0f0' }}>
+                <div role='note' aria-label='产品目录信息' style={{ padding: '10px 14px', background: '#fafafa', borderRadius: 8, border: '1px solid #f0f0f0' }}>
                   <Space size={16} wrap>
                     {selectedCatalog.duration_minutes && <Text type='secondary'>时长 {selectedCatalog.duration_minutes} 分钟</Text>}
                     {selectedCatalog.question_count && <Text type='secondary'>题数 {selectedCatalog.question_count}</Text>}
                     {selectedCatalog.total_score && <Text type='secondary'>总分 {selectedCatalog.total_score}</Text>}
                     {selectedCatalog.pass_score && <Text type='secondary'>及格 {selectedCatalog.pass_score}</Text>}
                     {selectedCatalog.cert_validity_years && <Text type='secondary'>有效期 {selectedCatalog.cert_validity_years} 年</Text>}
-                    {selectedCatalog.remark && <Tag>{selectedCatalog.remark}</Tag>}
+                    {selectedCatalog.remark?.trim() && <Tag>{selectedCatalog.remark}</Tag>}
                   </Space>
-                  {selectedCatalog.prerequisite && selectedCatalog.prerequisite !== '无' && (
+                  {selectedCatalog.prerequisite?.trim() && selectedCatalog.prerequisite.trim() !== '无' && (
                     <div style={{ marginTop: 6 }}>
                       <Text type='secondary' style={{ fontSize: 12 }}>前置要求：{selectedCatalog.prerequisite}</Text>
                     </div>
@@ -345,12 +350,12 @@ export default function ProductTable({ type }: ProductTableProps) {
           <Row gutter={16}>
             <Col span={12}>
               <Form.Item name='chinese_name' label='名称' rules={[{ required: true, message: '请输入名称' }]}>
-                <Input placeholder='选择产品编码后自动填充' maxLength={128} />
+                <Input placeholder={type === 'sangfor' ? '选择报考方向后自动填充' : '选择产品编码后自动填充'} maxLength={128} />
               </Form.Item>
             </Col>
             <Col span={12}>
               <Form.Item name='name' label='英文名' rules={[{ required: true, message: '请输入英文名' }]}>
-                <Input placeholder='选择产品编码后自动填充' maxLength={64} />
+                <Input placeholder={type === 'sangfor' ? '选择报考方向后自动填充' : '选择产品编码后自动填充'} maxLength={64} />
               </Form.Item>
             </Col>
           </Row>

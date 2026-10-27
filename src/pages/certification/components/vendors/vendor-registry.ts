@@ -12,6 +12,8 @@ export interface VendorProfile {
   type: CertType
   /** H3C 等按批次办理的业务默认进入批次列表，产品配置后置。 */
   batchFirst?: boolean
+  batchPermission?: string
+  productPermission?: string
   productTabLabel?: string
   productComponent?: LazyExoticComponent<ComponentType<{ type: CertType }>>
   batchOverrides?: LazyExoticComponent<ComponentType<any>>
@@ -73,9 +75,16 @@ const vendorRegistry: VendorProfile[] = [
   {
     type: 'sangfor',
     batchFirst: true,
+    batchPermission: 'content:read',
+    productPermission: 'content:read',
     productTabLabel: '产品设置',
     batchOverrides: lazy(() => import('./sangfor/BatchOverrides')),
-    tabs: [],
+    tabs: [{
+      key: 'refund',
+      label: '退款管理',
+      permission: 'order:list',
+      component: lazy(() => import('./sangfor/RefundTab')),
+    }],
   },
 ]
 

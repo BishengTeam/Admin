@@ -40,6 +40,8 @@ async function prepare(page: Page) {
     if (path === '/admin/cert-products/sangfor/batches/5') return reply(batch)
     if (path === '/admin/cert-products/sangfor/registrations') return reply({ items: url.searchParams.get('refund_only') === 'true' ? [] : [registration], total: url.searchParams.get('refund_only') === 'true' ? 0 : 1, page: 1, page_size: 20 })
     if (path === '/admin/cert-products/sangfor/registrations/7') return reply(registration)
+    if (path === '/admin/cert-products/sangfor/refunds') return reply({ items: [], total: 0, page: 1, page_size: 20, status_counts: {} })
+    if (path === '/admin/cert-products/sangfor/refund-batches') return reply([{ id: batch.id, name: batch.name }])
     if (path === '/admin/orders/7/offline-payment') return reply({ order_id: 7, order_status: 'paid', amount_cents: 12345, current_version: 1, status: 'confirmed',
       status_label: '已确认到账', out_trade_no: registration.registration_no, account: { account_name: '测试收款账户', bank_name: '测试银行', account_number: '6222000000000000',
         transfer_note: '', contact_name: '测试管理员', contact_phone: '13800000000', contact_wechat: '', service_hours: '', submit_hours: 24, correction_hours: 24, version: 1 },
@@ -80,12 +82,12 @@ test('深信服列表、分组侧边窗与NISP一致；发布失败重试复用�
   expect(state.unexpected).toEqual([])
 })
 
-test('工作台统一列表、导出记录、退款记录和先核账后审核侧边窗', async ({ page }) => {
+test('工作台统一列表、导出记录、退款管理和先核账后审核侧边窗', async ({ page }) => {
   const state = await prepare(page)
   await page.goto('/admin/certification/sangfor/batches/5')
   await expect(page.getByRole('tab', { name: '报名列表', exact: true })).toBeVisible()
   await expect(page.getByRole('tab', { name: '导出记录', exact: true })).toBeVisible()
-  await expect(page.getByRole('tab', { name: '退款记录', exact: true })).toBeVisible()
+  await expect(page.getByRole('tab', { name: '退款管理', exact: true })).toBeVisible()
   await expect(page.getByText(registration.registration_no, { exact: true })).toBeVisible()
   await page.getByRole('checkbox').last().check()
   await page.getByRole('button', { name: '导出所选报名信息' }).click()
@@ -103,6 +105,12 @@ test('工作台统一列表、导出记录、退款记录和先核账后审核�
   await drawer.getByRole('tab', { name: '① 核账' }).click()
   await expect(drawer.getByText('测试收款账户')).toBeVisible()
   await drawer.getByRole('tab', { name: '② 报名审核' }).click()
+  await drawer.getByRole('button', { name: '办理退款', exact: true }).click()
+  const finance = page.getByRole('dialog', { name: '退款办理', exact: true })
+  await expect(finance.getByText('测试收款账户')).toBeVisible()
+  await expect(finance.getByRole('button', { name: '审批退款', exact: true })).toBeVisible()
+  await expect(page).toHaveURL(/\/admin\/certification\/sangfor\/batches\/5/)
+  await finance.locator('.ant-drawer-footer').getByRole('button', { name: /关\s*闭/, exact: true }).click()
   await page.screenshot({ path: 'test-results/sangfor-processing.png', fullPage: true, animations: 'disabled' })
   await drawer.locator('.ant-drawer-footer').getByRole('button', { name: /关\s*闭/, exact: true }).click()
   await page.getByRole('tab', { name: '导出记录', exact: true }).click()
@@ -110,8 +118,22 @@ test('工作台统一列表、导出记录、退款记录和先核账后审核�
   const people = page.getByRole('dialog', { name: '导出记录人员' })
   await expect(people.getByText('第2版')).toBeVisible()
   await people.locator('.ant-drawer-footer').getByRole('button', { name: /关\s*闭/, exact: true }).click()
-  await page.getByRole('tab', { name: '退款记录', exact: true }).click()
-  await expect(page.getByText('暂无退款记录')).toBeVisible()
+  await page.getByRole('tab', { name: '退款管理', exact: true }).click()
+  await expect(page.getByText('没有符合条件的退款记录')).toBeVisible()
+  expect(state.writes).toEqual([])
+  expect(state.errors).toEqual([])
+  expect(state.unexpected).toEqual([])
+})
+
+test('深信服全局退款管理复用待登记与异常来款视图', async ({ page }) => {
+  const state = await prepare(page)
+  await page.goto('/admin/certification/sangfor?tab=refund')
+  await expect(page.getByRole('tab', { name: '退款管理', exact: true })).toBeVisible()
+  await expect(page.getByRole('tab', { name: '待退款登记（0）', exact: true })).toBeVisible()
+  await expect(page.getByRole('tab', { name: '异常来款（0）', exact: true })).toBeVisible()
+  await expect(page.getByRole('tab', { name: '全部记录（0）', exact: true })).toBeVisible()
+  await expect(page.getByRole('tab', { name: /^待处理/ })).toHaveCount(0)
+  await expect(page.getByText('没有符合条件的退款记录')).toBeVisible()
   expect(state.writes).toEqual([])
   expect(state.errors).toEqual([])
   expect(state.unexpected).toEqual([])

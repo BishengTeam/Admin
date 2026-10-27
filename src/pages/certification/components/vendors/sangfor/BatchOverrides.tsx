@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Alert, Button, Col, DatePicker, Descriptions, Divider, Drawer, Dropdown, Empty, Form, Input, InputNumber, Modal, Row, Select, Space, Table, Typography, message } from 'antd'
+import { Alert, Button, Col, DatePicker, Divider, Drawer, Dropdown, Empty, Form, Input, InputNumber, Modal, Row, Select, Space, Table, Typography, message } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import dayjs, { type Dayjs } from 'dayjs'
 import { useNavigate } from 'react-router-dom'
@@ -24,6 +24,8 @@ export default function SangforBatchOverrides() {
   const context = useMemo(readBatchListContext, [])
   const [rows, setRows] = useState<SangforBatch[]>([])
   const [products, setProducts] = useState<CertProduct[]>([])
+  const [productsLoading, setProductsLoading] = useState(false), [productsError, setProductsError] = useState('')
+  const [productsReady, setProductsReady] = useState(false)
   const [keyword, setKeyword] = useState(context.keyword || '')
   const [productFilter, setProductFilter] = useState(context.product)
   const [statusFilter, setStatusFilter] = useState(context.status)
@@ -32,20 +34,35 @@ export default function SangforBatchOverrides() {
   const [open, setOpen] = useState(false), [editing, setEditing] = useState<SangforBatch | null>(null)
   const [savingAction, setSavingAction] = useState<'draft' | 'publish' | 'edit' | null>(null)
   const operationLock = useRef(false), createdDraftId = useRef<number | null>(null), generation = useRef(0)
+  const productGeneration = useRef(0)
   const [createdDraft, setCreatedDraft] = useState(false)
   const [form] = Form.useForm<BatchFormValues>()
-  const selectedCode = Form.useWatch('product_code', form)
-  const selectedProduct = products.find(item => item.code === selectedCode)
+  const loadProducts = useCallback(async (selectProduct = false) => {
+    const seq = ++productGeneration.current
+    setProductsLoading(true); setProductsError(''); setProductsReady(false)
+    try {
+      const result = await certProductService.list({ type: 'sangfor', page: 1, page_size: 100 })
+      if (seq !== productGeneration.current) return
+      setProducts(result.items); setProductsReady(true)
+      if (selectProduct) {
+        const active = result.items.filter(item => item.is_active)
+        const selected = form.getFieldValue('product_code')
+        if (!active.some(item => item.code === selected)) form.setFieldsValue({ product_code: active.length === 1 ? active[0].code : undefined })
+      }
+    } catch {
+      if (seq === productGeneration.current) setProductsError('产品加载失败，请重试')
+    } finally { if (seq === productGeneration.current) setProductsLoading(false) }
+  }, [form])
   const load = useCallback(async () => {
     const seq = ++generation.current
     setLoading(true); setError('')
     try {
-      const [batches, result] = await Promise.all([sangforService.batches(), certProductService.list({ type: 'sangfor', page: 1, page_size: 100 })])
-      if (seq === generation.current) { setRows(batches); setProducts(result.items) }
+      const batches = await sangforService.batches()
+      if (seq === generation.current) setRows(batches)
     } catch (reason) { if (seq === generation.current) setError(reason instanceof Error ? reason.message : '批次加载失败，请重试') }
     finally { if (seq === generation.current) setLoading(false) }
   }, [])
-  useEffect(() => { void load(); return () => { generation.current++ } }, [load])
+  useEffect(() => { void load(); void loadProducts(); return () => { generation.current++; productGeneration.current++ } }, [load, loadProducts])
   const filtered = useMemo(() => rows.filter(row => (!keyword || row.name.toLowerCase().includes(keyword.trim().toLowerCase()))
     && (!productFilter || row.product_code === productFilter) && (!statusFilter || row.status === statusFilter)), [rows, keyword, productFilter, statusFilter])
   useEffect(() => { if (page > 1 && (page - 1) * pageSize >= filtered.length) setPage(Math.max(1, Math.ceil(filtered.length / pageSize))) }, [filtered.length, page, pageSize])
@@ -58,11 +75,12 @@ export default function SangforBatchOverrides() {
     form.setFieldsValue(batch ? { product_code: batch.product_code, name: batch.name, fee: batch.price_cents / 100, capacity: batch.capacity,
       apply_start: batch.apply_start ? dayjs(batch.apply_start) : undefined, apply_end: batch.apply_end ? dayjs(batch.apply_end) : undefined,
       exam_date: batch.exam_date ? dayjs(batch.exam_date) : undefined, exam_location: batch.exam_location || '', description: batch.description || '' }
-      : { capacity: 0, product_code: products.filter(item => item.is_active).length === 1 ? products.find(item => item.is_active)?.code : undefined })
+      : { capacity: 0, product_code: undefined })
     setOpen(true)
+    void loadProducts(!batch)
   }
   const submit = async (action: 'draft' | 'publish' | 'edit') => {
-    if (operationLock.current) return
+    if (operationLock.current || (!editing && (productsLoading || !productsReady))) return
     operationLock.current = true; setSavingAction(action)
     try {
       const values = await form.validateFields()
@@ -113,12 +131,15 @@ export default function SangforBatchOverrides() {
     </Space> },
   ]
   const productOptions = [...new Map([...products.map(item => [item.code, item.chinese_name] as const), ...rows.map(item => [item.product_code, item.product_name] as const)]).entries()].map(([value, label]) => ({ value, label }))
+  const selectableProducts = products.filter(item => item.is_active || item.code === editing?.product_code).map(item => ({ value: item.code, label: `${item.code} · ${item.chinese_name}` }))
+  if (editing && !selectableProducts.some(item => item.value === editing.product_code)) selectableProducts.push({ value: editing.product_code, label: `${editing.product_code} · ${editing.product_name}` })
+  const productBlocked = !editing && (productsLoading || !productsReady)
   return <>
     <Space style={{ marginBottom: 16 }} wrap>
       <Input.Search allowClear placeholder='搜索批次名称' style={{ width: 220 }} defaultValue={keyword} onSearch={value => { setKeyword(value.trim()); setPage(1) }} />
       <Select allowClear showSearch optionFilterProp='label' placeholder='报考方向' style={{ width: 230 }} value={productFilter} options={productOptions} onChange={value => { setProductFilter(value); setPage(1) }} />
       <Select allowClear placeholder='状态' style={{ width: 130 }} value={statusFilter} options={STATUS_OPTIONS} onChange={value => { setStatusFilter(value); setPage(1) }} />
-      <Button icon={<ReloadOutlined />} onClick={() => void load()}>刷新</Button>
+      <Button icon={<ReloadOutlined />} onClick={() => { void load(); void loadProducts(open && !editing && !createdDraft) }}>刷新</Button>
       {canWrite && <Button type='primary' icon={<PlusOutlined />} onClick={() => edit(null)}>新建批次</Button>}
     </Space>
     {error && <Alert type='error' showIcon message={error} action={<Button size='small' onClick={() => void load()}>重试</Button>} style={{ marginBottom: 16 }} />}
@@ -128,14 +149,15 @@ export default function SangforBatchOverrides() {
     <Drawer title={editing ? `编辑深信服批次 · ${editing.name}` : '新建深信服考试批次'} open={open} onClose={() => !savingAction && setOpen(false)} width='min(820px, 94vw)' destroyOnClose
       footer={<Space style={{ display: 'flex', justifyContent: 'flex-end' }}>
         <Button disabled={!!savingAction} onClick={() => setOpen(false)}>取消</Button>
-        {!editing && <Button disabled={!!savingAction && savingAction !== 'draft'} loading={savingAction === 'draft'} onClick={() => void submit('draft')}>保存草稿</Button>}
-        <Button type='primary' disabled={!!savingAction && savingAction === 'draft'} loading={savingAction === 'publish' || savingAction === 'edit'} onClick={() => void submit(editing ? 'edit' : 'publish')}>{editing ? '保存修改' : '保存并发布'}</Button>
+        {!editing && <Button disabled={productBlocked || (!!savingAction && savingAction !== 'draft')} loading={savingAction === 'draft'} onClick={() => void submit('draft')}>保存草稿</Button>}
+        <Button type='primary' disabled={productBlocked || (!!savingAction && savingAction === 'draft')} loading={savingAction === 'publish' || savingAction === 'edit'} onClick={() => void submit(editing ? 'edit' : 'publish')}>{editing ? '保存修改' : '保存并发布'}</Button>
       </Space>}>
       <Form form={form} layout='vertical' requiredMark='optional' scrollToFirstError>
         <Divider orientation='left' orientationMargin={0}>① 报考方向</Divider>
+        {productsError && <Alert type='error' showIcon message={productsError} action={<Button size='small' onClick={() => void loadProducts(!editing && !createdDraft)}>重新加载产品</Button>} style={{ marginBottom: 16 }} />}
         <Form.Item name='product_code' label='认证产品' rules={[{ required: true, message: '请选择已启用的认证产品' }]}>
-          <Select showSearch optionFilterProp='label' disabled={!!editing || createdDraft} placeholder='选择认证产品及报考方向' notFoundContent='请先在产品设置中启用认证产品'
-            options={products.filter(item => item.is_active || item.code === editing?.product_code).map(item => ({ value: item.code, label: `${item.code} · ${item.chinese_name}` }))} />
+          <Select showSearch optionFilterProp='label' loading={productsLoading} disabled={!!editing || createdDraft || productBlocked} placeholder='选择认证产品及报考方向' notFoundContent={productsLoading ? '正在加载产品' : productsError ? '产品加载失败，请重试' : '请先在产品设置中启用认证产品'}
+            options={selectableProducts} />
         </Form.Item>
         <Divider orientation='left' orientationMargin={0}>② 基本信息</Divider>
         <Form.Item name='name' label='批次名称' rules={[{ required: true, whitespace: true, message: '请输入批次名称' }]}><Input maxLength={128} placeholder='请输入便于识别的考试批次名称' /></Form.Item>
@@ -152,13 +174,6 @@ export default function SangforBatchOverrides() {
           <Col xs={24} sm={12}><Form.Item name='exam_date' label='考试时间' dependencies={['apply_end']} extra='草稿可暂缺；保存并发布前必须填写' rules={[{ validator: (_, value: Dayjs | undefined) => !value || !form.getFieldValue('apply_end') || !value.isBefore(form.getFieldValue('apply_end')) ? Promise.resolve() : Promise.reject(new Error('考试时间不能早于报名截止时间')) }]}><DatePicker showTime style={{ width: '100%' }} placeholder='考试时间' /></Form.Item></Col>
           <Col xs={24} sm={12}><Form.Item name='exam_location' label='考试地点'><Input maxLength={256} placeholder='线下考试填写地址' /></Form.Item></Col>
         </Row>
-        <Divider orientation='left' orientationMargin={0}>⑤ 报名要求预览</Divider>
-        <Descriptions bordered size='small' column={1}>
-          <Descriptions.Item label='报考方向'>{selectedProduct?.chinese_name || '请选择认证产品'}</Descriptions.Item>
-          <Descriptions.Item label='本人信息'>登录并通过本人实名认证后报名，姓名和身份证自动带入。</Descriptions.Item>
-          <Descriptions.Item label='考生填写'>名字拼音、姓氏拼音、所属机构、手机号、考试券码。</Descriptions.Item>
-          <Descriptions.Item label='报送资料'>固定13列报名信息表，初审通过后导出报送。</Descriptions.Item>
-        </Descriptions>
       </Form>
     </Drawer>
   </>

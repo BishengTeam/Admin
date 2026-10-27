@@ -4,9 +4,10 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { message } from 'antd'
 import BatchWorkbench from '@/pages/certification/components/vendors/sangfor/BatchWorkbench'
 
-const mocks = vi.hoisted(() => ({ batch: vi.fn(), registrations: vi.fn(), registration: vi.fn(), review: vi.fn(), reauth: vi.fn(), exports: vi.fn(), export: vi.fn(), download: vi.fn() }))
+const mocks = vi.hoisted(() => ({ batch: vi.fn(), registrations: vi.fn(), registration: vi.fn(), review: vi.fn(), reauth: vi.fn(), exports: vi.fn(), export: vi.fn(), download: vi.fn(), refunds: vi.fn(), permissions: ['*'] }))
 vi.mock('@/services/sangfor', async importOriginal => ({ ...await importOriginal<typeof import('@/services/sangfor')>(), sangforService: mocks }))
-vi.mock('@/hooks/usePermission', () => ({ usePermission: () => true }))
+vi.mock('@/hooks/usePermission', () => ({ usePermission: (code: string) => mocks.permissions.includes('*') || mocks.permissions.includes(code) }))
+vi.mock('@/hooks/useAuth', () => ({ useAuth: () => ({ admin: { role: 'certification_admin' }, permissions: mocks.permissions }) }))
 vi.mock('@/hooks/useReauthentication', () => ({ useReauthentication: () => ({ ensureReauthenticated: mocks.reauth, reauthDialog: null }) }))
 vi.mock('@/utils/download', () => ({ downloadBlob: mocks.download }))
 vi.mock('@/components/PageContainer', () => ({ PageContainer: ({ children }: { children: React.ReactNode }) => <>{children}</> }))
@@ -18,10 +19,12 @@ const record = { id: 7, order_id: 7, batch_id: 5, registration_no: 'SF-7', revis
 
 beforeEach(() => {
   vi.clearAllMocks()
+  mocks.permissions = ['*']
   mocks.batch.mockResolvedValue({ id: 5, name: '测试批次', exam_direction: '安全技术认证工程师 SCSA-T', price_cents: 12345, registration_counts: { pending_review: 1 } })
   mocks.exports.mockResolvedValue([])
   mocks.registrations.mockResolvedValue({ items: [record], total: 1, page: 1, page_size: 20 })
   mocks.registration.mockResolvedValue(record)
+  mocks.refunds.mockResolvedValue({ items: [], total: 0, page: 1, page_size: 20, status_counts: {} })
   mocks.review.mockResolvedValue({ ...record, status: 'approved', revision: 4 })
   vi.spyOn(message, 'success').mockImplementation(() => (() => {}) as ReturnType<typeof message.success>)
   vi.spyOn(message, 'error').mockImplementation(() => (() => {}) as ReturnType<typeof message.error>)
@@ -83,8 +86,26 @@ it('loads real export records and the refund list in the same workbench tabs', a
   fireEvent.click(screen.getByRole('button', { name: /查看人员/ }))
   expect(await within(screen.getByRole('dialog', { name: '导出记录人员' })).findByText('第2版')).toBeTruthy()
   fireEvent.click(within(screen.getByRole('dialog', { name: '导出记录人员' })).getByRole('button', { name: /关\s*闭/ }))
-  fireEvent.click(screen.getByRole('tab', { name: '退款记录' }))
-  await waitFor(() => expect(mocks.registrations).toHaveBeenCalledWith(expect.objectContaining({ batch_id: 5, refund_only: true })))
+  fireEvent.click(screen.getByRole('tab', { name: '退款管理' }))
+  await waitFor(() => expect(mocks.refunds).toHaveBeenCalledWith(expect.objectContaining({ batch_id: 5, group: undefined })))
+  expect(screen.getByText('没有符合条件的退款记录')).toBeTruthy()
+})
+
+it('lets finance-only staff start refund handling inside the batch without an orders page jump', async () => {
+  mocks.permissions = ['order:list', 'offline:view', 'offline:refund']
+  await open()
+  fireEvent.click(await screen.findByRole('button', { name: '办理退款' }))
+  // AntD's test-mode useId returns the same ID for simultaneous drawers.
+  const finance = (await screen.findByText('退款办理')).closest('[role="dialog"]') as HTMLElement
+  expect(within(finance).getByText('现有银行核账组件')).toBeTruthy()
+  expect(screen.queryByRole('button', { name: '初审通过' })).toBeNull()
+})
+
+it('does not expose finance handling to a reviewer without ledger viewing permission', async () => {
+  mocks.permissions = ['order:list', 'sangfor:review', 'order:write']
+  await open()
+  expect(await screen.findByRole('button', { name: '初审通过' })).toBeTruthy()
+  expect(screen.queryByRole('button', { name: '办理退款' })).toBeNull()
 })
 
 it('previews the selected people before authentication and exports the selected versions', async () => {

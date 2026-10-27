@@ -7,6 +7,8 @@ import { StatusTag } from '@/components/StatusTag'
 import { usePermission } from '@/hooks/usePermission'
 import { useReauthentication } from '@/hooks/useReauthentication'
 import { isApiError } from '@/core/request'
+import { RefundWorkbench } from '@/components/RefundWorkbench'
+import OfflineRefundDrawer from '@/pages/orders/components/OfflineRefundDrawer'
 import { sangforService, SANGFOR_STATUS, type SangforBatch, type SangforExportRecord, type SangforRegistration } from '@/services/sangfor'
 import { downloadBlob } from '@/utils/download'
 import { formatDate, formatPrice } from '@/utils/format'
@@ -23,7 +25,9 @@ export default function SangforBatchWorkbench() {
   const batchId = Number(useParams().batchId)
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
-  const canReview = usePermission('sangfor:review'), canExport = usePermission('sangfor:export'), canRefund = usePermission('order:write')
+  const canReview = usePermission('sangfor:review'), canExport = usePermission('sangfor:export')
+  const canViewOffline = usePermission('offline:view'), canApproveRefund = usePermission('order:write'), canRecordRefund = usePermission('offline:refund')
+  const canManageRefund = canViewOffline && (canApproveRefund || canRecordRefund)
   const { ensureReauthenticated, reauthDialog } = useReauthentication()
   const [batch, setBatch] = useState<SangforBatch | null>(null)
   const [rows, setRows] = useState<SangforRegistration[]>([]), [total, setTotal] = useState(0)
@@ -39,10 +43,10 @@ export default function SangforBatchWorkbench() {
   const [detailLoading, setDetailLoading] = useState(false), [exporting, setExporting] = useState(false)
   const [exportRows, setExportRows] = useState<SangforExportRecord[]>([]), [recordsLoading, setRecordsLoading] = useState(false), [recordsError, setRecordsError] = useState('')
   const [peopleRecord, setPeopleRecord] = useState<SangforExportRecord | null>(null)
-  const [refundRows, setRefundRows] = useState<SangforRegistration[]>([]), [refundTotal, setRefundTotal] = useState(0), [refundPage, setRefundPage] = useState(1)
-  const [refundState, setRefundState] = useState<string>(), [refundLoading, setRefundLoading] = useState(false), [refundError, setRefundError] = useState('')
+  const [refundOrderId, setRefundOrderId] = useState<number | null>(null)
+  const [refundRefresh, setRefundRefresh] = useState(0)
   const [form] = Form.useForm()
-  const detailGeneration = useRef(0), listGeneration = useRef(0), recordGeneration = useRef(0), refundGeneration = useRef(0)
+  const detailGeneration = useRef(0), listGeneration = useRef(0), recordGeneration = useRef(0)
   const exportLock = useRef(false)
   const tab = searchParams.get('tab')
   const activeTab = tab === 'refunds' || (tab === 'records' && canExport) ? tab : 'people'
@@ -73,16 +77,7 @@ export default function SangforBatchWorkbench() {
     finally { if (seq === recordGeneration.current) setRecordsLoading(false) }
   }, [batchId, canExport])
   useEffect(() => { if (activeTab === 'records') void loadRecords(); return () => { recordGeneration.current++ } }, [activeTab, loadRecords])
-  const loadRefunds = useCallback(async () => {
-    const seq = ++refundGeneration.current
-    setRefundLoading(true); setRefundError('')
-    try {
-      const result = await sangforService.registrations({ batch_id: batchId, refund_only: true, state: refundState, page: refundPage, page_size: 20 })
-      if (seq === refundGeneration.current) { setRefundRows(result.items); setRefundTotal(result.total) }
-    } catch (reason) { if (seq === refundGeneration.current) setRefundError(reason instanceof Error ? reason.message : '退款记录加载失败，请重试') }
-    finally { if (seq === refundGeneration.current) setRefundLoading(false) }
-  }, [batchId, refundPage, refundState])
-  useEffect(() => { if (activeTab === 'refunds') void loadRefunds(); return () => { refundGeneration.current++ } }, [activeTab, loadRefunds])
+  useEffect(() => { setRefundOrderId(null); setCurrent(null); detailGeneration.current++ }, [batchId])
   const open = async (id: number) => {
     const generation = ++detailGeneration.current
     setDetailLoading(true)
@@ -125,7 +120,10 @@ export default function SangforBatchWorkbench() {
   const startReview = (value: string) => { form.resetFields(); setAction(value) }
   const correction = action === 'return' || action === 'final_return'
   const snapshot = current?.candidate_snapshot || {}
-  const openOrder = (row: SangforRegistration) => navigate('/admin/orders', { state: { orderId: row.order_id } })
+  const refreshAfterRefund = async () => {
+    setRefundRefresh(value => value + 1)
+    await Promise.all([load(), current ? open(current.id) : Promise.resolve()])
+  }
   const clearFilters = () => { setState(undefined); setPaymentState(undefined); setKeyword(''); setKeywordInput(''); setPage(1) }
   const formatVersion = (row: SangforRegistration) => `第${row.current_version}版`
   const hasExport = (row: SangforRegistration) => row.exports.some(item => item.version === row.current_version)
@@ -176,21 +174,14 @@ export default function SangforBatchWorkbench() {
           { title: '操作', render: (_, row) => <Button type='link' size='small' icon={<EyeOutlined />} onClick={() => setPeopleRecord(row)}>查看人员</Button> },
         ]} />
     </Card> }] : []),
-    { key: 'refunds', label: '退款记录', children: <Card title='退款记录' extra={<Button icon={<ReloadOutlined />} onClick={() => void loadRefunds()}>刷新</Button>}>
-      <Space wrap style={{ marginBottom: 16 }}><Select allowClear placeholder='退款状态' style={{ width: 160 }} value={refundState} onChange={value => { setRefundState(value); setRefundPage(1) }} options={[{ value: 'refund_processing', label: '退款处理中' }, { value: 'refunded_closed', label: '已退款' }]} /></Space>
-      {refundError && <Alert type='error' showIcon message={refundError} style={{ marginBottom: 16 }} />}
-      <Table<SangforRegistration> rowKey='id' dataSource={refundRows} loading={refundLoading} scroll={{ x: 850 }} pagination={{ current: refundPage, total: refundTotal, pageSize: 20, showTotal: value => `共 ${value} 条`, onChange: setRefundPage }}
-        locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description='暂无退款记录' /> }} columns={[
-          { title: '报名编号', dataIndex: 'registration_no' }, { title: '姓名', render: (_, row) => row.candidate_snapshot.name },
-          { title: '退款状态', dataIndex: 'status', render: value => <StatusTag status={value} map={REGISTRATION_STATUS} /> },
-          { title: '退款金额', dataIndex: 'price_cents', render: value => formatPrice(value) },
-          { title: '操作', render: (_, row) => <Button type='link' size='small' onClick={() => openOrder(row)}>查看收退款</Button> },
-        ]} />
+    { key: 'refunds', label: '退款管理', children: <Card title='退款管理'>
+      {activeTab === 'refunds' && <RefundWorkbench key={batchId} vendor='sangfor' batchId={batchId} embedded refreshToken={refundRefresh}
+        onChanged={() => { void load(); if (current) void open(current.id).catch(() => {}) }} />}
     </Card> },
   ]
   return <PageContainer title={`深信服批次工作台${batch ? ` · ${batch.name}` : ''}`} extra={<Space>
     <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/admin/certification/sangfor')}>返回批次列表</Button>
-    <Button icon={<ReloadOutlined />} onClick={() => { void load(); if (activeTab === 'records') void loadRecords(); if (activeTab === 'refunds') void loadRefunds() }}>刷新</Button>
+    <Button icon={<ReloadOutlined />} onClick={() => { void load(); if (activeTab === 'records') void loadRecords(); if (activeTab === 'refunds') setRefundRefresh(value => value + 1) }}>刷新</Button>
   </Space>}>
     {batch && <Card size='small' style={{ marginBottom: 16 }}><Space wrap size={24}>
       <span><Text type='secondary'>报考方向：</Text>{batch.exam_direction}</span><span><Text type='secondary'>考试时间：</Text>{batch.exam_date ? formatDate(batch.exam_date) : '-'}</span>
@@ -203,7 +194,7 @@ export default function SangforBatchWorkbench() {
       payment={current?.payment_summary} onRefresh={async () => { if (current) await open(current.id); await load() }} footer={current && <Space wrap>
         {canReview && current.status === 'pending_review' && <><Button type='primary' onClick={() => startReview('approve')}>初审通过</Button><Button onClick={() => startReview('return')}>打回补正</Button></>}
         {canReview && current.status === 'approved' && hasExport(current) && <><Button type='primary' onClick={() => startReview('final_approve')}>登记外审通过</Button><Button onClick={() => startReview('final_return')}>外审退回</Button></>}
-        {canRefund && ['pending_review', 'returned', 'approved', 'final_approved'].includes(current.status) && <Button danger onClick={() => openOrder(current)}>办理退款</Button>}
+        {canManageRefund && ['pending_review', 'returned', 'approved', 'final_approved'].includes(current.status) && <Button danger onClick={() => setRefundOrderId(current.order_id)}>办理退款</Button>}
       </Space>}>
       <Space direction='vertical' size={16} style={{ width: '100%' }}>
         <Descriptions title='报考信息' bordered size='small' column={{ xs: 1, sm: 2 }}>
@@ -220,6 +211,7 @@ export default function SangforBatchWorkbench() {
         ]} />
       </Space>
     </RegistrationProcessingDrawer>
+    <OfflineRefundDrawer orderId={refundOrderId} onClose={() => setRefundOrderId(null)} onChanged={refreshAfterRefund} />
     <Modal title={ACTIONS[action || '']} open={!!action} onCancel={() => setAction(null)} onOk={() => void review()} confirmLoading={saving} okText='保存审核结果' cancelText='取消'>
       <Form layout='vertical' form={form} preserve={false} scrollToFirstError>
         <Form.Item name='reason' label={correction ? '补正原因（向考生展示）' : '审核备注'} rules={correction ? [{ required: true, whitespace: true, message: '请指出需要补正的字段和原因' }] : []}><Input.TextArea maxLength={1000} rows={4} /></Form.Item>

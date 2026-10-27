@@ -42,8 +42,10 @@ export default function TypeWorkbench({ type: typeProp }: { type?: string }) {
         />
       ),
     }
-    if (profile?.batchFirst) items.push(plansTab)
-    else items.splice(1, 0, plansTab)
+    if (hasPermission(permissions, profile?.batchPermission)) {
+      if (profile?.batchFirst) items.push(plansTab)
+      else items.splice(1, 0, plansTab)
+    }
 
     if (profile) {
       for (const tab of authorizedTabs) {
@@ -59,7 +61,7 @@ export default function TypeWorkbench({ type: typeProp }: { type?: string }) {
       }
     }
 
-    if (profile?.batchFirst) {
+    if (profile?.batchFirst && hasPermission(permissions, profile.productPermission)) {
       items.push({
         key: 'products',
         label: profile.productTabLabel ?? '产品设置',

@@ -1,5 +1,15 @@
 import { http } from '@/core/request'
 import type { RegistrationPaymentSummary } from '@/types/registrationPayment'
+import type { PageData } from '@/types/api'
+
+export interface SangforRefund {
+  id: number; registration_id: number; order_id: number; batch_id: number; batch_name: string
+  product_label: string; payment_channel: string; out_trade_no: string; registration_no: string
+  candidate_name: string | null; request_kind: 'normal' | 'exception'; status: 'approved' | 'exception' | 'succeeded'
+  amount_cents: number | null; amount_source?: 'ledger' | 'verified' | 'submission' | 'unknown' | 'order'
+  reason_detail: string | null; requested_at: string; approved_at: string | null
+  succeeded_at: string | null; last_error: string | null
+}
 
 export interface SangforBatch {
   id: number; product_code: string; product_name: string; name: string; status: string
@@ -25,6 +35,8 @@ export const SANGFOR_STATUS: Record<string, string> = {
   final_approved: '外审通过', refund_processing: '退款处理中', refunded_closed: '已退款', cancelled: '已关闭',
 }
 export const sangforService = {
+  refundBatches: () => http.get<Array<{ id: number; name: string }>>('/admin/cert-products/sangfor/refund-batches'),
+  refunds: (params: Record<string, unknown>) => http.get<PageData<SangforRefund>>('/admin/cert-products/sangfor/refunds', { params }),
   batches: () => http.get<SangforBatch[]>('/admin/cert-products/sangfor/batches'),
   batch: (id: number) => http.get<SangforBatch>(`/admin/cert-products/sangfor/batches/${id}`),
   createBatch: (data: Record<string, unknown>) => http.post<{ id: number }>('/admin/cert-products/sangfor/batches', data),
