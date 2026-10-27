@@ -36,6 +36,7 @@ export interface NispRegistration {
   id: number
   registration_no: string
   batch_id: number
+  batch_name?: string | null
   level: '1' | '2'
   status: string
   active_refund?: {
@@ -66,6 +67,13 @@ export interface NispRegistration {
   latest_valid_export_finished_at?: string | null
   final_review_ready?: boolean
   final_review_block_reason?: string | null
+}
+
+export interface NispReviewBatchOption {
+  id: number
+  name: string
+  level: '1' | '2'
+  status: string
 }
 
 export interface NispMaterial {
@@ -189,6 +197,9 @@ export interface NispBatchFinalReviewResult {
 }
 
 export const nispService = {
+  listReviewBatchOptions(params: PageParams & { keyword?: string }): Promise<PageData<NispReviewBatchOption>> {
+    return http.get('/admin/nisp/review-batch-options', { params })
+  },
   listBatches(
     params: PageParams & { keyword?: string; level?: '1' | '2'; status?: string },
   ): Promise<PageData<NispBatch>> {
