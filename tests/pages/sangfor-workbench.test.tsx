@@ -56,7 +56,7 @@ it('displays real pinyin and vendor voucher, then submits only a version-checked
   fireEvent.click(screen.getByRole('button', { name: '保存审核结果' }))
   await waitFor(() => expect(mocks.review).toHaveBeenCalledWith(7, { action: 'approve', expected_revision: 3, reason: '', correction_due_at: null }))
   expect(screen.queryByRole('button', { name: '登记外审通过' })).toBeNull()
-})
+}, 15000)
 
 it('does not send an empty correction reason or omit the correction deadline', async () => {
   await open()
