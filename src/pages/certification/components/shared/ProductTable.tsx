@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Button, Col, Divider, Form, Input, InputNumber, Modal, Row, Select, Space, Switch, Table, Tag, Typography, Upload, message } from 'antd'
+import { Button, Col, Divider, Form, Input, Modal, Row, Select, Space, Switch, Table, Tag, Typography, Upload, message } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { PlusOutlined, ReloadOutlined, SafetyCertificateOutlined, UnlockOutlined, UploadOutlined } from '@ant-design/icons'
 import type { UploadRequestOption } from 'rc-upload/lib/interface'
@@ -8,9 +8,8 @@ import { usePermission } from '@/hooks/usePermission'
 import { useAuth } from '@/hooks/useAuth'
 import { ImageUpload } from '@/components/ImageUpload'
 import { certProductService } from '@/services/certProduct'
-import type { CertCatalogItem, CertPriceUserType, CertProduct, CertProductCreatePayload, CertProductPrice, CertProductUpdatePayload } from '@/types/certProduct'
+import type { CertCatalogItem, CertProduct, CertProductCreatePayload, CertProductUpdatePayload } from '@/types/certProduct'
 import { CERT_TYPE_META, type CertType } from '../vendors/type-registry'
-import { formatPrice } from '@/utils/format'
 
 const { Text } = Typography
 
@@ -18,10 +17,7 @@ interface ProductTableProps {
   type: CertType
 }
 
-type ProductFormValues = Omit<CertProductCreatePayload, 'prices' | 'sort_order'> & {
-  student_price_yuan?: number
-  normal_price_yuan?: number
-}
+type ProductFormValues = Omit<CertProductCreatePayload, 'prices' | 'sort_order'>
 
 const defaultFormValues: ProductFormValues = {
   type: '',
@@ -32,20 +28,6 @@ const defaultFormValues: ProductFormValues = {
   description: '',
   home_cover_url: '',
   is_active: true,
-}
-
-const priceOf = (item: CertProduct, userType: CertPriceUserType): number | null =>
-  item.prices?.find((p) => p.user_type === userType)?.price_cents ?? null
-
-const buildPrices = (values: ProductFormValues): CertProductPrice[] => {
-  const prices: CertProductPrice[] = []
-  if (values.student_price_yuan !== undefined && values.student_price_yuan !== null) {
-    prices.push({ user_type: 'student', price_cents: Math.round(values.student_price_yuan * 100) })
-  }
-  if (values.normal_price_yuan !== undefined && values.normal_price_yuan !== null) {
-    prices.push({ user_type: 'normal', price_cents: Math.round(values.normal_price_yuan * 100) })
-  }
-  return prices
 }
 
 const displayNameFromCode = (code: string): string => code.toLowerCase().replace(/-/g, '_')
@@ -68,7 +50,6 @@ export default function ProductTable({ type }: ProductTableProps) {
   )
 
   const typeMeta = CERT_TYPE_META[type]
-  const productPricingEnabled = type !== 'h3c'
   const hasCatalogMetadata = Boolean(selectedCatalog && (
     selectedCatalog.duration_minutes || selectedCatalog.question_count || selectedCatalog.total_score
     || selectedCatalog.pass_score || selectedCatalog.cert_validity_years || selectedCatalog.remark?.trim()
@@ -124,8 +105,6 @@ export default function ProductTable({ type }: ProductTableProps) {
     setEditingItem(item)
     setSelectedCatalog(catalog.find((c) => c.code === item.code) ?? null)
     setCustomCode(false)
-    const student = priceOf(item, 'student')
-    const normal = priceOf(item, 'normal')
     form.setFieldsValue({
       catalog_id: null,
       code: item.code,
@@ -134,8 +113,6 @@ export default function ProductTable({ type }: ProductTableProps) {
       description: item.description ?? '',
       home_cover_url: item.home_cover_url ?? '',
       is_active: item.is_active,
-      student_price_yuan: productPricingEnabled && student !== null ? student / 100 : undefined,
-      normal_price_yuan: productPricingEnabled && normal !== null ? normal / 100 : undefined,
     })
     setModalOpen(true)
   }
@@ -144,31 +121,37 @@ export default function ProductTable({ type }: ProductTableProps) {
     const item = catalog.find((c) => c.code === code) ?? null
     setSelectedCatalog(item)
     if (item) {
-      const studentPrice = item.prices?.find(price => price.user_type === 'student')?.price_cents
-      const normalPrice = item.prices?.find(price => price.user_type === 'normal')?.price_cents
       form.setFieldsValue({
         catalog_id: type === 'sangfor' ? null : item.id,
         chinese_name: item.name,
         name: displayNameFromCode(code),
-        student_price_yuan: productPricingEnabled && studentPrice != null ? studentPrice / 100 : undefined,
-        normal_price_yuan: productPricingEnabled && normalPrice != null ? normalPrice / 100 : undefined,
       })
     }
   }
 
   const handleOk = async () => {
     const values = await form.validateFields()
-    const pricing = productPricingEnabled ? { prices: buildPrices(values) } : {}
-    const { student_price_yuan: _student, normal_price_yuan: _normal, ...productValues } = values
     // 空串归一为 null，避免库里存空字符串
     const homeCover = values.home_cover_url || null
+    // Product edits maintain display information only; billing belongs to batches.
+    const displayData = {
+      name: values.name,
+      chinese_name: values.chinese_name,
+      description: values.description,
+      home_cover_url: homeCover,
+      is_active: values.is_active,
+    }
     if (editingItem) {
-      const { type: _t, code: _c, catalog_id: _ci, ...updateData } = productValues
-      const payload: CertProductUpdatePayload = { ...updateData, home_cover_url: homeCover, ...pricing }
+      const payload: CertProductUpdatePayload = displayData
       await certProductService.update(editingItem.code, payload)
       message.success('更新成功')
     } else {
-      const payload = { ...productValues, home_cover_url: homeCover, ...pricing, catalog_id: customCode ? null : values.catalog_id ?? null }
+      const payload: CertProductCreatePayload = {
+        ...displayData,
+        type: values.type,
+        code: values.code,
+        catalog_id: customCode ? null : values.catalog_id ?? null,
+      }
       await certProductService.create(payload)
       message.success('创建成功')
     }
@@ -183,20 +166,10 @@ export default function ProductTable({ type }: ProductTableProps) {
     refresh()
   }
 
-  const renderPrice = (record: CertProduct, userType: CertPriceUserType) => {
-    const cents = priceOf(record, userType)
-    return cents === null ? <Tag>未配置</Tag> : <Text strong>{formatPrice(cents)}</Text>
-  }
-
-  const priceColumns: ColumnsType<CertProduct> = productPricingEnabled ? [
-    { title: '学生价', width: 100, render: (_, record) => renderPrice(record, 'student') },
-    { title: '普通价', width: 100, render: (_, record) => renderPrice(record, 'normal') },
-  ] : []
   const columns: ColumnsType<CertProduct> = [
     { title: 'ID', dataIndex: 'id', width: 70 },
     { title: '产品编码', dataIndex: 'code', width: 110 },
     { title: '名称', dataIndex: 'chinese_name', ellipsis: true },
-    ...priceColumns,
     { title: '描述', dataIndex: 'description', ellipsis: true, render: (v: string | null) => v || '-' },
     {
       title: '状态', dataIndex: 'is_active', width: 90,
@@ -235,8 +208,8 @@ export default function ProductTable({ type }: ProductTableProps) {
         </Space>
         <Text type='secondary'>共 {data?.total ?? 0} 个产品</Text>
       </div>
-      {!productPricingEnabled && <Text type='secondary' style={{ display: 'block', marginBottom: 12 }}>报名费用在各考试批次中设置。</Text>}
-      <Table rowKey='id' columns={columns} dataSource={data?.items} loading={loading} pagination={pagination} scroll={{ x: productPricingEnabled ? 1050 : 850 }} size='middle' />
+      <Text type='secondary' style={{ display: 'block', marginBottom: 12 }}>报名费用在各考试批次中设置。</Text>
+      <Table rowKey='id' columns={columns} dataSource={data?.items} loading={loading} pagination={pagination} scroll={{ x: 850 }} size='middle' />
 
       <Modal
         title={
@@ -385,36 +358,7 @@ export default function ProductTable({ type }: ProductTableProps) {
             />
           </Form.Item>
 
-          {productPricingEnabled ? <>
-          <Divider orientation='left' orientationMargin={0} style={{ margin: '8px 0 16px' }}>
-            <Text type='secondary' style={{ fontSize: 13 }}>价格配置（元）</Text>
-          </Divider>
-
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Item
-                name='student_price_yuan' label='学生价'
-                rules={[{ required: true, message: '请输入学生价' }]}
-                tooltip='学生认证档位价格（价格表"网院优惠券"档），用户以学生身份报名时按此收费'
-              >
-                <InputNumber min={0} precision={2} style={{ width: '100%' }} placeholder='如 500.00' prefix='¥' />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item
-                name='normal_price_yuan' label='普通价'
-                rules={[{ required: true, message: '请输入普通价' }]}
-                tooltip='普通档位价格（价格表"原价"档）'
-              >
-                <InputNumber min={0} precision={2} style={{ width: '100%' }} placeholder='如 1200.00' prefix='¥' />
-              </Form.Item>
-            </Col>
-          </Row>
-
-          <Text type='secondary' style={{ fontSize: 12 }}>
-            产品级为默认价，批次可单独覆盖；价格保存后立即生效，已支付订单不受影响。
-          </Text>
-          </> : <Text type='secondary'>报名费用在各考试批次中设置。</Text>}
+          <Text type='secondary'>报名费用在各考试批次中设置。</Text>
         </Form>
       </Modal>
     </>

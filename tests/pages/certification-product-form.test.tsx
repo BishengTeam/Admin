@@ -92,19 +92,51 @@ it('saves H3C display changes without sending an empty price list that disables 
   expect(product.prices).toEqual(historicalPrices)
 })
 
-it('keeps existing product pricing for other vendors', async () => {
-  mocks.getCatalog.mockResolvedValue([{ ...h3cCatalog, type: 'nisp', code: 'NISP-1', name: 'NISP一级' }])
-  render(<ProductTable type='nisp' />)
-  expect(screen.getByRole('columnheader', { name: '学生价' })).toBeTruthy()
-  expect(screen.getByRole('columnheader', { name: '普通价' })).toBeTruthy()
+const batchPricedVendors = [
+  { type: 'nisp', code: 'NISP-1', name: 'NISP一级', selector: '产品编码' },
+  { type: 'sangfor', code: 'SCSA-T', name: '安全技术认证工程师', selector: '报考方向' },
+] as const
+
+it.each(batchPricedVendors)('creates a $type product without writing historical catalog prices', async vendor => {
+  mocks.getCatalog.mockResolvedValue([{ ...h3cCatalog, type: vendor.type, code: vendor.code, name: vendor.name }])
+  render(<ProductTable type={vendor.type} />)
+  expect(screen.queryByRole('columnheader', { name: '学生价' })).toBeNull()
+  expect(screen.queryByRole('columnheader', { name: '普通价' })).toBeNull()
   fireEvent.click(screen.getByRole('button', { name: /新增产品/ }))
-  fireEvent.mouseDown(await screen.findByLabelText('产品编码'))
-  fireEvent.click(await screen.findByText('NISP-1 · NISP一级'))
-  expect(screen.getByLabelText('学生价')).toHaveValue('500.00')
-  expect(screen.getByLabelText('普通价')).toHaveValue('1200.00')
+  fireEvent.mouseDown(await screen.findByLabelText(vendor.selector))
+  fireEvent.click(await screen.findByText(`${vendor.code} · ${vendor.name}`))
+  expect(screen.getByLabelText('名称')).toHaveValue(vendor.name)
+  expect(screen.queryByLabelText('学生价')).toBeNull()
+  expect(screen.queryByLabelText('普通价')).toBeNull()
+  expect(screen.queryByText('价格配置（元）')).toBeNull()
+  expect(screen.queryByText(/产品级为默认价/)).toBeNull()
+  expect(screen.getAllByText('报名费用在各考试批次中设置。')).toHaveLength(2)
   fireEvent.click(screen.getByRole('button', { name: /^创\s*建$/ }))
   await waitFor(() => expect(mocks.create).toHaveBeenCalledOnce())
-  expect(mocks.create.mock.calls[0][0]).toMatchObject({ type: 'nisp', prices: historicalPrices })
+  const payload = mocks.create.mock.calls[0][0]
+  expect(payload).toMatchObject({ type: vendor.type, code: vendor.code, chinese_name: vendor.name })
+  for (const key of ['prices', 'student_price_yuan', 'normal_price_yuan']) expect(payload).not.toHaveProperty(key)
+})
+
+it.each(batchPricedVendors)('saves $type display changes without clearing historical product prices', async vendor => {
+  const product = { id: 1, code: vendor.code, type: vendor.type, name: 'vendor-product', chinese_name: vendor.name,
+    is_active: true, description: '', home_cover_url: null, prices: historicalPrices }
+  mocks.list.mockResolvedValue({ items: [product], total: 1, page: 1, page_size: 20 })
+  mocks.getCatalog.mockResolvedValue([{ ...h3cCatalog, type: vendor.type, code: vendor.code, name: vendor.name }])
+  render(<ProductTable type={vendor.type} />)
+  expect(screen.queryByRole('columnheader', { name: '学生价' })).toBeNull()
+  expect(screen.queryByRole('columnheader', { name: '普通价' })).toBeNull()
+  fireEvent.click(await screen.findByRole('button', { name: '编辑' }))
+  expect(screen.queryByLabelText('学生价')).toBeNull()
+  expect(screen.queryByLabelText('普通价')).toBeNull()
+  expect(screen.queryByText(/产品级为默认价/)).toBeNull()
+  fireEvent.change(screen.getByLabelText('名称'), { target: { value: `${vendor.name} · 新介绍` } })
+  fireEvent.click(screen.getByRole('button', { name: /^保\s*存$/ }))
+  await waitFor(() => expect(mocks.update).toHaveBeenCalledOnce())
+  expect(mocks.update.mock.calls[0][0]).toBe(vendor.code)
+  const payload = mocks.update.mock.calls[0][1]
+  expect(payload).toMatchObject({ chinese_name: `${vendor.name} · 新介绍` })
+  for (const key of ['prices', 'student_price_yuan', 'normal_price_yuan']) expect(payload).not.toHaveProperty(key)
 })
 
 it('explains that imported reference prices do not change batch fees', async () => {
