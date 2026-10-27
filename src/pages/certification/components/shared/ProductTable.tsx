@@ -68,6 +68,7 @@ export default function ProductTable({ type }: ProductTableProps) {
   )
 
   const typeMeta = CERT_TYPE_META[type]
+  const productPricingEnabled = type !== 'h3c'
   const hasCatalogMetadata = Boolean(selectedCatalog && (
     selectedCatalog.duration_minutes || selectedCatalog.question_count || selectedCatalog.total_score
     || selectedCatalog.pass_score || selectedCatalog.cert_validity_years || selectedCatalog.remark?.trim()
@@ -84,12 +85,12 @@ export default function ProductTable({ type }: ProductTableProps) {
     try {
       const result = await certProductService.importCatalog(file)
       message.success(
-        `价格表已导入：新增目录 ${result.created_count} 项，更新 ${result.updated_count} 项，同步价格 ${result.price_upserted_count} 条`,
+        `产品目录已导入：新增 ${result.created_count} 项，更新 ${result.updated_count} 项。表内价格仅作历史参考，报名费用请在批次中设置。`,
       )
       await refresh()
       loadCatalog()
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '价格表导入失败')
+      message.error(error instanceof Error ? error.message : '产品目录导入失败')
     } finally {
       setImporting(false)
     }
@@ -133,8 +134,8 @@ export default function ProductTable({ type }: ProductTableProps) {
       description: item.description ?? '',
       home_cover_url: item.home_cover_url ?? '',
       is_active: item.is_active,
-      student_price_yuan: student !== null ? student / 100 : undefined,
-      normal_price_yuan: normal !== null ? normal / 100 : undefined,
+      student_price_yuan: productPricingEnabled && student !== null ? student / 100 : undefined,
+      normal_price_yuan: productPricingEnabled && normal !== null ? normal / 100 : undefined,
     })
     setModalOpen(true)
   }
@@ -149,24 +150,25 @@ export default function ProductTable({ type }: ProductTableProps) {
         catalog_id: type === 'sangfor' ? null : item.id,
         chinese_name: item.name,
         name: displayNameFromCode(code),
-        student_price_yuan: studentPrice != null ? studentPrice / 100 : undefined,
-        normal_price_yuan: normalPrice != null ? normalPrice / 100 : undefined,
+        student_price_yuan: productPricingEnabled && studentPrice != null ? studentPrice / 100 : undefined,
+        normal_price_yuan: productPricingEnabled && normalPrice != null ? normalPrice / 100 : undefined,
       })
     }
   }
 
   const handleOk = async () => {
     const values = await form.validateFields()
-    const prices = buildPrices(values)
+    const pricing = productPricingEnabled ? { prices: buildPrices(values) } : {}
+    const { student_price_yuan: _student, normal_price_yuan: _normal, ...productValues } = values
     // 空串归一为 null，避免库里存空字符串
     const homeCover = values.home_cover_url || null
     if (editingItem) {
-      const { type: _t, code: _c, catalog_id: _ci, student_price_yuan: _s, normal_price_yuan: _n, ...updateData } = values
-      const payload: CertProductUpdatePayload = { ...updateData, home_cover_url: homeCover, prices }
+      const { type: _t, code: _c, catalog_id: _ci, ...updateData } = productValues
+      const payload: CertProductUpdatePayload = { ...updateData, home_cover_url: homeCover, ...pricing }
       await certProductService.update(editingItem.code, payload)
       message.success('更新成功')
     } else {
-      const payload = { ...values, home_cover_url: homeCover, prices, catalog_id: customCode ? null : values.catalog_id ?? null }
+      const payload = { ...productValues, home_cover_url: homeCover, ...pricing, catalog_id: customCode ? null : values.catalog_id ?? null }
       await certProductService.create(payload)
       message.success('创建成功')
     }
@@ -186,12 +188,15 @@ export default function ProductTable({ type }: ProductTableProps) {
     return cents === null ? <Tag>未配置</Tag> : <Text strong>{formatPrice(cents)}</Text>
   }
 
+  const priceColumns: ColumnsType<CertProduct> = productPricingEnabled ? [
+    { title: '学生价', width: 100, render: (_, record) => renderPrice(record, 'student') },
+    { title: '普通价', width: 100, render: (_, record) => renderPrice(record, 'normal') },
+  ] : []
   const columns: ColumnsType<CertProduct> = [
     { title: 'ID', dataIndex: 'id', width: 70 },
     { title: '产品编码', dataIndex: 'code', width: 110 },
     { title: '名称', dataIndex: 'chinese_name', ellipsis: true },
-    { title: '学生价', width: 100, render: (_, record) => renderPrice(record, 'student') },
-    { title: '普通价', width: 100, render: (_, record) => renderPrice(record, 'normal') },
+    ...priceColumns,
     { title: '描述', dataIndex: 'description', ellipsis: true, render: (v: string | null) => v || '-' },
     {
       title: '状态', dataIndex: 'is_active', width: 90,
@@ -223,14 +228,15 @@ export default function ProductTable({ type }: ProductTableProps) {
               customRequest={importCatalog}
               disabled={importing}
             >
-              <Button icon={<UploadOutlined />} loading={importing}>导入价格表</Button>
+              <Button icon={<UploadOutlined />} loading={importing}>导入产品目录</Button>
             </Upload>
           )}
           <Button icon={<ReloadOutlined />} loading={loading} onClick={refresh}>刷新</Button>
         </Space>
         <Text type='secondary'>共 {data?.total ?? 0} 个产品</Text>
       </div>
-      <Table rowKey='id' columns={columns} dataSource={data?.items} loading={loading} pagination={pagination} scroll={{ x: 1050 }} size='middle' />
+      {!productPricingEnabled && <Text type='secondary' style={{ display: 'block', marginBottom: 12 }}>报名费用在各考试批次中设置。</Text>}
+      <Table rowKey='id' columns={columns} dataSource={data?.items} loading={loading} pagination={pagination} scroll={{ x: productPricingEnabled ? 1050 : 850 }} size='middle' />
 
       <Modal
         title={
@@ -301,7 +307,7 @@ export default function ProductTable({ type }: ProductTableProps) {
                     optionFilterProp='label'
                     disabled={Boolean(editingItem)}
                     onChange={handleCodeChange}
-                    notFoundContent={catalog.length === 0 ? type === 'sangfor' ? '暂无已确认报考方向，请刷新或联系管理员' : '目录为空，请联系超级管理员在「产品设置」导入价格表' : undefined}
+                    notFoundContent={catalog.length === 0 ? type === 'sangfor' ? '暂无已确认报考方向，请刷新或联系管理员' : '目录为空，请联系超级管理员在「产品设置」导入产品目录' : undefined}
                   />
                 )}
               </Form.Item>
@@ -379,6 +385,7 @@ export default function ProductTable({ type }: ProductTableProps) {
             />
           </Form.Item>
 
+          {productPricingEnabled ? <>
           <Divider orientation='left' orientationMargin={0} style={{ margin: '8px 0 16px' }}>
             <Text type='secondary' style={{ fontSize: 13 }}>价格配置（元）</Text>
           </Divider>
@@ -407,6 +414,7 @@ export default function ProductTable({ type }: ProductTableProps) {
           <Text type='secondary' style={{ fontSize: 12 }}>
             产品级为默认价，批次可单独覆盖；价格保存后立即生效，已支付订单不受影响。
           </Text>
+          </> : <Text type='secondary'>报名费用在各考试批次中设置。</Text>}
         </Form>
       </Modal>
     </>

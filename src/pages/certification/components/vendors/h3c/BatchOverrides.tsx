@@ -682,6 +682,7 @@ export default function BatchOverrides(_props: { type: CertType; productCode: st
           </Row>
 
           <Divider orientation='left' orientationMargin={0}>⑤ 报名类型与费用</Divider>
+          <Typography.Paragraph type='secondary'>以下费用为本批次实际报名金额，发布后不可修改。</Typography.Paragraph>
           <Row gutter={16}>
             {(['coupon', 'student', 'full'] as const).map((type) => (
               <Col span={8} key={type}>

@@ -26,7 +26,7 @@ describe('certification product vendors', () => {
     expect(readFile('src/pages/certification/components/shared/PlanTable.tsx'))
       .not.toContain("placeholder='选择产品查看批次'")
     expect(readFile('src/pages/certification/components/shared/ProductTable.tsx'))
-      .toContain("导入价格表")
+      .toContain("导入产品目录")
     expect(readFile('src/services/certProduct.ts'))
       .toContain("'/admin/cert-products/catalog/import'")
     expect(routes).toContain("path: 'sangfor'")
