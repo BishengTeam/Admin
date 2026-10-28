@@ -63,16 +63,19 @@ export default function OfflinePaymentSection({ orderId, onChanged, mode = 'orde
       <Descriptions column={1} size='small' bordered><Descriptions.Item label='转账人'>{s.payer}</Descriptions.Item><Descriptions.Item label='申报金额'>{formatPrice(s.amount_cents)}</Descriptions.Item>
         <Descriptions.Item label='转账时间'>{formatDate(s.transfer_time)}</Descriptions.Item><Descriptions.Item label='用户填写流水'>{s.bank_reference || '—'}</Descriptions.Item>
         <Descriptions.Item label='备注／审核原因'>{s.note} {s.reason}</Descriptions.Item></Descriptions>
-      {s.material_ids.map(id => {
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 210px), 1fr))', gap: 16, width: '100%' }}>{s.material_ids.map((id, index) => {
         const material = payment.materials.find(m => m.id === id)
-        return <MaterialPreview key={`${orderId}-${id}`} available={!!material} filename={material?.filename} isPdf={material?.filename.toLowerCase().endsWith('.pdf')} getSignedUrl={async () => {
+        return <MaterialPreview key={`${orderId}-${s.version}-${id}`} resourceKey={`${orderId}-${s.version}-${id}`}
+          available={!!material} businessTitle={`转账凭证 ${index + 1}`} versionNo={s.version} thumbnail
+          filename={material?.filename} contentType={material?.content_type} sizeBytes={material?.size_bytes}
+          isPdf={material?.filename.toLowerCase().endsWith('.pdf')} getSignedUrl={async () => {
           const seq = generation.current
           const blob = await offlinePaymentService.content(orderId, id)
           if (seq !== generation.current) throw new Error('报名或付款状态已切换，请重新预览')
           const url = URL.createObjectURL(blob); previewUrls.current.push(url)
           return { url, expires_in: 3600 }
         }} />
-      })}
+      })}</div>
     </Space> }))} defaultActiveKey={payment.submissions[0] ? [payment.submissions[0].version] : []} />
     {payment.entries.map(e => <Descriptions key={e.kind} title={e.kind === 'refund' ? '已登记退款' : '已核实到账'} column={1} bordered size='small'>
       <Descriptions.Item label='银行流水'>{e.bank_reference}</Descriptions.Item><Descriptions.Item label='实际金额'>{formatPrice(e.amount_cents)}</Descriptions.Item>
