@@ -86,7 +86,7 @@ it('loads real export records and the refund list in the same workbench tabs', a
   fireEvent.click(screen.getByRole('button', { name: /查看人员/ }))
   expect(await within(screen.getByRole('dialog', { name: '导出记录人员' })).findByText('第2版')).toBeTruthy()
   fireEvent.click(within(screen.getByRole('dialog', { name: '导出记录人员' })).getByRole('button', { name: /关\s*闭/ }))
-  fireEvent.click(screen.getByRole('tab', { name: '退款管理' }))
+  fireEvent.click(screen.getByRole('tab', { name: '退款记录' }))
   await waitFor(() => expect(mocks.refunds).toHaveBeenCalledWith(expect.objectContaining({ batch_id: 5, group: undefined })))
   expect(screen.getByText('没有符合条件的退款记录')).toBeTruthy()
 })

@@ -69,9 +69,9 @@ const STATUS_CONFIG: Record<string, { text: string; color: string }> = {
 }
 
 const SANGFOR_STATUS_CONFIG: typeof STATUS_CONFIG = {
-  approved: { text: '待退款登记', color: 'blue' },
+  approved: STATUS_CONFIG.approved,
   exception: { text: '异常待处理', color: 'red' },
-  succeeded: { text: '已退款', color: 'green' },
+  succeeded: STATUS_CONFIG.succeeded,
 }
 
 const REASON_OPTIONS: Record<RefundVendor, Array<{ value: string; label: string }>> = {
@@ -92,7 +92,7 @@ const REASON_OPTIONS: Record<RefundVendor, Array<{ value: string; label: string 
     { value: 'batch_finalize', label: '批次终结退款' },
   ],
   sangfor: [
-    { value: 'normal', label: '订单退款' },
+    { value: 'normal', label: '普通退款' },
     { value: 'exception', label: '异常来款退回' },
   ],
 }
@@ -421,7 +421,7 @@ export function RefundWorkbench({
     },
     { title: '状态', width: 110, render: (_, row) => renderStatus(row.status) },
     {
-      title: vendor === 'sangfor' ? '处理 / 等待' : '申请 / 等待',
+      title: '发起 / 等待',
       width: 175,
       render: (_, row) => (
         <Space direction='vertical' size={0}>
@@ -476,8 +476,8 @@ export function RefundWorkbench({
         }}
         items={[
           ...(vendor === 'sangfor' ? [] : [{ key: 'pending', label: `待处理（${groupCount('pending')}）` }]),
-          { key: 'processing', label: `${vendor === 'sangfor' ? '待退款登记' : '处理中'}（${groupCount('processing')}）` },
-          { key: 'abnormal', label: `${vendor === 'sangfor' ? '异常来款' : '异常'}（${groupCount('abnormal')}）` },
+          { key: 'processing', label: `处理中（${groupCount('processing')}）` },
+          { key: 'abnormal', label: `异常（${groupCount('abnormal')}）` },
           { key: 'all', label: `全部记录（${groupCount('all')}）` },
         ]}
       />
@@ -496,14 +496,14 @@ export function RefundWorkbench({
         )}
         <Input.Search
           allowClear
-          placeholder={vendor === 'sangfor' ? '姓名 / 手机号 / 订单号' : '姓名 / 订单号 / 退款单号'}
+          placeholder='姓名 / 订单号'
           style={{ width: 260 }}
           defaultValue={keyword}
           onSearch={setKeyword}
         />
         <Select
           allowClear
-          placeholder={vendor === 'sangfor' ? '退款类型' : '退款原因'}
+          placeholder='退款原因'
           style={{ width: 155 }}
           value={reason}
           onChange={setReason}
@@ -589,7 +589,7 @@ export function RefundWorkbench({
                 {REASON_OPTIONS[vendor].find(item => item.value === selected.requestKind)?.label || selected.reasonCode}
                 {selected.reasonDetail ? ` · ${selected.reasonDetail}` : ''}
               </Descriptions.Item>
-              <Descriptions.Item label={vendor === 'sangfor' ? '处理时间' : '申请时间'}>{formatDate(selected.requestedAt)}</Descriptions.Item>
+              <Descriptions.Item label='发起时间'>{formatDate(selected.requestedAt)}</Descriptions.Item>
               <Descriptions.Item label='关联订单'>{selected.outTradeNo || `#${selected.orderId}`}</Descriptions.Item>
               {vendor !== 'sangfor' && <Descriptions.Item label='退款单号'>{selected.outRefundNo || '-'}</Descriptions.Item>}
               {selected.approvedAt && (

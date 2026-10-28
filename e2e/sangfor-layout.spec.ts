@@ -82,12 +82,12 @@ test('深信服列表、分组侧边窗与NISP一致；发布失败重试复用�
   expect(state.unexpected).toEqual([])
 })
 
-test('工作台统一列表、导出记录、退款管理和先核账后审核侧边窗', async ({ page }) => {
+test('工作台统一列表、导出记录、退款记录和先核账后审核侧边窗', async ({ page }) => {
   const state = await prepare(page)
   await page.goto('/admin/certification/sangfor/batches/5')
   await expect(page.getByRole('tab', { name: '报名列表', exact: true })).toBeVisible()
   await expect(page.getByRole('tab', { name: '导出记录', exact: true })).toBeVisible()
-  await expect(page.getByRole('tab', { name: '退款管理', exact: true })).toBeVisible()
+  await expect(page.getByRole('tab', { name: '退款记录', exact: true })).toBeVisible()
   await expect(page.getByText(registration.registration_no, { exact: true })).toBeVisible()
   await page.getByRole('checkbox').last().check()
   await page.getByRole('button', { name: '导出所选报名信息' }).click()
@@ -118,19 +118,19 @@ test('工作台统一列表、导出记录、退款管理和先核账后审核�
   const people = page.getByRole('dialog', { name: '导出记录人员' })
   await expect(people.getByText('第2版')).toBeVisible()
   await people.locator('.ant-drawer-footer').getByRole('button', { name: /关\s*闭/, exact: true }).click()
-  await page.getByRole('tab', { name: '退款管理', exact: true }).click()
+  await page.getByRole('tab', { name: '退款记录', exact: true }).click()
   await expect(page.getByText('没有符合条件的退款记录')).toBeVisible()
   expect(state.writes).toEqual([])
   expect(state.errors).toEqual([])
   expect(state.unexpected).toEqual([])
 })
 
-test('深信服全局退款管理复用待登记与异常来款视图', async ({ page }) => {
+test('深信服全局退款管理使用统一的处理中与异常文案', async ({ page }) => {
   const state = await prepare(page)
   await page.goto('/admin/certification/sangfor?tab=refund')
   await expect(page.getByRole('tab', { name: '退款管理', exact: true })).toBeVisible()
-  await expect(page.getByRole('tab', { name: '待退款登记（0）', exact: true })).toBeVisible()
-  await expect(page.getByRole('tab', { name: '异常来款（0）', exact: true })).toBeVisible()
+  await expect(page.getByRole('tab', { name: '处理中（0）', exact: true })).toBeVisible()
+  await expect(page.getByRole('tab', { name: '异常（0）', exact: true })).toBeVisible()
   await expect(page.getByRole('tab', { name: '全部记录（0）', exact: true })).toBeVisible()
   await expect(page.getByRole('tab', { name: /^待处理/ })).toHaveCount(0)
   await expect(page.getByText('没有符合条件的退款记录')).toBeVisible()

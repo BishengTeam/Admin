@@ -16,7 +16,7 @@ describe('certification refund workbench', () => {
     expect(shared).toContain('异常')
     expect(shared).toContain('全部记录')
     expect(shared).toContain('所属批次')
-    expect(shared).toContain('姓名 / 订单号 / 退款单号')
+    expect(shared).toContain('姓名 / 订单号')
     expect(shared).toContain('registrationId')
     expect(shared).toContain('进入报名详情')
     expect(shared).toContain('h3cService.confirmRefund')

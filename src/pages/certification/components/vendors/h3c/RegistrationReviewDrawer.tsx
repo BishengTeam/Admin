@@ -291,6 +291,11 @@ export default function RegistrationReviewDrawer({
             content: (
               <MaterialPreview
                 available={Boolean(material.preview_url)}
+                businessTitle={materialLabel(material.material_type)}
+                versionNo={material.version_no}
+                resourceKey={`h3c-${current.id}-${material.id}-${material.version_no}`}
+                thumbnail
+                sizeBytes={material.size_bytes}
                 filename={material.original_filename}
                 getSignedUrl={async () => {
                   if (!material.preview_url) throw new Error('材料预览地址不可用')

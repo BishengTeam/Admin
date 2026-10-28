@@ -43,13 +43,28 @@ it('starts with approved refunds and keeps abnormal transfers separate without i
   setup()
   expect(await screen.findByText('退款考生')).toBeTruthy()
   await waitFor(() => expect(mocks.list).toHaveBeenCalledWith('sangfor', expect.objectContaining({ group: 'processing' })))
-  expect(screen.getByRole('tab', { name: '待退款登记（1）' })).toHaveAttribute('aria-selected', 'true')
-  expect(screen.getByRole('tab', { name: '异常来款（2）' })).toBeTruthy()
+  expect(screen.getByRole('tab', { name: '处理中（1）' })).toHaveAttribute('aria-selected', 'true')
+  expect(screen.getByRole('tab', { name: '异常（2）' })).toBeTruthy()
   expect(screen.getByRole('tab', { name: '全部记录（6）' })).toBeTruthy()
   expect(screen.queryByRole('tab', { name: /^待处理/ })).toBeNull()
   expect(screen.getByText('¥76.54')).toBeTruthy()
-  fireEvent.click(screen.getByRole('tab', { name: '异常来款（2）' }))
+  fireEvent.click(screen.getByRole('tab', { name: '异常（2）' }))
   await waitFor(() => expect(mocks.list).toHaveBeenLastCalledWith('sangfor', expect.objectContaining({ group: 'abnormal', page: 1 })))
+})
+
+it.each(['h3c', 'nisp', 'renshe', 'sangfor'] as const)('uses consistent refund copy for %s', async vendor => {
+  render(<MemoryRouter><RefundWorkbench vendor={vendor} embedded batchId={5} /></MemoryRouter>)
+  expect(await screen.findByText('退款考生')).toBeTruthy()
+  expect(screen.getByRole('tab', { name: '处理中（1）' })).toBeTruthy()
+  expect(screen.getByRole('tab', { name: /^(异常|异常来款)（/ })).toHaveTextContent('异常（')
+  expect(screen.getByRole('tab', { name: '全部记录（6）' })).toBeTruthy()
+  expect(screen.getByPlaceholderText('姓名 / 订单号')).toBeTruthy()
+  expect(screen.getByText('退款原因')).toBeTruthy()
+  expect(screen.getByRole('columnheader', { name: '发起 / 等待' })).toBeTruthy()
+  expect(screen.getByText('已确认')).toBeTruthy()
+  fireEvent.click(screen.getByRole('button', { name: /详\s*情/ }))
+  const drawer = (await screen.findByText('退款详情 #7')).closest('[role="dialog"]') as HTMLElement
+  expect(within(drawer).getByText('发起时间')).toBeTruthy()
 })
 
 it('locks an embedded list to its batch and person while keeping the default full history', async () => {
@@ -58,7 +73,7 @@ it('locks an embedded list to its batch and person while keeping the default ful
   expect(mocks.list).toHaveBeenCalledWith('sangfor', expect.objectContaining({ batch_id: 5, registration_id: 7, group: undefined }))
   expect(mocks.batchOptions).not.toHaveBeenCalled()
   expect(screen.queryByText('所属批次')).toBeNull()
-  fireEvent.click(screen.getByRole('tab', { name: '异常来款（2）' }))
+  fireEvent.click(screen.getByRole('tab', { name: '异常（2）' }))
   await waitFor(() => expect(mocks.list).toHaveBeenLastCalledWith('sangfor', expect.objectContaining({ batch_id: 5, registration_id: 7, group: 'abnormal' })))
 })
 

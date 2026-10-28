@@ -281,7 +281,13 @@ export default function RegistrationReviewDrawer({
             content: (
               <MaterialPreview
                 available={Boolean(material.preview_url)}
-                filename={material.original_filename || MATERIAL_LABELS[material.material_type]}
+                businessTitle={MATERIAL_LABELS[material.material_type]}
+                versionNo={material.version_no ?? undefined}
+                resourceKey={`nisp-${current.id}-${material.id}-${material.version_no ?? 'legacy'}`}
+                thumbnail
+                filename={material.original_filename}
+                contentType={material.content_type ?? (material.material_type === 'portrait_photo' ? 'image/jpeg' : 'application/pdf')}
+                sizeBytes={material.size_bytes ?? undefined}
                 isPdf={material.material_type !== 'portrait_photo'}
                 getSignedUrl={async () => {
                   if (!material.preview_url) throw new Error('材料预览地址不可用')
