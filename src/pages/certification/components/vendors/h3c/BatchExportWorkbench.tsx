@@ -1,3 +1,4 @@
+import { PLAN_STATUS_MAP, type PlanStatus } from '@/types/certification'
 import { PaymentStatusTag, PAYMENT_FILTER_OPTIONS } from '../../shared/RegistrationPayment'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
@@ -299,7 +300,9 @@ export default function BatchExportWorkbench() {
           batch_id: parsedBatchId,
           registration_ids: scope === 'selected' ? selectedIds : undefined,
           registration_type: scope === 'selected' ? undefined : filters.registration_type,
-          status: scope === 'selected' ? undefined : filters.status,
+          status: scope === 'selected' ? null : filters.status ?? null,
+          payment_state: scope === 'selected' ? undefined : filters.payment_state,
+          has_valid_export: scope === 'selected' ? undefined : filters.has_valid_export,
           keyword: scope === 'selected' ? undefined : filters.keyword || undefined,
         })
         setPrecheck(result)
@@ -312,7 +315,7 @@ export default function BatchExportWorkbench() {
         setPrechecking(false)
       }
     },
-    [filters.keyword, filters.registration_type, filters.status, filters.payment_state, parsedBatchId, selectedRegistrationIds],
+    [filters.keyword, filters.registration_type, filters.status, filters.payment_state, filters.has_valid_export, parsedBatchId, selectedRegistrationIds],
   )
 
   const selectFilteredResult = async () => {
@@ -321,7 +324,9 @@ export default function BatchExportWorkbench() {
       const result = await h3cService.precheckExport({
         batch_id: parsedBatchId,
         registration_type: filters.registration_type,
-        status: filters.status,
+        status: filters.status ?? null,
+        payment_state: filters.payment_state,
+        has_valid_export: filters.has_valid_export,
         keyword: filters.keyword || undefined,
       })
       setSelectedRegistrationIds(new Set(result.exportable_registration_ids))
@@ -737,7 +742,7 @@ export default function BatchExportWorkbench() {
         <RefundWorkbench
           vendor='h3c'
           batchId={parsedBatchId}
-          registrationId={Number.isInteger(refundRegistrationId) ? refundRegistrationId : undefined}
+          registrationId={Number.isInteger(refundRegistrationId) && refundRegistrationId > 0 ? refundRegistrationId : undefined}
           embedded
           onChanged={registrations.refresh}
         />
@@ -761,7 +766,7 @@ export default function BatchExportWorkbench() {
           <Space wrap size={24}>
             <span><Text type='secondary'>认证产品：</Text>{batch.certification_code}</span>
             <span><Text type='secondary'>考试时间：</Text>{formatDate(batch.exam_date)}</span>
-            <span><Text type='secondary'>批次状态：</Text>{batch.status}</span>
+            <span><Text type='secondary'>批次状态：</Text><Tag color={PLAN_STATUS_MAP[batch.status as PlanStatus]?.color}>{PLAN_STATUS_MAP[batch.status as PlanStatus]?.text || '未知状态'}</Tag></span>
             <span><Text type='secondary'>名额：</Text>{batch.occupied_count}/{batch.capacity}</span>
           </Space>
         </Card>

@@ -380,7 +380,9 @@ export const nispService = {
   precheckExport(data: {
     batch_id: number
     registration_ids?: number[]
-    status?: string
+    status?: string | null
+    payment_state?: string
+    has_valid_export?: boolean
     keyword?: string
   }): Promise<NispExportPrecheckResponse> {
     return http.post('/admin/nisp/export/precheck', data)

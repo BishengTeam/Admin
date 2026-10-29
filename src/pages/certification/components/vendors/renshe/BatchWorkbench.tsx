@@ -529,7 +529,7 @@ export default function RensheBatchWorkbench() {
               <RefundWorkbench
                 vendor='renshe'
                 batchId={planId}
-                registrationId={Number.isInteger(refundApplicationId) ? refundApplicationId : undefined}
+                registrationId={Number.isInteger(refundApplicationId) && refundApplicationId > 0 ? refundApplicationId : undefined}
                 embedded
                 onChanged={async () => { await Promise.all([applications.refreshOrThrow(), loadPlan()]) }}
               />

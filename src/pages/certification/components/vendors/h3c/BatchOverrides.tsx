@@ -490,7 +490,7 @@ export default function BatchOverrides(_props: { type: CertType; productCode: st
             <Button size='small' type='primary' ghost onClick={() => openWorkbench(row)}>
               管理报名
             </Button>
-            <Dropdown
+            {menuItems.length > 0 && <Dropdown
               trigger={['click']}
               menu={{
                 items: menuItems,
@@ -542,7 +542,7 @@ export default function BatchOverrides(_props: { type: CertType; productCode: st
               <Button size='small'>
                 更多 <DownOutlined />
               </Button>
-            </Dropdown>
+            </Dropdown>}
           </Space>
         )
       },

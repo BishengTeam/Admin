@@ -157,7 +157,9 @@ export const h3cService = {
     batch_id: number
     registration_ids?: number[]
     registration_type?: H3cRegistrationType
-    status?: H3cRegistrationStatus
+    status?: H3cRegistrationStatus | null
+    payment_state?: string
+    has_valid_export?: boolean
     keyword?: string
   }): Promise<H3cExportPrecheckResponse> {
     return http.post('/admin/cert-products/h3c/exports/precheck', data)

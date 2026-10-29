@@ -32,7 +32,7 @@ export default function CertificationOverview() {
             <TypeStatCard
               key={s.type}
               stats={s}
-              onEnter={() => navigate(s.type)}
+              onEnter={() => navigate(`/admin/certification/${s.type}`)}
             />
           ))}
 
@@ -41,7 +41,7 @@ export default function CertificationOverview() {
             const meta = CERT_TYPE_META[t]
             return (
               <Col xs={24} lg={12} xl={8} key={t}>
-                <Card hoverable onClick={() => navigate(t)}>
+                <Card hoverable onClick={() => navigate(`/admin/certification/${t}`)}>
                   <Card.Meta
                     avatar={
                       <div style={{

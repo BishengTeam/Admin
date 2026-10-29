@@ -177,7 +177,7 @@ export function RefundWorkbench({
       try {
         const result = await refundWorkbenchService.list(vendor, {
           ...page,
-          registration_id: registrationId,
+          registration_id: registrationId && registrationId > 0 ? registrationId : undefined,
           batch_id: batchFilter,
           group: group === 'all' ? undefined : group,
           keyword: keyword.trim() || undefined,
@@ -459,7 +459,7 @@ export function RefundWorkbench({
 
   const content = (
     <>
-      {registrationId && (
+      {!!registrationId && (
         <Alert
           style={{ marginBottom: 12 }}
           type='info'

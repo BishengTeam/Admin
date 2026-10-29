@@ -20,7 +20,7 @@ export default function OfflineDecisionModal({ payment, action, refund, onClose,
   const [conflict, setConflict] = useState(false)
   const lock = useRef(false)
   const request = useRef<{ fingerprint: string; key: string } | null>(null)
-  const { ensureReauthenticated, reauthDialog } = useReauthentication({ description: '核账和退款会影响订单状态，请输入当前管理员密码进行身份验证。验证结果最多在当前页面内复用10分钟。' })
+  const { ensureReauthenticated, reauthDialog } = useReauthentication({ description: '核账和退款会影响订单状态，请输入当前管理员密码。验证后可在当前标签页连续办理多位报名，10分钟内无需逐人输入；到期、刷新页面或退出登录后需重新验证。' })
   const labels = decisionFieldLabels(action)
   useEffect(() => { if (action) { form.resetFields(); setMaterials([]); setError(''); setFieldErrors({}); setConflict(false); request.current = null } }, [action, payment?.order_id, form])
   async function refreshStatus() {
@@ -81,6 +81,7 @@ export default function OfflineDecisionModal({ payment, action, refund, onClose,
   const summary = [error, ...Object.values(fieldErrors).flat()].filter(Boolean)
   return <><Modal title={action ? title[action] : ''} open={!!action && !!payment} onCancel={() => { if (!busy) onClose() }} onOk={() => void submit()} confirmLoading={busy} okButtonProps={{ disabled: conflict }} destroyOnClose maskClosable={false} okText='确认保存'>
     <Typography.Paragraph type='secondary'>订单 {payment?.out_trade_no} · 当前凭证第 {payment?.current_version} 版</Typography.Paragraph>
+    {['confirm', 'refund', 'resolve', 'refund-approval'].includes(action || '') && <Typography.Paragraph type='secondary'>身份验证在当前标签页内复用10分钟，可连续办理，无需逐人输入密码。</Typography.Paragraph>}
     <Form form={form} layout='vertical' disabled={busy} onValuesChange={changed => {
       if (error === '请修正标红的填写项后再提交。') setError('')
       for (const key of Object.keys(changed) as OfflineDecisionField[]) if (fieldErrors[key]) {

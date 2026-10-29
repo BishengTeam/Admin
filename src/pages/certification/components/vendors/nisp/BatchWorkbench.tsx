@@ -1,3 +1,4 @@
+import { PLAN_STATUS_MAP, type PlanStatus } from '@/types/certification'
 import { PaymentStatusTag, PAYMENT_FILTER_OPTIONS } from '../../shared/RegistrationPayment'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
@@ -265,7 +266,9 @@ export default function NispBatchWorkbench() {
         const result = await nispService.precheckExport({
           batch_id: parsedBatchId,
           registration_ids: scope === 'selected' ? selectedIds : undefined,
-          status: scope === 'selected' ? undefined : filters.status,
+          status: scope === 'selected' ? null : filters.status ?? null,
+          payment_state: scope === 'selected' ? undefined : filters.payment_state,
+          has_valid_export: scope === 'selected' ? undefined : filters.has_valid_export,
           keyword: scope === 'selected' ? undefined : filters.keyword || undefined,
         })
         setPrecheck(result)
@@ -278,7 +281,7 @@ export default function NispBatchWorkbench() {
         setPrechecking(false)
       }
     },
-    [filters.keyword, filters.status, filters.payment_state, parsedBatchId, selectedRegistrationIds],
+    [filters.keyword, filters.status, filters.payment_state, filters.has_valid_export, parsedBatchId, selectedRegistrationIds],
   )
 
   const selectFilteredResult = async () => {
@@ -286,7 +289,9 @@ export default function NispBatchWorkbench() {
     try {
       const result = await nispService.precheckExport({
         batch_id: parsedBatchId,
-        status: filters.status,
+        status: filters.status ?? null,
+        payment_state: filters.payment_state,
+        has_valid_export: filters.has_valid_export,
         keyword: filters.keyword || undefined,
       })
       setSelectedRegistrationIds(new Set(result.exportable_registration_ids))
@@ -697,7 +702,7 @@ export default function NispBatchWorkbench() {
         <RefundWorkbench
           vendor='nisp'
           batchId={parsedBatchId}
-          registrationId={Number.isInteger(refundRegistrationId) ? refundRegistrationId : undefined}
+          registrationId={Number.isInteger(refundRegistrationId) && refundRegistrationId > 0 ? refundRegistrationId : undefined}
           embedded
           onChanged={registrations.refresh}
         />
@@ -721,7 +726,7 @@ export default function NispBatchWorkbench() {
           <Space wrap size={24}>
             <span><Text type='secondary'>级别：</Text>{LEVEL_LABELS[batch.level]}</span>
             <span><Text type='secondary'>考试时间：</Text>{batch.exam_date ? formatDate(batch.exam_date) : '-'}</span>
-            <span><Text type='secondary'>批次状态：</Text>{batch.plan_status}</span>
+            <span><Text type='secondary'>批次状态：</Text><Tag color={PLAN_STATUS_MAP[batch.plan_status as PlanStatus]?.color}>{PLAN_STATUS_MAP[batch.plan_status as PlanStatus]?.text || '未知状态'}</Tag></span>
             <span><Text type='secondary'>名额：</Text>{batch.occupied_count}/{batch.capacity}</span>
           </Space>
         </Card>

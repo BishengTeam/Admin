@@ -439,7 +439,7 @@ export default function NispBatchOverrides() {
             >
               咨询群码
             </Button>
-            <Dropdown
+            {menuItems.length > 0 && <Dropdown
               trigger={['click']}
               menu={{
                 items: menuItems,
@@ -454,7 +454,7 @@ export default function NispBatchOverrides() {
               <Button size='small'>
                 更多 <DownOutlined />
               </Button>
-            </Dropdown>
+            </Dropdown>}
           </Space>
         )
       },
