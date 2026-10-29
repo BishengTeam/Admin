@@ -103,7 +103,7 @@ export default function V2QuestionModal({ open, question, modules, defaultPointI
       const questionType = values.question_type as QuestionType
       const optionRecord: Record<string, string> = {}
       const optionImages: Record<string, string> = {}
-      ;((values.options ?? []) as OptionValue[]).slice(0, 6).forEach((item, index) => {
+      ;((values.options ?? []) as OptionValue[]).slice(0, 8).forEach((item, index) => {
         const content = String(item?.content ?? '').trim()
         const imageUrl = String(item?.image_url ?? '').trim()
         if (content || imageUrl) {
@@ -202,7 +202,7 @@ export default function V2QuestionModal({ open, question, modules, defaultPointI
     disabled: module.status !== 'active' || point.status !== 'active',
   })))
   const optionCount = options?.length ?? 0
-  const keys = type === 'judge' ? ['A', 'B'] : QUESTION_OPTION_KEYS.slice(0, Math.min(optionCount, 6))
+  const keys = type === 'judge' ? ['A', 'B'] : QUESTION_OPTION_KEYS.slice(0, Math.min(optionCount, 8))
   const optionTexts = (options ?? []).map((item) => String(item?.content ?? '').trim()).filter(Boolean)
 
   return (
@@ -262,15 +262,15 @@ export default function V2QuestionModal({ open, question, modules, defaultPointI
         )}
         {isPairingType && (
           <>
-            <div style={{ marginBottom: 8 }}>{type === 'matching' ? '左侧项（A-F，导入模板中「左 -> 右」的左侧）' : '待排序项（A-F，学生看到的是这里的展示顺序）'}</div>
+            <div style={{ marginBottom: 8 }}>{type === 'matching' ? '左侧项（A-H，导入模板中「左 -> 右」的左侧）' : '待排序项（A-H，学生看到的是这里的展示顺序）'}</div>
             <Form.List name="options">
               {(fields, { add, remove }) => <div>
-                {fields.slice(0, 6).map(({ key, name }) => <Space key={key} align="baseline" style={{ display: 'flex', marginBottom: 8 }}>
+                {fields.slice(0, 8).map(({ key, name }) => <Space key={key} align="baseline" style={{ display: 'flex', marginBottom: 8 }}>
                   <strong style={{ width: 22 }}>{QUESTION_OPTION_KEYS[name]}</strong>
                   <Form.Item name={[name, 'content']} style={{ marginBottom: 0 }} rules={[{ required: true, message: '内容不能为空' }]}><Input style={{ width: 420 }} /></Form.Item>
                   {fields.length > 2 && <MinusCircleOutlined onClick={() => remove(name)} />}
                 </Space>)}
-                {optionCount < 6 && <Button type="dashed" icon={<PlusOutlined />} onClick={() => add({ content: '' })}>添加一项</Button>}
+                {optionCount < 8 && <Button type="dashed" icon={<PlusOutlined />} onClick={() => add({ content: '' })}>添加一项</Button>}
               </div>}
             </Form.List>
           </>
@@ -289,8 +289,8 @@ export default function V2QuestionModal({ open, question, modules, defaultPointI
                     {fields.length > 1 && <MinusCircleOutlined onClick={() => remove(name)} />}
                   </Space>
                 ))}
-                {fields.length < 6 && <Button type="dashed" size="small" icon={<PlusOutlined />} onClick={() => add('')}>添加右侧答案</Button>}
-                {fields.length !== Math.min(optionCount, 6) && <div style={{ color: '#d46b08', marginTop: 8 }}>左侧项 {Math.min(optionCount, 6)} 个，右侧答案 {fields.length} 个，两者数量必须一致。</div>}
+                {fields.length < 8 && <Button type="dashed" size="small" icon={<PlusOutlined />} onClick={() => add('')}>添加右侧答案</Button>}
+                {fields.length !== Math.min(optionCount, 8) && <div style={{ color: '#d46b08', marginTop: 8 }}>左侧项 {Math.min(optionCount, 8)} 个，右侧答案 {fields.length} 个，两者数量必须一致。</div>}
               </div>
             )}
           </Form.List>
@@ -298,7 +298,7 @@ export default function V2QuestionModal({ open, question, modules, defaultPointI
         {type === 'ordering' && (
           <div style={{ marginTop: 8 }}>
             <div style={{ marginBottom: 8 }}>正确顺序（从第 1 位开始依次选择，学生需按此顺序点选）</div>
-            {[0, 1, 2, 3, 4, 5].slice(0, Math.max(optionCount, 0)).map((position) => (
+            {[0, 1, 2, 3, 4, 5, 6, 7].slice(0, Math.max(optionCount, 0)).map((position) => (
               <Form.Item key={position} name={['aligned_answers', position]} style={{ marginBottom: 4 }} rules={[{ required: true, message: '请选择该位次的内容' }]}>
                 <Select style={{ width: 420 }} placeholder={`第 ${position + 1} 位`} options={optionTexts.map((text) => ({ value: text, label: text }))} />
               </Form.Item>
@@ -309,14 +309,14 @@ export default function V2QuestionModal({ open, question, modules, defaultPointI
           <>
             <Form.List name="options">
               {(fields, { add, remove }) => <div>
-                <div style={{ marginBottom: 8 }}>选项（A-F）</div>
-                {fields.slice(0, 6).map(({ key, name, ...rest }) => <Space key={key} align="baseline" style={{ display: 'flex', marginBottom: 8 }}>
+                <div style={{ marginBottom: 8 }}>选项（A-H）</div>
+                {fields.slice(0, 8).map(({ key, name, ...rest }) => <Space key={key} align="baseline" style={{ display: 'flex', marginBottom: 8 }}>
                   <strong style={{ width: 22 }}>{QUESTION_OPTION_KEYS[name]}</strong>
                   <Form.Item {...rest} name={[name, 'content']} style={{ marginBottom: 0 }}><Input disabled={type === 'judge'} style={{ width: 360 }} /></Form.Item>
                   {type !== 'judge' && <Form.Item {...rest} name={[name, 'image_url']} style={{ marginBottom: 0 }}><ImageUpload purpose='quiz' hint={'选项配图：按宽度 60% 展示，可点击放大\n推荐宽度 ≥ 840 px、高度等比\n格式：JPG / PNG / WebP，单张 ≤ 5MB'} /></Form.Item>}
                   {type !== 'judge' && fields.length > 2 && <MinusCircleOutlined onClick={() => remove(name)} />}
                 </Space>)}
-                {type !== 'judge' && optionCount < 6 && <Button type="dashed" icon={<PlusOutlined />} onClick={() => add({ content: '' })}>添加选项</Button>}
+                {type !== 'judge' && optionCount < 8 && <Button type="dashed" icon={<PlusOutlined />} onClick={() => add({ content: '' })}>添加选项</Button>}
               </div>}
             </Form.List>
             <Form.Item name="correct_answer" label="正确答案">{type === 'multiple_choice' || type === 'uncertain_choice' ? <Checkbox.Group options={keys.map((value) => ({ value, label: value }))} /> : <Radio.Group options={keys.map((value) => ({ value, label: value }))} />}</Form.Item>

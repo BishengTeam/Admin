@@ -31,25 +31,25 @@ export const CategorySchema = z.object({
   updated_at: dateString,
 }).strict()
 
-const answerKeySchema = z.enum(['A', 'B', 'C', 'D', 'E', 'F'])
+const answerKeySchema = z.enum(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'])
 export const questionTypeSchema = z.enum(['single_choice', 'multiple_choice', 'uncertain_choice', 'judge', 'fill_blank', 'essay', 'matching', 'ordering'])
 const fillBlankAnswerSchema = z.array(
   z.array(z.string().min(1).max(200)).min(1).max(5),
 ).min(1).max(5)
 const answerSchema = z.union([
   answerKeySchema,
-  z.array(answerKeySchema).min(1).max(6).refine((value) => new Set(value).size === value.length, { message: '答案不能重复' }),
+  z.array(answerKeySchema).min(1).max(8).refine((value) => new Set(value).size === value.length, { message: '答案不能重复' }),
   // 配对题/排序题的标准答案与用户答案是按选项顺序对齐的文本数组
-  z.array(z.string().min(1).max(1024)).min(1).max(6),
+  z.array(z.string().min(1).max(1024)).min(1).max(8),
   fillBlankAnswerSchema,
   z.string().max(5000),
 ])
 const optionSchema = z.record(z.string(), z.string()).superRefine((value, ctx) => {
   const keys = Object.keys(value)
-  if (keys.length > 6 || keys.some((key) => !['A', 'B', 'C', 'D', 'E', 'F'].includes(key))) {
-    ctx.addIssue({ code: 'custom', message: '选项键只能为 A-F，最多 6 个' })
+  if (keys.length > 8 || keys.some((key) => !['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'].includes(key))) {
+    ctx.addIssue({ code: 'custom', message: '选项键只能为 A-H，最多 8 个' })
   }
-  const expected = ['A', 'B', 'C', 'D', 'E', 'F'].slice(0, keys.length)
+  const expected = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'].slice(0, keys.length)
   if (keys.some((key, index) => key !== expected[index])) {
     ctx.addIssue({ code: 'custom', message: '选项键必须从 A 开始连续排列' })
   }
@@ -58,7 +58,7 @@ const optionSchema = z.record(z.string(), z.string()).superRefine((value, ctx) =
 })
 const imageUrlSchema = z.array(z.string().trim().url().max(1024)).max(9)
 const imageUrlsResponseSchema = imageUrlSchema.default([])
-const optionImageUrlsSchema = z.record(z.string().regex(/^[A-F]$/, '选项键只能为 A-F'), z.string().trim().url().max(1024))
+const optionImageUrlsSchema = z.record(z.string().regex(/^[A-H]$/, '选项键只能为 A-H'), z.string().trim().url().max(1024))
 const optionImageUrlsResponseSchema = optionImageUrlsSchema.default({})
 
 function questionShapeRules(value: {

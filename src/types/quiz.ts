@@ -770,7 +770,7 @@ export interface QuizTaskProbe {
   quiz_tasks: QuizTaskSnapshot
 }
 
-export const QUESTION_OPTION_KEYS = ['A', 'B', 'C', 'D', 'E', 'F'] as const
+export const QUESTION_OPTION_KEYS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'] as const
 export type QuestionOptionKey = (typeof QUESTION_OPTION_KEYS)[number]
 
 export function answerToArray(answer: Answer | null | undefined): string[] {
