@@ -1,0 +1,10 @@
+.trail { padding: 4px 0; }
+.trail :global(.ant-timeline-item-content) { min-width: 0; }
+.card { background: var(--ant-color-bg-container, #fff); }
+.heading { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 8px; }
+.heading :global(.ant-tag) { margin-inline-end: 0; }
+.meta { margin-top: 6px; margin-bottom: 12px !important; font-size: 12px; }
+.reason { margin-bottom: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.details :global(.ant-descriptions-item-label) { min-width: 112px; color: #666; }
+.details :global(.ant-descriptions-item-content) { min-width: 0; overflow-wrap: anywhere; }
+.text { white-space: pre-wrap; overflow-wrap: anywhere; }

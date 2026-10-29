@@ -16,6 +16,14 @@ export interface PaymentSettings {
   contact_name: string; contact_phone: string; contact_wechat: string; service_hours: string
   submit_hours: number; correction_hours: number; version: number
 }
+export interface PaymentAudit {
+  action: string; actor_id: number; created_at: string
+  summary: {
+    note?: string; version?: number; amount_cents?: number | null; expected_amount_cents?: number | null
+    bank_reference?: string | null; bank_time?: string | null; deadline?: string | null; result?: string
+    reason?: string | null; reason_code?: string | null
+  }
+}
 export interface OfflinePayment {
   order_id: number; order_status: string; amount_cents: number; current_version: number; status: string
   status_label: string; out_trade_no: string; account: PaymentSettings; message: string | null; deadline: string | null
@@ -23,7 +31,7 @@ export interface OfflinePayment {
   business_link?: { vendor: 'h3c' | 'nisp' | 'renshe' | 'sangfor'; registration_id: number; batch_id: number } | null
   confirmed_at: string | null; submissions: PaymentSubmission[]; materials: PaymentMaterial[]
   entries: Array<{ kind: string; amount_cents: number; bank_reference: string; bank_time: string; created_at: string; material_ids: number[] }>
-  audits: Array<{ action: string; actor_id: number; created_at: string; summary: { note?: string; version: number; amount_cents?: number | null; bank_reference?: string | null; bank_time?: string | null; deadline?: string | null; result?: string } }>
+  audits: PaymentAudit[]
 }
 export const offlinePaymentService = {
   detail(id: number) { return http.get<OfflinePayment>(`/admin/orders/${id}/offline-payment`) },

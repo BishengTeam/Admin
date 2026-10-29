@@ -1,8 +1,9 @@
 import { expect, test, type Page } from '@playwright/test'
+import type { PaymentAudit } from '../src/services/offlinePayment'
 
 test.use({ timezoneId: 'America/Los_Angeles' })
 
-async function prepare(page: Page, result: 'validation' | 'conflict' = 'validation') {
+async function prepare(page: Page, result: 'validation' | 'conflict' = 'validation', audits: PaymentAudit[] = []) {
   const errors: string[] = [], unexpected: string[] = [], confirms: Record<string, unknown>[] = []
   await page.setViewportSize({ width: 1440, height: 1050 })
   await page.addInitScript(() => sessionStorage.setItem('admin_token', 'eyJhbGciOiJub25lIn0.eyJleHAiOjk5OTk5OTk5OTl9.'))
@@ -29,7 +30,7 @@ async function prepare(page: Page, result: 'validation' | 'conflict' = 'validati
     if (path === '/admin/cert-products/sangfor/batches/5/exports') return reply([])
     if (path === '/admin/orders/7/offline-payment') return reply({ order_id: 7, order_status: 'pending', amount_cents: 111100, current_version: 1, status: 'under_review', status_label: '待核账', out_trade_no: 'OF-FINANCE-7',
       account: { account_name: '测试收款公司', bank_name: '测试银行', account_number: '6222000011112222', transfer_note: '', contact_name: '服务老师', contact_phone: '13800000000', contact_wechat: '', service_hours: '', submit_hours: 24, correction_hours: 48, version: 1 },
-      deadline: null, message: null, refund_business: 'order', generic_refund_approved: false, entries: [], audits: [], confirmed_at: null,
+      deadline: null, message: null, refund_business: 'order', generic_refund_approved: false, entries: [], audits, confirmed_at: null,
       materials: [{ id: 11, filename: 'tmp_long_unhelpful_filename_93279274.jpg', content_type: 'image/jpeg', size_bytes: 1024 }],
       submissions: [{ version: 1, status: 'under_review', payer: '测试转账人', amount_cents: 111100, transfer_time: '2026-10-27T00:00:00Z', created_at: '2026-10-27T00:00:00Z', bank_reference: '', note: '', reason: null, material_ids: [11] }] })
     if (path === '/admin/orders/7/offline-payment/materials/11/content') return route.fulfill({ contentType: 'image/png', body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jWWQAAAAASUVORK5CYII=', 'base64') })
@@ -98,5 +99,30 @@ test('核账409保留表单并阻止原窗口盲目重复提交', async ({ page 
   await expect(modal.getByRole('button', { name: '确认保存' })).toBeDisabled()
   await expect(modal.getByRole('button', { name: /刷新核账状态/ })).toBeVisible()
   await expect(modal.locator('#bank_reference')).toHaveValue('1')
+  expect(state.errors).toEqual([]); expect(state.unexpected).toEqual([])
+})
+
+test('核账记录突出当次异常原因和金额差额，旧记录明确提示缺失原因', async ({ page }) => {
+  const state = await prepare(page, 'validation', [
+    { action: 'admin.confirm', actor_id: 1, created_at: '2026-10-28T17:35:02Z', summary: { version: 1, result: 'exception', amount_cents: 1111100, note: '历史备注' } },
+    { action: 'admin.confirm', actor_id: 1, created_at: '2026-10-29T08:37:32Z', summary: {
+      version: 1, result: 'exception', reason_code: 'amount_mismatch', reason: '实际到账金额与应付金额不一致',
+      amount_cents: 111100, expected_amount_cents: 1111100, note: '已按银行回单核对', bank_reference: 'TEST-20261029', bank_time: '2026-10-28T16:00:01Z',
+    } },
+  ])
+  await page.getByText(/^第 1 版凭证 ·/).click()
+  await page.getByText('核账操作记录（2）', { exact: true }).click()
+  const latest = page.locator('.ant-timeline-item').first()
+  await latest.scrollIntoViewIfNeeded()
+  await expect(latest.getByText('到账金额不符', { exact: true })).toBeVisible()
+  await expect(latest.getByText('实际到账金额与应付金额不一致', { exact: true })).toBeVisible()
+  await expect(latest.getByText('少到账 ¥10000.00', { exact: true })).toBeVisible()
+  await expect(latest.getByText('2026-10-29 00:00:01', { exact: true })).toBeVisible()
+  await expect(page.getByText(/该历史记录未保存具体异常原因/)).toBeVisible()
+  const container = page.locator('.ant-drawer-body').last()
+  const overflow = await container.evaluate(element => element.scrollWidth > element.clientWidth + 1)
+  expect(overflow).toBe(false)
+  await latest.scrollIntoViewIfNeeded()
+  await page.screenshot({ path: 'test-results/offline-audit-trail.png', fullPage: true, animations: 'disabled' })
   expect(state.errors).toEqual([]); expect(state.unexpected).toEqual([])
 })

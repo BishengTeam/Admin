@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import OfflinePaymentSection from '@/pages/orders/components/OfflinePaymentSection'
 
 const state = vi.hoisted(() => ({ permissions: ['order:list'], detail: vi.fn() }))
@@ -64,5 +64,17 @@ describe('offline payment evidence permissions', () => {
     expect(screen.getAllByRole('button', { name: '确认到账' })).toHaveLength(1)
     cleanup()
     host.remove()
+  })
+  it('separates the current exception message from old operations that have no reason snapshot', async () => {
+    state.permissions = ['offline:view']
+    state.detail.mockResolvedValue({ ...payment, status: 'exception', status_label: '异常待处理', message: '当前资金仍需银行核实',
+      audits: [{ action: 'admin.confirm', actor_id: 1, created_at: '2026-10-29T00:00:00Z', summary: { version: 1, result: 'exception', amount_cents: 9000, note: '历史备注' } }] })
+    render(<OfflinePaymentSection orderId={12} />)
+    expect(await screen.findByText('当前资金异常，需继续核实')).toBeTruthy()
+    expect(screen.getByText('订单应付')).toBeTruthy()
+    fireEvent.click(screen.getByText('核账操作记录（1）'))
+    const history = within(document.querySelector('.ant-timeline') as HTMLElement)
+    expect(history.getByText(/该历史记录未保存具体异常原因/)).toBeTruthy()
+    expect(history.queryByText('当前资金仍需银行核实')).toBeNull()
   })
 })

@@ -2,18 +2,13 @@ import { createPortal } from 'react-dom'
 import MaterialPreview from '@/pages/certification/components/vendors/renshe/MaterialPreview'
 import { useCallback, useEffect, useState, useRef } from 'react'
 import { Link } from 'react-router-dom'
-import { Button, Collapse, Descriptions, Space, Tag, Typography } from 'antd'
+import { Alert, Button, Collapse, Descriptions, Space, Tag, Typography } from 'antd'
 import { useAuth } from '@/hooks/useAuth'
 import { offlinePaymentService, OFFLINE_STATUS, type OfflinePayment } from '@/services/offlinePayment'
 import { formatDate, formatPrice } from '@/utils/format'
 import { downloadBlob } from '@/utils/download'
 import OfflineDecisionModal from './OfflineDecisionModal'
-
-const ACTION_LABELS: Record<string, string> = {
-  'user.submit': '提交转账凭证', 'user.exception': '申报转账异常', 'admin.confirm': '核账处理',
-  'admin.return': '退回补交', 'admin.exception': '标记异常', 'admin.refund': '登记实际退款',
-  'admin.exception_refund': '登记异常款退回', 'admin.generic_refund_approved': '审批订单退款',
-}
+import OfflinePaymentAuditTrail from './OfflinePaymentAuditTrail'
 
 export default function OfflinePaymentSection({ orderId, onChanged, mode = 'order', actionContainer }: { orderId: number; onChanged?: () => void | Promise<void>; mode?: 'order' | 'registration'; actionContainer?: HTMLElement | null }) {
   const { permissions } = useAuth()
@@ -50,7 +45,12 @@ export default function OfflinePaymentSection({ orderId, onChanged, mode = 'orde
   </Space>
   const snapshot = payment.account
   return <Space direction='vertical' size={16} style={{ width: '100%', marginBottom: 24 }}>
-    <Space><Typography.Title level={5} style={{ margin: 0 }}>线下收款</Typography.Title><Tag color={OFFLINE_STATUS[payment.status]?.color}>{payment.status_label}</Tag><Button size='small' onClick={() => void load().catch(() => {})}>刷新</Button></Space>
+    <Space wrap><Typography.Title level={5} style={{ margin: 0 }}>线下收款</Typography.Title><Tag color={OFFLINE_STATUS[payment.status]?.color}>{payment.status_label}</Tag>
+      <Typography.Text>订单应付 <Typography.Text strong>{formatPrice(payment.amount_cents)}</Typography.Text></Typography.Text>
+      <Button size='small' onClick={() => void load().catch(() => {})}>刷新</Button></Space>
+    {['exception', 'returned'].includes(payment.status) && <Alert showIcon type={payment.status === 'exception' ? 'error' : 'warning'}
+      message={payment.status === 'exception' ? '当前资金异常，需继续核实' : '当前凭证已驳回，等待补交'}
+      description={payment.message || '未记录具体处理原因，请核对银行流水和操作记录。'} />}
     <Descriptions bordered size='small' column={1} title='收款账户快照'>
       <Descriptions.Item label='收款户名'>{snapshot.account_name}</Descriptions.Item><Descriptions.Item label='开户行'>{snapshot.bank_name}</Descriptions.Item>
       <Descriptions.Item label='账号'><Typography.Text copyable>{snapshot.account_number}</Typography.Text></Descriptions.Item>
@@ -82,16 +82,7 @@ export default function OfflinePaymentSection({ orderId, onChanged, mode = 'orde
       <Descriptions.Item label='银行时间'>{formatDate(e.bank_time)}</Descriptions.Item><Descriptions.Item label='系统登记时间'>{formatDate(e.created_at)}</Descriptions.Item>
       {e.material_ids?.length > 0 && <Descriptions.Item label='实际退款凭证'>{e.material_ids.map(id => <Button key={id} type='link' onClick={() => void download(id)}>下载查看退款凭证</Button>)}</Descriptions.Item>}
     </Descriptions>)}
-    <Collapse items={[{ key: 'audit', label: '核账操作记录', children: payment.audits.map((a, i) => <Space key={i} direction='vertical' size={2} style={{ display: 'flex', marginBottom: 16 }}>
-      <Typography.Text>{ACTION_LABELS[a.action] || a.action}</Typography.Text>
-      <Typography.Text type='secondary'>{formatDate(a.created_at)} · {a.action.startsWith('user.') ? '用户' : '管理员'} {a.actor_id} · 第 {a.summary.version} 版</Typography.Text>
-      {a.summary.result && <Tag color={OFFLINE_STATUS[a.summary.result]?.color}>{OFFLINE_STATUS[a.summary.result]?.text || a.summary.result}</Tag>}
-      {a.summary.amount_cents != null && <Typography.Text>{a.action.startsWith('user.') ? '申报金额' : '实际金额'} {formatPrice(a.summary.amount_cents)}</Typography.Text>}
-      {a.summary.bank_reference && <Typography.Text copyable>{a.summary.bank_reference}</Typography.Text>}
-      {a.summary.bank_time && <Typography.Text>银行时间 {formatDate(a.summary.bank_time)}</Typography.Text>}
-      {a.summary.deadline && <Typography.Text>补交截止 {formatDate(a.summary.deadline)}</Typography.Text>}
-      <Typography.Text>{a.summary.note}</Typography.Text>
-    </Space>) }]} />
+    <Collapse items={[{ key: 'audit', label: `核账操作记录（${payment.audits.length}）`, children: <OfflinePaymentAuditTrail audits={payment.audits} /> }]} />
     {mode === 'order' && payment.business_link && can(`${payment.business_link.vendor}:review`) && <Link to={`/admin/certification/${payment.business_link.vendor}/batches/${payment.business_link.batch_id}?openRegistrationId=${payment.business_link.registration_id}`}>进入报名详情</Link>}
     {error && <Typography.Text type='danger'>{error}</Typography.Text>}
     {payment.order_status === 'pending' && payment.status === 'returned' && <Typography.Text type='secondary'>等待用户补交新版本</Typography.Text>}
