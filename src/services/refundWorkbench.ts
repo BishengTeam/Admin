@@ -1,4 +1,3 @@
-import { certificationService } from '@/services/certification'
 import { h3cService } from '@/services/h3c'
 import { nispService, type NispRefund } from '@/services/nisp'
 import { rensheService } from '@/services/renshe'
@@ -195,7 +194,7 @@ export const refundWorkbenchService = {
     if (vendor === 'sangfor') {
       return (await sangforService.refundBatches()).map(item => ({ value: item.id, label: item.name }))
     }
-    const items = await certificationService.listPlans('RS-ZY')
+    const items = await rensheService.listBatches()
     return items.map(item => ({ value: item.id, label: item.name }))
   },
 }

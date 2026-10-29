@@ -1,5 +1,5 @@
 import { PaymentStatusTag, PAYMENT_FILTER_OPTIONS } from '../../shared/RegistrationPayment'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   Alert,
@@ -30,6 +30,7 @@ import { rensheService } from '@/services/renshe'
 import type {
   CertificationPlan,
 } from '@/types/certification'
+import { PLAN_STATUS_MAP } from '@/types/certification'
 import type {
   RensheApplicationListItem,
   RensheApplicationStatus,
@@ -132,6 +133,7 @@ export default function RensheBatchWorkbench() {
   const [externalSubmitting, setExternalSubmitting] = useState(false)
   const [externalResults, setExternalResults] = useState<RensheBatchExternalReviewResult[] | null>(null)
   const [exporting, setExporting] = useState(false)
+  const exportLock = useRef(false)
   const [selectedListOpen, setSelectedListOpen] = useState(false)
   const [itemJob, setItemJob] = useState<RensheExportJob | null>(null)
   const [activeTab, setActiveTab] = useState(searchParams.get('tab') === 'refunds' ? 'refunds' : 'people')
@@ -226,6 +228,7 @@ export default function RensheBatchWorkbench() {
         plan_id: planId,
         keyword: filters.keyword || undefined,
         status: filters.status,
+        payment_state: filters.payment_state,
       })
       items.push(...result.items)
       if (items.length >= result.total || result.items.length === 0) break
@@ -235,22 +238,25 @@ export default function RensheBatchWorkbench() {
   }
 
   const exportApplications = async (scope: 'selected' | 'filter') => {
-    const ids = scope === 'selected'
-      ? selectedList.map(item => item.id)
-      : (await collectFilteredApplications()).map(item => item.id)
-    if (!ids.length) {
-      message.warning('没有可导出的报名人员')
-      return
-    }
+    if (exportLock.current) return
+    exportLock.current = true
     setExporting(true)
     try {
+      const ids = scope === 'selected'
+        ? selectedList.map(item => item.id)
+        : (await collectFilteredApplications()).map(item => item.id)
+      if (!ids.length) {
+        message.warning('没有可导出的报名人员')
+        return
+      }
       await rensheService.createExportJob(planId, ids)
-      message.success('导出任务已创建')
+      message.success('导出任务已提交')
       await refreshJobs()
       setActiveTab('exports')
     } catch (error) {
       message.error(error instanceof Error ? error.message : '创建导出任务失败')
     } finally {
+      exportLock.current = false
       setExporting(false)
     }
   }
@@ -409,7 +415,7 @@ export default function RensheBatchWorkbench() {
       {plan && (
         <Descriptions bordered size='small' column={4} style={{ marginBottom: 16 }}>
           <Descriptions.Item label='批次'>{plan.name}</Descriptions.Item>
-          <Descriptions.Item label='状态'>{plan.status}</Descriptions.Item>
+          <Descriptions.Item label='状态'><Tag color={PLAN_STATUS_MAP[plan.status]?.color}>{PLAN_STATUS_MAP[plan.status]?.text || '未知状态'}</Tag></Descriptions.Item>
           <Descriptions.Item label='报名费'>{formatPrice(plan.price_cents)}</Descriptions.Item>
           <Descriptions.Item label='名额'>{plan.enrolled}/{plan.capacity || '不限'}</Descriptions.Item>
           <Descriptions.Item label='报考项目'>{plan.project_name || '待核实'}</Descriptions.Item>
