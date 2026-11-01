@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Button, Input, Modal, Select, Space, Tag, Typography, message } from 'antd'
+import { Button, Form, Input, Modal, Select, Space, Tag, Typography, message } from 'antd'
 import { usePermission } from '@/hooks/usePermission'
 import { useReauthentication } from '@/hooks/useReauthentication'
 import { nispService } from '@/services/nisp'
@@ -77,10 +77,12 @@ export default function RegistrationReviewDrawer({
   const [detailLoading, setDetailLoading] = useState(false)
   const [rejectOpen, setRejectOpen] = useState(false)
   const [rejectReason, setRejectReason] = useState('')
+  const [rejectReasonError, setRejectReasonError] = useState(false)
   const [rejectFields, setRejectFields] = useState<string[]>([])
   const [rejectMaterials, setRejectMaterials] = useState<NispMaterial['material_type'][]>([])
   const [refundOpen, setRefundOpen] = useState(false)
   const [refundReason, setRefundReason] = useState('')
+  const [refundReasonError, setRefundReasonError] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const { ensureReauthenticated, reauthDialog } = useReauthentication()
 
@@ -104,7 +106,10 @@ export default function RegistrationReviewDrawer({
     }
   }, [open, registration])
 
-  useEffect(() => { setRefundOpen(false); setRejectOpen(false) }, [registration?.id, open])
+  useEffect(() => {
+    setRefundOpen(false); setRejectOpen(false)
+    setRejectReasonError(false); setRefundReasonError(false)
+  }, [registration?.id, open])
 
   const current = detail?.id === registration?.id ? detail : registration
   const currentMaterials = (current?.materials ?? []).filter((material) => material.is_current)
@@ -126,13 +131,18 @@ export default function RegistrationReviewDrawer({
 
   const openReject = () => {
     setRejectReason('')
+    setRejectReasonError(false)
     setRejectFields([])
     setRejectMaterials([])
     setRejectOpen(true)
   }
 
   const reject = async () => {
-    if (!current || !rejectReason.trim()) return
+    if (!current) return
+    if (!rejectReason.trim()) {
+      setRejectReasonError(true)
+      return
+    }
     if (!rejectFields.length && !rejectMaterials.length) {
       message.warning('请选择至少一项补正内容')
       return
@@ -157,7 +167,11 @@ export default function RegistrationReviewDrawer({
   }
 
   const submitRefund = async () => {
-    if (!current || !refundReason.trim()) return
+    if (!current) return
+    if (!refundReason.trim()) {
+      setRefundReasonError(true)
+      return
+    }
     setSubmitting(true)
     try {
       const token = await ensureReauthenticated()
@@ -375,14 +389,19 @@ export default function RegistrationReviewDrawer({
               label: MATERIAL_LABELS[material.material_type],
             }))}
         />
-        <Input.TextArea
-          rows={4}
-          value={rejectReason}
-          onChange={(event) => setRejectReason(event.target.value)}
-          placeholder='请填写打回补正原因（用户可见）'
-          maxLength={2000}
-          showCount
-        />
+        <Form.Item label='补正原因（用户可见）' required
+          validateStatus={rejectReasonError ? 'error' : undefined}
+          help={rejectReasonError ? '请填写打回补正原因' : undefined}>
+          <Input.TextArea
+            aria-label='打回补正原因'
+            rows={4}
+            value={rejectReason}
+            onChange={(event) => { setRejectReason(event.target.value); setRejectReasonError(false) }}
+            placeholder='请填写打回补正原因（用户可见）'
+            maxLength={2000}
+            showCount
+          />
+        </Form.Item>
       </Modal>
 
       <Modal
@@ -394,14 +413,19 @@ export default function RegistrationReviewDrawer({
         okText='授权退款'
         okButtonProps={{ danger: true }}
       >
-        <Input.TextArea
-          rows={4}
-          value={refundReason}
-          onChange={(event) => setRefundReason(event.target.value)}
-          placeholder='请填写用户可见的拒绝与退款原因'
-          maxLength={2000}
-          showCount
-        />
+        <Form.Item label='拒绝与退款原因（用户可见）' required
+          validateStatus={refundReasonError ? 'error' : undefined}
+          help={refundReasonError ? '请填写拒绝与退款原因' : undefined}>
+          <Input.TextArea
+            aria-label='拒绝与退款原因'
+            rows={4}
+            value={refundReason}
+            onChange={(event) => { setRefundReason(event.target.value); setRefundReasonError(false) }}
+            placeholder='请填写用户可见的拒绝与退款原因'
+            maxLength={2000}
+            showCount
+          />
+        </Form.Item>
       </Modal>
       {reauthDialog}
     </>

@@ -644,6 +644,10 @@ export default function NispBatchOverrides() {
               身份证双面、证件照
               {watchLevel === '2' && '、学籍报告、NISP二级申请表'}。
             </div>
+            <div>
+              <Typography.Text strong>文件限制：</Typography.Text>
+              每份材料不超过 10MB；证件照为 JPG，其余材料为 PDF。
+            </div>
             {watchLevel === '2' && (
               <div>
                 <Typography.Text strong>二级额外信息：</Typography.Text>
