@@ -1,11 +1,14 @@
 export type CourseStatus = 'draft' | 'published' | 'offline' | 'archived'
-export type CourseUploadKind = 'cover' | 'chapter_video'
+export type CourseUploadKind = 'cover' | 'chapter_video' | 'chapter_file'
 export type CourseUploadStatus =
   | 'pending'
   | 'completed'
   | 'bound'
   | 'aborted'
   | 'expired'
+  | 'validating'
+  | 'failed'
+  | 'retired'
 
 export interface CourseCategory {
   id: number
@@ -15,6 +18,9 @@ export interface CourseCategory {
 }
 
 export interface CourseItem {
+  chapter_count?: number
+  video_count?: number
+  document_count?: number
   id: number
   title: string
   category: string
@@ -36,11 +42,15 @@ export interface CourseChapter {
   id: number
   course_id: number
   title: string
-  video_storage_key: string
+  video_storage_key: string | null
+  resource_type: 'video' | 'document'
+  resource_storage_key: string
+  resource_version: number
+  page_count: number | null
   original_filename: string
   content_type: string
   size_bytes: number
-  duration: number
+  duration: number | null
   sort_order: number
   created_at: string
   updated_at: string
@@ -53,6 +63,11 @@ export interface CourseUploadPart {
 }
 
 export interface CourseUpload {
+  resource_type?: 'video' | 'document' | null
+  page_count?: number | null
+  chapter_id?: number | null
+  expected_resource_version?: number | null
+  validation_error?: string | null
   id: number
   course_id?: number | null
   kind: CourseUploadKind

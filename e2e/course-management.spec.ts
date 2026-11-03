@@ -172,6 +172,7 @@ test.describe('课程管理', () => {
         'base64',
       ),
     })
+    await page.getByRole('button', { name: '使用此裁剪', exact: true }).click()
     await expect(page.getByText('封面上传完成')).toBeVisible()
     expect(ossContentType).toBeUndefined()
   })

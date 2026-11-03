@@ -32,7 +32,9 @@ export interface CourseMutation {
 }
 
 export interface CourseUploadStart {
-  kind: 'cover' | 'chapter_video'
+  kind: 'cover' | 'chapter_video' | 'chapter_file'
+  chapter_id?: number
+  expected_resource_version?: number
   filename: string
   content_type: string
   size_bytes: number
@@ -121,6 +123,8 @@ async function uploadMultipart(
   start: CourseUploadStart,
   file: File,
   existing?: CourseUpload,
+  onProgress?: (percent: number) => void,
+  signal?: AbortSignal,
 ): Promise<CourseUpload> {
   let upload = existing
   let uploadedPartNumbers = new Set<number>()
@@ -129,6 +133,9 @@ async function uploadMultipart(
   } else {
     const detail = await courseManagementService.getUpload(upload.id)
     upload = detail
+    if (detail.status === 'bound') return detail
+    if (detail.status === 'failed' && !detail.oss_upload_id) return (await courseManagementService.completeUpload(detail.id)).upload
+    if (detail.status === 'validating') throw new Error('文件正在验证，请刷新查看结果')
     uploadedPartNumbers = new Set(detail.parts.map(part => part.part_number))
   }
   if (upload.upload_url) {
@@ -148,14 +155,27 @@ async function uploadMultipart(
     const part = await courseManagementService.createUploadPartUrl(upload.id, partNumber)
     const startByte = (partNumber - 1) * upload.part_size
     const body = file.slice(startByte, Math.min(file.size, startByte + upload.part_size))
-    const response = await fetch(part.url, { method: 'PUT', body })
+    const response = await fetch(part.url, { method: 'PUT', body, signal })
     if (!response.ok) throw new Error(`分片 ${partNumber} 上传失败`)
+    onProgress?.(Math.round(partNumber / partCount * 100))
   }
+  onProgress?.(100)
+  signal?.throwIfAborted()
   const completed = await courseManagementService.completeUpload(upload.id)
   return completed.upload
 }
 
 export const courseManagementService = {
+  async uploadChapterFile(upload: CourseUpload, file: File, onProgress?: (percent: number) => void, signal?: AbortSignal): Promise<CourseUpload> {
+    if (file.name !== upload.filename || file.size !== upload.size_bytes) throw new Error('请选择与原任务相同的文件')
+    return uploadMultipart({ kind: upload.kind, filename: file.name, content_type: file.type || 'application/octet-stream', size_bytes: file.size }, file, upload, onProgress, signal)
+  },
+  previewChapter(courseId: number, chapterId: number): Promise<{ url: string; resource_type: string }> {
+    return http.get(`/admin/courses/${courseId}/chapters/${chapterId}/resource`)
+  },
+  sortChapters(courseId: number, chapters: Array<{ id: number; sort_order: number }>): Promise<void> {
+    return http.post(`/admin/courses/${courseId}/chapters/sort`, chapters)
+  },
   listCourses(params: CourseFilter, signal?: AbortSignal): Promise<PageData<CourseItem>> {
     return http.get('/admin/courses', { params, signal })
   },

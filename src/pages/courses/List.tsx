@@ -75,10 +75,10 @@ export default function CourseListPage() {
       width: 96,
       render: value => value ? <Image src={value} width={72} height={40} preview={false} /> : null,
     },
-    { title: '课程', dataIndex: 'title', ellipsis: true },
+    { title: '课程', dataIndex: 'title', render: (title, row) => <div>{title}<div style={{ color: '#8c8c8c', fontSize: 12 }}>共{row.chapter_count ?? 0}章 · 视频{row.video_count ?? 0}章 · 文档{row.document_count ?? 0}章</div></div> },
     { title: '类目', dataIndex: 'category', width: 120 },
     { title: '价格（元）', dataIndex: 'price_yuan', width: 110 },
-    { title: '试看集数', dataIndex: 'preview_chapter_count', width: 100 },
+    { title: '免费预览章节数', dataIndex: 'preview_chapter_count', width: 100 },
     { title: '状态', dataIndex: 'status', width: 100, render: (value: CourseItem['status']) => <Tag color={STATUS_META[value].color}>{STATUS_META[value].text}</Tag> },
     { title: '报名', dataIndex: 'enrollment_count', width: 80 },
     { title: '题库', dataIndex: 'bound_quiz_library_count', width: 80 },
@@ -99,7 +99,7 @@ export default function CourseListPage() {
             管理
           </Button>
           {canPublish && record.status === 'draft' && (
-            <ConfirmButton title="发布课程" description="发布前会校验封面、课程名和试看集数。" type="link" size="small" onConfirm={async () => { await courseManagementService.changeLifecycle(record.id, 'publish'); message.success('课程已发布'); refresh() }}>发布</ConfirmButton>
+            <ConfirmButton title="发布课程" description="发布前会校验封面、课程名和免费预览章节数。" type="link" size="small" onConfirm={async () => { await courseManagementService.changeLifecycle(record.id, 'publish'); message.success('课程已发布'); refresh() }}>发布</ConfirmButton>
           )}
           {canPublish && record.status === 'published' && (
             <ConfirmButton title="下线课程" description="下线后不能新购，已购用户继续学习。" danger type="link" size="small" onConfirm={async () => { await courseManagementService.changeLifecycle(record.id, 'offline'); refresh() }}>下线</ConfirmButton>
@@ -161,7 +161,7 @@ export default function CourseListPage() {
             <Form.Item name="price_yuan" label="价格（元）" rules={[{ required: true, pattern: /^\d+(\.\d{1,2})?$/, message: '最多两位小数' }]}>
               <Input style={{ width: 140 }} placeholder="0.00" />
             </Form.Item>
-            <Form.Item name="preview_chapter_count" label="试看集数（仅付费课程生效）" rules={[{ required: true }]}>
+            <Form.Item name="preview_chapter_count" label="免费预览章节数" rules={[{ required: true }]}>
               <InputNumber min={0} precision={0} style={{ width: 180 }} />
             </Form.Item>
             <Form.Item name="teacher_name" label="讲师"><Input style={{ width: 160 }} /></Form.Item>
