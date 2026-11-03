@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
-import { Alert, Card, Table, Input, DatePicker, Button, Radio, Space, Tag, Typography, message } from 'antd'
+import { Alert, Card, Table, Input, InputNumber, DatePicker, Button, Radio, Space, Tag, Typography, message, Modal, Form } from 'antd'
 import { DownloadOutlined, DeleteOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import type { TableRowSelection } from 'antd/es/table/interface'
@@ -10,6 +10,7 @@ import { StatusTag } from '@/components/StatusTag'
 import { usePagination } from '@/hooks/usePagination'
 import { useExport } from '@/hooks/useExport'
 import { usePermission } from '@/hooks/usePermission'
+import { useAuth } from '@/hooks/useAuth'
 import { userService } from '@/services/users'
 import { USER_STATUS_MAP } from '@/core/constants'
 import { formatDate, formatPhone } from '@/utils/format'
@@ -112,6 +113,13 @@ export default function UserList() {
   const { exporting, startExport, finishExport } = useExport()
   const canWrite = usePermission('user:write')
   const canDelete = usePermission('user:delete')
+  const { admin, permissions } = useAuth()
+  const isSuperAdmin = admin?.role === 'super_admin' || permissions.includes('*')
+
+  // 手工调分（仅 super_admin）：客诉补偿/作弊清零/线下报课补发的人工兜底
+  const [adjustTarget, setAdjustTarget] = useState<User | null>(null)
+  const [adjustSubmitting, setAdjustSubmitting] = useState(false)
+  const [adjustForm] = Form.useForm()
 
   const filters = useMemo<UserFilter>(() => {
     if (reviewQuickFilter === 'all') return searchFilters
@@ -198,6 +206,21 @@ export default function UserList() {
     refresh()
   }
 
+  const handleAdjustSubmit = async () => {
+    if (!adjustTarget) return
+    const values = await adjustForm.validateFields()
+    setAdjustSubmitting(true)
+    try {
+      const { balance } = await userService.adjustPoints(adjustTarget.id, values)
+      message.success(`积分已调整，当前余额 ${balance}`)
+      setAdjustTarget(null)
+      adjustForm.resetFields()
+      refresh()
+    } finally {
+      setAdjustSubmitting(false)
+    }
+  }
+
   const handleDelete = async (id: number) => {
     await userService.deleteUsers([id])
     message.success('删除成功')
@@ -268,12 +291,17 @@ export default function UserList() {
     },
     {
       title: '操作',
-      width: 220,
+      width: 260,
       render: (_, record) => (
         <Space>
           <Button type="link" size="small" onClick={(e) => { e.stopPropagation(); handleRowClick(record); }}>
             查看
           </Button>
+          {isSuperAdmin && (
+            <Button type="link" size="small" onClick={(e) => { e.stopPropagation(); setAdjustTarget(record); }}>
+              调分
+            </Button>
+          )}
           {canWrite && (
             <ConfirmButton
               title={record.is_active ? '禁用用户' : '启用用户'}
@@ -414,6 +442,47 @@ export default function UserList() {
         nextPending={nextPending}
         onNextPending={openNextPending}
       />
+
+      <Modal
+        title={`手工调分${adjustTarget ? `：${adjustTarget.openid || adjustTarget.id}` : ''}`}
+        open={adjustTarget !== null}
+        confirmLoading={adjustSubmitting}
+        onOk={handleAdjustSubmit}
+        onCancel={() => { setAdjustTarget(null); adjustForm.resetFields() }}
+        okText="确认调整"
+        destroyOnClose
+      >
+        <Alert
+          type='warning'
+          showIcon
+          message='正数发放、负数扣减；扣减不允许扣至负余额。原因将写入积分流水与审计日志。'
+          style={{ marginBottom: 16 }}
+        />
+        <Form form={adjustForm} layout='vertical'>
+          <Form.Item
+            name='amount'
+            label='调整积分'
+            rules={[
+              { required: true, message: '请输入调整积分' },
+              {
+                validator: (_, value: number | undefined) =>
+                  value === undefined || value !== 0
+                    ? Promise.resolve()
+                    : Promise.reject(new Error('调整积分不能为 0')),
+              },
+            ]}
+          >
+            <InputNumber style={{ width: '100%' }} precision={0} placeholder='如 50 发放 / -20 扣减' />
+          </Form.Item>
+          <Form.Item
+            name='reason'
+            label='调整原因'
+            rules={[{ required: true, min: 2, max: 200, message: '请填写调整原因（2-200 字）' }]}
+          >
+            <Input.TextArea rows={3} maxLength={200} placeholder='如：客诉补偿 / 作弊清零 / 线下报课补发' />
+          </Form.Item>
+        </Form>
+      </Modal>
     </PageContainer>
   )
 }

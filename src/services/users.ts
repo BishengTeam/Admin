@@ -33,6 +33,11 @@ export const userService = {
     return http.patch<void>(`/admin/users/${id}/status`, { is_active })
   },
 
+  /** 手工调分（仅 super_admin）：正数发放、负数扣减，返回调整后余额 */
+  async adjustPoints(id: number, data: { amount: number; reason: string }): Promise<{ balance: number }> {
+    return http.post<{ balance: number }>(`/admin/users/${id}/points-adjust`, data)
+  },
+
   // ===== Level-2 审核 =====
 
   async reviewRealname(id: number, data: { status: string; comment?: string }): Promise<void> {
