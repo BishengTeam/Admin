@@ -141,7 +141,7 @@ export default function CourseDetailPage() {
         </Card>
       )}
       <CoverCropper open={Boolean(coverCropFile)} file={coverCropFile} crop={{ width: 1280, height: 720, title: '课程封面' }}
-        onCancel={() => setCoverCropFile(null)} onCropped={async file => { const upload = await courseManagementService.uploadCover(file); await courseManagementService.updateCourse(courseId, { cover_upload_id: upload.id }); await load() }} />
+        onCancel={() => setCoverCropFile(null)} onCropped={async croppedFile => { const upload = await courseManagementService.uploadCover(croppedFile); await courseManagementService.updateCourse(courseId, { cover_upload_id: upload.id }); await load() }} />
       <Tabs items={[
         {
           key: 'basic',
