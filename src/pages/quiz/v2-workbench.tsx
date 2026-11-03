@@ -162,7 +162,9 @@ export default function QuizV2Workbench() {
 
   useEffect(() => { void loadLibraries(); return () => librariesController.current?.abort() }, [loadLibraries])
   useEffect(() => { void loadTree(); return () => treeController.current?.abort() }, [loadTree])
-  useEffect(() => { setPage(1); setSelectedRows({}); void loadQuestions(); return () => questionsController.current?.abort() }, [loadQuestions])
+  // 筛选条件变化时回到第 1 页；不能依赖 loadQuestions 身份，否则翻页本身也会触发重置，分页永远停在第一页。
+  useEffect(() => { setPage(1); setSelectedRows({}) }, [selectedLibraryId, selection.kind, selection.kind === 'all' ? 0 : selection.id, focusQuestionId, params])
+  useEffect(() => { void loadQuestions(); return () => questionsController.current?.abort() }, [loadQuestions])
   useEffect(() => { setKeyword(params.get('keyword') ?? '') }, [params])
 
   const refreshAll = async () => { await Promise.all([loadLibraries(), loadTree(), loadQuestions()]) }
