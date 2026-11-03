@@ -28,6 +28,8 @@ import {
   QuizTaskSnapshotSchema,
   QuizContentStatusUpdateSchema,
   QuizContentTreeSchema,
+  QuizActivationCodeGenerateResponseSchema,
+  QuizActivationCodeSchema,
   QuizCourseBindingSchema,
   QuizCourseOptionSchema,
   QuizKnowledgePointCreateSchema,
@@ -107,6 +109,9 @@ import type {
  QuizLibraryUpdate,
   QuizModule,
   QuizModuleCreate,
+  QuizActivationCode,
+  QuizActivationCodeGenerateResponse,
+  QuizActivationCodeStatus,
   QuizModuleUpdate,
   QuizQuestionRevision,
   QuizV2Question,
@@ -252,6 +257,33 @@ export const quizService = {
 
   async updateCourseBindingStatus(id: number, status: QuizCourseBinding['status'], lock_version: number, signal?: AbortSignal): Promise<QuizCourseBinding> {
     return parsed(QuizCourseBindingSchema, await http.post(`/admin/quiz/course-bindings/${id}/status`, { status, lock_version }, { signal }))
+  },
+
+  async generateActivationCodes(libraryId: number, quantity: number, note: string | null, signal?: AbortSignal): Promise<QuizActivationCodeGenerateResponse> {
+    return parsed(
+      QuizActivationCodeGenerateResponseSchema,
+      await http.post(`/admin/quiz/libraries/${libraryId}/activation-codes`, omitUndefined({ quantity, note }), { signal }),
+    )
+  },
+
+  async listActivationCodes(libraryId: number, params: { status?: QuizActivationCodeStatus; page?: number; page_size?: number } = {}, signal?: AbortSignal): Promise<PageData<QuizActivationCode>> {
+    return parsed(
+      pageSchema(QuizActivationCodeSchema),
+      await http.get(`/admin/quiz/libraries/${libraryId}/activation-codes`, queryConfig(params, signal)),
+    )
+  },
+
+  async exportActivationCodesCsv(libraryId: number, status?: QuizActivationCodeStatus, signal?: AbortSignal): Promise<Blob> {
+    return http.get<Blob>(`/admin/quiz/libraries/${libraryId}/activation-codes/export`, {
+      params: status ? { status } : {},
+      responseType: 'blob',
+      timeout: 60000,
+      signal,
+    })
+  },
+
+  async revokeActivationCode(codeId: number, signal?: AbortSignal): Promise<void> {
+    await http.post(`/admin/quiz/activation-codes/${codeId}/revoke`, undefined, { signal })
   },
 
   async getContentTree(libraryId: number, signal?: AbortSignal): Promise<QuizContentTree> {

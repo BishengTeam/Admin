@@ -66,9 +66,13 @@ describe('quizService frozen admin contract', () => {
   it('keeps all legacy and V2 management calls on /admin/quiz without a duplicated /api prefix', () => {
     const source = readFileSync(resolve(process.cwd(), 'src/services/quiz.ts'), 'utf8')
     expect(source).not.toContain('/api/admin/quiz')
-    expect(source.match(/\/admin\/quiz/g)).toHaveLength(70)
+    // quiz018：新增 4 个激活码端点（生成/列表/导出/作废），70 → 74
+    expect(source.match(/\/admin\/quiz/g)).toHaveLength(74)
     for (const path of [
       '/admin/quiz/course-options',
+      '/admin/quiz/libraries/${libraryId}/activation-codes',
+      '/admin/quiz/libraries/${libraryId}/activation-codes/export',
+      '/admin/quiz/activation-codes/${codeId}/revoke',
       '/admin/quiz/questions/export/csv',
       '/admin/quiz/categories/${id}/impact',
       '/admin/quiz/imports/${id}/source-url',

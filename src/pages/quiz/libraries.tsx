@@ -15,17 +15,21 @@ import {
   Table,
   Tag,
   Tooltip,
+  Typography,
 } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { useNavigate } from 'react-router-dom'
-import { LinkOutlined, PlusOutlined, ReloadOutlined, SearchOutlined, SwapOutlined } from '@ant-design/icons'
+import { DownloadOutlined, KeyOutlined, LinkOutlined, PlusOutlined, ReloadOutlined, SearchOutlined, SwapOutlined } from '@ant-design/icons'
 import { PageContainer } from '@/components/PageContainer'
 import { quizService } from '@/services/quiz'
 import { ImageUpload } from '@/components/ImageUpload'
 import { usePermission } from '@/hooks/usePermission'
 import { useAuthStore } from '@/stores/authStore'
 import { useReauthentication } from '@/hooks/useReauthentication'
+import type { PageData } from '@/types/api'
 import type {
+  QuizActivationCode,
+  QuizActivationCodeStatus,
   QuizCourseBinding,
   QuizCourseOption,
   QuizLibrary,
@@ -61,6 +65,13 @@ const accessLabels: Record<QuizLibraryAccessMode, string> = {
   free: '免费题库',
   course_entitlement: '课程购买赠送',
   paid: '付费题库',
+  activation_code: '激活码解锁',
+}
+
+const activationCodeStatusLabels: Record<QuizActivationCodeStatus, string> = {
+  issued: '未兑换',
+  redeemed: '已兑换',
+  revoked: '已作废',
 }
 
 const vendorLabels: Record<QuizLibrary['vendor_tag'], string> = {
@@ -90,15 +101,19 @@ function errorText(error: unknown) {
   return error instanceof Error ? error.message : '请求失败'
 }
 
+// 与后端 _ACCESS_MODE_TRANSITIONS（quiz018）严格对齐；paid 无购买通道（购买接口已下线），不可作为转换目标。
 const ALLOWED_TRANSITIONS: Record<QuizLibraryAccessMode, QuizLibraryAccessMode[]> = {
-  access_mode_pending: ['free', 'course_entitlement', 'paid'],
-  free: ['course_entitlement', 'paid'],
-  course_entitlement: ['free', 'paid'],
-  paid: ['free', 'course_entitlement'],
+  access_mode_pending: ['free', 'course_entitlement', 'activation_code'],
+  free: ['course_entitlement', 'activation_code'],
+  course_entitlement: ['free', 'activation_code'],
+  paid: ['free', 'course_entitlement', 'activation_code'],
+  activation_code: ['free', 'course_entitlement', 'paid'],
 }
 
 function convertWarning(_current: QuizLibraryAccessMode, target: QuizLibraryAccessMode): string {
   if (target === 'course_entitlement') return '切换后只有通过课程购买获得权益的用户可以练习该题库。免费用户将无法继续使用，请确保已配置有效的课程绑定。'
+  if (target === 'activation_code') return '切换后题库对所有用户可见，但只有兑换激活码的用户可以练习。请先在「激活码」面板批量生成激活码并交发放方。'
+  if (target === 'paid') return '付费模式当前没有可用的购买通道（购买接口已下线），切换后所有用户都无法看到该题库，请确认这是预期效果。'
   return '切换后所有用户均可练习该题库。已有的课程权益记录不会删除，但权益不再是访问前提。'
 }
 
@@ -170,6 +185,15 @@ export default function QuizLibraries() {
   const [courses, setCourses] = useState<QuizCourseOption[]>([])
   const [bindingCourseId, setBindingCourseId] = useState<number>()
   const [bindingLoading, setBindingLoading] = useState(false)
+  const [codeLibrary, setCodeLibrary] = useState<QuizLibrary | null>(null)
+  const [codes, setCodes] = useState<PageData<QuizActivationCode> | null>(null)
+  const [codeStatus, setCodeStatus] = useState<QuizActivationCodeStatus | undefined>(undefined)
+  const [codePage, setCodePage] = useState(1)
+  const [codesLoading, setCodesLoading] = useState(false)
+  const [generateOpen, setGenerateOpen] = useState(false)
+  const [generating, setGenerating] = useState(false)
+  const [generatedCodes, setGeneratedCodes] = useState<string[] | null>(null)
+  const [generateForm] = Form.useForm()
   const [migrationLibrary, setMigrationLibrary] = useState<QuizLibrary | null>(null)
   const [migrationReport, setMigrationReport] = useState<QuizMigrationReport | null>(null)
   const [migrationLoading, setMigrationLoading] = useState(false)
@@ -362,6 +386,81 @@ export default function QuizLibraries() {
     } finally { setBindingLoading(false) }
   }
 
+  const loadCodes = async (page: number, status?: QuizActivationCodeStatus) => {
+    if (!codeLibrary) return
+    setCodesLoading(true)
+    try {
+      setCodes(await quizService.listActivationCodes(codeLibrary.id, { page, page_size: 10, status }))
+    } catch (error) {
+      message.error(errorText(error))
+    } finally {
+      setCodesLoading(false)
+    }
+  }
+
+  const openCodes = async (library: QuizLibrary) => {
+    setCodeLibrary(library)
+    setGeneratedCodes(null)
+    setCodeStatus(undefined)
+    setCodePage(1)
+    await loadCodesFor(library, 1, undefined)
+  }
+
+  const loadCodesFor = async (library: QuizLibrary, page: number, status?: QuizActivationCodeStatus) => {
+    setCodesLoading(true)
+    try {
+      setCodes(await quizService.listActivationCodes(library.id, { page, page_size: 10, status }))
+    } catch (error) {
+      message.error(errorText(error))
+    } finally {
+      setCodesLoading(false)
+    }
+  }
+
+  const submitGenerateCodes = async () => {
+    if (!codeLibrary) return
+    const values = await generateForm.validateFields()
+    setGenerating(true)
+    try {
+      const result = await quizService.generateActivationCodes(codeLibrary.id, values.quantity, values.note?.trim() || null)
+      setGeneratedCodes(result.codes)
+      setGenerateOpen(false)
+      generateForm.resetFields()
+      setCodePage(1)
+      await loadCodes(1, codeStatus)
+      message.success(`已生成 ${result.codes.length} 个激活码`)
+    } catch (error) {
+      message.error(errorText(error))
+    } finally {
+      setGenerating(false)
+    }
+  }
+
+  const revokeActivationCode = async (code: QuizActivationCode) => {
+    try {
+      await quizService.revokeActivationCode(code.id)
+      message.success('激活码已作废')
+      await loadCodes(codePage, codeStatus)
+    } catch (error) {
+      message.error(errorText(error))
+    }
+  }
+
+  const downloadCodesCsv = async () => {
+    if (!codeLibrary) return
+    try {
+      const blob = await quizService.exportActivationCodesCsv(codeLibrary.id, codeStatus)
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `quiz_activation_codes_${codeLibrary.id}.csv`
+      link.click()
+      URL.revokeObjectURL(url)
+    } catch (error) {
+      message.error(errorText(error))
+    }
+  }
+
   const openMigrationReport = async (library: QuizLibrary) => {
     setMigrationLibrary(library)
     setMigrationReport(null)
@@ -405,6 +504,7 @@ export default function QuizLibraries() {
     const buttons = []
     if (canManage && !['archived', 'deleted'].includes(library.status)) buttons.push(<Button key="edit" type="link" size="small" onClick={() => openEdit(library)}>编辑</Button>)
     if (library.access_mode === 'course_entitlement') buttons.push(<Button key="binding" type="link" size="small" icon={<LinkOutlined />} onClick={() => void openBindings(library)}>课程绑定</Button>)
+    if (canManage && library.access_mode === 'activation_code') buttons.push(<Button key="codes" type="link" size="small" icon={<KeyOutlined />} onClick={() => void openCodes(library)}>激活码</Button>)
     if (isSuperAdmin && ALLOWED_TRANSITIONS[library.access_mode]?.length) buttons.push(<Button key="convert" type="link" size="small" icon={<SwapOutlined />} onClick={() => openConvertModal(library)}>转换模式</Button>)
     if (canManage && library.status === 'draft') buttons.push(<Button key="publish" type="link" size="small" onClick={() => transition(library, 'publish')}>发布</Button>)
     if (canManage && library.status === 'published') buttons.push(<Button key="suspend" type="link" size="small" danger onClick={() => transition(library, 'suspend')}>停用</Button>)
@@ -417,7 +517,7 @@ export default function QuizLibraries() {
 
   const columns: ColumnsType<QuizLibrary> = [
     { title: '题库', key: 'library', width: 240, render: (_, item) => <Space direction="vertical" size={0}><strong>{item.name}</strong><span style={{ color: '#8c8c8c' }}>{item.library_code}</span></Space> },
-    { title: '访问模式', dataIndex: 'access_mode', width: 140, render: (value: QuizLibraryAccessMode) => <Tag color={value === 'free' ? 'green' : value === 'course_entitlement' ? 'blue' : 'default'}>{accessLabels[value]}</Tag> },
+    { title: '访问模式', dataIndex: 'access_mode', width: 140, render: (value: QuizLibraryAccessMode) => <Tag color={value === 'free' ? 'green' : value === 'course_entitlement' ? 'blue' : value === 'activation_code' ? 'orange' : 'default'}>{accessLabels[value]}</Tag> },
     { title: '厂商标签', dataIndex: 'vendor_tag', width: 110, render: (value: QuizLibrary['vendor_tag']) => <Tag color={value === 'none' ? 'default' : 'geekblue'}>{vendorLabels[value]}</Tag> },
     { title: '状态', dataIndex: 'status', width: 100, render: (value: QuizLibrary['status']) => <Tag color={statusColors[value]}>{statusLabels[value]}</Tag> },
     { title: 'V2 用户入口', key: 'v2', width: 130, render: (_, item) => <Tooltip title={item.status !== 'published' ? '仅已发布题库可以开启' : undefined}><Switch checked={item.v2_enabled} disabled={!canManage || (item.status !== 'published' && !item.v2_enabled)} onChange={(checked) => toggleV2(item, checked)} /></Tooltip> },
@@ -534,6 +634,87 @@ export default function QuizLibraries() {
           <Descriptions.Item label="V2 用户入口">{bindingLibrary.v2_enabled ? '已开启' : '已关闭'}</Descriptions.Item>
         </Descriptions>}
       </Drawer>
+
+      <Drawer
+        title={codeLibrary ? `激活码 · ${codeLibrary.name}` : '激活码'}
+        open={Boolean(codeLibrary)}
+        onClose={() => { setCodeLibrary(null); setGeneratedCodes(null) }}
+        width={860}
+        extra={canManage && codeLibrary && <Space>
+          <Button icon={<DownloadOutlined />} onClick={() => void downloadCodesCsv()}>导出 CSV</Button>
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => setGenerateOpen(true)}>生成激活码</Button>
+        </Space>}
+      >
+        <Alert
+          type="info"
+          showIcon
+          style={{ marginBottom: 16 }}
+          message="激活码一次一用：学生兑换后获得该题库的练习权益（永久有效）。兑换人信息可在下方列表查看。"
+        />
+        {generatedCodes && (
+          <Alert
+            type="success"
+            showIcon
+            closable
+            style={{ marginBottom: 16 }}
+            message={`已生成 ${generatedCodes.length} 个激活码，请复制或导出后交发放方`}
+            description={<Space direction="vertical" style={{ width: '100%' }} size={4}>
+              {generatedCodes.map((code) => <Typography.Text key={code} copyable>{code}</Typography.Text>)}
+            </Space>}
+          />
+        )}
+        <Space style={{ marginBottom: 16 }}>
+          <Select
+            allowClear
+            placeholder="状态"
+            value={codeStatus}
+            style={{ width: 140 }}
+            onChange={(status) => { setCodeStatus(status); setCodePage(1); void loadCodes(1, status) }}
+            options={(Object.entries(activationCodeStatusLabels) as Array<[QuizActivationCodeStatus, string]>).map(([value, label]) => ({ value, label }))}
+          />
+        </Space>
+        <Table<QuizActivationCode>
+          rowKey="id"
+          loading={codesLoading}
+          dataSource={codes?.items ?? []}
+          pagination={{
+            current: codePage,
+            pageSize: 10,
+            total: codes?.total ?? 0,
+            showSizeChanger: false,
+            showTotal: (total) => `共 ${total} 个`,
+            onChange: (page) => { setCodePage(page); void loadCodes(page, codeStatus) },
+          }}
+          columns={[
+            { title: '激活码', dataIndex: 'code', width: 200, render: (value: string) => <Typography.Text copyable>{value}</Typography.Text> },
+            { title: '状态', dataIndex: 'status', width: 90, render: (status: QuizActivationCodeStatus) => <Tag color={status === 'redeemed' ? 'success' : status === 'revoked' ? 'default' : 'processing'}>{activationCodeStatusLabels[status]}</Tag> },
+            { title: '兑换用户', key: 'redeemed_by', width: 160, render: (_, item) => item.redeemed_by ? `#${item.redeemed_by}${item.redeemed_by_phone ? ` / ${item.redeemed_by_phone}` : ''}` : '-' },
+            { title: '兑换时间', dataIndex: 'redeemed_at', width: 170, render: (value: string | null) => value ? formatDate(value) : '-' },
+            { title: '备注', dataIndex: 'note', ellipsis: true, render: (value: string | null) => value || '-' },
+            { title: '创建时间', dataIndex: 'created_at', width: 170, render: (value: string) => formatDate(value) },
+            { title: '操作', width: 90, render: (_, item) => canManage && item.status === 'issued' ? <Button type="link" size="small" danger onClick={() => Modal.confirm({ title: `作废激活码「${item.code}」？`, content: '作废后该码无法被兑换，已生成的码列表中仍会保留记录。', okText: '确认作废', okButtonProps: { danger: true }, onOk: () => revokeActivationCode(item) })}>作废</Button> : null },
+          ]}
+        />
+      </Drawer>
+
+      <Modal
+        title={codeLibrary ? `生成激活码 · ${codeLibrary.name}` : '生成激活码'}
+        open={generateOpen}
+        okText="确认生成"
+        okButtonProps={{ loading: generating }}
+        onCancel={() => { setGenerateOpen(false); generateForm.resetFields() }}
+        onOk={() => void submitGenerateCodes()}
+        destroyOnClose
+      >
+        <Form form={generateForm} initialValues={{ quantity: 20 }} layout="vertical">
+          <Form.Item name="quantity" label="数量" rules={[{ required: true, message: '请输入生成数量' }]} extra="一次最多 500 个">
+            <InputNumber min={1} max={500} precision={0} style={{ width: '100%' }} />
+          </Form.Item>
+          <Form.Item name="note" label="备注（可选）" rules={[{ max: 512, message: '备注最多 512 字' }]}>
+            <Input.TextArea rows={2} placeholder="如：2026 年 11 月首批发放" />
+          </Form.Item>
+        </Form>
+      </Modal>
       {convertTarget && (
         <Modal
           title={`转换「${convertTarget.name}」的访问模式`}
@@ -546,7 +727,7 @@ export default function QuizLibraries() {
           destroyOnClose
         >
           <Space direction="vertical" style={{ width: '100%' }} size="middle">
-            <div>当前模式：<Tag color={convertTarget.access_mode === 'free' ? 'green' : convertTarget.access_mode === 'course_entitlement' ? 'blue' : 'default'}>{accessLabels[convertTarget.access_mode]}</Tag></div>
+            <div>当前模式：<Tag color={convertTarget.access_mode === 'free' ? 'green' : convertTarget.access_mode === 'course_entitlement' ? 'blue' : convertTarget.access_mode === 'activation_code' ? 'orange' : 'default'}>{accessLabels[convertTarget.access_mode]}</Tag></div>
             <div>
               目标模式：
               <Select

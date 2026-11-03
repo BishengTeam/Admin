@@ -270,7 +270,7 @@ export const QuizV2QuestionSchema = z.object({
 }).strict().superRefine(questionShapeRules)
 
 const libraryStatusSchema = z.enum(['draft', 'published', 'suspended', 'archived', 'deleted'])
-const libraryAccessModeSchema = z.enum(['access_mode_pending', 'free', 'course_entitlement', 'paid'])
+const libraryAccessModeSchema = z.enum(['access_mode_pending', 'free', 'course_entitlement', 'paid', 'activation_code'])
 const libraryVendorTagSchema = z.enum(['h3c', 'nisp', 'sangfor', 'none'])
 const contentStatusSchema = z.enum(['active', 'disabled', 'deleted'])
 
@@ -355,6 +355,21 @@ export const QuizLibraryUpdateSchema = z.object({
   v2_enabled: z.boolean().optional(),
   sort_order: z.number().int().optional(),
 }).strict().refine((value) => Object.keys(value).some((key) => key !== 'lock_version'), { message: '至少需要一个题库变更字段' })
+
+export const QuizActivationCodeSchema = z.object({
+  id: positiveInt,
+  code: z.string().min(1),
+  status: z.enum(['issued', 'redeemed', 'revoked']),
+  note: nullableString,
+  redeemed_by: positiveInt.nullable(),
+  redeemed_by_phone: nullableString,
+  redeemed_at: nullableString,
+  created_at: dateString,
+}).strict()
+
+export const QuizActivationCodeGenerateResponseSchema = z.object({
+  codes: z.array(z.string().min(1)).min(1),
+}).strict()
 
 export const QuizCourseBindingSchema = z.object({
   id: positiveInt,
