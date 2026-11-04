@@ -340,6 +340,7 @@ export const QuizLibraryCreateSchema = z.object({
   cover_url: z.string().max(512).nullable().optional(),
   details: z.string().max(10000).nullable().optional(),
   access_mode: libraryAccessModeSchema.optional(),
+  price_cents: z.number().int().min(0).max(2147483647).optional(),
   vendor_tag: libraryVendorTagSchema.optional(),
   sort_order: z.number().int().optional(),
 }).strict()
@@ -351,6 +352,7 @@ export const QuizLibraryUpdateSchema = z.object({
   cover_url: z.string().max(512).nullable().optional(),
   details: z.string().max(10000).nullable().optional(),
   access_mode: libraryAccessModeSchema.optional(),
+  price_cents: z.number().int().min(0).max(2147483647).optional(),
   vendor_tag: libraryVendorTagSchema.optional(),
   v2_enabled: z.boolean().optional(),
   sort_order: z.number().int().optional(),

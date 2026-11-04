@@ -96,6 +96,7 @@ export interface QuizLibraryCreate {
   cover_url?: string | null
   details?: string | null
   access_mode?: QuizLibraryAccessMode
+  price_cents?: number
   vendor_tag?: QuizVendorTag
   sort_order?: number
 }
@@ -107,6 +108,7 @@ export interface QuizLibraryUpdate {
   cover_url?: string | null
   details?: string | null
   access_mode?: QuizLibraryAccessMode
+  price_cents?: number
   vendor_tag?: QuizVendorTag
   v2_enabled?: boolean
   sort_order?: number

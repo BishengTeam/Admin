@@ -101,19 +101,19 @@ function errorText(error: unknown) {
   return error instanceof Error ? error.message : '请求失败'
 }
 
-// 与后端 _ACCESS_MODE_TRANSITIONS（quiz018）严格对齐；paid 无购买通道（购买接口已下线），不可作为转换目标。
+// 与后端转换规则对齐；paid 使用积分商城兑换，现金购买保持关闭。
 const ALLOWED_TRANSITIONS: Record<QuizLibraryAccessMode, QuizLibraryAccessMode[]> = {
-  access_mode_pending: ['free', 'course_entitlement', 'activation_code'],
-  free: ['course_entitlement', 'activation_code'],
-  course_entitlement: ['free', 'activation_code'],
+  access_mode_pending: ['free', 'course_entitlement', 'paid', 'activation_code'],
+  free: ['course_entitlement', 'paid', 'activation_code'],
+  course_entitlement: ['free', 'paid', 'activation_code'],
   paid: ['free', 'course_entitlement', 'activation_code'],
   activation_code: ['free', 'course_entitlement', 'paid'],
 }
 
 function convertWarning(_current: QuizLibraryAccessMode, target: QuizLibraryAccessMode): string {
-  if (target === 'course_entitlement') return '切换后只有通过课程购买获得权益的用户可以练习该题库。免费用户将无法继续使用，请确保已配置有效的课程绑定。'
+  if (target === 'course_entitlement') return '切换后需要课程权益才能练习。若尚未绑定课程，请先关闭用户入口，再切换模式并绑定课程，完成后重新开启。'
   if (target === 'activation_code') return '切换后题库对所有用户可见，但只有兑换激活码的用户可以练习。请先在「激活码」面板批量生成激活码并交发放方。'
-  if (target === 'paid') return '付费模式当前没有可用的购买通道（购买接口已下线），切换后所有用户都无法看到该题库，请确认这是预期效果。'
+  if (target === 'paid') return '切换后需通过积分商城兑换权益才能练习。请填写题库价格，并在积分商城配置题库商品及兑换积分。'
   return '切换后所有用户均可练习该题库。已有的课程权益记录不会删除，但权益不再是访问前提。'
 }
 
@@ -172,7 +172,12 @@ export default function QuizLibraries() {
   const { ensureReauthenticated, reauthDialog } = useReauthentication()
   const [convertTarget, setConvertTarget] = useState<QuizLibrary | null>(null)
   const [convertMode, setConvertMode] = useState<QuizLibraryAccessMode | undefined>(undefined)
+  const [convertPrice, setConvertPrice] = useState<number>()
+  const [convertError, setConvertError] = useState('')
   const [converting, setConverting] = useState(false)
+  const convertLock = useRef(false)
+  const saveLock = useRef(false)
+  const [saving, setSaving] = useState(false)
   const [libraries, setLibraries] = useState<QuizLibrary[]>([])
   const [loading, setLoading] = useState(false)
   const [filter, setFilter] = useState<QuizLibraryFilter>({ include_deleted: false })
@@ -228,6 +233,7 @@ export default function QuizLibraries() {
 
   const openEdit = (library: QuizLibrary) => {
     setEditing(library)
+    form.resetFields()
     form.setFieldsValue({
       name: library.name,
       description: library.description ?? undefined,
@@ -242,8 +248,11 @@ export default function QuizLibraries() {
   }
 
   const save = async () => {
+    if (saveLock.current) return
+    saveLock.current = true
     try {
       const values = await form.validateFields()
+      setSaving(true)
       if (!editing) {
         const payload: QuizLibraryCreate = {
           name: values.name.trim(),
@@ -251,6 +260,7 @@ export default function QuizLibraries() {
           cover_url: values.cover_url?.trim() || null,
           details: values.details?.trim() || null,
           access_mode: values.access_mode,
+          price_cents: values.access_mode === 'paid' ? values.price_cents : 0,
           vendor_tag: values.vendor_tag ?? 'none',
           sort_order: values.sort_order ?? 0,
         }
@@ -267,6 +277,7 @@ export default function QuizLibraries() {
         if (nextCover !== editing.cover_url) payload.cover_url = nextCover
         if (nextDetails !== editing.details) payload.details = nextDetails
         if (values.access_mode !== editing.access_mode) payload.access_mode = values.access_mode
+        if (values.access_mode === 'paid' && values.price_cents !== editing.price_cents) payload.price_cents = values.price_cents
         if (values.vendor_tag !== editing.vendor_tag) payload.vendor_tag = values.vendor_tag
         if ((values.sort_order ?? 0) !== editing.sort_order) payload.sort_order = values.sort_order ?? 0
         if (Object.keys(payload).length === 1) { setModalOpen(false); return }
@@ -277,9 +288,16 @@ export default function QuizLibraries() {
       await load(filter)
     } catch (error) {
       if (error && typeof error === 'object' && 'errorFields' in error) return
-      if (isConflictError(error)) { await load(filter); message.warning('题库版本已变化，列表已刷新，请重新编辑') }
-      else if (isNotFoundError(error)) { await load(filter); message.warning('题库不存在，列表已刷新') }
+      if (isConflictError(error) && editing) {
+        try { openEdit(await quizService.getLibrary(editing.id)); message.warning('题库已更新，已加载最新资料，请核对后重新修改') }
+        catch { setModalOpen(false); message.warning('无法加载最新题库，请刷新列表后重新编辑') }
+        await load(filter)
+      }
+      else if (isNotFoundError(error)) { setModalOpen(false); await load(filter); message.warning('题库不存在，列表已刷新') }
       else message.error(errorText(error))
+    } finally {
+      saveLock.current = false
+      setSaving(false)
     }
   }
 
@@ -479,23 +497,41 @@ export default function QuizLibraries() {
     if (!targets?.length) { message.warning('当前模式没有可转换的目标'); return }
     setConvertTarget(library)
     setConvertMode(undefined)
+    setConvertPrice(library.price_cents || undefined)
+    setConvertError('')
   }
 
   const doConvert = async () => {
-    if (!convertTarget || !convertMode) return
+    if (!convertTarget || !convertMode || convertLock.current) return
+    if (convertMode === 'paid' && (!Number.isInteger(convertPrice) || !convertPrice || convertPrice < 1 || convertPrice > 2147483647)) {
+      setConvertError('请填写大于0的整数价格（分）')
+      return
+    }
+    convertLock.current = true
     setConverting(true)
+    setConvertError('')
     try {
       const token = await ensureReauthenticated()
       if (!token) { setConverting(false); return }
-      const result = await quizService.convertAccessMode(convertTarget.id, convertTarget.lock_version, convertMode, token)
+      const result = await quizService.convertAccessMode(convertTarget.id, convertTarget.lock_version, convertMode, token, undefined, convertMode === 'paid' ? convertPrice : undefined)
       message.success(`访问模式已转换为「${accessLabels[result.library.access_mode]}」${result.sessions_affected ? `，${result.sessions_affected} 个进行中的练习会话已同步` : ''}`)
       setConvertTarget(null)
       setConvertMode(undefined)
       await load(filter)
     } catch (error) {
-      if (isConflictError(error)) { await load(filter); message.warning('题库版本已变化，列表已刷新') }
-      else message.error(errorText(error))
+      if (isConflictError(error)) {
+        setConvertMode(undefined)
+        try {
+          const latest = await quizService.getLibrary(convertTarget.id)
+          setConvertTarget(latest); setConvertPrice(latest.price_cents || undefined)
+          setConvertError('题库已更新，已加载最新资料，请重新选择目标模式并确认')
+        } catch { setConvertTarget(null); message.warning('无法加载最新题库，请刷新列表后重试') }
+        await load(filter)
+      }
+      else if (isNotFoundError(error)) { setConvertTarget(null); await load(filter); message.warning('题库不存在，列表已刷新') }
+      else setConvertError(errorText(error))
     } finally {
+      convertLock.current = false
       setConverting(false)
     }
   }
@@ -582,7 +618,7 @@ export default function QuizLibraries() {
         />
       </Drawer>
 
-      <Modal title={editing ? `编辑题库「${editing.name}」` : '新建题库'} open={modalOpen} onOk={save} onCancel={() => setModalOpen(false)} width={680} destroyOnClose>
+      <Modal title={editing ? `编辑题库「${editing.name}」` : '新建题库'} open={modalOpen} onOk={save} confirmLoading={saving} cancelButtonProps={{ disabled: saving }} onCancel={() => { if (!saveLock.current) setModalOpen(false) }} width={680} destroyOnClose>
         <Form form={form} layout="vertical">
           <Form.Item name="name" label="题库名称" rules={[{ required: true, message: '请输入题库名称' }, { max: 128 }]}><Input autoFocus /></Form.Item>
           <Form.Item name="description" label="简介" rules={[{ max: 512 }]}><Input.TextArea rows={2} showCount maxLength={512} /></Form.Item>
@@ -602,8 +638,8 @@ export default function QuizLibraries() {
           </Form.Item>
           <Form.Item noStyle shouldUpdate={(prev, cur) => prev.access_mode !== cur.access_mode}>
               {({ getFieldValue }) => getFieldValue('access_mode') === 'paid' ? (
-                <Form.Item name="price_cents" label="价格（分）" rules={[{ required: true, message: '付费题库必须设置价格' }]}>
-                  <InputNumber min={1} precision={0} style={{ width: '100%' }} placeholder="如 4900 = ¥49" />
+                <Form.Item name="price_cents" label="价格（分）" rules={[{ required: true, message: '付费题库必须设置价格' }, { type: 'integer', min: 1, max: 2147483647, message: '请输入大于0的整数价格（分）' }]} extra="用于题库商品参考价；实际兑换积分在积分商城配置。">
+                  <InputNumber min={1} max={2147483647} precision={0} style={{ width: '100%' }} placeholder="如 4900 = ¥49" />
                 </Form.Item>
               ) : null}
             </Form.Item>
@@ -720,8 +756,9 @@ export default function QuizLibraries() {
           title={`转换「${convertTarget.name}」的访问模式`}
           open
           okText="确认转换"
-          okButtonProps={{ danger: true, loading: converting }}
-          onCancel={() => { setConvertTarget(null); setConvertMode(undefined) }}
+          okButtonProps={{ danger: true, loading: converting, disabled: !convertMode }}
+          cancelButtonProps={{ disabled: converting }}
+          onCancel={() => { if (!convertLock.current) { setConvertTarget(null); setConvertMode(undefined) } }}
           onOk={() => void doConvert()}
           width={560}
           destroyOnClose
@@ -734,13 +771,17 @@ export default function QuizLibraries() {
                 style={{ width: 200 }}
                 placeholder="选择目标模式"
                 value={convertMode}
-                onChange={setConvertMode}
+                onChange={(mode) => { setConvertMode(mode); setConvertError('') }}
                 options={
                   (ALLOWED_TRANSITIONS[convertTarget.access_mode] ?? [])
                     .map((mode) => ({ value: mode, label: accessLabels[mode] }))
                 }
               />
             </div>
+            {convertMode === 'paid' && <Form.Item label="价格（分）" required style={{ marginBottom: 0 }}>
+              <InputNumber aria-label="转换价格（分）" min={1} max={2147483647} precision={0} value={convertPrice} onChange={(value) => setConvertPrice(value ?? undefined)} placeholder="如 4900 = ¥49" style={{ width: '100%' }} />
+            </Form.Item>}
+            {convertError && <div role="alert" style={{ color: '#ff4d4f' }}>{convertError}</div>}
             {convertMode && <Alert type="warning" showIcon message={convertWarning(convertTarget.access_mode, convertMode)} />}
           </Space>
         </Modal>

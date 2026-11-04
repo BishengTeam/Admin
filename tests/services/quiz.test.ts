@@ -226,6 +226,14 @@ describe('quizService frozen admin contract', () => {
       { headers: { 'X-Reauth-Token': 'reauth-1' }, signal: undefined },
     )
 
+    const paidLibrary = { ...convertedLibrary, access_mode: 'paid', price_cents: 4900, lock_version: 6 }
+    http.put.mockResolvedValueOnce(paidLibrary)
+    await expect(quizService.updateLibrary(9, { lock_version: 5, access_mode: 'paid', price_cents: 4900 })).resolves.toMatchObject({ price_cents: 4900 })
+    expect(http.put).toHaveBeenCalledWith('/admin/quiz/libraries/9', { lock_version: 5, access_mode: 'paid', price_cents: 4900 }, { signal: undefined })
+    http.post.mockResolvedValueOnce({ library: paidLibrary, sessions_affected: 0 })
+    await quizService.convertAccessMode(9, 5, 'paid', 'reauth-1', undefined, 4900)
+    expect(http.post).toHaveBeenLastCalledWith('/admin/quiz/libraries/9/convert-access-mode', { lock_version: 5, target_mode: 'paid', price_cents: 4900 }, { headers: { 'X-Reauth-Token': 'reauth-1' }, signal: undefined })
+
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
     try {
       http.post.mockResolvedValueOnce({

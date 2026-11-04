@@ -217,12 +217,12 @@ export const quizService = {
    return parsed(QuizMigrationReportSchema, await http.get('/admin/quiz/migration-report', { signal }))
  },
 
-  async convertAccessMode(libraryId: number, lockVersion: number, targetMode: QuizLibraryAccessMode, reauthToken: string, signal?: AbortSignal): Promise<QuizAccessModeConvertResponse> {
+  async convertAccessMode(libraryId: number, lockVersion: number, targetMode: QuizLibraryAccessMode, reauthToken: string, signal?: AbortSignal, priceCents?: number): Promise<QuizAccessModeConvertResponse> {
     return parsed(
       QuizAccessModeConvertResponseSchema,
       await http.post(
         `/admin/quiz/libraries/${libraryId}/convert-access-mode`,
-        { lock_version: lockVersion, target_mode: targetMode },
+        { lock_version: lockVersion, target_mode: targetMode, ...(priceCents === undefined ? {} : { price_cents: priceCents }) },
         { headers: { 'X-Reauth-Token': reauthToken }, signal },
       ),
     )
