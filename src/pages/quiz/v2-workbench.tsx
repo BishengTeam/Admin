@@ -35,6 +35,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { PageContainer } from '@/components/PageContainer'
 import { quizService } from '@/services/quiz'
 import { usePermission } from '@/hooks/usePermission'
+import { QUESTION_PAGE_SIZE_OPTIONS, useQuestionPagination } from '@/hooks/useQuestionPagination'
 import { ApiError, isConflictError, isNotFoundError, isRateLimitError } from '@/core/request'
 import { formatDate } from '@/utils/format'
 import type {
@@ -75,14 +76,13 @@ export default function QuizV2Workbench() {
   const selectedPointId = Number(params.get('knowledge_point_id')) || undefined
   const focusQuestionId = Number(params.get('question_id')) || undefined
   const selection: Selection = selectedPointId ? { kind: 'point', id: selectedPointId } : selectedModuleId ? { kind: 'module', id: selectedModuleId } : { kind: 'all' }
-  const [tree, setTree] = useState<QuizContentTree | null>(null)
+  const [treeResult, setTreeResult] = useState<QuizContentTree | null>(null)
+  const tree = treeResult?.library_id === selectedLibraryId ? treeResult : null
   const [treeLoading, setTreeLoading] = useState(false)
-  const [questions, setQuestions] = useState<PageData<QuizV2Question> | null>(null)
+  const [questionResult, setQuestionResult] = useState<{ key: string; scope: string; data: PageData<QuizV2Question> } | null>(null)
   const [questionLoading, setQuestionLoading] = useState(false)
-  const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(20)
   const [keyword, setKeyword] = useState(params.get('keyword') ?? '')
-  const [selectedRows, setSelectedRows] = useState<Record<number, QuizV2Question>>({})
+  const [selectedRowsCache, setSelectedRows] = useState<Record<number, QuizV2Question>>({})
   const [questionModalOpen, setQuestionModalOpen] = useState(false)
   const [editingQuestion, setEditingQuestion] = useState<QuizV2Question | null>(null)
   const [viewing, setViewing] = useState<QuizV2Question | null>(null)
@@ -121,19 +121,19 @@ export default function QuizV2Workbench() {
 
   const loadTree = useCallback(async () => {
     treeController.current?.abort()
-    if (!selectedLibraryId) { setTree(null); return }
+    if (!selectedLibraryId) { setTreeResult(null); setTreeLoading(false); return }
     const controller = new AbortController()
     treeController.current = controller
     setTreeLoading(true)
     try {
       const result = await quizService.getContentTree(selectedLibraryId, controller.signal)
-      if (!controller.signal.aborted) setTree(result)
+      if (!controller.signal.aborted) setTreeResult(result)
     } catch (error) {
       if (!controller.signal.aborted) message.error(errorText(error))
     } finally { if (!controller.signal.aborted) setTreeLoading(false) }
   }, [selectedLibraryId])
 
-  const filters = useMemo<QuizV2QuestionFilter | null>(() => selectedLibraryId || focusQuestionId ? {
+  const baseFilters = useMemo<QuizV2QuestionFilter | null>(() => selectedLibraryId || focusQuestionId ? {
     ...(selectedLibraryId ? { library_id: selectedLibraryId } : {}),
     ...(focusQuestionId ? { question_id: focusQuestionId } : {}),
     ...(selection.kind === 'module' ? { module_id: selection.id } : {}),
@@ -142,32 +142,40 @@ export default function QuizV2Workbench() {
     status: (params.get('status') as QuizV2QuestionFilter['status']) || undefined,
     keyword: params.get('keyword')?.trim() || undefined,
     include_deleted: focusQuestionId !== undefined || params.get('include_deleted') === 'true',
-    page,
-    page_size: pageSize,
-  } : null, [focusQuestionId, page, pageSize, params, selectedLibraryId, selection.kind, selection.kind === 'all' ? 0 : selection.id])
+  } : null, [focusQuestionId, params, selectedLibraryId, selection.kind, selection.kind === 'all' ? 0 : selection.id])
+  const scope = JSON.stringify(baseFilters)
+  const { page, pageSize, changePage } = useQuestionPagination(scope)
+  const filters = useMemo(() => baseFilters ? { ...baseFilters, page, page_size: pageSize } : null, [baseFilters, page, pageSize])
+  const requestKey = JSON.stringify(filters)
+  const questions = questionResult?.key === requestKey ? questionResult.data : null
+  const selectedRows = questions ? selectedRowsCache : {}
+  const total = questionResult?.scope === scope ? questionResult.data.total : 0
 
   const loadQuestions = useCallback(async () => {
     questionsController.current?.abort()
-    if (!filters) { setQuestions(null); return }
+    if (!filters) { setQuestionResult(null); setQuestionLoading(false); return }
     const controller = new AbortController()
     questionsController.current = controller
     setQuestionLoading(true)
     try {
       const result = await quizService.listV2Questions(filters, controller.signal)
-      if (!controller.signal.aborted) setQuestions(result)
+      if (!controller.signal.aborted) {
+        const lastPage = Math.max(1, Math.ceil(result.total / pageSize))
+        if (page > lastPage) changePage(lastPage, pageSize)
+        setQuestionResult({ key: requestKey, scope, data: result })
+      }
     } catch (error) {
       if (!controller.signal.aborted) message.error(errorText(error))
     } finally { if (!controller.signal.aborted) setQuestionLoading(false) }
-  }, [filters])
+  }, [filters, requestKey, scope, page, pageSize, changePage])
 
   useEffect(() => { void loadLibraries(); return () => librariesController.current?.abort() }, [loadLibraries])
   useEffect(() => { void loadTree(); return () => treeController.current?.abort() }, [loadTree])
-  // 筛选条件变化时回到第 1 页；不能依赖 loadQuestions 身份，否则翻页本身也会触发重置，分页永远停在第一页。
-  useEffect(() => { setPage(1); setSelectedRows({}) }, [selectedLibraryId, selection.kind, selection.kind === 'all' ? 0 : selection.id, focusQuestionId, params])
+  useEffect(() => { setSelectedRows({}) }, [scope])
   useEffect(() => { void loadQuestions(); return () => questionsController.current?.abort() }, [loadQuestions])
   useEffect(() => { setKeyword(params.get('keyword') ?? '') }, [params])
 
-  const refreshAll = async () => { await Promise.all([loadLibraries(), loadTree(), loadQuestions()]) }
+  const refreshAll = async () => { setSelectedRows({}); await Promise.all([loadLibraries(), loadTree(), loadQuestions()]) }
   const selectedLibrary = libraries.find((item) => item.id === selectedLibraryId)
   const selectedPoint = selection.kind === 'point' ? findPoint(tree, selection.id) : undefined
   const importBlocked = !selectedLibrary || ['archived', 'deleted'].includes(selectedLibrary.status)
@@ -406,7 +414,12 @@ export default function QuizV2Workbench() {
     selectedRowKeys: Object.keys(selectedRows).map(Number),
     getCheckboxProps: (item) => ({ disabled: item.status === 'deleted' }),
     onSelect: (item, checked) => setSelectedRows((current) => { const next = { ...current }; if (checked) { if (Object.keys(next).length >= 100) { message.warning('每次最多选择 100 道题'); return current } next[item.id] = item } else delete next[item.id]; return next }),
-    onSelectAll: (checked, _rows, changeRows) => setSelectedRows((current) => { const next = { ...current }; changeRows.forEach((item) => { if (checked && Object.keys(next).length < 100) next[item.id] = item; else if (!checked) delete next[item.id] }); return next }),
+    onSelectAll: (checked, _rows, changeRows) => {
+      if (checked && new Set([...Object.keys(selectedRows).map(Number), ...changeRows.map(item => item.id)]).size > 100) {
+        message.warning('每批最多处理100道题，已选择前100道；可分批继续处理')
+      }
+      setSelectedRows((current) => { const next = { ...current }; changeRows.forEach((item) => { if (checked && Object.keys(next).length < 100) next[item.id] = item; else if (!checked) delete next[item.id] }); return next })
+    },
   }
 
   return (
@@ -423,7 +436,7 @@ export default function QuizV2Workbench() {
           : <Alert type="warning" message="请先在“题库”页面创建并选择一个题库" />) : <Row gutter={16} align="top">
           <Col xs={24} lg={7} xl={6}>
             <Card size="small" title="模块与知识点" loading={treeLoading} extra={canWrite && selectedLibrary && !['archived', 'deleted'].includes(selectedLibrary.status) ? <Button type="link" size="small" icon={<PlusOutlined />} onClick={() => openCreateContent('module')}>新增模块</Button> : undefined}>
-              <Tree showLine blockNode defaultExpandAll treeData={treeData} selectedKeys={[selection.kind === 'all' ? 'all' : `${selection.kind}:${selection.id}`]} onSelect={selectNode} style={{ maxHeight: 'calc(100vh - 340px)', overflow: 'auto' }} />
+              <Tree key={tree?.library_id ?? 'loading'} showLine blockNode defaultExpandAll treeData={treeData} selectedKeys={[selection.kind === 'all' ? 'all' : `${selection.kind}:${selection.id}`]} onSelect={selectNode} style={{ maxHeight: 'calc(100vh - 340px)', overflow: 'auto' }} />
             </Card>
           </Col>
           <Col xs={24} lg={17} xl={18}>
@@ -441,7 +454,7 @@ export default function QuizV2Workbench() {
             </Space>
             {selection.kind !== 'point' && <Alert style={{ marginBottom: 12 }} type="warning" showIcon message={selection.kind === 'module' ? '当前展示整个模块的题目；新增单题仍需选择知识点，导入可直接选择当前题库。' : '当前展示整库题目；新增单题仍需选择知识点，导入可直接选择当前题库。'} />}
             {focusQuestionId && <Alert style={{ marginBottom: 12 }} type="info" showIcon closable message={`题目 #${focusQuestionId} 定位模式`} description="当前列表仅显示该题目，修订历史已自动打开；修正后可点击「已解决」闭环工单，或关闭本提示恢复完整列表。" onClose={() => updateParams({ question_id: undefined, include_deleted: undefined })} />}
-            <Table<QuizV2Question> rowKey="id" loading={questionLoading} dataSource={questions?.items ?? []} columns={columns} scroll={{ x: 1450 }} rowSelection={canWrite ? rowSelection : undefined} pagination={{ current: questions?.page ?? page, pageSize: questions?.page_size ?? pageSize, total: questions?.total ?? 0, showSizeChanger: true, pageSizeOptions: [10, 20, 50, 100], onChange: (nextPage, nextSize) => { setSelectedRows({}); setPage(nextSize !== pageSize ? 1 : nextPage); setPageSize(nextSize) } }} />
+            <Table<QuizV2Question> rowKey="id" loading={questionLoading} dataSource={questions?.items ?? []} columns={columns} virtual={pageSize > 100} scroll={pageSize > 100 ? { x: 1450, y: 640 } : { x: 1450 }} rowSelection={canWrite ? rowSelection : undefined} pagination={{ current: page, pageSize, total, showSizeChanger: true, pageSizeOptions: QUESTION_PAGE_SIZE_OPTIONS, showTotal: (count) => `共 ${count} 条`, onChange: (nextPage, nextSize) => { setSelectedRows({}); changePage(nextPage, nextSize) } }} />
           </Col>
         </Row>}
       </Space>

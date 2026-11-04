@@ -122,7 +122,9 @@ function publicationBlockers(library: QuizLibrary) {
   // 封面与简介自 2026-10-27 起可选：后端发布检查已同步放开，小程序有空值占位。
   if (library.access_mode === 'access_mode_pending') blockers.push('访问模式未确认')
   if (library.open_migration_issue_count) blockers.push(`仍有 ${library.open_migration_issue_count} 个迁移问题`)
-  if (!library.question_count) blockers.push('没有可发布题目路径')
+  if (!library.module_count) blockers.push('尚无模块，请先创建模块')
+  if (!library.knowledge_point_count) blockers.push('尚无知识点，请先在模块下创建知识点')
+  if (!library.question_count) blockers.push('尚无题目，请先导入或新建题目，再发布题目修订')
   return blockers
 }
 
@@ -304,15 +306,16 @@ export default function QuizLibraries() {
   const transition = (library: QuizLibrary, action: QuizLibraryLifecycleAction) => {
     const copy = lifecycleCopy(library, action)
     const blockers = action === 'publish' || action === 'restore' ? publicationBlockers(library) : []
-    Modal.confirm({
+    const dialog = Modal.confirm({
       title: copy.title,
       width: 620,
       okText: copy.okText,
-      okButtonProps: { danger: ['suspend', 'archive', 'delete'].includes(action) },
+      okButtonProps: { danger: ['suspend', 'archive', 'delete'].includes(action), disabled: blockers.length > 0 },
       content: (
         <Space direction="vertical" style={{ width: '100%' }}>
           {blockers.length > 0 && <Alert type="warning" showIcon message="当前预检存在阻断项" description={blockers.join('；')} />}
           <div>{copy.body}</div>
+          {(action === 'publish' || action === 'restore') && <Button onClick={() => { dialog.destroy(); navigate(`/admin/quiz/questions?tab=content&library_id=${library.id}`) }}>前往内容工作台</Button>}
           <div style={{ color: '#8c8c8c' }}>执行时服务端会按最新版本和数据库状态重新校验。</div>
         </Space>
       ),

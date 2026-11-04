@@ -4,6 +4,7 @@ import { BarChartOutlined, DeleteOutlined, EditOutlined, EyeOutlined, PlusOutlin
 import type { ColumnsType } from 'antd/es/table'
 import type { TableRowSelection } from 'antd/es/table/interface'
 import { useNavigate } from 'react-router-dom'
+import { QUESTION_PAGE_SIZE_OPTIONS, useQuestionPagination } from '@/hooks/useQuestionPagination'
 import { quizService } from '@/services/quiz'
 import { ApiError, isConflictError, isNotFoundError, isValidationError } from '@/core/request'
 import type { Category, Question, QuestionFilter, QuestionStats, QuestionStatus, QuestionType } from '@/types/quiz'
@@ -65,11 +66,9 @@ function showActionErrors(title: string, errors: Array<{ questionId: number; mes
 
 export default function QuestionTable({ filters, keyword, categories, canWrite, canImport, onKeywordChange, onFilterChange, onRefreshCategories }: QuestionTableProps) {
   const navigate = useNavigate()
-  const [data, setData] = useState<{ items: Question[]; total: number; page: number; page_size: number } | null>(null)
+  const [result, setResult] = useState<{ key: string; scope: string; data: { items: Question[]; total: number; page: number; page_size: number } } | null>(null)
   const [loading, setLoading] = useState(false)
-  const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(20)
-  const [selected, setSelected] = useState<Record<number, SelectedQuestion>>({})
+  const [selectedCache, setSelected] = useState<Record<number, SelectedQuestion>>({})
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<Question | null>(null)
   const [viewing, setViewing] = useState<Question | null>(null)
@@ -80,6 +79,16 @@ export default function QuestionTable({ filters, keyword, categories, canWrite, 
   const controller = useRef<AbortController | null>(null)
   const statsSeq = useRef(0)
   const filterKey = JSON.stringify(filters)
+  const { page, pageSize, changePage } = useQuestionPagination(filterKey)
+  const requestKey = JSON.stringify([filterKey, page, pageSize])
+  const data = result?.key === requestKey ? result.data : null
+  const selected = data ? selectedCache : {}
+  const total = result?.scope === filterKey ? result.data.total : 0
+  const setData = (update: (current: typeof data) => typeof data) => setResult(current => {
+    if (!current || current.key !== requestKey) return current
+    const next = update(current.data)
+    return next ? { ...current, data: next } : null
+  })
 
   const load = useCallback(async (targetPage = page, targetPageSize = pageSize) => {
     const requestSeq = ++seq.current
@@ -89,8 +98,10 @@ export default function QuestionTable({ filters, keyword, categories, canWrite, 
     setLoading(true)
     try {
       const result = await quizService.listQuestions({ ...filters, page: targetPage, page_size: targetPageSize }, nextController.signal)
-      if (requestSeq === seq.current) {
-        setData(result)
+      if (!nextController.signal.aborted && requestSeq === seq.current) {
+        const lastPage = Math.max(1, Math.ceil(result.total / targetPageSize))
+        if (targetPage > lastPage) changePage(lastPage, targetPageSize)
+        setResult({ key: JSON.stringify([filterKey, targetPage, targetPageSize]), scope: filterKey, data: result })
         // A selected row can reappear after paging or a refresh.  Replace its
         // snapshot with the newest list response so a later batch operation
         // never sends a lock_version from an obsolete row cache.
@@ -118,10 +129,9 @@ export default function QuestionTable({ filters, keyword, categories, canWrite, 
     } finally {
       if (requestSeq === seq.current) setLoading(false)
     }
-  }, [filterKey, page, pageSize])
+  }, [filterKey, page, pageSize, changePage])
 
   useEffect(() => {
-    setPage(1)
     setSelected({})
   }, [filterKey])
 
@@ -303,6 +313,9 @@ export default function QuestionTable({ filters, keyword, categories, canWrite, 
       })
     },
     onSelectAll: (checked, _rows, changeRows) => {
+      if (checked && new Set([...Object.keys(selected).map(Number), ...changeRows.map(item => item.id)]).size > 100) {
+        message.warning('每批最多处理100道题，已选择前100道；可分批继续处理')
+      }
       setSelected((current) => {
         const next = { ...current }
         changeRows.forEach((record) => {
@@ -344,12 +357,13 @@ export default function QuestionTable({ filters, keyword, categories, canWrite, 
       <Table<Question>
         rowKey="id"
         size="middle"
-        scroll={{ x: 1220 }}
+        virtual={pageSize > 100}
+        scroll={pageSize > 100 ? { x: 1220, y: 640 } : { x: 1220 }}
         columns={columns}
         dataSource={data?.items ?? []}
         loading={loading}
         rowSelection={canWrite ? rowSelection : undefined}
-        pagination={{ current: data?.page ?? page, pageSize: data?.page_size ?? pageSize, total: data?.total ?? 0, showSizeChanger: true, pageSizeOptions: [10, 20, 50, 100], showTotal: (total) => `共 ${total} 条`, onChange: (nextPage, nextSize) => { setSelected({}); setPage(nextSize !== pageSize ? 1 : nextPage); setPageSize(nextSize) } }}
+        pagination={{ current: page, pageSize, total, showSizeChanger: true, pageSizeOptions: QUESTION_PAGE_SIZE_OPTIONS, showTotal: (count) => `共 ${count} 条`, onChange: (nextPage, nextSize) => { setSelected({}); changePage(nextPage, nextSize) } }}
       />
       <QuestionModal open={modalOpen} question={editing} categories={categories} canWrite={canWrite} onClose={closeModal} onSaved={(saved) => { closeModal(); setSelected({}); if (editing) setData((current) => current ? { ...current, items: current.items.map((item) => item.id === saved.id ? saved : item) } : current); else void load(page, pageSize); onRefreshCategories(); message.success(editing ? '题目已更新' : '题目已创建') }} onConflict={refreshAfterConflict} onNotFound={() => { void refreshAfterMissing(editing ? '题目不存在，列表已刷新' : '所属分类不存在，分类和题目列表已刷新') }} />
       <Drawer title={`题目详情${viewing ? ` #${viewing.id}` : ''}`} open={Boolean(viewing)} onClose={() => setViewing(null)} width={600}>
