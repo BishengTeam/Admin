@@ -156,7 +156,7 @@ beforeEach(() => {
     expect(await screen.findByText('第 2 行')).toBeInTheDocument()
     expect(screen.getAllByText('question_text').length).toBeGreaterThan(0)
     expect(screen.getByText('同一分类题干重复')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /下载 JSON/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /下载错误明细/ })).toBeInTheDocument()
     expect(quizService.listImportErrors).toHaveBeenCalledWith(51, { page: 1 }, expect.any(AbortSignal))
     expect(quizService.getImportReportUrl).not.toHaveBeenCalled()
   })
@@ -187,18 +187,14 @@ beforeEach(() => {
     vi.mocked(quizService.confirmImportCategories).mockResolvedValue(queued)
 
     render(<QuizImports />)
-    fireEvent.click(await screen.findByRole('button', { name: /结构影响/ }))
+    fireEvent.click(await screen.findByRole('button', { name: /检查并确认/ }))
 
+    fireEvent.click(await screen.findByText('查看分类安排'))
     expect(await screen.findByText('网络工程')).toBeInTheDocument()
     expect(screen.getByText('路由协议')).toBeInTheDocument()
     expect(screen.getAllByText('将新建')).toHaveLength(2)
 
-    fireEvent.click(screen.getByRole('button', { name: /确认创建并导入/ }))
-    await waitFor(() => {
-      expect(screen.getAllByRole('button', { name: /确认创建并导入/ })).toHaveLength(2)
-    })
-    const confirmationButtons = screen.getAllByRole('button', { name: /确认创建并导入/ })
-    fireEvent.click(confirmationButtons[confirmationButtons.length - 1])
+    fireEvent.click(screen.getByRole('button', { name: /确认导入.*草稿/ }))
 
     await waitFor(() => expect(quizService.confirmImportCategories).toHaveBeenCalledWith(53, {
       lock_version: 2,
@@ -222,9 +218,9 @@ beforeEach(() => {
     vi.mocked(quizService.getImportCategoryImpact).mockResolvedValue(categoryImpact)
 
     render(<QuizImports />)
-    fireEvent.click(await screen.findByRole('button', { name: /结构影响/ }))
+    fireEvent.click(await screen.findByRole('button', { name: /检查并确认/ }))
 
-    const confirm = await screen.findByRole('button', { name: /确认创建并导入/ })
+    const confirm = await screen.findByRole('button', { name: /确认导入.*草稿/ })
     expect(confirm).toBeDisabled()
     expect(quizService.confirmImportCategories).not.toHaveBeenCalled()
   })

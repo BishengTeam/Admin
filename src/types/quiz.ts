@@ -154,6 +154,7 @@ export interface QuizActivationCodeGenerateResponse {
 }
 
 export interface QuizKnowledgePoint {
+  is_import_default?: boolean
   id: number
   library_id: number
   module_id: number
@@ -173,6 +174,7 @@ export interface QuizKnowledgePoint {
 }
 
 export interface QuizModule {
+  is_import_default?: boolean
   id: number
   library_id: number
   name: string
@@ -226,6 +228,7 @@ export interface QuizKnowledgePointUpdate {
 }
 
 export interface QuizV2Question {
+  import_default_ownership?: boolean
   id: number
   category_id: number | null
   library_id: number
@@ -304,6 +307,8 @@ export interface QuizV2QuestionUpdate {
 }
 
 export interface QuizV2QuestionFilter {
+  import_default_ownership?: boolean
+  unavailable_ownership?: boolean
   library_id?: number
   module_id?: number
   knowledge_point_id?: number
@@ -591,7 +596,9 @@ export interface CsvImportMetadata {
 }
 
 export interface ImportQuestion {
-  category_path: string[]
+  category_path?: string[]
+  module_name?: string | null
+  knowledge_point_name?: string | null
   question_type: QuestionType
   question_text: string
   options?: Record<string, string> | null
@@ -607,6 +614,7 @@ export interface JsonImportRequest {
 }
 
 export interface ImportFilter {
+  library_id?: number
   status?: ImportStatus
   source_type?: ImportSourceType
   page?: number
@@ -614,6 +622,7 @@ export interface ImportFilter {
 }
 
 export interface ImportJob {
+  source_filename?: string | null
   id: number
   admin_id: number | null
   library_id?: number | null
@@ -668,6 +677,9 @@ export interface ImportErrorPage {
 export type ImportCategoryImpactNodeStatus = 'existing' | 'will_create' | 'blocked'
 
 export interface ImportCategoryImpactNode {
+  is_import_default?: boolean
+  entity_status?: string | null
+  entity_version?: number | null
   name: string
   path: string[]
   depth: number

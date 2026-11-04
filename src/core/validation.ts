@@ -200,7 +200,9 @@ export const BatchRequestSchema = z.object({
 export const CsvImportMetadataSchema = z.object({ filename: z.string().min(1).max(255).regex(/\.(csv|xlsx)$/i, '文件名必须以 .csv 或 .xlsx 结尾'), size_bytes: z.number().int().min(1).max(10 * 1024 * 1024) }).strict()
 
 export const JsonImportQuestionSchema = z.object({
-  category_path: z.array(z.string().min(1)).min(1).max(3),
+  category_path: z.array(z.string().max(128)).max(3).optional(),
+  module_name: z.string().max(128).nullable().optional(),
+  knowledge_point_name: z.string().max(128).nullable().optional(),
   question_type: questionTypeSchema,
   question_text: z.string().min(1).max(1024),
   options: optionSchema.nullable().optional(),
@@ -213,6 +215,7 @@ export const JsonImportQuestionSchema = z.object({
 export const JsonImportRequestSchema = z.object({ library_id: positiveInt.optional(), questions: z.array(JsonImportQuestionSchema).min(1).max(5000) }).strict()
 
 export const QuestionSchema = z.object({
+  import_default_ownership: z.boolean().optional(),
   id: z.number(),
   category_id: z.number(),
   question_type: questionTypeSchema,
@@ -237,6 +240,7 @@ export const QuestionSchema = z.object({
 }).strict().superRefine(questionShapeRules)
 
 export const QuizV2QuestionSchema = z.object({
+  import_default_ownership: z.boolean().optional(),
   id: positiveInt,
   category_id: positiveInt.nullable(),
   library_id: positiveInt,
@@ -391,6 +395,7 @@ export const QuizCourseOptionSchema = z.object({
 }).strict()
 
 export const QuizKnowledgePointSchema = z.object({
+  is_import_default: z.boolean().optional(),
   id: positiveInt,
   library_id: positiveInt,
   module_id: positiveInt,
@@ -410,6 +415,7 @@ export const QuizKnowledgePointSchema = z.object({
 }).strict()
 
 export const QuizModuleSchema = z.object({
+  is_import_default: z.boolean().optional(),
   id: positiveInt,
   library_id: positiveInt,
   name: z.string().min(1),
@@ -649,6 +655,7 @@ export const BatchResponseSchema = z.object({
 }).strict()
 
 export const ImportJobSchema = z.object({
+  source_filename: z.string().nullable().optional(),
   id: z.number(),
   admin_id: z.number().nullable(),
   library_id: z.number().nullable().optional(),
@@ -706,6 +713,9 @@ export const ImportErrorPageSchema = z.object({
 }).strict()
 
 export const ImportCategoryImpactNodeSchema: z.ZodType<ImportCategoryImpactNode> = z.lazy(() => z.object({
+  is_import_default: z.boolean().optional(),
+  entity_status: z.string().nullable().optional(),
+  entity_version: z.number().nullable().optional(),
   name: z.string().min(1).max(128),
   path: z.array(z.string().min(1).max(128)).min(1).max(3),
   depth: z.number().int().min(1).max(3),

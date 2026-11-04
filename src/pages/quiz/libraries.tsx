@@ -1,3 +1,4 @@
+import { PublicationDialog } from './components/PublicationDialog'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Alert,
@@ -117,17 +118,6 @@ function convertWarning(_current: QuizLibraryAccessMode, target: QuizLibraryAcce
   return '切换后所有用户均可练习该题库。已有的课程权益记录不会删除，但权益不再是访问前提。'
 }
 
-function publicationBlockers(library: QuizLibrary) {
-  const blockers: string[] = []
-  // 封面与简介自 2026-10-27 起可选：后端发布检查已同步放开，小程序有空值占位。
-  if (library.access_mode === 'access_mode_pending') blockers.push('访问模式未确认')
-  if (library.open_migration_issue_count) blockers.push(`仍有 ${library.open_migration_issue_count} 个迁移问题`)
-  if (!library.module_count) blockers.push('尚无模块，请先创建模块')
-  if (!library.knowledge_point_count) blockers.push('尚无知识点，请先在模块下创建知识点')
-  if (!library.question_count) blockers.push('尚无题目，请先导入或新建题目，再发布题目修订')
-  return blockers
-}
-
 function lifecycleCopy(library: QuizLibrary, action: QuizLibraryLifecycleAction) {
   if (action === 'reconcile_migration') return {
     title: `重新检查「${library.name}」的迁移问题？`,
@@ -167,6 +157,7 @@ function lifecycleCopy(library: QuizLibrary, action: QuizLibraryLifecycleAction)
 }
 
 export default function QuizLibraries() {
+  const [publicationLibrary, setPublicationLibrary] = useState<number>()
   const navigate = useNavigate()
   const canManage = usePermission('quiz_library_manage')
   const canBind = usePermission('course_quiz_bind')
@@ -305,8 +296,9 @@ export default function QuizLibraries() {
 
   const transition = (library: QuizLibrary, action: QuizLibraryLifecycleAction) => {
     const copy = lifecycleCopy(library, action)
-    const blockers = action === 'publish' || action === 'restore' ? publicationBlockers(library) : []
-    const dialog = Modal.confirm({
+    if (action === 'publish' || action === 'restore') { setPublicationLibrary(library.id); return }
+    const blockers: string[] = []
+    Modal.confirm({
       title: copy.title,
       width: 620,
       okText: copy.okText,
@@ -315,7 +307,6 @@ export default function QuizLibraries() {
         <Space direction="vertical" style={{ width: '100%' }}>
           {blockers.length > 0 && <Alert type="warning" showIcon message="当前预检存在阻断项" description={blockers.join('；')} />}
           <div>{copy.body}</div>
-          {(action === 'publish' || action === 'restore') && <Button onClick={() => { dialog.destroy(); navigate(`/admin/quiz/questions?tab=content&library_id=${library.id}`) }}>前往内容工作台</Button>}
           <div style={{ color: '#8c8c8c' }}>执行时服务端会按最新版本和数据库状态重新校验。</div>
         </Space>
       ),
@@ -340,6 +331,7 @@ export default function QuizLibraries() {
   }
 
   const toggleV2 = (library: QuizLibrary, enabled: boolean) => {
+    if (enabled) { setPublicationLibrary(library.id); return }
     Modal.confirm({
       title: enabled ? `开启「${library.name}」的 V2 用户入口？` : `关闭「${library.name}」的 V2 用户入口？`,
       width: 620,
@@ -789,6 +781,7 @@ export default function QuizLibraries() {
           </Space>
         </Modal>
       )}
+      {publicationLibrary && <PublicationDialog libraryId={publicationLibrary} onClose={() => setPublicationLibrary(undefined)} onChanged={() => void load(filter)} />}
       {reauthDialog}
     </PageContainer>
   )

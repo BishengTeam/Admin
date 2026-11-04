@@ -1,6 +1,7 @@
+import { http } from '@/core/request'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Alert, Button, Card, Descriptions, Drawer, Empty, Modal, Progress, Select, Space, Table, Tag, Tooltip, Tree, Typography, Upload, message } from 'antd'
-import { CloseCircleOutlined, DownloadOutlined, FileOutlined, FolderOpenOutlined, ReloadOutlined, SafetyCertificateOutlined, SyncOutlined, UploadOutlined } from '@ant-design/icons'
+import { Alert, Button, Card, Descriptions, Drawer, Collapse, Empty, Modal, Progress, Select, Space, Table, Tag, Tooltip, Tree, Typography, Upload, message } from 'antd'
+import { DownloadOutlined, FileOutlined, FolderOpenOutlined, ReloadOutlined, SyncOutlined, UploadOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import type { DataNode } from 'antd/es/tree'
 import type { UploadFile } from 'antd/es/upload/interface'
@@ -18,7 +19,7 @@ const statusLabels: Record<ImportStatus, string> = {
   queued: '排队中',
   validating: '校验中',
   importing: '写入中',
-  awaiting_category_confirmation: '等待结构确认',
+  awaiting_category_confirmation: '等待导入确认',
   succeeded: '成功',
   validation_failed: '校验失败',
   failed: '失败',
@@ -76,7 +77,7 @@ function impactTreeData(nodes: ImportCategoryImpactNode[]): DataNode[] {
     title: (
       <Space size={6} wrap>
         <span>{node.name}</span>
-        <Tag color={impactStatusColors[node.status]}>{impactStatusLabels[node.status]}</Tag>
+        {node.is_import_default && <Tag>系统补齐，可进一步细分</Tag>}{node.entity_status === 'disabled' && <Tag color="warning">已停用，仅导入草稿</Tag>}<Tag color={impactStatusColors[node.status]}>{impactStatusLabels[node.status]}</Tag>
         <span style={{ color: '#666' }}>直接 {node.direct_question_count} 题 / 子树 {node.subtree_question_count} 题</span>
         {node.blocking_reasons.map((reason) => <Tag color="red" key={reason}>{reason}</Tag>)}
       </Space>
@@ -91,11 +92,21 @@ function errorLocation(item: ImportErrorItem) {
   return '-'
 }
 
-export default function QuizImports() {
+export default function QuizImports({ embeddedLibraryId }: { embeddedLibraryId?: number } = {}) {
+  const [previewRows, setPreviewRows] = useState<{ row: number; question_text: string; question_type: string; category_path: string[]; correct_answer: unknown }[]>([])
+  const [previewTotal, setPreviewTotal] = useState(0)
+  const [previewPage, setPreviewPage] = useState(1)
+  const [previewLoading, setPreviewLoading] = useState(false)
+  const loadPreview = async (jobId: number, page = 1) => {
+    setPreviewLoading(true)
+    try { const result = await http.get<{ items: typeof previewRows; total: number }>(`/admin/quiz/imports/${jobId}/preview`, { params: { page } }); setPreviewRows(result.items); setPreviewTotal(result.total); setPreviewPage(page) }
+    catch (e) { message.error(errorText(e)) } finally { setPreviewLoading(false) }
+  }
   const canImport = usePermission('quiz:import')
   const canWrite = usePermission('quiz:write')
   const [libraries, setLibraries] = useState<QuizLibrary[]>([])
   const [libraryId, setLibraryId] = useState<number | undefined>(() => {
+    if (embeddedLibraryId) return embeddedLibraryId
     const value = typeof window === 'undefined' ? 0 : Number(new URLSearchParams(window.location.search).get('library_id'))
     return Number.isSafeInteger(value) && value > 0 ? value : undefined
   })
@@ -156,7 +167,7 @@ export default function QuizImports() {
     controller.current = next
     if (!options.quiet) setLoading(true)
     try {
-      const result = await quizService.listImports(params, next.signal)
+      const result = await quizService.listImports({ ...params, ...(embeddedLibraryId ? { library_id: embeddedLibraryId } : {}) }, next.signal)
       if (!next.signal.aborted) {
         const signature = result.items.map((job) => `${job.id}:${job.status}:${job.updated_at}:${job.error_count}`).join('|')
         if (signature !== lastSignature.current) { lastSignature.current = signature; pollStarted.current = Date.now() }
@@ -249,6 +260,7 @@ export default function QuizImports() {
       // 《试题导入模板》为二进制 xlsx，服务端按扩展名分流解析（只读第一个工作表）。
       const job = await quizService.importCsv(currentFile, { filename: currentFile.name, size_bytes: currentFile.size }, libraryId)
       submitted.current.add(job.id)
+      setDetail(job)
       setFileList([])
       setFilter((current) => ({ ...current, page: 1 }))
       await load({ ...filter, page: 1 })
@@ -328,6 +340,9 @@ export default function QuizImports() {
   const openErrors = async (job: ImportJob) => {
     if (isExpired(job.expires_at) || job.error_count < 1) return
     const nextFilter: ImportErrorFilter = { page: 1 }
+    setDetail(job)
+    setPreviewRows([]); setPreviewTotal(0)
+    setImpactJob(null); setImpact(null)
     setErrorJob(job)
     setErrorFilter(nextFilter)
     setErrorData(null)
@@ -377,6 +392,9 @@ export default function QuizImports() {
   }, [applyJobUpdate, filter, load])
 
   const openImpact = async (job: ImportJob) => {
+    setDetail(job)
+    setPreviewRows([]); setPreviewTotal(0)
+    setErrorJob(null); setErrorData(null)
     setImpactJob(job)
     setImpact(null)
     await loadImpact(job)
@@ -395,6 +413,7 @@ export default function QuizImports() {
       pollStarted.current = Date.now()
       setImpactJob(null)
       setImpact(null)
+      setDetail(null)
       message.success(`任务 #${updated.id} 已确认，模块、知识点和全部草稿题目将由 Worker 在同一事务创建`)
     } catch (error) {
       if (isConflictError(error)) {
@@ -431,6 +450,12 @@ export default function QuizImports() {
     } finally { setImpactAction(null) }
   }
 
+  useEffect(() => {
+    if (!detail) return
+    if (detail.status === 'awaiting_category_confirmation' && impactJob?.id !== detail.id) void openImpact(detail)
+    else if (detail.error_count > 0 && errorJob?.id !== detail.id) void openErrors(detail)
+  }, [detail?.id, detail?.status, detail?.error_count])
+
   const errorColumns: ColumnsType<ImportErrorItem> = [
     { title: '位置', key: 'location', width: 110, render: (_, item) => errorLocation(item) },
     { title: '字段', dataIndex: 'field', width: 160, render: (value: string | null) => value || '-' },
@@ -451,10 +476,10 @@ export default function QuizImports() {
     {
       title: '操作', key: 'actions', width: 380, fixed: 'right', render: (_, job) => (
         <Space size={0}>
-          <Button type="link" size="small" onClick={() => setDetail(job)}>详情</Button>
+          <Button type="link" size="small" onClick={() => { if (job.error_count) void openErrors(job); else if (job.status === 'awaiting_category_confirmation') void openImpact(job); else setDetail(job) }}>检查</Button>
           {!isExpired(job.expires_at) && <Button type="link" size="small" icon={<FileOutlined />} loading={signedLoading === `source:${job.id}`} onClick={() => void openSignedFile(job, 'source')}>源文件</Button>}
           {job.error_count > 0 && !isExpired(job.expires_at) && <Button type="link" size="small" onClick={() => void openErrors(job)}>错误明细</Button>}
-          {job.status === 'awaiting_category_confirmation' && <Button type="link" size="small" icon={<FolderOpenOutlined />} onClick={() => void openImpact(job)}>结构影响</Button>}
+          {job.status === 'awaiting_category_confirmation' && <Button type="link" size="small" icon={<FolderOpenOutlined />} onClick={() => void openImpact(job)}>检查并确认</Button>}
           {job.status === 'failed' && canImport && (
             <Tooltip title={isExpired(job.expires_at) ? '源文件已超过 7 天，不能重试' : '沿用同一任务和批次键重新排队'}>
               <Button type="link" size="small" icon={<SyncOutlined />} disabled={isExpired(job.expires_at)} loading={retryLoading === job.id} onClick={() => Modal.confirm({ title: `重试导入任务 #${job.id}？`, content: '仅系统执行失败的任务可以重试；服务端会再次校验状态、有效期和重试预算。', onOk: () => retryJob(job) })}>重试</Button>
@@ -494,7 +519,7 @@ export default function QuizImports() {
     <PageContainer title="导入任务">
       {canImport && <Card size="small" title="提交导入任务" style={{ marginBottom: 16 }}>
         <Space direction="vertical" style={{ width: '100%' }} size="middle">
-          <Select aria-label="导入目标题库" showSearch optionFilterProp="label" placeholder="选择目标题库（必选）" value={libraryId} onChange={setLibraryId} options={libraries.map((library) => ({ value: library.id, label: `${library.name} (${library.library_code})` }))} style={{ width: 420 }} />
+          <Select aria-label="导入目标题库" showSearch optionFilterProp="label" placeholder="选择目标题库（必选）" value={libraryId} disabled={Boolean(embeddedLibraryId)} onChange={setLibraryId} options={libraries.map((library) => ({ value: library.id, label: `${library.name} (${library.library_code})` }))} style={{ width: 420 }} />
           <Upload beforeUpload={() => false} maxCount={1} accept=".xlsx" fileList={fileList} onChange={({ fileList: next }) => setFileList(next)}>
             <Button icon={<UploadOutlined />}>选择 .xlsx 文件</Button>
           </Upload>
@@ -513,138 +538,16 @@ export default function QuizImports() {
         <Button icon={<ReloadOutlined />} onClick={() => load(filter)}>刷新</Button>
       </Space>
       <Table<ImportJob> rowKey="id" scroll={{ x: 1450 }} columns={columns} dataSource={data?.items ?? []} loading={loading} pagination={{ current: data?.page ?? 1, pageSize: data?.page_size ?? 20, total: data?.total ?? 0, showSizeChanger: true, onChange: (page, pageSize) => setFilter((current) => ({ ...current, page, page_size: pageSize })) }} />
-      <Drawer title={`导入任务 #${detail?.id ?? ''}`} open={Boolean(detail)} onClose={() => setDetail(null)} width={460}>
-        {detail && <Descriptions column={1} bordered size="small">
-          <Descriptions.Item label="状态"><Tag color={statusColors[detail.status]}>{statusLabels[detail.status]}</Tag></Descriptions.Item>
-          <Descriptions.Item label="来源">{detail.source_type.toUpperCase()}</Descriptions.Item>
-          <Descriptions.Item label="题库">{detail.library_id ? libraries.find((item) => item.id === detail.library_id)?.name ?? `#${detail.library_id}` : '旧分类兼容任务'}</Descriptions.Item>
-          <Descriptions.Item label="总行数">{detail.total_rows}</Descriptions.Item>
-          <Descriptions.Item label="已校验">{detail.validated_rows}</Descriptions.Item>
-          <Descriptions.Item label="已创建草稿">{detail.created_count}</Descriptions.Item>
-          <Descriptions.Item label="错误数">{detail.error_count}</Descriptions.Item>
-          <Descriptions.Item label="错误摘要">{detail.error_message || '-'}</Descriptions.Item>
-          <Descriptions.Item label="缺失结构节点">{detail.missing_category_count}</Descriptions.Item>
-          <Descriptions.Item label="受影响题目">{detail.affected_question_count}</Descriptions.Item>
-          <Descriptions.Item label="任务版本">{detail.lock_version}</Descriptions.Item>
-          <Descriptions.Item label="校验版本">{detail.validation_version}</Descriptions.Item>
-          <Descriptions.Item label="确认管理员">{detail.confirmed_by ?? '-'}</Descriptions.Item>
-          <Descriptions.Item label="确认时间">{formatDate(detail.confirmed_at)}</Descriptions.Item>
-          <Descriptions.Item label="重试次数">{detail.retry_count}</Descriptions.Item>
-          <Descriptions.Item label="心跳">{formatDate(detail.heartbeat_at)}</Descriptions.Item>
-          <Descriptions.Item label="开始时间">{formatDate(detail.started_at)}</Descriptions.Item>
-          <Descriptions.Item label="完成时间">{formatDate(detail.finished_at)}</Descriptions.Item>
-          <Descriptions.Item label="过期时间">{formatDate(detail.expires_at)}</Descriptions.Item>
-        </Descriptions>}
-        {detail?.error_count ? <Alert style={{ marginTop: 16 }} type="warning" showIcon message={`共 ${detail.error_count} 条逐行错误`} description="点击列表中的“错误明细”，可在当前页面按字段筛选并查看行号、字段和原因；需要留档时再下载 JSON。" /> : null}
-        {detail?.status === 'awaiting_category_confirmation' ? <Button block type="primary" style={{ marginTop: 16 }} icon={<FolderOpenOutlined />} onClick={() => void openImpact(detail)}>查看模块/知识点影响并确认</Button> : null}
-      </Drawer>
-      <Drawer
-        title={`导入错误明细 #${errorJob?.id ?? ''}`}
-        open={Boolean(errorJob)}
-        onClose={() => { errorController.current?.abort(); setErrorJob(null); setErrorData(null) }}
-        width={860}
-        extra={errorJob?.report_available && !isExpired(errorJob.expires_at) ? (
-          <Button
-            icon={<DownloadOutlined />}
-            loading={signedLoading === `report:${errorJob.id}`}
-            onClick={() => void openSignedFile(errorJob, 'report')}
-          >
-            下载 JSON
-          </Button>
-        ) : undefined}
-      >
-
-        <Space style={{ marginBottom: 16 }} wrap>
-          <Select
-            allowClear
-            placeholder="全部字段"
-            value={errorFilter.field}
-            options={(errorData?.available_fields ?? []).map((field) => ({ label: field, value: field }))}
-            onChange={(field) => changeErrorFilter({ field, page: 1 })}
-            style={{ width: 220 }}
-          />
-          <Button icon={<ReloadOutlined />} onClick={() => errorJob && void loadErrors(errorJob, errorFilter)}>刷新</Button>
-          <span style={{ color: '#666' }}>校验版本：{errorData?.validation_version ?? errorJob?.validation_version ?? '-'}</span>
-        </Space>
-        <Table<ImportErrorItem>
-          rowKey={(item) => [
-            item.row ?? 'q',
-            item.question_index ?? 'row',
-            item.field ?? 'global',
-            item.error_code,
-            item.message,
-          ].join(':')}
-          columns={errorColumns}
-          dataSource={errorData?.items ?? []}
-          loading={errorLoading}
-          locale={{ emptyText: <Empty description="没有匹配的错误" /> }}
-          pagination={{
-            current: errorData?.page ?? errorFilter.page ?? 1,
-            pageSize: 50,
-            total: errorData?.total ?? 0,
-            showSizeChanger: false,
-            showTotal: (total) => `共 ${total} 条`,
-            onChange: (page) => changeErrorFilter({ ...errorFilter, page }),
-          }}
-        />
-      </Drawer>
-      <Drawer
-        title={`缺失模块/知识点影响 #${impactJob?.id ?? ''}`}
-        open={Boolean(impactJob)}
-        onClose={() => { impactController.current?.abort(); setImpactJob(null); setImpact(null) }}
-        width={760}
-        extra={<Button icon={<ReloadOutlined />} loading={impactLoading} onClick={() => impactJob && void loadImpact(impactJob)}>重新计算</Button>}
-        footer={impactJob && impact ? (
-          <Space style={{ width: '100%', justifyContent: 'flex-end' }}>
-            <Button
-              danger
-              icon={<CloseCircleOutlined />}
-              disabled={!canImport}
-              loading={impactAction === 'cancel'}
-              onClick={() => Modal.confirm({
-                title: `取消导入任务 #${impactJob.id}？`,
-                content: '取消后不会创建任何模块、知识点或题目，该任务不能继续确认。',
-                okText: '确认取消',
-                okButtonProps: { danger: true },
-                onOk: cancelAwaitingJob,
-              })}
-            >
-              取消任务
-            </Button>
-            <Tooltip title={!canWrite ? '确认创建结构还需要 quiz:write 权限' : impact.blocking_reasons.length ? '存在阻断原因，不能确认' : undefined}>
-              <Button
-                type="primary"
-                icon={<SafetyCertificateOutlined />}
-                disabled={!canImport || !canWrite || impact.blocking_reasons.length > 0}
-                loading={impactAction === 'confirm'}
-                onClick={() => Modal.confirm({
-                  title: `确认创建 ${impact.new_category_count} 个结构节点并导入 ${impact.affected_question_count} 道题？`,
-                  content: '执行前服务端会重新计算结构影响。模块、知识点和全部草稿题目在同一 PostgreSQL 事务创建，任一错误全部回滚；影响变化时必须重新确认。',
-                  okText: '确认创建并导入',
-                  onOk: confirmCategories,
-                })}
-              >
-                确认创建并导入
-              </Button>
-            </Tooltip>
-          </Space>
-        ) : undefined}
-      >
-        {impactLoading && !impact ? <Progress percent={50} status="active" showInfo={false} /> : impact && <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-          <Alert
-            type={impact.blocking_reasons.length ? 'error' : 'warning'}
-            showIcon
-            message={impact.blocking_reasons.length ? '当前影响存在阻断，不能确认' : '请核对将复用和新建的模块/知识点'}
-            description={impact.blocking_reasons.length ? impact.blocking_reasons.join('；') : '确认时仍会重新计算；影响版本变化后不会静默执行。'}
-          />
-          <Descriptions bordered size="small" column={2}>
-            <Descriptions.Item label="将新建结构">{impact.new_category_count}</Descriptions.Item>
-            <Descriptions.Item label="复用结构">{impact.reused_category_count}</Descriptions.Item>
-            <Descriptions.Item label="受影响草稿题">{impact.affected_question_count}</Descriptions.Item>
-            <Descriptions.Item label="计算时间">{formatDate(impact.calculated_at)}</Descriptions.Item>
-            <Descriptions.Item label="影响版本" span={2}><span style={{ wordBreak: 'break-all' }}>{impact.impact_version}</span></Descriptions.Item>
-          </Descriptions>
-          <Tree showLine defaultExpandAll treeData={impactTreeData(impact.tree)} />
+      <Drawer title={`导入检查 #${detail?.id ?? ''}`} open={Boolean(detail)} width={860} onClose={() => { setDetail(null); setErrorJob(null); setImpactJob(null); setErrorData(null); setImpact(null) }}
+        footer={impact && impactJob ? <Space><Button danger disabled={!canImport} loading={impactAction === 'cancel'} onClick={() => void cancelAwaitingJob()}>取消任务</Button><Tooltip title={!canWrite ? '创建或调整分类需要内容编辑权限，请交由有权限的管理员确认' : undefined}><Button type="primary" disabled={!canImport || !canWrite || Boolean(impact.blocking_reasons.length)} loading={impactAction === 'confirm'} onClick={() => void confirmCategories()}>确认导入 {impact.affected_question_count} 道草稿</Button></Tooltip></Space> : undefined}>
+        {detail && <Space direction="vertical" style={{ width: '100%' }} size="middle">
+          <Descriptions bordered size="small" column={2}><Descriptions.Item label="文件" span={2}>{detail.source_filename ?? `导入任务 #${detail.id} 源文件`}</Descriptions.Item><Descriptions.Item label="目标题库">{libraries.find((l) => l.id === detail.library_id)?.name ?? detail.library_id}</Descriptions.Item><Descriptions.Item label="状态">{statusLabels[detail.status]}</Descriptions.Item><Descriptions.Item label="读取题目">{detail.total_rows}</Descriptions.Item><Descriptions.Item label="内容检查通过">{detail.validated_rows}</Descriptions.Item><Descriptions.Item label="已创建草稿">{detail.created_count}</Descriptions.Item><Descriptions.Item label="需要修改">{detail.error_count}</Descriptions.Item><Descriptions.Item label="来源">{detail.source_type.toUpperCase()}</Descriptions.Item><Descriptions.Item label="文件大小">{(detail.source_size_bytes / 1024).toFixed(1)} KB</Descriptions.Item></Descriptions>
+          {detail.error_message && <Alert type={detail.error_count ? 'error' : 'warning'} message={detail.error_message} />}
+          <Space><Button loading={previewLoading} onClick={() => void loadPreview(detail.id)}>查看题目预览</Button><Button loading={signedLoading === `source:${detail.id}`} onClick={() => void openSignedFile(detail, 'source')}>下载源文件</Button>{detail.report_available && <Button onClick={() => void openSignedFile(detail, 'report')}>下载错误明细</Button>}<Button onClick={() => { if (detail.status === 'awaiting_category_confirmation') void loadImpact(detail); else if (detail.error_count) void openErrors(detail) }}>重新加载检查</Button></Space>
+          {previewTotal > 0 && <Table rowKey="row" size="small" dataSource={previewRows} loading={previewLoading} columns={[{ title: '行号', dataIndex: 'row', width: 70 }, { title: '题干', dataIndex: 'question_text' }, { title: '题型', dataIndex: 'question_type', width: 130 }, { title: '答案', dataIndex: 'correct_answer', render: (answer: unknown) => JSON.stringify(answer) }]} pagination={{ current: previewPage, total: previewTotal, pageSize: 20, onChange: (page) => void loadPreview(detail.id, page) }} />}
+          {errorJob && <><Select allowClear placeholder="全部错误字段" value={errorFilter.field} onChange={(field) => changeErrorFilter({ page: 1, field })} options={(errorData?.available_fields ?? []).map((field) => ({ value: field, label: field }))} /><Table rowKey={(i) => `${i.row}:${i.field}:${i.message}`} columns={errorColumns} dataSource={errorData?.items ?? []} loading={errorLoading} pagination={{ pageSize: 50, current: errorFilter.page, total: errorData?.total ?? 0, onChange: (page) => changeErrorFilter({ ...errorFilter, page }) }} /></>}
+          {impactLoading && <div>正在生成分类安排…</div>}
+          {impact && <><div>分类安排：复用 {impact.reused_category_count} 个，新建 {impact.new_category_count} 个；导入 {impact.affected_question_count} 道草稿。</div>{impact.blocking_reasons.map((reason) => <Alert key={reason} type="error" message={reason} />)}<Collapse items={[{ key: 'classification', label: '查看分类安排', children: <Tree showLine defaultExpandAll treeData={impactTreeData(impact.tree)} /> }]} /></>}
         </Space>}
       </Drawer>
     </PageContainer>

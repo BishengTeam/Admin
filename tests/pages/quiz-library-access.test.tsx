@@ -1,6 +1,7 @@
+import { quizPublication } from '@/services/quizPublication'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom'
+import { MemoryRouter } from 'react-router-dom'
 import { Modal } from 'antd'
 import QuizLibraries from '@/pages/quiz/libraries'
 import { quizService } from '@/services/quiz'
@@ -10,6 +11,7 @@ import type { QuizLibrary } from '@/types/quiz'
 
 const { reauthenticate } = vi.hoisted(() => ({ reauthenticate: vi.fn() }))
 vi.mock('@/hooks/useReauthentication', () => ({ useReauthentication: () => ({ ensureReauthenticated: reauthenticate, reauthDialog: null }) }))
+vi.mock('@/services/quizPublication', () => ({ quizPublication: { check: vi.fn(), list: vi.fn().mockResolvedValue([]), start: vi.fn(), get: vi.fn(), resume: vi.fn() } }))
 vi.mock('@/components/ImageUpload', () => ({ ImageUpload: () => null }))
 vi.mock('@/services/quiz', () => ({ quizService: {
   listLibraries: vi.fn(), getLibrary: vi.fn(), updateLibrary: vi.fn(), createLibrary: vi.fn(), convertAccessMode: vi.fn(), transitionLibrary: vi.fn(),
@@ -50,17 +52,19 @@ async function selectMode(dialog: HTMLElement, label: string, editing = true) {
 }
 
 describe('题库访问模式保存', () => {
-  it('空题库发布前显示缺项并前往内容工作台，不反复发送必然失败的发布请求', async () => {
-    vi.mocked(quizService.listLibraries).mockResolvedValue([library({ module_count: 0, knowledge_point_count: 0, question_count: 0 })])
-    function Destination() { return <span>{useLocation().search}</span> }
-    render(<MemoryRouter><Routes><Route path="/" element={<QuizLibraries />} /><Route path="/admin/quiz/questions" element={<Destination />} /></Routes></MemoryRouter>)
+  it('发布检查使用后端结果，空库不会发出发布请求', async () => {
+    vi.mocked(quizPublication.check).mockResolvedValue({ library_id: 9, lock_version: 4, status: 'draft', access_mode: 'free', entry_open: false,
+      counts: { published: 0, draft: 0, abnormal: 0, default_ownership: 0, unavailable_ownership: 0, system_ownership: 0 },
+      blockers: ['没有有效的已发布题目，请先审核并发布题目'], repairable: [], warnings: [], waiting_import_count: 0, candidates: [], preflight_version: 'a'.repeat(64) })
+    render(<MemoryRouter><QuizLibraries /></MemoryRouter>)
     fireEvent.click(await screen.findByRole('button', { name: /^发\s*布$/ }))
     const dialog = await screen.findByRole('dialog')
-    expect(within(dialog).getByRole('button', { name: '确认发布' })).toBeDisabled()
-    expect(within(dialog).getByText(/尚无模块/)).toBeInTheDocument()
-    fireEvent.click(within(dialog).getByRole('button', { name: '前往内容工作台' }))
-    expect(await screen.findByText('?tab=content&library_id=9')).toBeInTheDocument()
+    expect(await within(dialog).findByText(/没有有效的已发布题目/)).toBeInTheDocument()
+    fireEvent.click(within(dialog).getByRole('checkbox', { name: '发布题库' }))
+    expect(within(dialog).getByRole('button', { name: '确认执行' })).toBeDisabled()
+    expect(quizPublication.check).toHaveBeenCalledWith(9, expect.any(AbortSignal))
     expect(quizService.transitionLibrary).not.toHaveBeenCalled()
+    expect(quizPublication.start).not.toHaveBeenCalled()
   })
   it('编辑免费题库转付费时必须发送价格，单纯改名不会覆盖已有价格', async () => {
     vi.mocked(quizService.updateLibrary).mockResolvedValue(library({ access_mode: 'paid', price_cents: 4900, lock_version: 5 }))

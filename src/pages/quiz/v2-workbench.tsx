@@ -1,5 +1,9 @@
+import QuizImports from './imports'
+import { PublicationDialog } from './components/PublicationDialog'
+import { quizPublication, type PublicationPreflight } from '@/services/quizPublication'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
+  Tabs,
   Alert,
   Button,
   Card,
@@ -71,6 +75,13 @@ export default function QuizV2Workbench() {
   const navigate = useNavigate()
   const [params, setParams] = useSearchParams()
   const [libraries, setLibraries] = useState<QuizLibrary[]>([])
+  const [summary, setSummary] = useState<PublicationPreflight>()
+  const [section, setSection] = useState('questions')
+  const [publicationOpen, setPublicationOpen] = useState(false)
+  const [moveOpen, setMoveOpen] = useState(false)
+  const [moveModule, setMoveModule] = useState<number>()
+  const [movePoint, setMovePoint] = useState<number>()
+  const [moving, setMoving] = useState(false)
   const selectedLibraryId = Number(params.get('library_id')) || undefined
   const selectedModuleId = Number(params.get('module_id')) || undefined
   const selectedPointId = Number(params.get('knowledge_point_id')) || undefined
@@ -140,6 +151,8 @@ export default function QuizV2Workbench() {
     ...(selection.kind === 'point' ? { knowledge_point_id: selection.id } : {}),
     question_type: (params.get('question_type') as QuizV2QuestionFilter['question_type']) || undefined,
     status: (params.get('status') as QuizV2QuestionFilter['status']) || undefined,
+    import_default_ownership: params.get('ownership') === 'default' ? true : undefined,
+    unavailable_ownership: params.get('ownership') === 'unavailable' ? true : undefined,
     keyword: params.get('keyword')?.trim() || undefined,
     include_deleted: focusQuestionId !== undefined || params.get('include_deleted') === 'true',
   } : null, [focusQuestionId, params, selectedLibraryId, selection.kind, selection.kind === 'all' ? 0 : selection.id])
@@ -176,6 +189,12 @@ export default function QuizV2Workbench() {
   useEffect(() => { setKeyword(params.get('keyword') ?? '') }, [params])
 
   const refreshAll = async () => { setSelectedRows({}); await Promise.all([loadLibraries(), loadTree(), loadQuestions()]) }
+  useEffect(() => {
+    const controller = new AbortController()
+    setSummary(undefined)
+    if (selectedLibraryId) void quizPublication.check(selectedLibraryId, controller.signal).then(setSummary).catch(() => {})
+    return () => controller.abort()
+  }, [selectedLibraryId, treeResult])
   const selectedLibrary = libraries.find((item) => item.id === selectedLibraryId)
   const selectedPoint = selection.kind === 'point' ? findPoint(tree, selection.id) : undefined
   const importBlocked = !selectedLibrary || ['archived', 'deleted'].includes(selectedLibrary.status)
@@ -264,7 +283,7 @@ export default function QuizV2Workbench() {
     })
   }
 
-  const titleActions = (kind: 'module' | 'point', item: QuizModule | QuizKnowledgePoint) => canWrite ? <Space size={0} onClick={(event) => event.stopPropagation()}>
+  const titleActions = (kind: 'module' | 'point', item: QuizModule | QuizKnowledgePoint) => canWrite && section === 'classification' ? <Space size={0} onClick={(event) => event.stopPropagation()}>
     {kind === 'module' && item.status !== 'deleted' && <Tooltip title="新增知识点"><Button aria-label={`为模块${item.name}新增知识点`} type="text" size="small" icon={<PlusOutlined />} disabled={item.status !== 'active'} onClick={() => openCreateContent('point', item.id)} /></Tooltip>}
     {item.status !== 'deleted' && item.system_kind === 'none' && <Button aria-label={`编辑${kind === 'module' ? '模块' : '知识点'}${item.name}`} type="text" size="small" icon={<EditOutlined />} onClick={() => openEditContent(item, kind)} />}
     {item.status !== 'deleted' && item.system_kind === 'none' && <Button aria-label={`${item.status === 'active' ? '停用' : '启用'}${kind === 'module' ? '模块' : '知识点'}${item.name}`} type="text" size="small" icon={item.status === 'active' ? <StopOutlined /> : <UndoOutlined />} onClick={() => confirmContentAction(kind, item, 'toggle')} />}
@@ -394,7 +413,8 @@ export default function QuizV2Workbench() {
   const columns: ColumnsType<QuizV2Question> = [
     { title: 'ID', dataIndex: 'id', width: 80 },
     { title: '题干', dataIndex: 'question_text', ellipsis: true, width: 330, render: (value: string, item) => <Button type="link" style={{ padding: 0, height: 'auto', whiteSpace: 'normal', textAlign: 'left' }} onClick={() => void openRevisions(item)}>{value}</Button> },
-    { title: '知识点', dataIndex: 'knowledge_point_id', width: 180, render: (id: number) => { const point = findPoint(tree, id); const module = point ? findModule(tree, point.module_id) : undefined; return point ? `${module?.name ?? ''} / ${point.name}` : `#${id}` } },
+    { title: '模块', key: 'module', width: 120, render: (_, item) => { const point = findPoint(tree, item.knowledge_point_id); return point ? findModule(tree, point.module_id)?.name ?? '归属不可用' : '归属不可用' } },
+    { title: '知识点', dataIndex: 'knowledge_point_id', width: 140, render: (id: number, item) => <Space direction="vertical" size={0}><span>{findPoint(tree, id)?.name ?? `#${id}`}</span>{item.import_default_ownership && <Tooltip title="可进一步细分，不影响发布"><Tag>系统补齐</Tag></Tooltip>}</Space> },
     { title: '题型', dataIndex: 'question_type', width: 90, render: (value: QuizV2Question['question_type']) => typeLabels[value] },
     { title: '状态', dataIndex: 'status', width: 90, render: (value: QuizV2Question['status']) => <Tag color={statusColors[value]}>{statusLabels[value]}</Tag> },
     { title: '修订', key: 'revision', width: 160, render: (_, item) => <Space direction="vertical" size={0}><span>线上 v{item.current_revision_no ?? '-'}</span>{item.has_pending_revision && <Tag color="processing">待发布 v{item.pending_revision_no}</Tag>}</Space> },
@@ -424,6 +444,10 @@ export default function QuizV2Workbench() {
 
   return (
     <PageContainer title="题库内容工作台">
+      {selectedLibraryId && <Space wrap style={{ marginBottom: 16 }}><Button type="primary" onClick={() => setPublicationOpen(true)}>检查并发布</Button><Button onClick={() => setSection('imports')}>上传题库</Button><span>共 {selectedLibrary?.question_count ?? 0} 题{summary && ` · 待审核 ${summary.counts.draft} · 内容异常 ${summary.counts.abnormal} · 归属不可用 ${summary.counts.unavailable_ownership}`}</span></Space>}
+      {selectedLibraryId && <Tabs activeKey={section} onChange={setSection} items={[{ key: 'questions', label: '题目' }, { key: 'classification', label: '分类管理' }, { key: 'imports', label: '导入记录' }]} />}
+      {section === 'imports' && selectedLibraryId && <QuizImports key={selectedLibraryId} embeddedLibraryId={selectedLibraryId} />}
+      <div style={{ display: section === 'imports' ? 'none' : undefined }}>
       <Space direction="vertical" style={{ width: '100%' }} size="middle">
 
         <Space wrap>
@@ -434,12 +458,12 @@ export default function QuizV2Workbench() {
         {!selectedLibraryId ? (focusQuestionId
           ? <Alert type="info" showIcon message={`正在定位题目 #${focusQuestionId}…`} />
           : <Alert type="warning" message="请先在“题库”页面创建并选择一个题库" />) : <Row gutter={16} align="top">
-          <Col xs={24} lg={7} xl={6}>
+          <Col xs={24} lg={section === "classification" ? 24 : 7} xl={section === "classification" ? 24 : 6}>
             <Card size="small" title="模块与知识点" loading={treeLoading} extra={canWrite && selectedLibrary && !['archived', 'deleted'].includes(selectedLibrary.status) ? <Button type="link" size="small" icon={<PlusOutlined />} onClick={() => openCreateContent('module')}>新增模块</Button> : undefined}>
               <Tree key={tree?.library_id ?? 'loading'} showLine blockNode defaultExpandAll treeData={treeData} selectedKeys={[selection.kind === 'all' ? 'all' : `${selection.kind}:${selection.id}`]} onSelect={selectNode} style={{ maxHeight: 'calc(100vh - 340px)', overflow: 'auto' }} />
             </Card>
           </Col>
-          <Col xs={24} lg={17} xl={18}>
+          <Col xs={24} lg={17} xl={18} style={{ display: section === "classification" ? "none" : undefined }}>
             <Space wrap style={{ width: '100%', justifyContent: 'space-between', marginBottom: 16 }}>
               <Space wrap>
                 <Input.Search allowClear value={keyword} onChange={(event) => setKeyword(event.target.value)} onSearch={(value) => updateParams({ keyword: value.trim() || undefined, question_id: undefined })} placeholder="搜索题干" style={{ width: 220 }} />
@@ -447,18 +471,32 @@ export default function QuizV2Workbench() {
                 <Select aria-label="题目状态" allowClear placeholder="状态" value={params.get('status') || undefined} onChange={(status) => updateParams({ status, include_deleted: status === 'deleted' ? 'true' : undefined, question_id: undefined })} options={Object.entries(statusLabels).map(([value, label]) => ({ value, label }))} style={{ width: 120 }} />
               </Space>
               <Space wrap>
-                {Object.keys(selectedRows).length > 0 && <><Button disabled={!canPublish} onClick={() => batch('publish')}>批量发布修订 ({Object.keys(selectedRows).length})</Button><Button danger disabled={!canPublish} onClick={() => batch('disable')}>批量停用</Button></>}
-                {canImport && <Tooltip title={importBlocked ? '只有未归档、未删除的题库可以创建导入任务' : '导入文件需包含完整的“模块 / 知识点”路径'}><Button icon={<UploadOutlined />} disabled={importBlocked} onClick={() => navigate(`/admin/quiz/imports?tab=imports&library_id=${selectedLibraryId}`)}>导入</Button></Tooltip>}
+                {Object.keys(selectedRows).length > 0 && <><Button disabled={!canWrite} onClick={() => setMoveOpen(true)}>批量调整归属</Button><Button disabled={!canPublish} onClick={() => setPublicationOpen(true)}>批量发布修订 ({Object.keys(selectedRows).length})</Button><Button danger disabled={!canPublish} onClick={() => batch('disable')}>批量停用</Button></>}
+                <Select aria-label="归属筛选" allowClear placeholder="全部归属" value={params.get('ownership') || undefined} onChange={(ownership) => updateParams({ ownership })} options={[{ value: 'default', label: '系统补齐归属' }, { value: 'unavailable', label: '归属不可用' }]} style={{ width: 160 }} />
+                {canImport && <Tooltip title={importBlocked ? '只有未归档、未删除的题库可以创建导入任务' : '模块和知识点选填，导入前确认系统补齐的归属'}><Button icon={<UploadOutlined />} disabled={importBlocked} onClick={() => setSection('imports')}>导入</Button></Tooltip>}
                 {canWrite && <Tooltip title={!selectedPoint ? '题目只能挂到知识点，请先选择知识点' : undefined}><Button type="primary" icon={<PlusOutlined />} disabled={!selectedPoint || selectedPoint.status !== 'active'} onClick={() => openQuestion()}>新增题目</Button></Tooltip>}
               </Space>
             </Space>
-            {selection.kind !== 'point' && <Alert style={{ marginBottom: 12 }} type="warning" showIcon message={selection.kind === 'module' ? '当前展示整个模块的题目；新增单题仍需选择知识点，导入可直接选择当前题库。' : '当前展示整库题目；新增单题仍需选择知识点，导入可直接选择当前题库。'} />}
+            {false && selection.kind !== 'point' && <Alert style={{ marginBottom: 12 }} type="warning" showIcon message={selection.kind === 'module' ? '当前展示整个模块的题目；新增单题仍需选择知识点，导入可直接选择当前题库。' : '当前展示整库题目；新增单题仍需选择知识点，导入可直接选择当前题库。'} />}
             {focusQuestionId && <Alert style={{ marginBottom: 12 }} type="info" showIcon closable message={`题目 #${focusQuestionId} 定位模式`} description="当前列表仅显示该题目，修订历史已自动打开；修正后可点击「已解决」闭环工单，或关闭本提示恢复完整列表。" onClose={() => updateParams({ question_id: undefined, include_deleted: undefined })} />}
-            <Table<QuizV2Question> rowKey="id" loading={questionLoading} dataSource={questions?.items ?? []} columns={columns} virtual={pageSize > 100} scroll={pageSize > 100 ? { x: 1450, y: 640 } : { x: 1450 }} rowSelection={canWrite ? rowSelection : undefined} pagination={{ current: page, pageSize, total, showSizeChanger: true, pageSizeOptions: QUESTION_PAGE_SIZE_OPTIONS, showTotal: (count) => `共 ${count} 条`, onChange: (nextPage, nextSize) => { setSelectedRows({}); changePage(nextPage, nextSize) } }} />
+            <Table<QuizV2Question> rowKey="id" loading={questionLoading} dataSource={questions?.items ?? []} columns={columns} virtual={pageSize > 100} scroll={pageSize > 100 ? { x: 1550, y: 640 } : { x: 1550 }} rowSelection={canWrite ? rowSelection : undefined} pagination={{ current: page, pageSize, total, showSizeChanger: true, pageSizeOptions: QUESTION_PAGE_SIZE_OPTIONS, showTotal: (count) => `共 ${count} 条`, onChange: (nextPage, nextSize) => { setSelectedRows({}); changePage(nextPage, nextSize) } }} />
           </Col>
         </Row>}
       </Space>
-
+      </div>
+      {publicationOpen && selectedLibraryId && <PublicationDialog libraryId={selectedLibraryId} selectedIds={Object.values(selectedRows).map((i) => i.id)} onClose={() => setPublicationOpen(false)} onChanged={() => void refreshAll()} />}
+      <Modal title={`批量调整归属（${Object.keys(selectedRows).length}题）`} open={moveOpen} confirmLoading={moving} onCancel={() => setMoveOpen(false)} onOk={async () => {
+        if (!selectedLibraryId || !movePoint || moving) return
+        setMoving(true)
+        try { await quizPublication.move(selectedLibraryId, movePoint, Object.values(selectedRows).map((q) => ({ question_id: q.id, lock_version: q.lock_version }))); setMoveOpen(false); setSelectedRows({}); await refreshAll(); message.success('归属已调整，题目内容和历史答题快照保持原样') }
+        catch (e) { message.error(e instanceof Error ? e.message : '调整失败，请刷新重试') } finally { setMoving(false) }
+      }} okButtonProps={{ disabled: !movePoint }}>
+        <Space direction="vertical" style={{ width: '100%' }}>
+          <Select style={{ width: '100%' }} placeholder="选择目标模块" value={moveModule} onChange={(id) => { setMoveModule(id); setMovePoint(undefined) }} options={(tree?.modules ?? []).filter((m) => m.status === 'active' && m.system_kind === 'none').map((m) => ({ value: m.id, label: m.name }))} />
+          <Select style={{ width: '100%' }} placeholder="选择目标知识点" value={movePoint} onChange={setMovePoint} options={(tree?.modules.find((m) => m.id === moveModule)?.knowledge_points ?? []).filter((p) => p.status === 'active' && p.system_kind === 'none').map((p) => ({ value: p.id, label: p.name }))} />
+          <Space><Button onClick={() => openCreateContent('module')}>新建模块</Button><Button disabled={!moveModule} onClick={() => { if (moveModule) openCreateContent('point', moveModule) }}>新建知识点</Button></Space>
+        </Space>
+      </Modal>
       <Modal title={editingContent ? `编辑${editingContent.kind === 'module' ? '模块' : '知识点'}` : contentParentModule ? '新增知识点' : '新增模块'} open={contentModalOpen} onOk={saveContent} onCancel={() => setContentModalOpen(false)} destroyOnClose>
         <Form form={contentForm} layout="vertical">
           <Form.Item name="_kind" hidden><Input /></Form.Item>
