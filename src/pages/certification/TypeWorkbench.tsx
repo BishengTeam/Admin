@@ -7,6 +7,7 @@ import { CERT_TYPE_META, type CertType } from './components/vendors/type-registr
 import { getVendorProfile } from './components/vendors/vendor-registry'
 import ProductTable from './components/shared/ProductTable'
 import PlanTable from './components/shared/PlanTable'
+import EnrollmentNoticeTab from './components/shared/EnrollmentNoticeTab'
 
 const { Text } = Typography
 
@@ -75,6 +76,7 @@ export default function TypeWorkbench({ type: typeProp }: { type?: string }) {
       })
     }
 
+    if (hasPermission(permissions, 'content:read')) items.push({ key: 'notice', label: '报名须知', children: <EnrollmentNoticeTab key={type} type={type as CertType} /> })
     return items
   }, [type, profile, permissions])
 

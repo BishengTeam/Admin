@@ -6,6 +6,9 @@ import { http } from '@/core/request'
 import { CoverCropper, type CoverCropConfig } from '@/components/CoverCropper'
 
 interface ImageUploadProps {
+  allowedTypes?: string[]
+  resizeMaxWidth?: number
+  onUploadingChange?: (value: boolean) => void
   value?: string
   onChange?: (url: string) => void
   maxSize?: number
@@ -17,6 +20,9 @@ interface ImageUploadProps {
 }
 
 export function ImageUpload({
+  allowedTypes,
+  resizeMaxWidth,
+  onUploadingChange,
   value,
   onChange,
   maxSize = 5,
@@ -28,6 +34,7 @@ export function ImageUpload({
   const [pendingFile, setPendingFile] = useState<File | null>(null)
 
   const beforeUpload = (file: RcFile) => {
+    if (allowedTypes && !allowedTypes.includes(file.type)) { message.error('仅支持JPG、PNG图片'); return false }
     const isImage = file.type.startsWith('image/')
     if (!isImage) {
       message.error('只能上传图片文件')
@@ -48,6 +55,7 @@ export function ImageUpload({
   const customRequest = async (options: { file: RcFile; onSuccess: (body: { url: string }) => void; onError: (err: Error) => void }) => {
     const { file, onSuccess, onError } = options
     setLoading(true)
+    onUploadingChange?.(true)
     try {
       if (purpose === 'quiz') {
         const { quizService } = await import('@/services/quiz')
@@ -65,7 +73,19 @@ export function ImageUpload({
         onChange?.(target.public_url)
       } else {
         const formData = new FormData()
-        formData.append('file', file)
+        let uploadFile: File = file
+        if (resizeMaxWidth) {
+          const bitmap = await createImageBitmap(file)
+          try {
+            const scale = Math.min(1, resizeMaxWidth / bitmap.width)
+            const canvas = document.createElement('canvas')
+            canvas.width = Math.max(1, Math.round(bitmap.width * scale)); canvas.height = Math.max(1, Math.round(bitmap.height * scale))
+            canvas.getContext('2d')!.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
+            const blob = await new Promise<Blob>((resolve, reject) => canvas.toBlob(value => value ? resolve(value) : reject(new Error('图片压缩失败')), file.type, 0.9))
+            uploadFile = new File([blob], file.name, { type: file.type })
+          } finally { bitmap.close() }
+        }
+        formData.append('file', uploadFile)
         const res = await http.post<{ url: string }>('/admin/upload', formData, {
           headers: { 'Content-Type': 'multipart/form-data' },
         })
@@ -79,6 +99,7 @@ export function ImageUpload({
       message.error('上传失败，请重试')
     } finally {
       setLoading(false)
+      onUploadingChange?.(false)
     }
   }
 
@@ -124,6 +145,7 @@ export function ImageUpload({
   return (
     <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
       <Upload
+        accept={allowedTypes?.join(',')}
         listType="picture-card"
         showUploadList={false}
         beforeUpload={beforeUpload}
