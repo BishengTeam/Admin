@@ -284,7 +284,8 @@ export default function Dashboard() {
         </Col>
         <Col xs={24} md={6}>
           <Card size='small'>
-            <Statistic title='已发布题目' value={d.quiz_questions_total ?? 0} valueStyle={{ fontSize: 22, color: '#722ed1' }} />
+            <Statistic title='可练习题数' value={d.quiz_questions_practicable_total ?? '—'} valueStyle={{ fontSize: 22, color: '#722ed1' }} />
+            <Text type='secondary'>已发布 {d.quiz_questions_total ?? 0} 题 · 入口状态单独统计</Text>
           </Card>
         </Col>
         <Col xs={24} md={6}>

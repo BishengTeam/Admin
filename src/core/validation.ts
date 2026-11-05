@@ -308,6 +308,16 @@ export const QuizLibrarySchema = z.object({
   updated_at: dateString,
 }).strict()
 
+export const QuizLibraryListItemSchema = QuizLibrarySchema.extend({
+  practice_counts: z.object({
+    practicable: z.number().int().nonnegative(),
+    unpublished: z.number().int().nonnegative(),
+    disabled: z.number().int().nonnegative(),
+    unavailable_ownership: z.number().int().nonnegative(),
+    invalid_revision: z.number().int().nonnegative(),
+  }).strict().optional(),
+})
+
 export const QuizAccessModeConvertResponseSchema = z.object({
   library: QuizLibrarySchema,
   sessions_affected: z.number().int().min(0),
@@ -365,16 +375,18 @@ export const QuizLibraryUpdateSchema = z.object({
 export const QuizActivationCodeSchema = z.object({
   id: positiveInt,
   code: z.string().min(1),
-  status: z.enum(['issued', 'redeemed', 'revoked']),
+  status: z.enum(['issued', 'redeemed', 'revoked', 'expired']),
   note: nullableString,
   redeemed_by: positiveInt.nullable(),
   redeemed_by_phone: nullableString,
   redeemed_at: nullableString,
+  expires_at: dateString.nullable(),
   created_at: dateString,
 }).strict()
 
 export const QuizActivationCodeGenerateResponseSchema = z.object({
   codes: z.array(z.string().min(1)).min(1),
+  expires_at: dateString,
 }).strict()
 
 export const QuizCourseBindingSchema = z.object({

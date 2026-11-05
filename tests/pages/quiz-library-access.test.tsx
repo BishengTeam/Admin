@@ -2,7 +2,7 @@ import { quizPublication } from '@/services/quizPublication'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MemoryRouter } from 'react-router-dom'
-import { Modal } from 'antd'
+import { ConfigProvider, Modal } from 'antd'
 import QuizLibraries from '@/pages/quiz/libraries'
 import { quizService } from '@/services/quiz'
 import { useAuthStore } from '@/stores/authStore'
@@ -15,6 +15,7 @@ vi.mock('@/services/quizPublication', () => ({ quizPublication: { check: vi.fn()
 vi.mock('@/components/ImageUpload', () => ({ ImageUpload: () => null }))
 vi.mock('@/services/quiz', () => ({ quizService: {
   listLibraries: vi.fn(), getLibrary: vi.fn(), updateLibrary: vi.fn(), createLibrary: vi.fn(), convertAccessMode: vi.fn(), transitionLibrary: vi.fn(),
+  listActivationCodes: vi.fn(), generateActivationCodes: vi.fn(),
 } }))
 
 function library(changes: Partial<QuizLibrary> = {}): QuizLibrary {
@@ -52,6 +53,28 @@ async function selectMode(dialog: HTMLElement, label: string, editing = true) {
 }
 
 describe('题库访问模式保存', () => {
+  it('展示题量差额并使用默认 30 天生成激活码', async () => {
+    const expires_at = '2026-11-05T02:00:00Z'
+    const expired = { id: 5, code: 'ABCD-EFGH-JKMN-PQRS', status: 'expired' as const, expires_at,
+      note: null, redeemed_by: null, redeemed_by_phone: null, redeemed_at: null, created_at: expires_at }
+    vi.mocked(quizService.listLibraries).mockResolvedValue([library({
+      access_mode: 'activation_code', question_count: 10,
+      practice_counts: { practicable: 8, unpublished: 2, disabled: 0, unavailable_ownership: 0, invalid_revision: 0 },
+    })])
+    vi.mocked(quizService.listActivationCodes).mockResolvedValue({ items: [expired], page: 1, page_size: 10, total: 1 })
+    vi.mocked(quizService.generateActivationCodes).mockResolvedValue({ codes: ['BCDE-FGHJ-KMNP-QRST'], expires_at })
+    render(<ConfigProvider theme={{ token: { motion: false } }}><MemoryRouter><QuizLibraries /></MemoryRouter></ConfigProvider>)
+    expect(await screen.findByText('总计 10 题 · 可练习 8 题')).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: /激活码$/ }))
+    await waitFor(() => expect(screen.getByText('已过期', { selector: '.ant-tag' })).toBeVisible())
+    expect(screen.queryByRole('button', { name: /作废/ })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: /生成激活码/ }))
+    await waitFor(() => expect(screen.getByText(/预计截止.*以生成结果为准/)).toBeVisible())
+    fireEvent.click(screen.getByRole('button', { name: '确认生成' }))
+    await waitFor(() => expect(quizService.generateActivationCodes).toHaveBeenCalledWith(9, 20, null, 30))
+    await waitFor(() => expect(screen.getByText(/兑换截止时间/)).toBeVisible())
+  }, 15_000)
+
   it('发布检查使用后端结果，空库不会发出发布请求', async () => {
     vi.mocked(quizPublication.check).mockResolvedValue({ library_id: 9, lock_version: 4, status: 'draft', access_mode: 'free', entry_open: false,
       counts: { published: 0, draft: 0, abnormal: 0, default_ownership: 0, unavailable_ownership: 0, system_ownership: 0 },

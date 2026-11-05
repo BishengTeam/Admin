@@ -35,6 +35,7 @@ export interface DashboardData {
   // Quiz
   quiz_questions_total?: number
   quiz_questions_inventory_total?: number
+  quiz_questions_practicable_total?: number
   quiz_libraries_total?: number
   quiz_attempts_today?: number
   quiz_attempts_30d?: number

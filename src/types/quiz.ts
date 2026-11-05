@@ -25,10 +25,19 @@ export type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue
 
 export type QuizLibraryStatus = 'draft' | 'published' | 'suspended' | 'archived' | 'deleted'
 export type QuizLibraryAccessMode = 'access_mode_pending' | 'free' | 'course_entitlement' | 'paid' | 'activation_code'
-export type QuizActivationCodeStatus = 'issued' | 'redeemed' | 'revoked'
+export type QuizActivationCodeStatus = 'issued' | 'redeemed' | 'revoked' | 'expired'
+export type QuizActivationValidityDays = 1 | 3 | 7 | 30 | 60 | 90 | 365
 export type QuizVendorTag = 'h3c' | 'nisp' | 'sangfor' | 'none'
 export type QuizContentStatus = 'active' | 'disabled' | 'deleted'
 export type QuizLibraryLifecycleAction = 'publish' | 'suspend' | 'restore' | 'archive' | 'delete' | 'undo_delete' | 'reconcile_migration'
+
+export interface QuizPracticeCounts {
+  practicable: number
+  unpublished: number
+  disabled: number
+  unavailable_ownership: number
+  invalid_revision: number
+}
 
 export interface QuizLibrary {
   id: number
@@ -52,6 +61,7 @@ export interface QuizLibrary {
   archived_at: string | null
   deleted_at: string | null
   restore_until: string | null
+  practice_counts?: QuizPracticeCounts
   open_migration_issue_count: number
   module_count: number
   knowledge_point_count: number
@@ -115,6 +125,7 @@ export interface QuizLibraryUpdate {
 }
 
 export interface QuizLibraryFilter {
+  count_schema?: 2
   status?: QuizLibraryStatus
   access_mode?: QuizLibraryAccessMode
   keyword?: string
@@ -146,11 +157,13 @@ export interface QuizActivationCode {
   redeemed_by: number | null
   redeemed_by_phone: string | null
   redeemed_at: string | null
+  expires_at: string | null
   created_at: string
 }
 
 export interface QuizActivationCodeGenerateResponse {
   codes: string[]
+  expires_at: string
 }
 
 export interface QuizKnowledgePoint {

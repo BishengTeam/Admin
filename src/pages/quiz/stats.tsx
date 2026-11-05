@@ -45,7 +45,7 @@ export default function QuizStats() {
       const [overviewResult, questionResult, libraryResult, treeResult] = await Promise.all([
         quizService.getStatsOverview(next.signal),
         quizService.listQuestionStats(filters, next.signal),
-        quizService.listLibraries({ include_deleted: false }, next.signal),
+        quizService.listLibraries({ include_deleted: false, count_schema: 2 }, next.signal),
         filters.library_id
           ? quizService.getContentTree(filters.library_id, next.signal)
           : Promise.resolve(null),
@@ -111,7 +111,8 @@ export default function QuizStats() {
         <Col xs={24} md={12} xl={6}><Card loading={loading}><Statistic title="题库" value={overview?.library_count ?? 0} suffix="个" /><Text type="secondary">草稿 {overview?.draft_library_count ?? 0} / 发布 {overview?.published_library_count ?? 0} / 停用 {overview?.suspended_library_count ?? 0} / 归档 {overview?.archived_library_count ?? 0}</Text></Card></Col>
         <Col xs={24} md={12} xl={6}><Card loading={loading}><Statistic title="模块" value={overview?.module_count ?? 0} suffix="个" /><Text type="secondary">启用 {overview?.active_module_count ?? 0} / 停用 {overview?.disabled_module_count ?? 0}</Text></Card></Col>
         <Col xs={24} md={12} xl={6}><Card loading={loading}><Statistic title="知识点" value={overview?.knowledge_point_count ?? 0} suffix="个" /><Text type="secondary">启用 {overview?.active_knowledge_point_count ?? 0} / 停用 {overview?.disabled_knowledge_point_count ?? 0}</Text></Card></Col>
-        <Col xs={24} md={12} xl={6}><Card loading={loading}><Statistic title="题目" value={overview?.question_count ?? 0} suffix="道" /><Text type="secondary">草稿 {overview?.draft_question_count ?? 0} / 发布 {overview?.published_question_count ?? 0} / 停用 {overview?.disabled_question_count ?? 0}</Text></Card></Col>
+        <Col xs={24} md={12} xl={6}><Card loading={loading}><Statistic title="题目" value={overview?.question_count ?? 0} suffix="道" /><Text type="secondary">草稿 {overview?.draft_question_count ?? 0} / 发布 {overview?.published_question_count ?? 0} / 停用 {overview?.disabled_question_count ?? 0}</Text>
+          {overview && libraries.every(library => library.practice_counts) && <div><Text type="secondary">V2 可练习 {libraries.reduce((sum, library) => sum + (library.practice_counts?.practicable ?? 0), 0)} 题</Text></div>}</Card></Col>
         <Col xs={24} md={8}><Card loading={loading}><Statistic title="练习会话" value={overview?.practice_session_count ?? 0} suffix="场" /><Text type="secondary">首答 {overview?.practice_first_attempts ?? 0} 次，正确 {overview?.practice_first_correct ?? 0} 次</Text></Card></Col>
         <Col xs={24} md={8}><Card title="练习首答正确率" loading={loading}><Progress percent={overview?.practice_first_accuracy ?? 0} format={(value) => accuracy(value ?? 0)} /></Card></Col>
         <Col xs={24} md={8}><Card title="考试正确率" loading={loading}><Progress percent={overview?.exam_accuracy ?? 0} format={(value) => accuracy(value ?? 0)} /><Text type="secondary">完成 {overview?.completed_exam_count ?? 0} 场 / 超时 {overview?.timed_out_exam_count ?? 0} 场 / 作答 {overview?.exam_answers ?? 0} 次</Text></Card></Col>

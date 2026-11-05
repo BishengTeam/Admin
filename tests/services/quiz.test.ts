@@ -113,6 +113,30 @@ describe('quizService frozen admin contract', () => {
     }
   })
 
+  it('uses the versioned activation code contract for generation, filtering and export', async () => {
+    const { quizService } = await import('@/services/quiz')
+    const path = '/admin/quiz/libraries/9/activation-codes'
+    const expires_at = '2026-12-05T02:00:00Z'
+    const code = 'ABCD-EFGH-JKMN-PQRS'
+    const batch = { codes: [code], expires_at }
+    const page = {
+      items: [{ id: 1, code, status: 'expired', note: null, redeemed_by: null,
+        redeemed_by_phone: null, redeemed_at: null, created_at: '2026-11-05T02:00:00Z', expires_at }],
+      total: 1, page: 1, page_size: 10,
+    }
+    http.post.mockResolvedValueOnce(batch)
+    http.get.mockResolvedValueOnce(page)
+
+    await expect(quizService.generateActivationCodes(9, 1, null, 30)).resolves.toEqual(batch)
+    expect(http.post).toHaveBeenCalledWith(path, { quantity: 1, note: null, validity_days: 30 },
+      { params: { code_schema: 2 }, signal: undefined })
+    await expect(quizService.listActivationCodes(9, { status: 'expired' })).resolves.toEqual(page)
+    expect(http.get).toHaveBeenLastCalledWith(path, { params: { status: 'expired', code_schema: 2 }, signal: undefined })
+    await quizService.exportActivationCodesCsv(9, 'expired')
+    expect(http.get).toHaveBeenLastCalledWith(`${path}/export`,
+      expect.objectContaining({ params: { status: 'expired', code_schema: 2 }, responseType: 'blob' }))
+  })
+
   it('keeps V2 lifecycle responses on the strict V2 question schema', async () => {
     const { quizService } = await import('@/services/quiz')
     const v2Question = {

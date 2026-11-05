@@ -38,6 +38,7 @@ import {
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { PageContainer } from '@/components/PageContainer'
 import { quizService } from '@/services/quiz'
+import { QUIZ_IMPORT_SUCCEEDED_EVENT } from '@/utils/quizEvents'
 import { usePermission } from '@/hooks/usePermission'
 import { QUESTION_PAGE_SIZE_OPTIONS, useQuestionPagination } from '@/hooks/useQuestionPagination'
 import { ApiError, isConflictError, isNotFoundError, isRateLimitError } from '@/core/request'
@@ -121,7 +122,7 @@ export default function QuizV2Workbench() {
     const controller = new AbortController()
     librariesController.current = controller
     try {
-      const result = await quizService.listLibraries({ include_deleted: false }, controller.signal)
+      const result = await quizService.listLibraries({ include_deleted: false, count_schema: 2 }, controller.signal)
       if (controller.signal.aborted) return
       setLibraries(result)
       if (!selectedLibraryId && !focusQuestionId && result.length) updateParams({ library_id: result[0].id })
@@ -188,7 +189,16 @@ export default function QuizV2Workbench() {
   useEffect(() => { void loadQuestions(); return () => questionsController.current?.abort() }, [loadQuestions])
   useEffect(() => { setKeyword(params.get('keyword') ?? '') }, [params])
 
-  const refreshAll = async () => { setSelectedRows({}); await Promise.all([loadLibraries(), loadTree(), loadQuestions()]) }
+  const refreshAll = useCallback(async () => {
+    setSelectedRows({})
+    await Promise.all([loadLibraries(), loadTree(), loadQuestions()])
+  }, [loadLibraries, loadTree, loadQuestions])
+  useEffect(() => {
+    if (section !== 'imports') return
+    const refresh = () => void refreshAll()
+    window.addEventListener(QUIZ_IMPORT_SUCCEEDED_EVENT, refresh)
+    return () => window.removeEventListener(QUIZ_IMPORT_SUCCEEDED_EVENT, refresh)
+  }, [section, refreshAll])
   useEffect(() => {
     const controller = new AbortController()
     setSummary(undefined)
@@ -444,9 +454,9 @@ export default function QuizV2Workbench() {
 
   return (
     <PageContainer title="题库内容工作台">
-      {selectedLibraryId && <Space wrap style={{ marginBottom: 16 }}><Button type="primary" onClick={() => setPublicationOpen(true)}>检查并发布</Button><Button onClick={() => setSection('imports')}>上传题库</Button><span>共 {selectedLibrary?.question_count ?? 0} 题{summary && ` · 待审核 ${summary.counts.draft} · 内容异常 ${summary.counts.abnormal} · 归属不可用 ${summary.counts.unavailable_ownership}`}</span></Space>}
+      {selectedLibraryId && <Space wrap style={{ marginBottom: 16 }}><Button type="primary" onClick={() => setPublicationOpen(true)}>检查并发布</Button><Button onClick={() => setSection('imports')}>上传题库</Button><span>总计 {selectedLibrary?.question_count ?? '—'} 题 · 可练习 {selectedLibrary?.practice_counts?.practicable ?? '—'} 题{summary && ` · 待审核 ${summary.counts.draft} · 内容异常 ${summary.counts.abnormal} · 归属不可用 ${summary.counts.unavailable_ownership}`}</span></Space>}
       {selectedLibraryId && <Tabs activeKey={section} onChange={setSection} items={[{ key: 'questions', label: '题目' }, { key: 'classification', label: '分类管理' }, { key: 'imports', label: '导入记录' }]} />}
-      {section === 'imports' && selectedLibraryId && <QuizImports key={selectedLibraryId} embeddedLibraryId={selectedLibraryId} />}
+      {section === 'imports' && selectedLibraryId && <QuizImports key={selectedLibraryId} embeddedLibraryId={selectedLibraryId} onOpenWorkbench={() => setSection('questions')} />}
       <div style={{ display: section === 'imports' ? 'none' : undefined }}>
       <Space direction="vertical" style={{ width: '100%' }} size="middle">
 

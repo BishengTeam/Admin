@@ -1,4 +1,5 @@
 import { http } from '@/core/request'
+import { Link } from 'react-router-dom'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Alert, Button, Card, Descriptions, Drawer, Collapse, Empty, Modal, Progress, Select, Space, Table, Tag, Tooltip, Tree, Typography, Upload, message } from 'antd'
 import { DownloadOutlined, FileOutlined, FolderOpenOutlined, ReloadOutlined, SyncOutlined, UploadOutlined } from '@ant-design/icons'
@@ -92,7 +93,7 @@ function errorLocation(item: ImportErrorItem) {
   return '-'
 }
 
-export default function QuizImports({ embeddedLibraryId }: { embeddedLibraryId?: number } = {}) {
+export default function QuizImports({ onOpenWorkbench, embeddedLibraryId }: { onOpenWorkbench?: () => void; embeddedLibraryId?: number } = {}) {
   const [previewRows, setPreviewRows] = useState<{ row: number; question_text: string; question_type: string; category_path: string[]; correct_answer: unknown }[]>([])
   const [previewTotal, setPreviewTotal] = useState(0)
   const [previewPage, setPreviewPage] = useState(1)
@@ -541,7 +542,10 @@ export default function QuizImports({ embeddedLibraryId }: { embeddedLibraryId?:
       <Drawer title={`导入检查 #${detail?.id ?? ''}`} open={Boolean(detail)} width={860} onClose={() => { setDetail(null); setErrorJob(null); setImpactJob(null); setErrorData(null); setImpact(null) }}
         footer={impact && impactJob ? <Space><Button danger disabled={!canImport} loading={impactAction === 'cancel'} onClick={() => void cancelAwaitingJob()}>取消任务</Button><Tooltip title={!canWrite ? '创建或调整分类需要内容编辑权限，请交由有权限的管理员确认' : undefined}><Button type="primary" disabled={!canImport || !canWrite || Boolean(impact.blocking_reasons.length)} loading={impactAction === 'confirm'} onClick={() => void confirmCategories()}>确认导入 {impact.affected_question_count} 道草稿</Button></Tooltip></Space> : undefined}>
         {detail && <Space direction="vertical" style={{ width: '100%' }} size="middle">
-          <Descriptions bordered size="small" column={2}><Descriptions.Item label="文件" span={2}>{detail.source_filename ?? `导入任务 #${detail.id} 源文件`}</Descriptions.Item><Descriptions.Item label="目标题库">{libraries.find((l) => l.id === detail.library_id)?.name ?? detail.library_id}</Descriptions.Item><Descriptions.Item label="状态">{statusLabels[detail.status]}</Descriptions.Item><Descriptions.Item label="读取题目">{detail.total_rows}</Descriptions.Item><Descriptions.Item label="内容检查通过">{detail.validated_rows}</Descriptions.Item><Descriptions.Item label="已创建草稿">{detail.created_count}</Descriptions.Item><Descriptions.Item label="需要修改">{detail.error_count}</Descriptions.Item><Descriptions.Item label="来源">{detail.source_type.toUpperCase()}</Descriptions.Item><Descriptions.Item label="文件大小">{(detail.source_size_bytes / 1024).toFixed(1)} KB</Descriptions.Item></Descriptions>
+          <Descriptions bordered size="small" column={2}><Descriptions.Item label="文件" span={2}>{detail.source_filename ?? `导入任务 #${detail.id} 源文件`}</Descriptions.Item><Descriptions.Item label="目标题库">{libraries.find((l) => l.id === detail.library_id)?.name ?? detail.library_id}</Descriptions.Item><Descriptions.Item label="状态">{statusLabels[detail.status]}</Descriptions.Item><Descriptions.Item label="读取题目">{detail.total_rows}</Descriptions.Item><Descriptions.Item label="内容检查通过">{detail.validated_rows}</Descriptions.Item><Descriptions.Item label="本次创建草稿">{detail.created_count}</Descriptions.Item><Descriptions.Item label="需要修改">{detail.error_count}</Descriptions.Item><Descriptions.Item label="来源">{detail.source_type.toUpperCase()}</Descriptions.Item><Descriptions.Item label="文件大小">{(detail.source_size_bytes / 1024).toFixed(1)} KB</Descriptions.Item></Descriptions>
+          {detail.status === 'succeeded' && detail.library_id && (
+            <Link to={`/admin/quiz/questions?tab=content&library_id=${detail.library_id}`} onClick={() => { setDetail(null); onOpenWorkbench?.() }}>打开目标题库工作台</Link>
+          )}
           {detail.error_message && <Alert type={detail.error_count ? 'error' : 'warning'} message={detail.error_message} />}
           <Space><Button loading={previewLoading} onClick={() => void loadPreview(detail.id)}>查看题目预览</Button><Button loading={signedLoading === `source:${detail.id}`} onClick={() => void openSignedFile(detail, 'source')}>下载源文件</Button>{detail.report_available && <Button onClick={() => void openSignedFile(detail, 'report')}>下载错误明细</Button>}<Button onClick={() => { if (detail.status === 'awaiting_category_confirmation') void loadImpact(detail); else if (detail.error_count) void openErrors(detail) }}>重新加载检查</Button></Space>
           {previewTotal > 0 && <Table rowKey="row" size="small" dataSource={previewRows} loading={previewLoading} columns={[{ title: '行号', dataIndex: 'row', width: 70 }, { title: '题干', dataIndex: 'question_text' }, { title: '题型', dataIndex: 'question_type', width: 130 }, { title: '答案', dataIndex: 'correct_answer', render: (answer: unknown) => JSON.stringify(answer) }]} pagination={{ current: previewPage, total: previewTotal, pageSize: 20, onChange: (page) => void loadPreview(detail.id, page) }} />}

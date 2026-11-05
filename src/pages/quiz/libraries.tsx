@@ -31,6 +31,8 @@ import type { PageData } from '@/types/api'
 import type {
   QuizActivationCode,
   QuizActivationCodeStatus,
+  QuizActivationCodeGenerateResponse,
+  QuizActivationValidityDays,
   QuizCourseBinding,
   QuizCourseOption,
   QuizLibrary,
@@ -70,10 +72,21 @@ const accessLabels: Record<QuizLibraryAccessMode, string> = {
 }
 
 const activationCodeStatusLabels: Record<QuizActivationCodeStatus, string> = {
-  issued: '未兑换',
+  issued: '可兑换',
+  expired: '已过期',
   redeemed: '已兑换',
   revoked: '已作废',
 }
+
+const activationValidityOptions: { value: QuizActivationValidityDays; label: string }[] = [
+  { value: 1, label: '1 天' },
+  { value: 3, label: '3 天' },
+  { value: 7, label: '7 天' },
+  { value: 30, label: '30 天' },
+  { value: 60, label: '60 天' },
+  { value: 90, label: '90 天' },
+  { value: 365, label: '1 年（365 天）' },
+]
 
 const vendorLabels: Record<QuizLibrary['vendor_tag'], string> = {
   h3c: 'H3C',
@@ -190,8 +203,10 @@ export default function QuizLibraries() {
   const [codesLoading, setCodesLoading] = useState(false)
   const [generateOpen, setGenerateOpen] = useState(false)
   const [generating, setGenerating] = useState(false)
-  const [generatedCodes, setGeneratedCodes] = useState<string[] | null>(null)
-  const [generateForm] = Form.useForm()
+  const [generatedCodes, setGeneratedCodes] = useState<QuizActivationCodeGenerateResponse | null>(null)
+  const [generateForm] = Form.useForm<{ quantity: number; validityDays: QuizActivationValidityDays; note?: string }>()
+  const validityDays = Form.useWatch('validityDays', generateForm)
+  const codeRequest = useRef<AbortController>()
   const [migrationLibrary, setMigrationLibrary] = useState<QuizLibrary | null>(null)
   const [migrationReport, setMigrationReport] = useState<QuizMigrationReport | null>(null)
   const [migrationLoading, setMigrationLoading] = useState(false)
@@ -203,7 +218,7 @@ export default function QuizLibraries() {
     controller.current = next
     setLoading(true)
     try {
-      const result = await quizService.listLibraries(nextFilter, next.signal)
+      const result = await quizService.listLibraries({ ...nextFilter, count_schema: 2 }, next.signal)
       if (!next.signal.aborted) setLibraries(result)
     } catch (error) {
       if (!next.signal.aborted) message.error(errorText(error))
@@ -399,44 +414,41 @@ export default function QuizLibraries() {
     } finally { setBindingLoading(false) }
   }
 
-  const loadCodes = async (page: number, status?: QuizActivationCodeStatus) => {
-    if (!codeLibrary) return
+  const loadCodesFor = async (library: QuizLibrary, page: number, status?: QuizActivationCodeStatus) => {
+    codeRequest.current?.abort()
+    const request = new AbortController()
+    codeRequest.current = request
     setCodesLoading(true)
     try {
-      setCodes(await quizService.listActivationCodes(codeLibrary.id, { page, page_size: 10, status }))
+      const result = await quizService.listActivationCodes(library.id, { page, page_size: 10, status }, request.signal)
+      if (!request.signal.aborted) setCodes(result)
     } catch (error) {
-      message.error(errorText(error))
+      if (!request.signal.aborted) message.error(errorText(error))
     } finally {
-      setCodesLoading(false)
+      if (!request.signal.aborted) setCodesLoading(false)
     }
   }
 
-  const openCodes = async (library: QuizLibrary) => {
+  const loadCodes = (page: number, status?: QuizActivationCodeStatus) =>
+    codeLibrary ? loadCodesFor(codeLibrary, page, status) : undefined
+
+  const openCodes = (library: QuizLibrary) => {
     setCodeLibrary(library)
+    setCodes(null)
     setGeneratedCodes(null)
     setCodeStatus(undefined)
     setCodePage(1)
-    await loadCodesFor(library, 1, undefined)
-  }
-
-  const loadCodesFor = async (library: QuizLibrary, page: number, status?: QuizActivationCodeStatus) => {
-    setCodesLoading(true)
-    try {
-      setCodes(await quizService.listActivationCodes(library.id, { page, page_size: 10, status }))
-    } catch (error) {
-      message.error(errorText(error))
-    } finally {
-      setCodesLoading(false)
-    }
+    void loadCodesFor(library, 1)
   }
 
   const submitGenerateCodes = async () => {
-    if (!codeLibrary) return
-    const values = await generateForm.validateFields()
+    if (!codeLibrary || generating) return
+    const values = await generateForm.validateFields().catch(() => undefined)
+    if (!values) return
     setGenerating(true)
     try {
-      const result = await quizService.generateActivationCodes(codeLibrary.id, values.quantity, values.note?.trim() || null)
-      setGeneratedCodes(result.codes)
+      const result = await quizService.generateActivationCodes(codeLibrary.id, values.quantity, values.note?.trim() || null, values.validityDays)
+      setGeneratedCodes(result)
       setGenerateOpen(false)
       generateForm.resetFields()
       setCodePage(1)
@@ -535,7 +547,7 @@ export default function QuizLibraries() {
     const buttons = []
     if (canManage && !['archived', 'deleted'].includes(library.status)) buttons.push(<Button key="edit" type="link" size="small" onClick={() => openEdit(library)}>编辑</Button>)
     if (library.access_mode === 'course_entitlement') buttons.push(<Button key="binding" type="link" size="small" icon={<LinkOutlined />} onClick={() => void openBindings(library)}>课程绑定</Button>)
-    if (canManage && library.access_mode === 'activation_code') buttons.push(<Button key="codes" type="link" size="small" icon={<KeyOutlined />} onClick={() => void openCodes(library)}>激活码</Button>)
+    if (canManage && library.access_mode === 'activation_code') buttons.push(<Button key="codes" aria-label="激活码" type="link" size="small" icon={<KeyOutlined />} onClick={() => void openCodes(library)}>激活码</Button>)
     if (isSuperAdmin && ALLOWED_TRANSITIONS[library.access_mode]?.length) buttons.push(<Button key="convert" type="link" size="small" icon={<SwapOutlined />} onClick={() => openConvertModal(library)}>转换模式</Button>)
     if (canManage && library.status === 'draft') buttons.push(<Button key="publish" type="link" size="small" onClick={() => transition(library, 'publish')}>发布</Button>)
     if (canManage && library.status === 'published') buttons.push(<Button key="suspend" type="link" size="small" danger onClick={() => transition(library, 'suspend')}>停用</Button>)
@@ -551,8 +563,18 @@ export default function QuizLibraries() {
     { title: '访问模式', dataIndex: 'access_mode', width: 140, render: (value: QuizLibraryAccessMode) => <Tag color={value === 'free' ? 'green' : value === 'course_entitlement' ? 'blue' : value === 'activation_code' ? 'orange' : 'default'}>{accessLabels[value]}</Tag> },
     { title: '厂商标签', dataIndex: 'vendor_tag', width: 110, render: (value: QuizLibrary['vendor_tag']) => <Tag color={value === 'none' ? 'default' : 'geekblue'}>{vendorLabels[value]}</Tag> },
     { title: '状态', dataIndex: 'status', width: 100, render: (value: QuizLibrary['status']) => <Tag color={statusColors[value]}>{statusLabels[value]}</Tag> },
-    { title: 'V2 用户入口', key: 'v2', width: 130, render: (_, item) => <Tooltip title={item.status !== 'published' ? '仅已发布题库可以开启' : undefined}><Switch checked={item.v2_enabled} disabled={!canManage || (item.status !== 'published' && !item.v2_enabled)} onChange={(checked) => toggleV2(item, checked)} /></Tooltip> },
-    { title: '内容', key: 'content', width: 190, render: (_, item) => `${item.module_count} 模块 / ${item.knowledge_point_count} 知识点 / ${item.question_count} 题` },
+    { title: 'V2 用户入口', key: 'v2', width: 130, render: (_, item) => <Tooltip title={item.status !== 'published' ? '入口未开放，仅已发布题库可以开启' : !item.v2_enabled ? '入口未开放' : undefined}><Switch checked={item.v2_enabled} disabled={!canManage || (item.status !== 'published' && !item.v2_enabled)} onChange={(checked) => toggleV2(item, checked)} /></Tooltip> },
+    { title: '内容', key: 'content', width: 225, render: (_, item) => {
+      const counts = item.practice_counts
+      return (
+        <Space direction="vertical" size={2}>
+          <Tooltip title={counts && `待发布 ${counts.unpublished} · 已停用 ${counts.disabled} · 归属不可用 ${counts.unavailable_ownership} · 当前发布版本异常 ${counts.invalid_revision}`}>
+            <span>总计 {item.question_count} 题 · 可练习 {counts?.practicable ?? '—'} 题</span>
+          </Tooltip>
+          <Typography.Text type="secondary">{item.module_count} 模块 / {item.knowledge_point_count} 知识点</Typography.Text>
+        </Space>
+      )
+    } },
     { title: '迁移问题', dataIndex: 'open_migration_issue_count', width: 110, render: (value: number, item) => value ? <Button type="link" danger size="small" onClick={() => void openMigrationReport(item)}>{value} 项</Button> : <Tag color="success">无</Tag> },
     { title: '更新时间', dataIndex: 'updated_at', width: 170, render: (value: string) => formatDate(value) },
     { title: '操作', key: 'actions', width: 330, fixed: 'right', render: (_, item) => actions(item) },
@@ -669,7 +691,7 @@ export default function QuizLibraries() {
       <Drawer
         title={codeLibrary ? `激活码 · ${codeLibrary.name}` : '激活码'}
         open={Boolean(codeLibrary)}
-        onClose={() => { setCodeLibrary(null); setGeneratedCodes(null) }}
+        onClose={() => { codeRequest.current?.abort(); setCodeLibrary(null); setGeneratedCodes(null) }}
         width={860}
         extra={canManage && codeLibrary && <Space>
           <Button icon={<DownloadOutlined />} onClick={() => void downloadCodesCsv()}>导出 CSV</Button>
@@ -680,7 +702,7 @@ export default function QuizLibraries() {
           type="info"
           showIcon
           style={{ marginBottom: 16 }}
-          message="激活码一次一用：学生兑换后获得该题库的练习权益（永久有效）。兑换人信息可在下方列表查看。"
+          message="激活码只能在截止前首次兑换。兑换成功后，题库练习权益长期有效。"
         />
         {generatedCodes && (
           <Alert
@@ -688,9 +710,10 @@ export default function QuizLibraries() {
             showIcon
             closable
             style={{ marginBottom: 16 }}
-            message={`已生成 ${generatedCodes.length} 个激活码，请复制或导出后交发放方`}
+            message={`已生成 ${generatedCodes.codes.length} 个激活码，请复制或导出后交发放方`}
             description={<Space direction="vertical" style={{ width: '100%' }} size={4}>
-              {generatedCodes.map((code) => <Typography.Text key={code} copyable>{code}</Typography.Text>)}
+              <Typography.Text>兑换截止时间 {formatDate(generatedCodes.expires_at)}</Typography.Text>
+              {generatedCodes.codes.map((code) => <Typography.Text key={code} copyable>{code}</Typography.Text>)}
             </Space>}
           />
         )}
@@ -705,6 +728,7 @@ export default function QuizLibraries() {
           />
         </Space>
         <Table<QuizActivationCode>
+          scroll={{ x: 1120 }}
           rowKey="id"
           loading={codesLoading}
           dataSource={codes?.items ?? []}
@@ -718,12 +742,13 @@ export default function QuizLibraries() {
           }}
           columns={[
             { title: '激活码', dataIndex: 'code', width: 200, render: (value: string) => <Typography.Text copyable>{value}</Typography.Text> },
-            { title: '状态', dataIndex: 'status', width: 90, render: (status: QuizActivationCodeStatus) => <Tag color={status === 'redeemed' ? 'success' : status === 'revoked' ? 'default' : 'processing'}>{activationCodeStatusLabels[status]}</Tag> },
+            { title: '状态', dataIndex: 'status', width: 90, render: (status: QuizActivationCodeStatus) => <Tag color={status === 'redeemed' ? 'success' : status === 'expired' ? 'warning' : status === 'revoked' ? 'default' : 'processing'}>{activationCodeStatusLabels[status]}</Tag> },
             { title: '兑换用户', key: 'redeemed_by', width: 160, render: (_, item) => item.redeemed_by ? `#${item.redeemed_by}${item.redeemed_by_phone ? ` / ${item.redeemed_by_phone}` : ''}` : '-' },
             { title: '兑换时间', dataIndex: 'redeemed_at', width: 170, render: (value: string | null) => value ? formatDate(value) : '-' },
+            { title: '兑换截止', dataIndex: 'expires_at', width: 170, render: (value: string | null) => value ? formatDate(value) : '无截止时间' },
             { title: '备注', dataIndex: 'note', ellipsis: true, render: (value: string | null) => value || '-' },
             { title: '创建时间', dataIndex: 'created_at', width: 170, render: (value: string) => formatDate(value) },
-            { title: '操作', width: 90, render: (_, item) => canManage && item.status === 'issued' ? <Button type="link" size="small" danger onClick={() => Modal.confirm({ title: `作废激活码「${item.code}」？`, content: '作废后该码无法被兑换，已生成的码列表中仍会保留记录。', okText: '确认作废', okButtonProps: { danger: true }, onOk: () => revokeActivationCode(item) })}>作废</Button> : null },
+            { title: '操作', width: 90, render: (_, item) => canManage && item.status === 'issued' && (!item.expires_at || Date.parse(item.expires_at) > Date.now()) ? <Button type="link" size="small" danger onClick={() => Modal.confirm({ title: `作废激活码「${item.code}」？`, content: '作废后该码无法被兑换，已生成的码列表中仍会保留记录。', okText: '确认作废', okButtonProps: { danger: true }, onOk: () => revokeActivationCode(item) })}>作废</Button> : null },
           ]}
         />
       </Drawer>
@@ -737,9 +762,17 @@ export default function QuizLibraries() {
         onOk={() => void submitGenerateCodes()}
         destroyOnClose
       >
-        <Form form={generateForm} initialValues={{ quantity: 20 }} layout="vertical">
+        <Form form={generateForm} initialValues={{ quantity: 20, validityDays: 30 }} layout="vertical">
           <Form.Item name="quantity" label="数量" rules={[{ required: true, message: '请输入生成数量' }]} extra="一次最多 500 个">
             <InputNumber min={1} max={500} precision={0} style={{ width: '100%' }} />
+          </Form.Item>
+          <Form.Item
+            name="validityDays"
+            label="兑换有效期"
+            rules={[{ required: true, message: '请选择兑换有效期' }]}
+            extra={validityDays ? `预计截止 ${formatDate(new Date(Date.now() + validityDays * 86_400_000))}，以生成结果为准` : undefined}
+          >
+            <Select options={activationValidityOptions} />
           </Form.Item>
           <Form.Item name="note" label="备注（可选）" rules={[{ max: 512, message: '备注最多 512 字' }]}>
             <Input.TextArea rows={2} placeholder="如：2026 年 11 月首批发放" />

@@ -38,6 +38,7 @@ import {
   QuizAccessModeConvertResponseSchema,
   QuizLibraryCreateSchema,
   QuizMigrationReportSchema,
+  QuizLibraryListItemSchema,
   QuizLibrarySchema,
   QuizLibraryUpdateSchema,
   QuizModuleCreateSchema,
@@ -112,6 +113,7 @@ import type {
   QuizActivationCode,
   QuizActivationCodeGenerateResponse,
   QuizActivationCodeStatus,
+  QuizActivationValidityDays,
   QuizModuleUpdate,
   QuizQuestionRevision,
   QuizV2Question,
@@ -145,7 +147,7 @@ const QuizProbeCoreSchema = z.object({
   checks: z.record(z.string(), z.string()),
   details: z.object({ quiz_tasks: QuizTaskSnapshotSchema }).passthrough(),
 }).passthrough()
-const QuizLibrariesSchema = z.array(QuizLibrarySchema)
+const QuizLibrariesSchema = z.array(QuizLibraryListItemSchema)
 const QuizCourseBindingsSchema = z.array(QuizCourseBindingSchema)
 const QuizCourseOptionsSchema = z.array(QuizCourseOptionSchema)
 const QuizQuestionRevisionsSchema = z.array(QuizQuestionRevisionSchema)
@@ -259,23 +261,23 @@ export const quizService = {
     return parsed(QuizCourseBindingSchema, await http.post(`/admin/quiz/course-bindings/${id}/status`, { status, lock_version }, { signal }))
   },
 
-  async generateActivationCodes(libraryId: number, quantity: number, note: string | null, signal?: AbortSignal): Promise<QuizActivationCodeGenerateResponse> {
+  async generateActivationCodes(libraryId: number, quantity: number, note: string | null, validityDays: QuizActivationValidityDays, signal?: AbortSignal): Promise<QuizActivationCodeGenerateResponse> {
     return parsed(
       QuizActivationCodeGenerateResponseSchema,
-      await http.post(`/admin/quiz/libraries/${libraryId}/activation-codes`, omitUndefined({ quantity, note }), { signal }),
+      await http.post(`/admin/quiz/libraries/${libraryId}/activation-codes`, omitUndefined({ quantity, note, validity_days: validityDays }), queryConfig({ code_schema: 2 }, signal)),
     )
   },
 
   async listActivationCodes(libraryId: number, params: { status?: QuizActivationCodeStatus; page?: number; page_size?: number } = {}, signal?: AbortSignal): Promise<PageData<QuizActivationCode>> {
     return parsed(
       pageSchema(QuizActivationCodeSchema),
-      await http.get(`/admin/quiz/libraries/${libraryId}/activation-codes`, queryConfig(params, signal)),
+      await http.get(`/admin/quiz/libraries/${libraryId}/activation-codes`, queryConfig({ ...params, code_schema: 2 }, signal)),
     )
   },
 
   async exportActivationCodesCsv(libraryId: number, status?: QuizActivationCodeStatus, signal?: AbortSignal): Promise<Blob> {
     return http.get<Blob>(`/admin/quiz/libraries/${libraryId}/activation-codes/export`, {
-      params: status ? { status } : {},
+      params: { status, code_schema: 2 },
       responseType: 'blob',
       timeout: 60000,
       signal,
