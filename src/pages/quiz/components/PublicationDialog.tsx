@@ -1,9 +1,16 @@
 import { useEffect, useState } from 'react'
 import { Alert, Button, Checkbox, Descriptions, Modal, Space, Table, message } from 'antd'
+import { isConflictError } from '@/core/request'
 import { usePermission } from '@/hooks/usePermission'
 import { quizPublication, type PublicationOperation, type PublicationPreflight } from '@/services/quizPublication'
 
-export function PublicationDialog({ libraryId, selectedIds = [], onClose, onChanged }: { libraryId: number; selectedIds?: number[]; onClose: () => void; onChanged: () => void }) {
+type Props = { libraryId: number; selectedIds?: number[]; readOnly?: boolean; onClose: () => void; onChanged: () => void }
+
+export function PublicationDialog(props: Props) {
+  return <PublicationSession key={props.libraryId} {...props} />
+}
+
+function PublicationSession({ libraryId, selectedIds = [], readOnly = false, onClose, onChanged }: Props) {
   const canPublish = usePermission('quiz_content_publish')
   const canManage = usePermission('quiz_library_manage')
   const [check, setCheck] = useState<PublicationPreflight>()
@@ -15,13 +22,17 @@ export function PublicationDialog({ libraryId, selectedIds = [], onClose, onChan
   const [openEntry, setOpenEntry] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-  const [requestKey] = useState(() => crypto.randomUUID())
+  const [current, setCurrent] = useState(1)
+  const [pageSize, setPageSize] = useState(20)
+  const [stale, setStale] = useState(false)
+  const [notice, setNotice] = useState('')
+  const [requestKey, setRequestKey] = useState(() => crypto.randomUUID())
   useEffect(() => {
     const controller = new AbortController()
-    void quizPublication.list(libraryId, controller.signal).then(setHistory).catch(() => {})
-    void quizPublication.check(libraryId, controller.signal).then((result) => { setCheck(result); setSelected((previous) => previous.filter((id) => result.candidates.some((i) => i.question_id === id))) }).catch((e: Error) => { if (!controller.signal.aborted) setError(e.message) })
+    void quizPublication.list(libraryId, controller.signal).then(result => { if (!controller.signal.aborted) setHistory(result) }).catch(() => {})
+    if (!readOnly) void quizPublication.check(libraryId, controller.signal).then((result) => { if (controller.signal.aborted) return; setCheck(result); setSelected((previous) => previous.filter((id) => result.candidates.some((i) => i.question_id === id))) }).catch((e: Error) => { if (!controller.signal.aborted) setError(e.message) })
     return () => controller.abort()
-  }, [libraryId])
+  }, [libraryId, readOnly])
   useEffect(() => {
     if (!job || job.status !== 'queued') return
     const controller = new AbortController()
@@ -34,17 +45,37 @@ export function PublicationDialog({ libraryId, selectedIds = [], onClose, onChan
     return () => { window.clearInterval(timer); controller.abort() }
   }, [job?.id, job?.status, onChanged])
   const blocked = Boolean(check && (publishLibrary || openEntry) && check.blockers.some((reason) => !(selected.length && reason.startsWith('没有有效'))))
-  const execute = async () => {
+  const candidates = check?.candidates ?? []
+  const closedLibrary = readOnly || check?.status === 'archived' || check?.status === 'deleted'
+  const refreshCheck = async () => {
     if (!check || busy) return
+    setBusy(true)
+    try {
+      const next = await quizPublication.check(libraryId)
+      const old = new Map(check.candidates.filter(item => selected.includes(item.question_id)).map(item => [item.question_id, item]))
+      const kept = next.candidates.filter(item => {
+        const previous = old.get(item.question_id)
+        return previous?.revision_id === item.revision_id && previous.lock_version === item.lock_version
+      }).map(item => item.question_id)
+      setNotice(`已重新检查，移除 ${selected.length - kept.length} 道失效选题；请核对剩余选择后再确认执行。`)
+      setSelected(kept); setCheck(next); setCurrent(1); setStale(false); setError(''); setRequestKey(crypto.randomUUID())
+    } catch (e) { setError(e instanceof Error ? e.message : '重新检查失败，请重试') }
+    finally { setBusy(false) }
+  }
+  const execute = async () => {
+    if (!check || busy || stale || closedLibrary) return
     setBusy(true); setError('')
     try {
       setJob(await quizPublication.start(libraryId, { request_key: requestKey, lock_version: check.lock_version, preflight_version: check.preflight_version,
         items: check.candidates.filter((i) => selected.includes(i.question_id)), publish_library: publishLibrary, open_entry: openEntry }))
-    } catch (e) { setError(e instanceof Error ? e.message : '创建发布任务失败，请重试') }
+    } catch (e) { if (isConflictError(e)) setStale(true); setError(e instanceof Error ? e.message : '创建发布任务失败，请重试') }
     finally { setBusy(false) }
   }
-  return <Modal title="检查并发布" open width={820} onCancel={onClose} footer={job ? <Button onClick={onClose}>关闭</Button> : <Space><Button onClick={onClose}>返回检查题目</Button><Button type="primary" loading={busy} disabled={!check || blocked || (!selected.length && !publishLibrary && !openEntry)} onClick={() => void execute()}>确认执行</Button></Space>}>
+  return <Modal title={readOnly ? "发布历史" : "检查并发布"} open width={820} onCancel={onClose} footer={job || readOnly ? <Button onClick={onClose}>关闭</Button> : <Space><Button onClick={onClose}>返回检查题目</Button><Button type="primary" loading={busy} disabled={!check || stale || closedLibrary || blocked || (!selected.length && !publishLibrary && !openEntry)} onClick={() => void execute()}>确认执行</Button></Space>}>
     {error && <Alert type="error" showIcon message={error} style={{ marginBottom: 12 }} />}
+    {stale && <Button loading={busy} onClick={() => void refreshCheck()}>重新预检</Button>}
+    {notice && !job && <Alert type="info" message={notice} />}
+    {readOnly && !job && !history.length && <div>暂无发布历史</div>}
     {!job && history.length > 0 && <Table size="small" rowKey="id" dataSource={history} pagination={{ pageSize: 5 }} columns={[{ title: '发布任务', dataIndex: 'id' }, { title: '状态', dataIndex: 'status', render: (value: string) => ({ queued: '处理中', failed: '待处理', succeeded: '已完成' })[value] }, { title: '已发布题目', render: (_, record) => record.progress.questions }, { title: '操作', render: (_, record) => <Button type="link" onClick={() => setJob(record)}>查看阶段结果</Button> }]} />}
     {check && !job && <Space direction="vertical" style={{ width: '100%' }}>
       <Descriptions bordered size="small" column={3}><Descriptions.Item label="可练习题数">{check.counts.published}</Descriptions.Item><Descriptions.Item label="待审核">{check.counts.draft}</Descriptions.Item><Descriptions.Item label="内容异常">{check.counts.abnormal}</Descriptions.Item><Descriptions.Item label="访问方式">{{ access_mode_pending: '待确认', free: '免费', paid: '积分兑换', activation_code: '激活码解锁', course_entitlement: '课程权益' }[check.access_mode] ?? check.access_mode}</Descriptions.Item><Descriptions.Item label="系统补齐归属">{check.counts.default_ownership}</Descriptions.Item><Descriptions.Item label="待确认导入">{check.waiting_import_count}</Descriptions.Item></Descriptions>
@@ -52,16 +83,17 @@ export function PublicationDialog({ libraryId, selectedIds = [], onClose, onChan
       {check.repairable.map((text) => <Alert key={text} type="warning" message={text} />)}
       {check.warnings.map((text) => <div key={text} style={{ color: '#666' }}>{text}</div>)}
       <div>仅勾选已人工审核的题目；未选择的草稿保留。题目通过检查不代表内容已审核。</div>
-      <Table size="small" rowKey="question_id" dataSource={check.candidates} pagination={{ pageSize: 20 }} rowSelection={canPublish ? { selectedRowKeys: selected, onChange: setSelected } : undefined} columns={[{ title: '题目', dataIndex: 'question_id', width: 80 }, { title: '题干摘要', render: (_, row) => check.question_previews?.[String(row.question_id)] ?? '请在题目列表核对内容' }, { title: '待发布修订', dataIndex: 'revision_id' }, { title: '版本', dataIndex: 'lock_version' }]} />
-      <Checkbox disabled={!canManage} checked={publishLibrary} onChange={(e) => setPublishLibrary(e.target.checked)}>发布题库</Checkbox>
-      <Checkbox disabled={!canManage} checked={openEntry} onChange={(e) => setOpenEntry(e.target.checked)}>同时开放小程序入口（继续按现有访问权限解锁）</Checkbox>
+      <Space wrap><strong>共 {candidates.length} 道候选题 · 已选 {selected.length} 道</strong><Button type="link" disabled={busy || !selected.length} onClick={() => setSelected([])}>清空选择</Button></Space>
+      <Table size="small" rowKey="question_id" dataSource={candidates} locale={{ emptyText: '暂无通过检查的待发布题目' }} pagination={{ current, pageSize, showSizeChanger: true, pageSizeOptions: [20, 50, 100], onChange: (page, size) => { setCurrent(size === pageSize ? page : 1); setPageSize(size) } }} rowSelection={canPublish && !closedLibrary ? { preserveSelectedRowKeys: true, selectedRowKeys: selected, onChange: setSelected, getCheckboxProps: () => ({ disabled: busy || stale }), getTitleCheckboxProps: () => ({ 'aria-label': '全选本页', disabled: busy || stale }), columnTitle: node => <Space size={4}>{node}<span>全选本页</span></Space>, columnWidth: 100 } : undefined} columns={[{ title: '题目', dataIndex: 'question_id', width: 80 }, { title: '题干摘要', render: (_, row) => check.question_previews?.[String(row.question_id)] ?? '请在题目列表核对内容' }, { title: '待发布修订', dataIndex: 'revision_id' }, { title: '版本', dataIndex: 'lock_version' }]} />
+      <Checkbox disabled={!canManage || closedLibrary || busy || stale} checked={publishLibrary} onChange={(e) => setPublishLibrary(e.target.checked)}>发布题库</Checkbox>
+      <Checkbox disabled={!canManage || closedLibrary || busy || stale} checked={openEntry} onChange={(e) => setOpenEntry(e.target.checked)}>同时开放小程序入口（继续按现有访问权限解锁）</Checkbox>
     </Space>}
     {job && <Space direction="vertical" style={{ width: '100%' }}>
       <div>任务 #{job.id}：{job.status === 'queued' ? '处理中，可关闭后继续处理' : job.status === 'succeeded' ? '已完成全部选定操作' : '部分阶段未完成'}</div>
       <div>题目发布：已完成 {job.progress.questions} 题</div><div>题库发布：{job.progress.library ? '已完成' : '未执行或未选择'}</div><div>用户入口：{job.progress.entry ? '已开启' : '未执行或未选择'}</div>
       {job.error_message && <Alert type="error" message={job.error_message} />}
       {resumeCheck && <Space direction="vertical"><div>已重新检查当前题库：已发布 {resumeCheck.counts.published} 题、待审核 {resumeCheck.counts.draft} 题；访问方式 {resumeCheck.access_mode}。原选定修订保持不变。</div>{resumeCheck.blockers.map((reason) => <Alert key={reason} type="warning" message={reason} />)}</Space>}
-      {job.status === 'failed' && <Button loading={busy} onClick={async () => { setBusy(true); try { if (!resumeCheck) { setResumeCheck(await quizPublication.check(libraryId)); return }; setJob(await quizPublication.resume(job.id, resumeCheck.preflight_version)); setResumeCheck(undefined); message.info('已重新排队，继续执行未完成阶段') } catch (e) { setError(e instanceof Error ? e.message : '继续失败') } finally { setBusy(false) } }}>{resumeCheck ? '确认继续未完成阶段' : '重新检查并继续'}</Button>}
+      {job.status === 'failed' && !closedLibrary && <Button loading={busy} onClick={async () => { setBusy(true); try { if (!resumeCheck) { setResumeCheck(await quizPublication.check(libraryId)); return }; setJob(await quizPublication.resume(job.id, resumeCheck.preflight_version)); setResumeCheck(undefined); message.info('已重新排队，继续执行未完成阶段') } catch (e) { setError(e instanceof Error ? e.message : '继续失败') } finally { setBusy(false) } }}>{resumeCheck ? '确认继续未完成阶段' : '重新检查并继续'}</Button>}
     </Space>}
   </Modal>
 }
