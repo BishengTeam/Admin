@@ -93,7 +93,7 @@ function errorLocation(item: ImportErrorItem) {
   return '-'
 }
 
-export default function QuizImports({ onOpenWorkbench, embeddedLibraryId }: { onOpenWorkbench?: () => void; embeddedLibraryId?: number } = {}) {
+export default function QuizImports({ onOpenWorkbench, embeddedLibraryId, readOnly = false }: { onOpenWorkbench?: () => void; embeddedLibraryId?: number; readOnly?: boolean } = {}) {
   const [previewRows, setPreviewRows] = useState<{ row: number; question_text: string; question_type: string; category_path: string[]; correct_answer: unknown }[]>([])
   const [previewTotal, setPreviewTotal] = useState(0)
   const [previewPage, setPreviewPage] = useState(1)
@@ -103,9 +103,13 @@ export default function QuizImports({ onOpenWorkbench, embeddedLibraryId }: { on
     try { const result = await http.get<{ items: typeof previewRows; total: number }>(`/admin/quiz/imports/${jobId}/preview`, { params: { page } }); setPreviewRows(result.items); setPreviewTotal(result.total); setPreviewPage(page) }
     catch (e) { message.error(errorText(e)) } finally { setPreviewLoading(false) }
   }
-  const canImport = usePermission('quiz:import')
+  const importPermission = usePermission('quiz:import')
+  const canImport = importPermission && !readOnly
   const canWrite = usePermission('quiz:write')
   const [libraries, setLibraries] = useState<QuizLibrary[]>([])
+  const [historicalLibraries, setHistoricalLibraries] = useState<QuizLibrary[]>([])
+  const historicalTarget = (id?: number | null) => historicalLibraries.some(item => item.id === id && ['archived', 'deleted'].includes(item.status))
+  const libraryName = (id?: number | null) => libraries.find(item => item.id === id)?.name ?? historicalLibraries.find(item => item.id === id)?.name
   const [libraryId, setLibraryId] = useState<number | undefined>(() => {
     if (embeddedLibraryId) return embeddedLibraryId
     const value = typeof window === 'undefined' ? 0 : Number(new URLSearchParams(window.location.search).get('library_id'))
@@ -142,13 +146,16 @@ export default function QuizImports({ onOpenWorkbench, embeddedLibraryId }: { on
 
   useEffect(() => {
     const next = new AbortController()
-    quizService.listLibraries({ include_deleted: false }, next.signal)
+    quizService.listLibraries({ view: 'working' }, next.signal)
       .then((items) => {
+        if (next.signal.aborted) return
         const writable = items.filter((item) => !['archived', 'deleted'].includes(item.status))
         setLibraries(writable)
         if (!libraryId && writable.length === 1) setLibraryId(writable[0].id)
       })
       .catch((error) => { if (!next.signal.aborted) message.error(errorText(error)) })
+    void quizService.listLibraries({ include_deleted: true }, next.signal)
+      .then(items => { if (!next.signal.aborted) setHistoricalLibraries(items) }).catch(() => {})
     return () => next.abort()
   }, [])
 
@@ -254,7 +261,7 @@ export default function QuizImports({ onOpenWorkbench, embeddedLibraryId }: { on
   const currentFile = fileList[0]?.originFileObj
   const handleUpload = async () => {
     if (!canImport || !currentFile) { message.warning('请选择要导入的文件'); return }
-    if (!libraryId) { message.warning('请先选择目标题库'); return }
+    if (!libraryId || !libraries.some(item => item.id === libraryId)) { message.warning('请选择未归档、未删除的目标题库'); return }
     try {
       validateXlsxFile(currentFile)
       setUploading(true)
@@ -296,7 +303,7 @@ export default function QuizImports({ onOpenWorkbench, embeddedLibraryId }: { on
   }
 
   const retryJob = async (job: ImportJob) => {
-    if (!canImport || job.status !== 'failed' || isExpired(job.expires_at)) return
+    if (!canImport || historicalTarget(job.library_id) || job.status !== 'failed' || isExpired(job.expires_at)) return
     setRetryLoading(job.id)
     try {
       const updated = await quizService.retryImport(job.id)
@@ -402,7 +409,7 @@ export default function QuizImports({ onOpenWorkbench, embeddedLibraryId }: { on
   }
 
   const confirmCategories = async () => {
-    if (!impactJob || !impact || !canImport || !canWrite || impact.blocking_reasons.length) return
+    if (!impactJob || !impact || !canImport || !canWrite || historicalTarget(impactJob.library_id) || impact.blocking_reasons.length) return
     setImpactAction('confirm')
     try {
       const updated = await quizService.confirmImportCategories(impactJob.id, {
@@ -466,7 +473,7 @@ export default function QuizImports({ onOpenWorkbench, embeddedLibraryId }: { on
 
   const columns: ColumnsType<ImportJob> = [
     { title: '任务 ID', dataIndex: 'id', width: 100 },
-    { title: '题库', dataIndex: 'library_id', width: 150, render: (value: number | null | undefined) => value ? libraries.find((item) => item.id === value)?.name ?? `#${value}` : <Tag>旧分类兼容</Tag> },
+    { title: '题库', dataIndex: 'library_id', width: 150, render: (value: number | null | undefined) => value ? libraryName(value) ?? `#${value}` : <Tag>旧分类兼容</Tag> },
     { title: '来源', dataIndex: 'source_type', width: 80, render: (value: ImportSourceType) => value.toUpperCase() },
     { title: '大小', dataIndex: 'source_size_bytes', width: 110, render: (value: number) => `${(value / 1024 / 1024).toFixed(2)} MiB` },
     { title: '状态', dataIndex: 'status', width: 150, render: (value: ImportStatus) => <Tag color={statusColors[value]}>{statusLabels[value]}</Tag> },
@@ -481,7 +488,7 @@ export default function QuizImports({ onOpenWorkbench, embeddedLibraryId }: { on
           {!isExpired(job.expires_at) && <Button type="link" size="small" icon={<FileOutlined />} loading={signedLoading === `source:${job.id}`} onClick={() => void openSignedFile(job, 'source')}>源文件</Button>}
           {job.error_count > 0 && !isExpired(job.expires_at) && <Button type="link" size="small" onClick={() => void openErrors(job)}>错误明细</Button>}
           {job.status === 'awaiting_category_confirmation' && <Button type="link" size="small" icon={<FolderOpenOutlined />} onClick={() => void openImpact(job)}>检查并确认</Button>}
-          {job.status === 'failed' && canImport && (
+          {job.status === 'failed' && canImport && !historicalTarget(job.library_id) && (
             <Tooltip title={isExpired(job.expires_at) ? '源文件已超过 7 天，不能重试' : '沿用同一任务和批次键重新排队'}>
               <Button type="link" size="small" icon={<SyncOutlined />} disabled={isExpired(job.expires_at)} loading={retryLoading === job.id} onClick={() => Modal.confirm({ title: `重试导入任务 #${job.id}？`, content: '仅系统执行失败的任务可以重试；服务端会再次校验状态、有效期和重试预算。', onOk: () => retryJob(job) })}>重试</Button>
             </Tooltip>
@@ -540,9 +547,9 @@ export default function QuizImports({ onOpenWorkbench, embeddedLibraryId }: { on
       </Space>
       <Table<ImportJob> rowKey="id" scroll={{ x: 1450 }} columns={columns} dataSource={data?.items ?? []} loading={loading} pagination={{ current: data?.page ?? 1, pageSize: data?.page_size ?? 20, total: data?.total ?? 0, showSizeChanger: true, onChange: (page, pageSize) => setFilter((current) => ({ ...current, page, page_size: pageSize })) }} />
       <Drawer title={`导入检查 #${detail?.id ?? ''}`} open={Boolean(detail)} width={860} onClose={() => { setDetail(null); setErrorJob(null); setImpactJob(null); setErrorData(null); setImpact(null) }}
-        footer={impact && impactJob ? <Space><Button danger disabled={!canImport} loading={impactAction === 'cancel'} onClick={() => void cancelAwaitingJob()}>取消任务</Button><Tooltip title={!canWrite ? '创建或调整分类需要内容编辑权限，请交由有权限的管理员确认' : undefined}><Button type="primary" disabled={!canImport || !canWrite || Boolean(impact.blocking_reasons.length)} loading={impactAction === 'confirm'} onClick={() => void confirmCategories()}>确认导入 {impact.affected_question_count} 道草稿</Button></Tooltip></Space> : undefined}>
+        footer={impact && impactJob ? <Space><Button danger disabled={!canImport} loading={impactAction === 'cancel'} onClick={() => void cancelAwaitingJob()}>取消任务</Button><Tooltip title={!canWrite ? '创建或调整分类需要内容编辑权限，请交由有权限的管理员确认' : undefined}><Button type="primary" disabled={!canImport || !canWrite || historicalTarget(impactJob.library_id) || Boolean(impact.blocking_reasons.length)} loading={impactAction === 'confirm'} onClick={() => void confirmCategories()}>确认导入 {impact.affected_question_count} 道草稿</Button></Tooltip></Space> : undefined}>
         {detail && <Space direction="vertical" style={{ width: '100%' }} size="middle">
-          <Descriptions bordered size="small" column={2}><Descriptions.Item label="文件" span={2}>{detail.source_filename ?? `导入任务 #${detail.id} 源文件`}</Descriptions.Item><Descriptions.Item label="目标题库">{libraries.find((l) => l.id === detail.library_id)?.name ?? detail.library_id}</Descriptions.Item><Descriptions.Item label="状态">{statusLabels[detail.status]}</Descriptions.Item><Descriptions.Item label="读取题目">{detail.total_rows}</Descriptions.Item><Descriptions.Item label="内容检查通过">{detail.validated_rows}</Descriptions.Item><Descriptions.Item label="本次创建草稿">{detail.created_count}</Descriptions.Item><Descriptions.Item label="需要修改">{detail.error_count}</Descriptions.Item><Descriptions.Item label="来源">{detail.source_type.toUpperCase()}</Descriptions.Item><Descriptions.Item label="文件大小">{(detail.source_size_bytes / 1024).toFixed(1)} KB</Descriptions.Item></Descriptions>
+          <Descriptions bordered size="small" column={2}><Descriptions.Item label="文件" span={2}>{detail.source_filename ?? `导入任务 #${detail.id} 源文件`}</Descriptions.Item><Descriptions.Item label="目标题库">{libraryName(detail.library_id) ?? detail.library_id}</Descriptions.Item><Descriptions.Item label="状态">{statusLabels[detail.status]}</Descriptions.Item><Descriptions.Item label="读取题目">{detail.total_rows}</Descriptions.Item><Descriptions.Item label="内容检查通过">{detail.validated_rows}</Descriptions.Item><Descriptions.Item label="本次创建草稿">{detail.created_count}</Descriptions.Item><Descriptions.Item label="需要修改">{detail.error_count}</Descriptions.Item><Descriptions.Item label="来源">{detail.source_type.toUpperCase()}</Descriptions.Item><Descriptions.Item label="文件大小">{(detail.source_size_bytes / 1024).toFixed(1)} KB</Descriptions.Item></Descriptions>
           {detail.status === 'succeeded' && detail.library_id && (
             <Link to={`/admin/quiz/questions?tab=content&library_id=${detail.library_id}`} onClick={() => { setDetail(null); onOpenWorkbench?.() }}>打开目标题库工作台</Link>
           )}

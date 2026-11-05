@@ -381,6 +381,7 @@ export const courseManagementService = {
 
   listBindableLibraries(signal?: AbortSignal) {
     return quizService.listLibraries({
+      view: 'working',
       access_mode: 'course_entitlement',
       status: 'published',
     }, signal)

@@ -377,12 +377,12 @@ export default function PointsMallPage() {
           page_size: 50,
           keyword: contentKeyword || undefined,
         }),
-        quizService.listLibraries({ keyword: contentKeyword || undefined }),
+        quizService.listLibraries({ view: 'working', keyword: contentKeyword || undefined }),
       ])
         .then(([coursePage, libraries]) => {
           if (cancelled) return
           setCourses(coursePage.items)
-          setQuizLibraries(libraries)
+          setQuizLibraries(libraries.filter(item => !['archived', 'deleted'].includes(item.status)))
         })
         .catch((error: unknown) => {
           if (cancelled) return
@@ -417,13 +417,13 @@ export default function PointsMallPage() {
           page_size: 50,
           keyword: couponContentKeyword || undefined,
         }),
-        quizService.listLibraries({ keyword: couponContentKeyword || undefined }),
+        quizService.listLibraries({ view: 'working', keyword: couponContentKeyword || undefined }),
       ])
         .then(([certPage, coursePage, libraries]) => {
           if (cancelled) return
           setCertProducts(certPage.items)
           setCourses(coursePage.items)
-          setQuizLibraries(libraries)
+          setQuizLibraries(libraries.filter(item => !['archived', 'deleted'].includes(item.status)))
         })
         .catch((error: unknown) => {
           if (cancelled) return

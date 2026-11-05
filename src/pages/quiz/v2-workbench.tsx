@@ -70,12 +70,14 @@ function findModule(tree: QuizContentTree | null, id: number) { return tree?.mod
 function findPoint(tree: QuizContentTree | null, id: number) { return tree?.modules.flatMap((item) => item.knowledge_points).find((item) => item.id === id) }
 
 export default function QuizV2Workbench() {
-  const canWrite = usePermission('quiz_content_edit') || usePermission('quiz:write')
-  const canPublish = usePermission('quiz_content_publish') || usePermission('quiz:write')
+  const editPermission = usePermission('quiz_content_edit')
+  const publishPermission = usePermission('quiz_content_publish')
+  const legacyWritePermission = usePermission('quiz:write')
   const canImport = usePermission('quiz:import')
   const navigate = useNavigate()
   const [params, setParams] = useSearchParams()
   const [libraries, setLibraries] = useState<QuizLibrary[]>([])
+  const [historicalLibrary, setHistoricalLibrary] = useState<QuizLibrary>()
   const [summary, setSummary] = useState<PublicationPreflight>()
   const [section, setSection] = useState('questions')
   const [publicationOpen, setPublicationOpen] = useState(false)
@@ -84,6 +86,11 @@ export default function QuizV2Workbench() {
   const [movePoint, setMovePoint] = useState<number>()
   const [moving, setMoving] = useState(false)
   const selectedLibraryId = Number(params.get('library_id')) || undefined
+  const workingLibrary = libraries.find(item => item.id === selectedLibraryId && !['archived', 'deleted'].includes(item.status))
+  const selectedLibrary = workingLibrary ?? (historicalLibrary?.id === selectedLibraryId ? historicalLibrary : undefined)
+  const historical = selectedLibrary?.status === 'archived' || selectedLibrary?.status === 'deleted'
+  const canWrite = Boolean(workingLibrary && (editPermission || legacyWritePermission))
+  const canPublish = Boolean(workingLibrary && (publishPermission || legacyWritePermission))
   const selectedModuleId = Number(params.get('module_id')) || undefined
   const selectedPointId = Number(params.get('knowledge_point_id')) || undefined
   const focusQuestionId = Number(params.get('question_id')) || undefined
@@ -122,10 +129,15 @@ export default function QuizV2Workbench() {
     const controller = new AbortController()
     librariesController.current = controller
     try {
-      const result = await quizService.listLibraries({ include_deleted: false, count_schema: 2 }, controller.signal)
+      const result = await quizService.listLibraries({ view: 'working', count_schema: 2 }, controller.signal)
       if (controller.signal.aborted) return
-      setLibraries(result)
-      if (!selectedLibraryId && !focusQuestionId && result.length) updateParams({ library_id: result[0].id })
+      const working = result.filter(item => !['archived', 'deleted'].includes(item.status))
+      setLibraries(working)
+      if (selectedLibraryId && !working.some(item => item.id === selectedLibraryId)) {
+        const detail = await quizService.getLibrary(selectedLibraryId, controller.signal)
+        if (!controller.signal.aborted) setHistoricalLibrary(detail)
+      } else setHistoricalLibrary(undefined)
+      if (!selectedLibraryId && !focusQuestionId && working.length) updateParams({ library_id: working[0].id })
     } catch (error) {
       if (!controller.signal.aborted) message.error(errorText(error))
     }
@@ -205,7 +217,6 @@ export default function QuizV2Workbench() {
     if (selectedLibraryId) void quizPublication.check(selectedLibraryId, controller.signal).then(setSummary).catch(() => {})
     return () => controller.abort()
   }, [selectedLibraryId, treeResult])
-  const selectedLibrary = libraries.find((item) => item.id === selectedLibraryId)
   const selectedPoint = selection.kind === 'point' ? findPoint(tree, selection.id) : undefined
   const importBlocked = !selectedLibrary || ['archived', 'deleted'].includes(selectedLibrary.status)
 
@@ -454,14 +465,15 @@ export default function QuizV2Workbench() {
 
   return (
     <PageContainer title="题库内容工作台">
-      {selectedLibraryId && <Space wrap style={{ marginBottom: 16 }}><Button type="primary" onClick={() => setPublicationOpen(true)}>检查并发布</Button><Button onClick={() => setSection('imports')}>上传题库</Button><span>总计 {selectedLibrary?.question_count ?? '—'} 题 · 可练习 {selectedLibrary?.practice_counts?.practicable ?? '—'} 题{summary && ` · 待审核 ${summary.counts.draft} · 内容异常 ${summary.counts.abnormal} · 归属不可用 ${summary.counts.unavailable_ownership}`}</span></Space>}
+      {historical && <Alert showIcon type="info" style={{ marginBottom: 16 }} message={`「${selectedLibrary?.name}」${selectedLibrary?.status === 'deleted' ? '已移入回收站' : '已归档'}，当前仅可查看历史`} action={<Button onClick={() => navigate(`/admin/quiz/questions?tab=libraries&library_view=${selectedLibrary?.status === 'deleted' ? 'trash' : 'archived'}`)}>前往{selectedLibrary?.status === 'deleted' ? '回收站' : '归档'}</Button>} />}
+      {selectedLibrary && <Space wrap style={{ marginBottom: 16 }}><Button type={historical ? 'default' : 'primary'} onClick={() => setPublicationOpen(true)}>{historical ? '发布历史' : '检查并发布'}</Button>{!historical && canImport && <Button onClick={() => setSection('imports')}>上传题库</Button>}<span>总计 {selectedLibrary?.question_count ?? '—'} 题 · 可练习 {selectedLibrary?.practice_counts?.practicable ?? '—'} 题{summary && ` · 待审核 ${summary.counts.draft} · 内容异常 ${summary.counts.abnormal} · 归属不可用 ${summary.counts.unavailable_ownership}`}</span></Space>}
       {selectedLibraryId && <Tabs activeKey={section} onChange={setSection} items={[{ key: 'questions', label: '题目' }, { key: 'classification', label: '分类管理' }, { key: 'imports', label: '导入记录' }]} />}
-      {section === 'imports' && selectedLibraryId && <QuizImports key={selectedLibraryId} embeddedLibraryId={selectedLibraryId} onOpenWorkbench={() => setSection('questions')} />}
+      {section === 'imports' && selectedLibraryId && <QuizImports key={selectedLibraryId} embeddedLibraryId={selectedLibraryId} readOnly={historical} onOpenWorkbench={() => setSection('questions')} />}
       <div style={{ display: section === 'imports' ? 'none' : undefined }}>
       <Space direction="vertical" style={{ width: '100%' }} size="middle">
 
         <Space wrap>
-          <Select aria-label="选择题库" showSearch optionFilterProp="label" placeholder="先选择题库" value={selectedLibraryId} onChange={(library_id) => updateParams({ library_id, module_id: undefined, knowledge_point_id: undefined, question_id: undefined, include_deleted: undefined })} options={libraries.filter((item) => item.status !== 'deleted').map((item) => ({ value: item.id, label: `${item.name} (${item.library_code})` }))} style={{ width: 360 }} />
+          <Select aria-label="选择题库" showSearch optionFilterProp="label" placeholder="先选择题库" value={workingLibrary?.id} onChange={(library_id) => updateParams({ library_id, module_id: undefined, knowledge_point_id: undefined, question_id: undefined, include_deleted: undefined })} options={libraries.map((item) => ({ value: item.id, label: `${item.name} (${item.library_code})` }))} style={{ width: 360 }} />
           {selectedLibrary && <><Tag color={selectedLibrary.status === 'published' ? 'success' : 'default'}>{selectedLibrary.status}</Tag><Tag color={selectedLibrary.v2_enabled ? 'blue' : 'default'}>V2 {selectedLibrary.v2_enabled ? '已开放' : '未开放'}</Tag></>}
           <Button icon={<ReloadOutlined />} onClick={() => void refreshAll()}>刷新</Button>
         </Space>
@@ -494,7 +506,7 @@ export default function QuizV2Workbench() {
         </Row>}
       </Space>
       </div>
-      {publicationOpen && selectedLibraryId && <PublicationDialog libraryId={selectedLibraryId} selectedIds={Object.values(selectedRows).map((i) => i.id)} onClose={() => setPublicationOpen(false)} onChanged={() => void refreshAll()} />}
+      {publicationOpen && selectedLibraryId && selectedLibrary && <PublicationDialog readOnly={historical} libraryId={selectedLibraryId} selectedIds={Object.values(selectedRows).map((i) => i.id)} onClose={() => setPublicationOpen(false)} onChanged={() => void refreshAll()} />}
       <Modal title={`批量调整归属（${Object.keys(selectedRows).length}题）`} open={moveOpen} confirmLoading={moving} onCancel={() => setMoveOpen(false)} onOk={async () => {
         if (!selectedLibraryId || !movePoint || moving) return
         setMoving(true)

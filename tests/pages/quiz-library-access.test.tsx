@@ -14,7 +14,7 @@ vi.mock('@/hooks/useReauthentication', () => ({ useReauthentication: () => ({ en
 vi.mock('@/services/quizPublication', () => ({ quizPublication: { check: vi.fn(), list: vi.fn().mockResolvedValue([]), start: vi.fn(), get: vi.fn(), resume: vi.fn() } }))
 vi.mock('@/components/ImageUpload', () => ({ ImageUpload: () => null }))
 vi.mock('@/services/quiz', () => ({ quizService: {
-  listLibraries: vi.fn(), getLibrary: vi.fn(), updateLibrary: vi.fn(), createLibrary: vi.fn(), convertAccessMode: vi.fn(), transitionLibrary: vi.fn(),
+  listLibraries: vi.fn(), listV2Questions: vi.fn(), getLibrary: vi.fn(), updateLibrary: vi.fn(), createLibrary: vi.fn(), convertAccessMode: vi.fn(), transitionLibrary: vi.fn(),
   listActivationCodes: vi.fn(), generateActivationCodes: vi.fn(),
 } }))
 
@@ -145,4 +145,44 @@ describe('题库访问模式保存', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: /^(OK|确\s*定)$/ }))
     await waitFor(() => expect(quizService.updateLibrary).toHaveBeenLastCalledWith(9, { lock_version: 9, name: '核对后修改' }))
   })
+})
+
+
+it('归档和回收站保留关键词，已到期记录只可查看', async () => {
+  const archived = library({ id: 20, name: '网络归档', status: 'archived', archived_at: '2026-11-01T00:00:00Z' })
+  const expired = library({ id: 21, name: '网络回收记录', status: 'deleted', deleted_at: '2026-11-01T00:00:00Z', restore_until: new Date(Date.now() - 1000).toISOString() })
+  vi.mocked(quizService.listLibraries).mockImplementation(async filter => filter?.view === 'archived' ? [archived] : filter?.view === 'trash' ? [expired] : [library()])
+  render(<MemoryRouter><QuizLibraries /></MemoryRouter>)
+  await screen.findByText('网络基础')
+  const keyword = screen.getByPlaceholderText('题库名称或编码')
+  fireEvent.change(keyword, { target: { value: '网络' } })
+  fireEvent.click(screen.getByRole('button', { name: /查\s*询/ }))
+  fireEvent.click(screen.getByRole('tab', { name: '归档' }))
+  expect(await screen.findByText('网络归档')).toBeVisible()
+  expect(screen.queryByText('网络基础')).toBeNull()
+  await waitFor(() => expect(quizService.listLibraries).toHaveBeenLastCalledWith(expect.objectContaining({ view: 'archived', keyword: '网络' }), expect.anything()))
+  fireEvent.click(screen.getByRole('tab', { name: '回收站' }))
+  expect(await screen.findByText('网络回收记录')).toBeVisible()
+  expect(screen.getByText('已过恢复期限')).toBeVisible()
+  expect(screen.getByRole('button', { name: '撤销删除' })).toBeDisabled()
+  expect(screen.queryByRole('button', { name: '移入回收站' })).toBeNull()
+})
+
+it('只读管理员可以查看归档但无生命周期按钮', async () => {
+  useAuthStore.setState({ permissions: ['quiz:list'] })
+  vi.mocked(quizService.listLibraries).mockResolvedValue([library({ status: 'archived' })])
+  render(<MemoryRouter initialEntries={['/?library_view=archived']}><QuizLibraries /></MemoryRouter>)
+  fireEvent.click(await screen.findByRole('button', { name: '查看详情' }))
+  expect(await screen.findByText(/题库记录 · 网络基础/)).toBeVisible()
+  expect(screen.queryByRole('button', { name: '移入回收站' })).toBeNull()
+})
+
+it('仍有已发布题目时阻断归档并引导停用', async () => {
+  vi.mocked(quizService.listLibraries).mockResolvedValue([library({ status: 'suspended' })])
+  vi.mocked(quizService.listV2Questions).mockResolvedValue({ items: [], total: 2, page: 1, page_size: 1 })
+  render(<MemoryRouter><QuizLibraries /></MemoryRouter>)
+  fireEvent.click(await screen.findByRole('button', { name: /归\s*档/ }))
+  expect(await screen.findByText(/还有 2 道已发布题目/)).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: '前往停用题目' })).toBeInTheDocument()
+  expect(quizService.transitionLibrary).not.toHaveBeenCalled()
 })

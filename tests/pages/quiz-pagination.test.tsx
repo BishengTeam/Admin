@@ -17,7 +17,7 @@ vi.mock('antd', async original => ({ ...await original<typeof import('antd')>(),
 </div> }))
 vi.mock('@/pages/quiz/components/V2QuestionModal', () => ({ default: () => null }))
 vi.mock('@/pages/quiz/components/QuestionModal', () => ({ default: () => null }))
-vi.mock('@/services/quiz', () => ({ quizService: { listLibraries: vi.fn(), getContentTree: vi.fn(), listV2Questions: vi.fn(), listQuestions: vi.fn() } }))
+vi.mock('@/services/quiz', () => ({ quizService: { listLibraries: vi.fn(), getLibrary: vi.fn(), getContentTree: vi.fn(), listV2Questions: vi.fn(), listQuestions: vi.fn() } }))
 
 const question = (text: string) => ({ id: 1, question_text: text, question_type: 'judge', status: 'draft', image_urls: [], option_image_urls: {}, tags: [], lock_version: 1 })
 const result = (text: string, page = 1, size = 20) => ({ items: [question(text)], page, page_size: size, total: 4000 })
@@ -31,6 +31,23 @@ beforeAll(() => {
 })
 beforeEach(() => { vi.clearAllMocks(); useAuthStore.setState({ permissions: ['quiz:list'], initialized: true }) })
 afterEach(cleanup)
+
+it('旧题库链接保留历史浏览，但不把归档题库作为可操作选项', async () => {
+  useAuthStore.setState({ permissions: ['*'] })
+  vi.mocked(quizService.listLibraries).mockResolvedValue([{ id: 1, name: '正常题库', library_code: 'QL1', status: 'draft' }] as any)
+  vi.mocked(quizService.getLibrary).mockResolvedValue({ id: 3, name: '归档样例', status: 'archived' } as any)
+  vi.mocked(quizService.getContentTree).mockResolvedValue(tree(3) as any)
+  vi.mocked(quizService.listV2Questions).mockResolvedValue(result('历史题目') as any)
+  render(<MemoryRouter initialEntries={['/admin/quiz/questions?tab=content&library_id=3']}><QuizV2Workbench /></MemoryRouter>)
+  expect(await screen.findByText(/归档样例.*当前仅可查看历史/)).toBeInTheDocument()
+  expect(await screen.findByText('历史题目')).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: '发布历史' })).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: '检查并发布' })).toBeNull()
+  expect(screen.queryByRole('button', { name: '新增题目' })).toBeNull()
+  fireEvent.mouseDown(screen.getByRole('combobox', { name: '选择题库' }))
+  expect(await screen.findByText('正常题库 (QL1)', { selector: '.ant-select-item-option-content' })).toBeInTheDocument()
+  expect(screen.queryByText(/归档样例/, { selector: '.ant-select-item-option-content' })).toBeNull()
+})
 
 it('V2切换题库立即清除旧显示，只用第一页请求新题库，迟到的旧响应不能覆盖', async () => {
   const late = deferred<any>(), nextTree = deferred<any>()

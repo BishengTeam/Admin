@@ -14,12 +14,13 @@ import {
   Space,
   Switch,
   Table,
+  Tabs,
   Tag,
   Tooltip,
   Typography,
 } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { DownloadOutlined, KeyOutlined, LinkOutlined, PlusOutlined, ReloadOutlined, SearchOutlined, SwapOutlined } from '@ant-design/icons'
 import { PageContainer } from '@/components/PageContainer'
 import { quizService } from '@/services/quiz'
@@ -39,6 +40,7 @@ import type {
   QuizLibraryAccessMode,
   QuizLibraryCreate,
   QuizLibraryFilter,
+  QuizLibraryView,
   QuizLibraryLifecycleAction,
   QuizLibraryUpdate,
   QuizMigrationIssue,
@@ -158,9 +160,9 @@ function lifecycleCopy(library: QuizLibrary, action: QuizLibraryLifecycleAction)
     okText: '确认归档',
   }
   if (action === 'delete') return {
-    title: `删除已归档题库「${library.name}」？`,
-    body: '只有已归档题库可删除。删除后保留 7 天撤销期，超过期限后不能通过管理后台恢复。历史快照不会被覆盖。',
-    okText: '确认删除',
+    title: `将已归档题库「${library.name}」移入回收站？`,
+    body: '只有已归档题库可移入回收站。删除后保留 7 天撤销期，超过期限后不能通过管理后台恢复。历史快照不会被覆盖。',
+    okText: '移入回收站',
   }
   return {
     title: `撤销删除题库「${library.name}」？`,
@@ -172,6 +174,17 @@ function lifecycleCopy(library: QuizLibrary, action: QuizLibraryLifecycleAction)
 export default function QuizLibraries() {
   const [publicationLibrary, setPublicationLibrary] = useState<number>()
   const navigate = useNavigate()
+  const [params, setParams] = useSearchParams()
+  const requestedView = params.get('library_view')
+  const view: QuizLibraryView = requestedView === 'archived' || requestedView === 'trash' ? requestedView : 'working'
+  const [record, setRecord] = useState<QuizLibrary | null>(null)
+  const [now, setNow] = useState(Date.now)
+  useEffect(() => {
+    if (view !== 'trash') return
+    setNow(Date.now())
+    const timer = window.setInterval(() => setNow(Date.now()), 1000)
+    return () => window.clearInterval(timer)
+  }, [view])
   const canManage = usePermission('quiz_library_manage')
   const canBind = usePermission('course_quiz_bind')
   const isSuperAdmin = useAuthStore((s) => s.admin?.role === 'super_admin')
@@ -186,7 +199,7 @@ export default function QuizLibraries() {
   const [saving, setSaving] = useState(false)
   const [libraries, setLibraries] = useState<QuizLibrary[]>([])
   const [loading, setLoading] = useState(false)
-  const [filter, setFilter] = useState<QuizLibraryFilter>({ include_deleted: false })
+  const [filter, setFilter] = useState<QuizLibraryFilter>({})
   const [keyword, setKeyword] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<QuizLibrary | null>(null)
@@ -218,14 +231,16 @@ export default function QuizLibraries() {
     controller.current = next
     setLoading(true)
     try {
-      const result = await quizService.listLibraries({ ...nextFilter, count_schema: 2 }, next.signal)
+      const result = await quizService.listLibraries({ ...nextFilter, view, status: view === 'working' ? nextFilter.status : undefined, count_schema: 2 }, next.signal)
       if (!next.signal.aborted) setLibraries(result)
     } catch (error) {
       if (!next.signal.aborted) message.error(errorText(error))
     } finally {
       if (!next.signal.aborted) setLoading(false)
     }
-  }, [filter])
+  }, [filter, view])
+  const loadCurrent = useRef(load)
+  loadCurrent.current = load
 
   useEffect(() => {
     void load(filter)
@@ -309,18 +324,26 @@ export default function QuizLibraries() {
     }
   }
 
-  const transition = (library: QuizLibrary, action: QuizLibraryLifecycleAction) => {
+  const archiveBlocked = (library: QuizLibrary, reason: string) => Modal.warning({
+    title: '暂不能归档', content: reason, okText: '前往停用题目',
+    onOk: () => navigate(`/admin/quiz/questions?tab=content&library_id=${library.id}&status=published`),
+  })
+  const transition = async (library: QuizLibrary, action: QuizLibraryLifecycleAction) => {
     const copy = lifecycleCopy(library, action)
     if (action === 'publish' || action === 'restore') { setPublicationLibrary(library.id); return }
-    const blockers: string[] = []
+    if (action === 'archive') {
+      try {
+        const questions = await quizService.listV2Questions({ library_id: library.id, status: 'published', page: 1, page_size: 1 })
+        if (questions.total) { archiveBlocked(library, `还有 ${questions.total} 道已发布题目，请到内容工作台批量停用后再归档。`); return }
+      } catch (error) { message.error(errorText(error)); return }
+    }
     Modal.confirm({
       title: copy.title,
       width: 620,
       okText: copy.okText,
-      okButtonProps: { danger: ['suspend', 'archive', 'delete'].includes(action), disabled: blockers.length > 0 },
+      okButtonProps: { danger: ['suspend', 'archive', 'delete'].includes(action) },
       content: (
         <Space direction="vertical" style={{ width: '100%' }}>
-          {blockers.length > 0 && <Alert type="warning" showIcon message="当前预检存在阻断项" description={blockers.join('；')} />}
           <div>{copy.body}</div>
           <div style={{ color: '#8c8c8c' }}>执行时服务端会按最新版本和数据库状态重新校验。</div>
         </Space>
@@ -328,16 +351,17 @@ export default function QuizLibraries() {
       onOk: async () => {
         try {
           const updated = await quizService.transitionLibrary(library.id, action, library.lock_version)
-          await load(filter)
+          await loadCurrent.current()
           if (action === 'reconcile_migration') {
             setMigrationLibrary(updated)
             setMigrationReport(await quizService.getMigrationReport())
             message.success(updated.open_migration_issue_count ? `检查完成，仍有 ${updated.open_migration_issue_count} 个问题` : '迁移问题已全部关闭')
           } else {
-            message.success('题库状态已更新')
+            message.success(action === 'undo_delete' ? '已撤销删除，题库已移回归档' : action === 'delete' ? '题库已移入回收站' : action === 'archive' ? '题库已归档' : '题库状态已更新')
           }
         } catch (error) {
-          if (isConflictError(error)) { await load(filter); message.warning('题库版本已变化，列表已刷新') }
+          if (action === 'archive' && errorText(error).includes('停用全部已发布题目')) { archiveBlocked(library, errorText(error)); return }
+          if (isConflictError(error)) { await loadCurrent.current(); message.warning('题库版本已变化，列表已刷新') }
           else message.error(errorText(error))
           throw error
         }
@@ -544,6 +568,14 @@ export default function QuizLibraries() {
   }
 
   const actions = (library: QuizLibrary) => {
+    if (library.status === 'archived' || library.status === 'deleted') {
+      const recoverable = Boolean(library.restore_until && Date.parse(library.restore_until) > now)
+      return <Space wrap>
+        <Button type="link" size="small" onClick={() => setRecord(library)}>{library.status === 'deleted' ? '查看记录' : '查看详情'}</Button>
+        {canManage && library.status === 'archived' && <Button type="link" size="small" danger onClick={() => void transition(library, 'delete')}>移入回收站</Button>}
+        {canManage && library.status === 'deleted' && <Button type="link" size="small" disabled={!recoverable} onClick={() => void transition(library, 'undo_delete')}>撤销删除</Button>}
+      </Space>
+    }
     const buttons = []
     if (canManage && !['archived', 'deleted'].includes(library.status)) buttons.push(<Button key="edit" type="link" size="small" onClick={() => openEdit(library)}>编辑</Button>)
     if (library.access_mode === 'course_entitlement') buttons.push(<Button key="binding" type="link" size="small" icon={<LinkOutlined />} onClick={() => void openBindings(library)}>课程绑定</Button>)
@@ -553,8 +585,6 @@ export default function QuizLibraries() {
     if (canManage && library.status === 'published') buttons.push(<Button key="suspend" type="link" size="small" danger onClick={() => transition(library, 'suspend')}>停用</Button>)
     if (canManage && library.status === 'suspended') buttons.push(<Button key="restore" type="link" size="small" onClick={() => transition(library, 'restore')}>恢复</Button>)
     if (canManage && ['published', 'suspended'].includes(library.status)) buttons.push(<Button key="archive" type="link" size="small" danger onClick={() => transition(library, 'archive')}>归档</Button>)
-    if (canManage && library.status === 'archived') buttons.push(<Button key="delete" type="link" size="small" danger onClick={() => transition(library, 'delete')}>删除</Button>)
-    if (canManage && library.status === 'deleted') buttons.push(<Button key="undo" type="link" size="small" disabled={!library.restore_until || Date.parse(library.restore_until) <= Date.now()} onClick={() => transition(library, 'undo_delete')}>撤销删除</Button>)
     return <Space size={0} wrap>{buttons}</Space>
   }
 
@@ -580,22 +610,48 @@ export default function QuizLibraries() {
     { title: '操作', key: 'actions', width: 330, fixed: 'right', render: (_, item) => actions(item) },
   ]
 
+  const timeColumn = (title: string, dataIndex: 'archived_at' | 'deleted_at' | 'restore_until'): ColumnsType<QuizLibrary>[number] => ({
+    title, dataIndex, width: 180, render: (value: string | null) => value ? formatDate(value) : '—',
+  })
+  const historyColumns: ColumnsType<QuizLibrary> = [
+    columns[0], ...(view === 'archived' ? [timeColumn('归档时间', 'archived_at')] : [
+      timeColumn('删除时间', 'deleted_at'), timeColumn('恢复截止时间', 'restore_until'),
+      { title: '恢复状态', render: (_: unknown, item: QuizLibrary) => item.restore_until && Date.parse(item.restore_until) > now ? '可恢复' : '已过恢复期限' },
+    ]), columns[columns.length - 1],
+  ]
+  const visibleLibraries = libraries.filter(item => view === 'archived' ? item.status === 'archived' : view === 'trash' ? item.status === 'deleted' : !['archived', 'deleted'].includes(item.status))
   return (
     <PageContainer
       title="题库"
-      extra={canManage ? <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>新建题库</Button> : undefined}
+      extra={canManage && view === 'working' ? <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>新建题库</Button> : undefined}
     >
 
+      <Tabs activeKey={view} onChange={key => {
+        setFilter(current => ({ ...current, status: undefined }))
+        setParams(previous => { const next = new URLSearchParams(previous); next.set('library_view', key); return next }, { replace: true })
+      }} items={[{ key: 'working', label: '题库列表' }, { key: 'archived', label: '归档' }, { key: 'trash', label: '回收站' }]} />
       <Space wrap style={{ marginBottom: 16 }}>
         <Input value={keyword} onChange={(event) => setKeyword(event.target.value)} onPressEnter={() => setFilter((current) => ({ ...current, keyword: keyword.trim() || undefined }))} allowClear prefix={<SearchOutlined />} placeholder="题库名称或编码" style={{ width: 240 }} />
-        <Select allowClear placeholder="状态" value={filter.status} onChange={(status) => setFilter((current) => ({ ...current, status }))} options={Object.entries(statusLabels).map(([value, label]) => ({ value, label }))} style={{ width: 130 }} />
+        {view === 'working' && <Select allowClear placeholder="状态" value={filter.status} onChange={(status) => setFilter((current) => ({ ...current, status }))} options={Object.entries(statusLabels).filter(([value]) => !['archived', 'deleted'].includes(value)).map(([value, label]) => ({ value, label }))} style={{ width: 130 }} />}
         <Select allowClear placeholder="访问模式" value={filter.access_mode} onChange={(access_mode) => setFilter((current) => ({ ...current, access_mode }))} options={Object.entries(accessLabels).map(([value, label]) => ({ value, label }))} style={{ width: 170 }} />
-        <Space><Switch checked={filter.include_deleted} onChange={(include_deleted) => setFilter((current) => ({ ...current, include_deleted }))} />显示已删除</Space>
         <Button type="primary" onClick={() => setFilter((current) => ({ ...current, keyword: keyword.trim() || undefined }))}>查询</Button>
         <Button icon={<ReloadOutlined />} onClick={() => void load(filter)}>刷新</Button>
       </Space>
-      <Table rowKey="id" loading={loading} columns={columns} dataSource={libraries} scroll={{ x: 1280 }} pagination={false} />
+      <Table rowKey="id" loading={loading} columns={view === 'working' ? columns : historyColumns} dataSource={visibleLibraries} scroll={{ x: view === 'working' ? 1280 : 780 }} pagination={false} />
 
+      <Drawer title={record ? `题库记录 · ${record.name}` : '题库记录'} open={!!record} onClose={() => setRecord(null)}>
+        {record && <Space direction="vertical" style={{ width: '100%' }}>
+          <Descriptions bordered column={1} size="small">
+            <Descriptions.Item label="编码">{record.library_code}</Descriptions.Item>
+            <Descriptions.Item label="状态">{statusLabels[record.status]}</Descriptions.Item>
+            <Descriptions.Item label="归档时间">{record.archived_at ? formatDate(record.archived_at) : '—'}</Descriptions.Item>
+            {record.deleted_at && <Descriptions.Item label="删除时间">{formatDate(record.deleted_at)}</Descriptions.Item>}
+            {record.restore_until && <Descriptions.Item label="恢复截止时间">{formatDate(record.restore_until)}</Descriptions.Item>}
+            <Descriptions.Item label="题目数">{record.question_count}</Descriptions.Item>
+          </Descriptions>
+          <Button onClick={() => navigate(`/admin/quiz/questions?tab=content&library_id=${record.id}`)}>查看历史内容</Button>
+        </Space>}
+      </Drawer>
       <Drawer
         title={migrationLibrary ? `迁移问题 · ${migrationLibrary.name}` : '迁移问题'}
         open={Boolean(migrationLibrary)}

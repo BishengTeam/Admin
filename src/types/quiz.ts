@@ -124,8 +124,11 @@ export interface QuizLibraryUpdate {
   sort_order?: number
 }
 
+export type QuizLibraryView = 'working' | 'archived' | 'trash'
+
 export interface QuizLibraryFilter {
   count_schema?: 2
+  view?: QuizLibraryView
   status?: QuizLibraryStatus
   access_mode?: QuizLibraryAccessMode
   keyword?: string
