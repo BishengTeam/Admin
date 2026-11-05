@@ -1,9 +1,7 @@
-import { Row, Col, Card, Statistic, Spin, Result, Button, Badge, Space, Typography, Progress } from 'antd'
+import { Row, Col, Card, Statistic, Spin, Result, Button, Space, Typography } from 'antd'
 import {
-  UserOutlined, ShoppingCartOutlined, CalendarOutlined, CheckCircleOutlined,
-  RiseOutlined, PercentageOutlined, BookOutlined, QuestionCircleOutlined,
-  SafetyCertificateOutlined, TrophyOutlined, TeamOutlined, ReadOutlined,
-  ClockCircleOutlined, FileDoneOutlined, AlertOutlined,
+  UserOutlined, ShoppingCartOutlined, CheckCircleOutlined,
+  RiseOutlined, PercentageOutlined, QuestionCircleOutlined,
   CommentOutlined, CustomerServiceOutlined, PayCircleOutlined,
 } from '@ant-design/icons'
 import ReactECharts from 'echarts-for-react'
@@ -14,14 +12,14 @@ import type { DashboardData, TrendPoint, PieDataItem } from '@/types/dashboard'
 const { Text } = Typography
 
 function StatCard({ title, value, icon, color, suffix, isAmount }: {
-  title: string; value: number; icon: React.ReactNode; color: string; suffix?: string; isAmount?: boolean
+  title: string; value: number | '—'; icon: React.ReactNode; color: string; suffix?: string; isAmount?: boolean
 }) {
   return (
     <Card hoverable size='small'>
       <Statistic
         title={<span style={{ fontSize: 13, color: '#666' }}><span style={{ color, marginRight: 6 }}>{icon}</span>{title}</span>}
-        value={isAmount ? value / 100 : value}
-        precision={isAmount ? 2 : 0}
+        value={isAmount && typeof value === 'number' ? value / 100 : value}
+        precision={isAmount || suffix === '%' ? 2 : 0}
         prefix={isAmount ? '¥' : undefined}
         suffix={suffix}
         valueStyle={{ fontSize: 24, color }}
@@ -106,30 +104,16 @@ function PieChart({ title, data }: { title: string; data?: PieDataItem[] }) {
   )
 }
 
-function CertStatusCard({ title, pending, approved, color }: {
-  title: string; pending: number; approved: number; color: string
+function CertStatusCard({ title, pending, approved, finalApproved, color }: {
+  title: string; pending: number; approved: number; finalApproved?: number; color: string
 }) {
-  const total = pending + approved
-  const rate = total > 0 ? Math.round(approved / total * 100) : 0
   return (
-    <Card size='small'>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-        <Text strong style={{ fontSize: 14, color }}>{title}</Text>
-        {pending > 0 && <Badge count={pending} style={{ backgroundColor: '#fa8c16' }} />}
-      </div>
-      <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
-        <div style={{ flex: 1 }}>
-          <Progress
-            percent={rate}
-            strokeColor={color}
-            format={() => `${approved}/${total}`}
-            size='small'
-          />
-          <Text type='secondary' style={{ fontSize: 12, marginTop: 4, display: 'block' }}>
-            通过率 {rate}%
-          </Text>
-        </div>
-      </div>
+    <Card size='small' title={<Text strong style={{ color }}>{title}</Text>}>
+      <Space direction='vertical' size={4}>
+        <Text>待初审 {pending} 人</Text>
+        <Text>初审通过 {approved} 人</Text>
+        <Text>终审通过 {finalApproved === undefined ? '—' : finalApproved + ' 人'}</Text>
+      </Space>
     </Card>
   )
 }
@@ -208,20 +192,20 @@ export default function Dashboard() {
           <StatCard title='订单总数' value={d.total_orders} icon={<ShoppingCartOutlined />} color='#722ed1' />
         </Col>
         <Col xs={12} sm={8} md={4}>
-          <StatCard title='已支付订单' value={d.paid_orders} icon={<CheckCircleOutlined />} color='#13c2c2' />
+          <StatCard title='已支付及完成订单' value={d.paid_orders} icon={<CheckCircleOutlined />} color='#13c2c2' />
         </Col>
         <Col xs={12} sm={8} md={4}>
-          <StatCard title='近30日营收' value={d.recent_revenue_30d_fen} icon={<RiseOutlined />} color='#fa8c16' isAmount />
+          <StatCard title='近30日净收款' value={d.recent_revenue_30d_fen} icon={<RiseOutlined />} color='#fa8c16' isAmount />
         </Col>
         <Col xs={12} sm={8} md={4}>
-          <StatCard title='付费转化率' value={d.conversion_rate} icon={<PercentageOutlined />} color='#52c41a' suffix='%' />
+          <StatCard title='已支付及完成订单占比' value={d.conversion_rate} icon={<PercentageOutlined />} color='#52c41a' suffix='%' />
         </Col>
         <Col xs={12} sm={8} md={4}>
-          <StatCard title='今日答题' value={d.quiz_attempts_today ?? 0} icon={<QuestionCircleOutlined />} color='#eb2f96' />
+          <StatCard title='今日练习答题' value={d.quiz_attempts_today ?? 0} icon={<QuestionCircleOutlined />} color='#eb2f96' />
         </Col>
       </Row>
 
-      {/* ── AI 客服与支付质量 ── */}
+      {/* ── AI 客服与订单 ── */}
       <Row gutter={[12, 12]} style={{ marginBottom: 16 }}>
         <Col xs={12} sm={8} md={6}>
           <StatCard title='AI 对话量（近30日）' value={d.ai_conversations_30d ?? 0} icon={<CommentOutlined />} color='#2f54eb' />
@@ -230,17 +214,17 @@ export default function Dashboard() {
           <StatCard title='AI 对话量（累计）' value={d.ai_conversations_total ?? 0} icon={<CommentOutlined />} color='#2f54eb' />
         </Col>
         <Col xs={12} sm={8} md={6}>
-          <StatCard title='转人工率' value={d.manual_transfer_rate ?? 0} icon={<CustomerServiceOutlined />} color='#fa541c' suffix='%' />
+          <StatCard title='待人工工单' value={d.tickets_waiting_manual ?? 0} icon={<CustomerServiceOutlined />} color='#fa541c' />
         </Col>
         <Col xs={12} sm={8} md={6}>
-          <StatCard title='支付成功率' value={d.payment_success_rate ?? 0} icon={<PayCircleOutlined />} color='#52c41a' suffix='%' />
+          <StatCard title='已退款订单' value={d.refunded_orders ?? '—'} icon={<PayCircleOutlined />} color='#52c41a' />
         </Col>
       </Row>
 
       {/* ── 趋势图表 ── */}
       <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
         <Col xs={24} md={12}>
-          <TrendChart title='近30日营收趋势（元）' data={d.revenue_trend} color='#fa8c16' isRevenue />
+          <TrendChart title='近30日净收款趋势（元）' data={d.revenue_trend} color='#fa8c16' isRevenue />
         </Col>
         <Col xs={24} md={12}>
           <TrendChart title='近30日新增用户' data={d.user_trend} color='#1677ff' />
@@ -249,27 +233,27 @@ export default function Dashboard() {
 
       <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
         <Col xs={24} md={12}>
-          <BarChart title='近30日答题活跃度' data={d.quiz_trend} color='#722ed1' />
+          <BarChart title='近30日练习答题量' data={d.quiz_trend} color='#722ed1' />
         </Col>
         <Col xs={24} md={12}>
-          <PieChart title='已支付订单类型分布' data={d.order_type_distribution} />
+          <PieChart title='已支付及完成订单类型分布' data={d.order_type_distribution} />
         </Col>
       </Row>
 
       {/* ── 认证审核状态 ── */}
       <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
         <Col xs={24} md={6}>
-          <CertStatusCard title='H3C 认证' pending={d.h3c_pending_review ?? 0} approved={d.h3c_approved ?? 0} color='#1677ff' />
+          <CertStatusCard title='H3C 认证' pending={d.h3c_pending_review ?? 0} approved={d.h3c_approved ?? 0} finalApproved={d.cert_status?.h3c?.final_approved} color='#1677ff' />
         </Col>
         <Col xs={24} md={6}>
-          <CertStatusCard title='NISP 认证' pending={d.nisp_pending_review ?? 0} approved={d.nisp_approved ?? 0} color='#52c41a' />
+          <CertStatusCard title='NISP 认证' pending={d.nisp_pending_review ?? 0} approved={d.nisp_approved ?? 0} finalApproved={d.cert_status?.nisp?.final_approved} color='#52c41a' />
         </Col>
         <Col xs={24} md={6}>
           <Card size='small'>
             <div style={{ marginBottom: 8 }}>
               <Text strong style={{ fontSize: 14, color: '#722ed1' }}>📚 课程模块</Text>
             </div>
-            <Statistic title='已上线课程' value={d.courses_total ?? 0} valueStyle={{ fontSize: 22, color: '#722ed1' }} />
+            <Statistic title='已发布课程' value={d.courses_total ?? 0} valueStyle={{ fontSize: 22, color: '#722ed1' }} />
           </Card>
         </Col>
         <Col xs={24} md={6}>
@@ -278,7 +262,7 @@ export default function Dashboard() {
               <Text strong style={{ fontSize: 14, color: '#fa8c16' }}>🏆 竞赛模块</Text>
             </div>
             <Space size='large'>
-              <Statistic title='进行中' value={d.competitions_active ?? 0} valueStyle={{ fontSize: 22, color: '#fa8c16' }} />
+              <Statistic title='已发布' value={d.competitions_active ?? 0} valueStyle={{ fontSize: 22, color: '#fa8c16' }} />
               <Statistic title='总报名' value={d.competition_registrations ?? 0} valueStyle={{ fontSize: 22, color: '#eb2f96' }} />
             </Space>
           </Card>
@@ -287,19 +271,25 @@ export default function Dashboard() {
 
       {/* ── 题库概览 ── */}
       <Row gutter={[16, 16]}>
-        <Col xs={24} md={8}>
+        <Col xs={24} md={6}>
           <Card size='small'>
             <Statistic title='已发布题库' value={d.quiz_libraries_total ?? 0} valueStyle={{ fontSize: 22, color: '#1677ff' }} />
           </Card>
         </Col>
-        <Col xs={24} md={8}>
+        <Col xs={24} md={6}>
+          <Card size='small'>
+            <Statistic title='题目总数' value={d.quiz_questions_inventory_total ?? '—'} valueStyle={{ fontSize: 22, color: '#722ed1' }} />
+            <Text type='secondary'>含草稿、已发布和停用题目</Text>
+          </Card>
+        </Col>
+        <Col xs={24} md={6}>
           <Card size='small'>
             <Statistic title='已发布题目' value={d.quiz_questions_total ?? 0} valueStyle={{ fontSize: 22, color: '#722ed1' }} />
           </Card>
         </Col>
-        <Col xs={24} md={8}>
+        <Col xs={24} md={6}>
           <Card size='small'>
-            <Statistic title='近30日答题总量' value={d.quiz_attempts_30d ?? 0} valueStyle={{ fontSize: 22, color: '#eb2f96' }} />
+            <Statistic title='近30日练习答题总量' value={d.quiz_attempts_30d ?? 0} valueStyle={{ fontSize: 22, color: '#eb2f96' }} />
           </Card>
         </Col>
       </Row>

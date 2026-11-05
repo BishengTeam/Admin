@@ -9,8 +9,8 @@ export interface PieDataItem {
 }
 
 export interface CertStatusData {
-  h3c: { pending_review: number; approved: number }
-  nisp: { pending_review: number; approved: number }
+  h3c: { pending_review: number; approved: number; final_approved?: number }
+  nisp: { pending_review: number; approved: number; final_approved?: number }
 }
 
 export interface DashboardData {
@@ -19,6 +19,7 @@ export interface DashboardData {
   total_orders: number
   recent_orders_30d: number
   paid_orders: number
+  refunded_orders?: number
   revenue_fen: number
   recent_revenue_30d_fen: number
   conversion_rate: number
@@ -33,6 +34,7 @@ export interface DashboardData {
 
   // Quiz
   quiz_questions_total?: number
+  quiz_questions_inventory_total?: number
   quiz_libraries_total?: number
   quiz_attempts_today?: number
   quiz_attempts_30d?: number
