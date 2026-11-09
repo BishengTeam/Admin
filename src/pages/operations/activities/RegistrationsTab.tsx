@@ -12,9 +12,11 @@ const { Text } = Typography
 
 interface RegistrationsTabProps {
   activities: { id: number; title: string; max_participants: number }[]
+  /** 专区分类：导出 CSV 时按专区过滤（缺省=仅普通活动，yingcai=仅英才活动） */
+  category?: string
 }
 
-export default function RegistrationsTab({ activities }: RegistrationsTabProps) {
+export default function RegistrationsTab({ activities, category }: RegistrationsTabProps) {
   const [activityId, setActivityId] = useState<number | null>(null)
   const [exporting, setExporting] = useState(false)
 
@@ -36,12 +38,12 @@ export default function RegistrationsTab({ activities }: RegistrationsTabProps) 
   const handleExport = async () => {
     setExporting(true)
     try {
-      const blob = await activityService.exportRegistrations()
+      const blob = await activityService.exportRegistrations(category)
       const url = URL.createObjectURL(blob)
       const link = document.createElement('a')
       const date = new Date().toISOString().slice(0, 10)
       link.href = url
-      link.download = `活动报名_全部_${date}.csv`
+      link.download = `${category === 'yingcai' ? '英才活动' : '活动'}报名_全部_${date}.csv`
       document.body.appendChild(link)
       link.click()
       link.remove()

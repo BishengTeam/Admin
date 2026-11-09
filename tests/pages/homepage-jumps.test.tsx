@@ -9,7 +9,6 @@ vi.mock('@/components/ImageUpload', () => ({ ImageUpload: ({ value, onChange }: 
 vi.mock('@/services/banner', () => ({ bannerService: { create: mocks.create, update: mocks.update } }))
 vi.mock('@/services/popup', () => ({ popupService: { create: mocks.create, update: mocks.update } }))
 vi.mock('@/services/activity', () => ({ activityService: { list: mocks.list } }))
-vi.mock('@/services/job', () => ({ jobService: { list: mocks.list } }))
 beforeEach(() => {
   mocks.data = { items: [] }; mocks.create.mockReset().mockResolvedValue({}); mocks.update.mockReset().mockResolvedValue({}); mocks.list.mockReset().mockResolvedValue({ items: [] })
   Object.defineProperty(window, 'matchMedia', { writable: true, value: vi.fn(() => ({ matches: false, addListener: vi.fn(), removeListener: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn() })) })

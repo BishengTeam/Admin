@@ -52,6 +52,7 @@ const BatchManagement = lazy(() => import('@/pages/certification/batches'))
 const JobManagement = lazy(() => import('@/pages/operations/jobs'))
 const TrainingManagement = lazy(() => import('@/pages/operations/training'))
 const ActivityManagement = lazy(() => import('@/pages/operations/activities'))
+const YingcaiManagement = lazy(() => import('@/pages/operations/yingcai'))
 const CompetitionManagement = lazy(() => import('@/pages/operations/competitions'))
 const DocumentManagement = lazy(() => import('@/pages/operations/documents'))
 const ClassroomManagement = lazy(() => import('@/pages/classrooms'))
@@ -416,6 +417,12 @@ export const adminRoutes: AppRoute[] = [
         path: 'operations/activities',
         element: <ActivityManagement />,
         meta: { title: '活动管理', icon: 'CalendarOutlined', permission: 'activity:list' },
+      },
+      {
+        // 与招聘管理同级的独立入口；底层复用活动接口，页面固定英才计划分类
+        path: 'operations/yingcai',
+        element: <YingcaiManagement />,
+        meta: { title: '英才计划管理', icon: 'StarOutlined', permission: 'activity:list' },
       },
       {
         path: 'operations/competitions',

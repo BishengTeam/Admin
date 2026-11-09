@@ -17,7 +17,15 @@ import type { Activity } from '@/types/activity'
 const { RangePicker } = DatePicker
 const { Text } = Typography
 
-export default function ActivityTab() {
+export interface ActivityTabProps {
+  /** 专区分类：activity=普通活动（活动管理页），yingcai=英才计划活动（英才计划管理页） */
+  mode?: 'activity' | 'yingcai'
+}
+
+export default function ActivityTab({ mode = 'activity' }: ActivityTabProps) {
+  // 页面即分类：两个管理页各自固定 category，表单不出现分类选择。
+  const category: 'normal' | 'yingcai' = mode === 'yingcai' ? 'yingcai' : 'normal'
+  const noun = mode === 'yingcai' ? '英才活动' : '活动'
   const [keyword, setKeyword] = useState('')
   const [searchText, setSearchText] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
@@ -43,8 +51,8 @@ export default function ActivityTab() {
   }, [])
 
   const { data, loading, pagination, refresh } = usePagination(
-    (page) => activityService.list({ keyword: searchText || undefined, ...page }),
-    [searchText],
+    (page) => activityService.list({ keyword: searchText || undefined, category, ...page }),
+    [searchText, category],
   )
 
   const handleAdd = () => {
@@ -85,7 +93,7 @@ export default function ActivityTab() {
 
   const handleBatchDelete = async () => {
     await Promise.all(selectedRowKeys.map((id) => activityService.delete(id)))
-    message.success(`已删除 ${selectedRowKeys.length} 个活动`)
+    message.success(`已删除 ${selectedRowKeys.length} 个${noun}`)
     setSelectedRowKeys([])
     refresh()
   }
@@ -107,6 +115,7 @@ export default function ActivityTab() {
       end_time: end ? end.toISOString() : null,
       max_participants: values.max_participants ?? 0,
       is_active: values.is_active,
+      category,
       live_url: values.live_url?.trim() || null,
       group_qrcode_url: values.group_qrcode_url || null,
       registration_deadline: values.registration_deadline
@@ -134,7 +143,7 @@ export default function ActivityTab() {
   }
 
   const columns: ColumnsType<Activity> = [
-    { title: '活动名称', dataIndex: 'title', width: 200, ellipsis: true },
+    { title: `${noun}名称`, dataIndex: 'title', width: 200, ellipsis: true },
     { title: '地点', dataIndex: 'location', width: 140 },
     {
       title: '时间',
@@ -166,8 +175,8 @@ export default function ActivityTab() {
         <Space>
           <Button type="link" size="small" onClick={() => handleEdit(record)}>编辑</Button>
           <ConfirmButton
-            title="删除活动"
-            description="将同时删除该活动的报名和提醒记录，此操作不可恢复。"
+            title={`删除${noun}`}
+            description={`将同时删除该${noun}的报名和提醒记录，此操作不可恢复。`}
             danger
             type="link"
             size="small"
@@ -183,11 +192,11 @@ export default function ActivityTab() {
   return (
     <>
       <Space style={{ marginBottom: 16 }}>
-        <Button type="primary" icon={<PlusOutlined />} onClick={handleAdd}>新增活动</Button>
+        <Button type="primary" icon={<PlusOutlined />} onClick={handleAdd}>新增{noun}</Button>
       </Space>
       <Space style={{ marginBottom: 16 }}>
         <Input
-          placeholder="搜索活动..."
+          placeholder={`搜索${noun}...`}
           prefix={<SearchOutlined />}
           value={keyword}
           onChange={(e) => setKeyword(e.target.value)}
@@ -200,7 +209,7 @@ export default function ActivityTab() {
         {selectedRowKeys.length > 0 && (
           <ConfirmButton
             title="批量删除"
-            description={`将同时删除选中的 ${selectedRowKeys.length} 个活动及其报名、提醒记录，此操作不可恢复。`}
+            description={`将同时删除选中的 ${selectedRowKeys.length} 个${noun}及其报名、提醒记录，此操作不可恢复。`}
             danger
             icon={<DeleteOutlined />}
             onConfirm={handleBatchDelete}
@@ -220,7 +229,7 @@ export default function ActivityTab() {
       />
 
       <Modal
-        title={editingItem ? '编辑活动' : '新增活动'}
+        title={editingItem ? `编辑${noun}` : `新增${noun}`}
         open={modalOpen}
         onOk={handleSubmit}
         onCancel={() => setModalOpen(false)}
@@ -233,8 +242,8 @@ export default function ActivityTab() {
             <Text type='secondary' style={{ fontSize: 13 }}>活动信息</Text>
           </Divider>
 
-          <Form.Item name="title" label="活动名称" rules={[requiredRule('名称')]}>
-            <Input placeholder="请输入活动名称" />
+          <Form.Item name="title" label={`${noun}名称`} rules={[requiredRule('名称')]}>
+            <Input placeholder={`请输入${noun}名称`} />
           </Form.Item>
           <Form.Item name="cover_url" label="封面图">
             <ImageUpload
@@ -242,7 +251,7 @@ export default function ActivityTab() {
               hint={'活动封面（列表卡片 + 详情页大图）\n固定裁剪输出：1404 × 640 px（约 2.2 : 1）\n上传后可拖动/缩放调整裁剪区域\n输出 JPG，单张 ≤ 5MB'}
             />
           </Form.Item>
-          <Form.Item name="description" label="活动介绍">
+          <Form.Item name="description" label={`${noun}介绍`}>
             <Input.TextArea rows={3} placeholder="活动内容、亮点、嘉宾等" maxLength={2000} showCount />
           </Form.Item>
 

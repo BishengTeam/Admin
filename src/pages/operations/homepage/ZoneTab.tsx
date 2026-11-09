@@ -11,10 +11,10 @@ import { formatDate } from '@/utils/format'
 import type { ContentItem } from '@/types/content'
 import ContentEditDrawer from './components/ContentEditDrawer'
 
-/** 仅保留首页实际渲染卡片的专区类型；study/activity/training 首页直接展示实体数据，不读卡片 */
+/** 仅保留首页实际渲染卡片的专区类型；study/activity/training 首页直接展示实体数据，不读卡片。
+ * 就业专区已关闭（2026-11.09），英才计划专区由 Activity(category='yingcai') 驱动，均不在此配置卡片。 */
 const ZONE_OPTIONS = [
   { label: '认证专区', value: 'cert' },
-  { label: '就业专区', value: 'employment' },
 ]
 
 export default function ZoneTab() {

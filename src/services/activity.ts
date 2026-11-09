@@ -3,7 +3,7 @@ import type { Activity, ActivityRegistration } from '@/types/activity'
 import type { PageData, PageParams } from '@/types/api'
 
 export const activityService = {
-  async list(params: { keyword?: string } & PageParams): Promise<PageData<Activity>> {
+  async list(params: { keyword?: string; category?: string } & PageParams): Promise<PageData<Activity>> {
     return http.get<PageData<Activity>>('/admin/activities', { params })
   },
   async create(data: Partial<Activity>): Promise<Activity> {
@@ -24,8 +24,9 @@ export const activityService = {
       { params },
     )
   },
-  async exportRegistrations(): Promise<Blob> {
+  async exportRegistrations(category?: string): Promise<Blob> {
     return http.get<Blob>('/admin/activities/export', {
+      params: category ? { category } : undefined,
       responseType: 'blob',
       timeout: 60000,
     })

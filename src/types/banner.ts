@@ -10,7 +10,7 @@ export interface Banner {
   created_at: string
 }
 
-export type BannerJumpMode = 'none' | 'page' | 'activity' | 'job' | 'link'
+export type BannerJumpMode = 'none' | 'page' | 'activity' | 'link'
 
 /** 站内可选页面（与小程序 app.config.ts 路由对齐） */
 export const BANNER_PAGE_GROUPS = [
@@ -31,10 +31,10 @@ export const BANNER_PAGE_GROUPS = [
     { label: '积分商城', value: '/pages/mine/points' },
     { label: '积分明细', value: '/pages/mine/points-history' },
   ] },
-  { label: '活动与就业', options: [
+  { label: '活动与英才', options: [
     { label: '活动', value: '/pages/activity-zone/index?tab=activity' },
     { label: '竞赛', value: '/pages/activity-zone/index?tab=competition' },
-    { label: '就业岗位', value: '/pages/activity-zone/index?tab=employment' },
+    { label: '英才计划', value: '/pages/activity-zone/index?tab=yingcai' },
   ] },
   { label: '我的服务', options: [
     { label: '我的报名', value: '/pages/mine/registrations' },
@@ -82,7 +82,6 @@ export interface JumpTargetValues {
   jump_mode: BannerJumpMode
   page_path?: string
   activity_id?: number
-  job_id?: number
   link_url?: string
 }
 
@@ -98,15 +97,15 @@ export function buildJumpLink(values: JumpTargetValues): string | null {
     if (error) throw new Error(error)
     return values.link_url!.trim()
   }
-  const id = values.jump_mode === 'activity' ? values.activity_id : values.job_id
-  if (!Number.isSafeInteger(id) || !id || id < 1) throw new Error(values.jump_mode === 'activity' ? '请选择活动' : '请选择岗位')
-  return `${resourceDetailPrefix(values.jump_mode)}?id=${id}`
+  const id = values.activity_id
+  if (!Number.isSafeInteger(id) || !id || id < 1) throw new Error('请选择活动')
+  return `${BANNER_ACTIVITY_DETAIL_PREFIX}?id=${id}`
 }
 
 export const BANNER_ACTIVITY_DETAIL_PREFIX = '/pages/activity-zone/detail'
-export const BANNER_JOB_DETAIL_PREFIX = '/pages/employment-zone/detail'
 
-/** 从 jump_link 反解析跳转模式（编辑回显用） */
+/** 从 jump_link 反解析跳转模式（编辑回显用）。
+ * 就业专区已关闭（2026-11.09）：遗留岗位详情链接落入 page 分支，编辑时提示目标已不可选。 */
 export function parseJumpMode(
   jumpLink: string | null | undefined,
 ): { mode: BannerJumpMode; path?: string; resourceId?: number; url?: string } {
@@ -115,16 +114,6 @@ export function parseJumpMode(
     const id = Number(new URLSearchParams(jumpLink.split('?')[1] ?? '').get('id'))
     return { mode: 'activity', resourceId: id > 0 ? id : undefined }
   }
-  if (jumpLink.split('?')[0] === BANNER_JOB_DETAIL_PREFIX) {
-    const id = Number(new URLSearchParams(jumpLink.split('?')[1] ?? '').get('id'))
-    return { mode: 'job', resourceId: id > 0 ? id : undefined }
-  }
   if (jumpLink.startsWith('/pages/')) return { mode: 'page', path: jumpLink }
   return { mode: 'link', url: jumpLink }
-}
-
-/** 资源型跳转模式 → 路径前缀 */
-export function resourceDetailPrefix(mode: 'activity' | 'job'): string {
-  if (mode === 'activity') return BANNER_ACTIVITY_DETAIL_PREFIX
-  return BANNER_JOB_DETAIL_PREFIX
 }

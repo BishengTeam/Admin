@@ -9,7 +9,6 @@ import { ImageUpload } from '@/components/ImageUpload'
 import { usePagination } from '@/hooks/usePagination'
 import { bannerService } from '@/services/banner'
 import { activityService } from '@/services/activity'
-import { jobService } from '@/services/job'
 import { formatDate } from '@/utils/format'
 import { requiredRule } from '@/utils/validator'
 import { buildJumpLink, pageTargetLabel, pageTargetError, parseJumpMode, type JumpTargetValues, type Banner, type BannerJumpMode } from '@/types/banner'
@@ -26,19 +25,16 @@ type FormValues = JumpTargetValues & {
 
 type ResourceTitles = {
   activity: Map<number, string>
-  job: Map<number, string>
 }
 
 const EMPTY_TITLES: ResourceTitles = {
   activity: new Map(),
-  job: new Map(),
 }
 
 const MODE_LABELS: Record<BannerJumpMode, string> = {
   none: '无',
   page: '页面',
   activity: '活动',
-  job: '岗位',
   link: '链接',
 }
 
@@ -46,7 +42,6 @@ const MODE_COLORS: Record<BannerJumpMode, string> = {
   none: 'default',
   page: 'geekblue',
   activity: 'purple',
-  job: 'cyan',
   link: 'orange',
 }
 
@@ -66,13 +61,6 @@ function describeJump(jumpLink: string | null, titles: ResourceTitles) {
           ? titles.activity.get(parsed.resourceId) ?? `活动 #${parsed.resourceId}`
           : '无效链接',
       }
-    case 'job':
-      return {
-        tag,
-        text: parsed.resourceId
-          ? titles.job.get(parsed.resourceId) ?? `岗位 #${parsed.resourceId}`
-          : '无效链接',
-      }
     case 'link':
       return { tag, text: parsed.url ?? '' }
   }
@@ -88,7 +76,6 @@ export default function BannerTab() {
 
   const jumpMode = Form.useWatch('jump_mode', form)
   const [activityOptions, setActivityOptions] = useState<{ label: string; value: number }[]>([])
-  const [jobOptions, setJobOptions] = useState<{ label: string; value: number }[]>([])
   const [titles, setTitles] = useState<ResourceTitles>(EMPTY_TITLES)
 
   const { data, loading, pagination, refresh } = usePagination(
@@ -98,36 +85,28 @@ export default function BannerTab() {
 
   /** 为列表回显拉资源标题映射 */
   useEffect(() => {
-    Promise.all([
-      activityService.list({ page: 1, page_size: 100 }).catch(() => null),
-      jobService.list({ page: 1, page_size: 100 }).catch(() => null),
-    ]).then(([activities, jobs]) => {
-      setTitles({
-        activity: new Map(activities?.items.map((a) => [a.id, a.title]) ?? []),
-        job: new Map(jobs?.items.map((j) => [j.id, j.company ? `${j.title}（${j.company}）` : j.title]) ?? []),
+    activityService
+      .list({ page: 1, page_size: 100 })
+      .catch(() => null)
+      .then((activities) => {
+        setTitles({
+          activity: new Map(activities?.items.map((a) => [a.id, a.title]) ?? []),
+        })
       })
-    })
   }, [data])
 
-  const SEARCHERS: Record<'activity' | 'job', (query: string) => void> = {
+  const SEARCHERS: Record<'activity', (query: string) => void> = {
     activity: (query) => {
       activityService
         .list({ keyword: query || undefined, page: 1, page_size: 20 })
         .then((res) => setActivityOptions(res.items.map((a) => ({ label: a.title, value: a.id }))))
         .catch(() => setActivityOptions([]))
     },
-    job: (query) => {
-      jobService
-        .list({ keyword: query || undefined, page: 1, page_size: 20 })
-        .then((res) => setJobOptions(res.items.map((j) => ({ label: j.company ? `${j.title}（${j.company}）` : j.title, value: j.id }))))
-        .catch(() => setJobOptions([]))
-    },
   }
 
   useEffect(() => {
     if (!modalOpen) return
     if (jumpMode === 'activity' && activityOptions.length === 0) SEARCHERS.activity('')
-    if (jumpMode === 'job' && jobOptions.length === 0) SEARCHERS.job('')
   }, [modalOpen, jumpMode]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleAdd = () => {
@@ -145,7 +124,6 @@ export default function BannerTab() {
       jump_mode: parsed.mode,
       page_path: parsed.path,
       activity_id: parsed.mode === 'activity' ? parsed.resourceId : undefined,
-      job_id: parsed.mode === 'job' ? parsed.resourceId : undefined,
       link_url: parsed.url,
       sort: item.sort,
       is_active: item.is_active,
@@ -158,10 +136,6 @@ export default function BannerTab() {
     if (parsed.mode === 'activity' && parsed.resourceId) {
       const known = titles.activity.get(parsed.resourceId)
       setActivityOptions([{ label: known ?? `活动 #${parsed.resourceId}`, value: parsed.resourceId }])
-    }
-    if (parsed.mode === 'job' && parsed.resourceId) {
-      const known = titles.job.get(parsed.resourceId)
-      setJobOptions([{ label: known ?? `岗位 #${parsed.resourceId}`, value: parsed.resourceId }])
     }
     setModalOpen(true)
   }
@@ -372,7 +346,7 @@ export default function BannerTab() {
             />
           </Form.Item>
 
-          <JumpTargetFields options={{ activity: activityOptions, job: jobOptions }} onSearch={SEARCHERS} />
+          <JumpTargetFields options={{ activity: activityOptions }} onSearch={SEARCHERS} />
 
           <Form.Item name="sort" label="排序（数字越小越靠前）">
             <InputNumber min={0} style={{ width: '100%' }} />

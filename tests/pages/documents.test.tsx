@@ -46,6 +46,7 @@ describe('admin-managed operational documents', () => {
       'operations/jobs',
       'operations/training',
       'operations/activities',
+      'operations/yingcai',
       'operations/competitions',
     ])
     expect(documentOnlyMenu.find((item) => item.key === 'content-operations')?.children?.map((item) => item.key)).toEqual([

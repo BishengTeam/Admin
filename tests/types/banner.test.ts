@@ -3,11 +3,13 @@ import { BANNER_PAGES, BANNER_PAGE_GROUPS, buildJumpLink, externalLinkError, pag
 
 describe('marketing jump targets', () => {
   it('groups a limited set of business entries without parameter-dependent forms or retired courses', () => {
-    expect(BANNER_PAGE_GROUPS.map(group => group.label)).toEqual(['常用入口', '认证报名', '积分与权益', '活动与就业', '我的服务'])
+    // 2026-11.09 就业专区关闭：岗位页面/岗位详情跳转整体移除，新增英才计划标签页
+    expect(BANNER_PAGE_GROUPS.map(group => group.label)).toEqual(['常用入口', '认证报名', '积分与权益', '活动与英才', '我的服务'])
     expect(new Set(BANNER_PAGES.map(page => page.value)).size).toBe(BANNER_PAGES.length)
     expect(BANNER_PAGES.length).toBeLessThan(30)
-    expect(BANNER_PAGES.some(page => /course|\/form|order-detail|payment/.test(page.value))).toBe(false)
+    expect(BANNER_PAGES.some(page => /course|\/form|order-detail|payment|employment/.test(page.value))).toBe(false)
     expect(BANNER_PAGES.find(page => page.label === '人社认证产品列表')?.value).toBe('/pages/registration/category?vendor=%E4%BA%BA%E7%A4%BE')
+    expect(BANNER_PAGES.find(page => page.label === '英才计划')?.value).toBe('/pages/activity-zone/index?tab=yingcai')
   })
 
   it.each(BANNER_PAGES)('round-trips $label without losing target parameters', ({ value }) => {
@@ -28,12 +30,14 @@ describe('marketing jump targets', () => {
     expect(buildJumpLink({ jump_mode: 'none', page_path: '/pages/course/index' })).toBeNull()
   })
 
-  it('uses exact activity and job detail routes and validates IDs', () => {
+  it('uses exact activity detail routes and validates IDs; job jump mode is retired', () => {
     expect(buildJumpLink({ jump_mode: 'activity', activity_id: 7 })).toBe('/pages/activity-zone/detail?id=7')
-    expect(buildJumpLink({ jump_mode: 'job', job_id: 9 })).toBe('/pages/employment-zone/detail?id=9')
     expect(parseJumpMode('/pages/activity-zone/detail?id=7')).toEqual({ mode: 'activity', resourceId: 7 })
     expect(parseJumpMode('/pages/activity-zone/detail-other?id=7').mode).toBe('page')
-    expect(() => buildJumpLink({ jump_mode: 'job', job_id: 1.5 })).toThrow('请选择岗位')
+    expect(() => buildJumpLink({ jump_mode: 'activity', activity_id: 0 })).toThrow('请选择活动')
+    // 就业专区已关闭：遗留岗位详情链接按未配置页面回显，编辑时强制重新选择
+    expect(parseJumpMode('/pages/employment-zone/detail?id=9')).toEqual({ mode: 'page', path: '/pages/employment-zone/detail?id=9' })
+    expect(pageTargetError('/pages/employment-zone/detail?id=9')).toContain('重新选择')
   })
 
   it.each(['http://www.ztyyx.cn', 'https://evil.com', 'https://ztyyx.cn.evil.com', 'https://ztyyx.cn@evil.com', 'https://ztyyx.cn\\@evil.com', 'https://ztyyx.cn:8443', 'javascript:alert(1)', '/pages/course/detail?id=1'])('rejects invalid external link %s', url => {
