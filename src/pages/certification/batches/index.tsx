@@ -80,7 +80,10 @@ export default function BatchManagement() {
   useEffect(() => { loadBatches() }, [loadBatches])
 
   useEffect(() => {
-    certProductService.getCatalog().then((items) => setProducts(items as unknown as CertProduct[])).catch(() => {})
+    // catalog 接口不含 is_active/chinese_name，改用完整产品列表
+    certProductService.list({ page: 1, page_size: 500 })
+      .then((page) => setProducts(page.items))
+      .catch(() => {})
   }, [])
 
   const openEditor = async (id: number) => {
