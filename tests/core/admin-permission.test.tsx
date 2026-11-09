@@ -42,6 +42,7 @@ describe('fixed administrator role navigation', () => {
       'content-operations',
       'points-mall',
       'settings',
+      'recycle-bin',
     ])
     expect(superMenu.map((item) => item.label)).toEqual([
       '数据概览',
@@ -53,6 +54,7 @@ describe('fixed administrator role navigation', () => {
       '内容与运营',
       '积分商城',
       '系统管理',
+      '回收站',
     ])
     expect(superMenu.find((item) => item.key === 'user-support')?.children?.map((child) => child.label))
       .toEqual(['用户管理', '客服工单', '审核记录'])
@@ -66,7 +68,7 @@ describe('fixed administrator role navigation', () => {
     const superMenu = buildMenuItems(adminRoutes, ['*'], true, 'super_admin') as Array<{ key: string }>
     const quizMenu = buildMenuItems(adminRoutes, ['quiz:list', 'quiz:write', 'quiz:import'], true, 'quiz_admin') as Array<{ key: string }>
     expect(superMenu.some((item) => item.key === 'settings')).toBe(true)
-    expect(quizMenu.map((item) => item.key)).toEqual(['quiz'])
+    expect(quizMenu.map((item) => item.key)).toEqual(['quiz', 'recycle-bin'])
   })
 
   it('groups course products and teaching classrooms for administrators and teachers', () => {
@@ -110,6 +112,7 @@ describe('fixed administrator role navigation', () => {
     const certMenu = superMenu.find((item) => item.key === 'certification')
     expect(certMenu).toBeDefined()
     expect(certMenu!.children!.map((child) => child.key)).toEqual([
+      'certification/batches',
       'certification/overview',
       'certification/h3c',
       'certification/renshe',
