@@ -20,8 +20,8 @@ import {
   Typography,
 } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
-import { useNavigate, useSearchParams } from 'react-router-dom'
-import { DownloadOutlined, KeyOutlined, LinkOutlined, PlusOutlined, ReloadOutlined, SearchOutlined, SwapOutlined } from '@ant-design/icons'
+import { Navigate, useNavigate, useSearchParams } from 'react-router-dom'
+import { DownloadOutlined, KeyOutlined, LinkOutlined, PlusOutlined, ReloadOutlined, RestOutlined, SearchOutlined, SwapOutlined } from '@ant-design/icons'
 import { PageContainer } from '@/components/PageContainer'
 import { quizService } from '@/services/quiz'
 import { ImageUpload } from '@/components/ImageUpload'
@@ -176,15 +176,11 @@ export default function QuizLibraries() {
   const navigate = useNavigate()
   const [params, setParams] = useSearchParams()
   const requestedView = params.get('library_view')
-  const view: QuizLibraryView = requestedView === 'archived' || requestedView === 'trash' ? requestedView : 'working'
+  // 回收站/归档已统一迁移到一级菜单「回收站」页；旧深链在渲染末尾重定向
+  const legacyTrashView = requestedView === 'archived' || requestedView === 'trash'
+  const view: QuizLibraryView = 'working'
   const [record, setRecord] = useState<QuizLibrary | null>(null)
   const [now, setNow] = useState(Date.now)
-  useEffect(() => {
-    if (view !== 'trash') return
-    setNow(Date.now())
-    const timer = window.setInterval(() => setNow(Date.now()), 1000)
-    return () => window.clearInterval(timer)
-  }, [view])
   const canManage = usePermission('quiz_library_manage')
   const canBind = usePermission('course_quiz_bind')
   const isSuperAdmin = useAuthStore((s) => s.admin?.role === 'super_admin')
@@ -614,22 +610,22 @@ export default function QuizLibraries() {
     title, dataIndex, width: 180, render: (value: string | null) => value ? formatDate(value) : '—',
   })
   const historyColumns: ColumnsType<QuizLibrary> = [
-    columns[0], ...(view === 'archived' ? [timeColumn('归档时间', 'archived_at')] : [
-      timeColumn('删除时间', 'deleted_at'), timeColumn('恢复截止时间', 'restore_until'),
-      { title: '恢复状态', render: (_: unknown, item: QuizLibrary) => item.restore_until && Date.parse(item.restore_until) > now ? '可恢复' : '已过恢复期限' },
-    ]), columns[columns.length - 1],
+    columns[0], columns[columns.length - 1],
   ]
-  const visibleLibraries = libraries.filter(item => view === 'archived' ? item.status === 'archived' : view === 'trash' ? item.status === 'deleted' : !['archived', 'deleted'].includes(item.status))
+  const visibleLibraries = libraries.filter(item => !['archived', 'deleted'].includes(item.status))
+  if (legacyTrashView) {
+    return <Navigate to="/admin/recycle-bin" replace />
+  }
   return (
     <PageContainer
       title="题库"
       extra={canManage && view === 'working' ? <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>新建题库</Button> : undefined}
     >
 
-      <Tabs activeKey={view} onChange={key => {
-        setFilter(current => ({ ...current, status: undefined }))
-        setParams(previous => { const next = new URLSearchParams(previous); next.set('library_view', key); return next }, { replace: true })
-      }} items={[{ key: 'working', label: '题库列表' }, { key: 'archived', label: '归档' }, { key: 'trash', label: '回收站' }]} />
+      <Space wrap style={{ marginBottom: 8 }}>
+        <Tabs activeKey="working" items={[{ key: 'working', label: '题库列表' }]} />
+        <Button icon={<RestOutlined />} onClick={() => navigate('/admin/recycle-bin')}>统一回收站</Button>
+      </Space>
       <Space wrap style={{ marginBottom: 16 }}>
         <Input value={keyword} onChange={(event) => setKeyword(event.target.value)} onPressEnter={() => setFilter((current) => ({ ...current, keyword: keyword.trim() || undefined }))} allowClear prefix={<SearchOutlined />} placeholder="题库名称或编码" style={{ width: 240 }} />
         {view === 'working' && <Select allowClear placeholder="状态" value={filter.status} onChange={(status) => setFilter((current) => ({ ...current, status }))} options={Object.entries(statusLabels).filter(([value]) => !['archived', 'deleted'].includes(value)).map(([value, label]) => ({ value, label }))} style={{ width: 130 }} />}

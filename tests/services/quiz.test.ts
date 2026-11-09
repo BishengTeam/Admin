@@ -67,7 +67,8 @@ describe('quizService frozen admin contract', () => {
     const source = readFileSync(resolve(process.cwd(), 'src/services/quiz.ts'), 'utf8')
     expect(source).not.toContain('/api/admin/quiz')
     // quiz018：新增 4 个激活码端点（生成/列表/导出/作废），70 → 74
-    expect(source.match(/\/admin\/quiz/g)).toHaveLength(74)
+    // 2026-11 回收站改造：batch-delete 恢复 + batch-delete-by-scope 新增，74 → 76
+    expect(source.match(/\/admin\/quiz/g)).toHaveLength(76)
     for (const path of [
       '/admin/quiz/course-options',
       '/admin/quiz/libraries/${libraryId}/activation-codes',

@@ -1,7 +1,7 @@
 import { quizPublication } from '@/services/quizPublication'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { ConfigProvider, Modal } from 'antd'
 import QuizLibraries from '@/pages/quiz/libraries'
 import { quizService } from '@/services/quiz'
@@ -148,33 +148,22 @@ describe('题库访问模式保存', () => {
 })
 
 
-it('归档和回收站保留关键词，已到期记录只可查看', async () => {
-  const archived = library({ id: 20, name: '网络归档', status: 'archived', archived_at: '2026-11-01T00:00:00Z' })
-  const expired = library({ id: 21, name: '网络回收记录', status: 'deleted', deleted_at: '2026-11-01T00:00:00Z', restore_until: new Date(Date.now() - 1000).toISOString() })
-  vi.mocked(quizService.listLibraries).mockImplementation(async filter => filter?.view === 'archived' ? [archived] : filter?.view === 'trash' ? [expired] : [library()])
-  render(<MemoryRouter><QuizLibraries /></MemoryRouter>)
-  await screen.findByText('网络基础')
-  const keyword = screen.getByPlaceholderText('题库名称或编码')
-  fireEvent.change(keyword, { target: { value: '网络' } })
-  fireEvent.click(screen.getByRole('button', { name: /查\s*询/ }))
-  fireEvent.click(screen.getByRole('tab', { name: '归档' }))
-  expect(await screen.findByText('网络归档')).toBeVisible()
-  expect(screen.queryByText('网络基础')).toBeNull()
-  await waitFor(() => expect(quizService.listLibraries).toHaveBeenLastCalledWith(expect.objectContaining({ view: 'archived', keyword: '网络' }), expect.anything()))
-  fireEvent.click(screen.getByRole('tab', { name: '回收站' }))
-  expect(await screen.findByText('网络回收记录')).toBeVisible()
-  expect(screen.getByText('已过恢复期限')).toBeVisible()
-  expect(screen.getByRole('button', { name: '撤销删除' })).toBeDisabled()
-  expect(screen.queryByRole('button', { name: '移入回收站' })).toBeNull()
-})
-
-it('只读管理员可以查看归档但无生命周期按钮', async () => {
-  useAuthStore.setState({ permissions: ['quiz:list'] })
-  vi.mocked(quizService.listLibraries).mockResolvedValue([library({ status: 'archived' })])
-  render(<MemoryRouter initialEntries={['/?library_view=archived']}><QuizLibraries /></MemoryRouter>)
-  fireEvent.click(await screen.findByRole('button', { name: '查看详情' }))
-  expect(await screen.findByText(/题库记录 · 网络基础/)).toBeVisible()
-  expect(screen.queryByRole('button', { name: '移入回收站' })).toBeNull()
+it('旧归档/回收站深链重定向到统一回收站页', async () => {
+  // 2026-11 回收站改造：题库页 trash/archived 视图迁移到一级菜单「回收站」
+  vi.mocked(quizService.listLibraries).mockResolvedValue([library()])
+  for (const view of ['trash', 'archived']) {
+    const { unmount } = render(
+      <MemoryRouter initialEntries={[`/?library_view=${view}`]}>
+        <Routes>
+          <Route path="/" element={<QuizLibraries />} />
+          <Route path="/admin/recycle-bin" element={<div>统一回收站</div>} />
+        </Routes>
+      </MemoryRouter>,
+    )
+    expect(await screen.findByText('统一回收站')).toBeVisible()
+    expect(screen.queryByPlaceholderText('题库名称或编码')).toBeNull()
+    unmount()
+  }
 })
 
 it('仍有已发布题目时阻断归档并引导停用', async () => {

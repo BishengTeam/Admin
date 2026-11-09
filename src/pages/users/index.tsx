@@ -316,7 +316,7 @@ export default function UserList() {
           {canDelete && (
             <ConfirmButton
               title="删除用户"
-              description="此操作不可撤销，确认删除此用户？"
+              description="确认删除此用户？删除后进入回收站，30 个自然日内可在回收站恢复。"
               danger
               type="link"
               size="small"
@@ -390,7 +390,7 @@ export default function UserList() {
           {canDelete && selectedRowKeys.length > 0 && (
              <ConfirmButton
               title="批量删除"
-              description={`确认删除选中的 ${selectedRowKeys.length} 个用户？此操作不可撤销。`}
+              description={`确认删除选中的 ${selectedRowKeys.length} 个用户？删除后进入回收站，30 个自然日内可恢复。`}
               danger
               icon={<DeleteOutlined />}
               onConfirm={handleBatchDelete}

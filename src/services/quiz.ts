@@ -445,6 +445,17 @@ export const quizService = {
     return parsed(BatchResponseSchema, await http.post('/admin/quiz/questions/batch-disable', payload, { signal }))
   },
 
+  async batchDelete(data: BatchRequest, signal?: AbortSignal): Promise<BatchResponse> {
+    // 勾选批量删除：已发布题服务端自动先停用再删；全部进回收站（30 自然日）
+    const payload = requestParsed(BatchRequestSchema, omitUndefined(data))
+    return parsed(BatchResponseSchema, await http.post('/admin/quiz/questions/batch-delete', payload, { signal }))
+  },
+
+  async batchDeleteByScope(scope: { library_id?: number; module_id?: number; knowledge_point_id?: number }, signal?: AbortSignal): Promise<BatchResponse> {
+    // 按范围一键清空：知识点/模块/题库三选一；进回收站（30 自然日）
+    return parsed(BatchResponseSchema, await http.post('/admin/quiz/questions/batch-delete-by-scope', scope, { signal }))
+  },
+
   async getQuestionStats(id: number, signal?: AbortSignal): Promise<QuestionStats> {
     return parsed(QuestionStatsSchema, await http.get(`/admin/quiz/questions/${id}/stats`, { signal }))
   },

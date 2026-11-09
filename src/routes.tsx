@@ -62,6 +62,7 @@ const ChangePassword = lazy(() => import('@/pages/change-password'))
 const AdminAccounts = lazy(() => import('@/pages/settings/admins'))
 const SecurityAudit = lazy(() => import('@/pages/settings/security-audit'))
 const SystemUpdates = lazy(() => import('@/pages/settings/updates'))
+const RecycleBin = lazy(() => import('@/pages/recycleBin'))
 
 import AuthGuard from '@/components/AuthGuard'
 import LoginLayout from '@/layouts/LoginLayout'
@@ -454,6 +455,12 @@ export const adminRoutes: AppRoute[] = [
         meta: { title: '版本与更新', icon: 'SyncOutlined', roles: ['super_admin'] },
       },
     ],
+  },
+  {
+    // 全后台统一回收站：一级菜单放最后（甲方约定）
+    path: 'recycle-bin',
+    element: <RecycleBin />,
+    meta: { title: '回收站', icon: 'RestOutlined' },
   },
 ]
 
