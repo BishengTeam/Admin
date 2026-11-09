@@ -21,7 +21,7 @@ import {
 } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { Navigate, useNavigate, useSearchParams } from 'react-router-dom'
-import { DownloadOutlined, KeyOutlined, LinkOutlined, PlusOutlined, ReloadOutlined, RestOutlined, SearchOutlined, SwapOutlined } from '@ant-design/icons'
+import { DownloadOutlined, KeyOutlined, LinkOutlined, PlusOutlined, ReloadOutlined, SearchOutlined, SwapOutlined } from '@ant-design/icons'
 import { PageContainer } from '@/components/PageContainer'
 import { quizService } from '@/services/quiz'
 import { ImageUpload } from '@/components/ImageUpload'
@@ -624,7 +624,6 @@ export default function QuizLibraries() {
 
       <Space wrap style={{ marginBottom: 8 }}>
         <Tabs activeKey="working" items={[{ key: 'working', label: '题库列表' }]} />
-        <Button icon={<RestOutlined />} onClick={() => navigate('/admin/recycle-bin')}>统一回收站</Button>
       </Space>
       <Space wrap style={{ marginBottom: 16 }}>
         <Input value={keyword} onChange={(event) => setKeyword(event.target.value)} onPressEnter={() => setFilter((current) => ({ ...current, keyword: keyword.trim() || undefined }))} allowClear prefix={<SearchOutlined />} placeholder="题库名称或编码" style={{ width: 240 }} />
