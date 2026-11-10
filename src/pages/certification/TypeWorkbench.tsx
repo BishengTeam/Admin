@@ -1,12 +1,11 @@
 import { Suspense, useMemo } from 'react'
-import { Spin, Tabs, Typography } from 'antd'
-import { Navigate, useParams, useSearchParams } from 'react-router-dom'
+import { Button, Spin, Tabs, Typography } from 'antd'
+import {Navigate, useParams, useSearchParams, useNavigate} from 'react-router-dom'
 import { PageContainer } from '@/components/PageContainer'
 import { useAuth } from '@/hooks/useAuth'
 import { CERT_TYPE_META, type CertType } from './components/vendors/type-registry'
 import { getVendorProfile } from './components/vendors/vendor-registry'
 import ProductTable from './components/shared/ProductTable'
-import PlanTable from './components/shared/PlanTable'
 import EnrollmentNoticeTab from './components/shared/EnrollmentNoticeTab'
 
 const { Text } = Typography
@@ -37,10 +36,10 @@ export default function TypeWorkbench({ type: typeProp }: { type?: string }) {
       key: 'plans',
       label: '批次管理',
       children: (
-        <PlanTable
-          type={type as CertType}
-          overrides={profile?.batchOverrides ? <Suspense fallback={<Spin />}><profile.batchOverrides type={type as CertType} /></Suspense> : undefined}
-        />
+        <div style={{ padding: '40px 0', textAlign: 'center' }}>
+          <Text type="secondary">批次管理已统一迁移到</Text>
+          <Button type="link" onClick={() => navigate('/admin/certification/batches')}>全局批次管理</Button>
+        </div>
       ),
     }
     if (hasPermission(permissions, profile?.batchPermission)) {
@@ -82,6 +81,7 @@ export default function TypeWorkbench({ type: typeProp }: { type?: string }) {
 
   if (!meta) return <Navigate to='/admin/certification' replace />
 
+  const navigate = useNavigate()
   return (
     <PageContainer title={`${meta.label}认证`}>
       <Tabs items={tabs} activeKey={tabs.some(tab => tab.key === searchParams.get('tab')) ? searchParams.get('tab')! : tabs[0]?.key} onChange={key => setSearchParams({ tab: key })} />

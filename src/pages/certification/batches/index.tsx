@@ -1,3 +1,4 @@
+import ProductAddModal from './ProductAddModal'
 /**
  * 认证批次管理 v2：跨厂商批次列表 + 编辑器
  */
@@ -276,30 +277,14 @@ function BatchEditor({ batch, products, canWrite, onChanged }: {
     (p) => p.is_active && !batch.products.some((bp) => bp.product_id === p.id)
   )
 
-  const handleAddProduct = async () => {
-    if (!selectedProductId) return
+  const handleAddProduct = async (payload: Record<string, unknown>) => {
     try {
-      const product = products.find((p) => p.id === selectedProductId)
-      const payload: Parameters<typeof batchService.addProduct>[1] = {
-        product_id: selectedProductId,
-        capacity: productCapacity,
-      }
-      // 人社产品补充字段
-      if (product?.type === 'renshe') {
-        payload.skill_level = '中级工'
-        payload.exam_type = '新考'
-        payload.application_type = '学历型'
-        payload.occupation_name = '信息安全管理员'
-        payload.occupation_code = '4-04-04-02-网络与信息安全管理员-信息安全管理员-中级工'
-      }
-      await batchService.addProduct(batch.id, payload)
+      await batchService.addProduct(batch.id, payload as any)
       message.success('产品已添加')
-      setAddProductOpen(false)
-      setSelectedProductId(null)
-      setProductCapacity(0)
       onChanged()
-    } catch {
-      message.error('添加失败')
+    } catch (e: any) {
+      message.error(e?.response?.data?.message || '添加失败')
+      throw e
     }
   }
 
@@ -413,33 +398,7 @@ function BatchEditor({ batch, products, canWrite, onChanged }: {
       </Card>
 
       {/* 添加产品弹窗 */}
-      <Modal title='添加产品' open={addProductOpen} onOk={handleAddProduct} onCancel={() => setAddProductOpen(false)}>
-        <Space direction='vertical' style={{ width: '100%' }} size='middle'>
-          <Select
-            showSearch
-            placeholder='选择认证产品（跨厂商）'
-            style={{ width: '100%' }}
-            value={selectedProductId}
-            onChange={setSelectedProductId}
-            optionFilterProp='label'
-            options={availableProducts.map((p) => ({
-              value: p.id,
-              label: `[${VENDOR_LABEL[p.type] ?? p.type}] ${p.name} (${p.code})`,
-            }))}
-          />
-          <InputNumber
-            min={0}
-            value={productCapacity}
-            onChange={(v) => setProductCapacity(v ?? 0)}
-            addonAfter='人（0=不限）'
-            style={{ width: '100%' }}
-            placeholder='该产品在此批次的名额'
-          />
-          {products.find((p) => p.id === selectedProductId)?.type === 'renshe' && (
-            <Text type='warning'>人社产品需在添加后编辑补充职业、等级等字段</Text>
-          )}
-        </Space>
-      </Modal>
+      <ProductAddModal open={addProductOpen} onClose={() => setAddProductOpen(false)} onAdd={handleAddProduct} products={products} batchId={batch.id} />
 
       {/* 添加时段弹窗 */}
       <Modal title='添加考试时段' open={addSegmentOpen} onOk={handleAddSegment} onCancel={() => setAddSegmentOpen(false)}>

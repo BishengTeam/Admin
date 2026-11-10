@@ -156,3 +156,36 @@ export const batchService = {
     return request.delete(`/admin/certifications/batches/${batchId}/time-segments/${tsId}`)
   },
 }
+
+// ============================================================
+// 厂商扩展配置（P1 统一入口）
+// ============================================================
+
+export interface H3CBatchConfig {
+  exam_code: string
+  coupon_price_cents: number
+  student_price_cents: number
+  full_price_cents: number
+  payment_timeout_minutes?: number
+  resubmission_window_hours?: number
+  max_resubmissions?: number
+}
+
+export interface NispBatchConfig {
+  level: '1' | '2'
+  level1_price_cents: number
+  level2_price_cents: number
+}
+
+export interface ProductAddPayload {
+  product_id: number
+  capacity: number
+  renshe_config_id?: number | null
+  occupation_name?: string | null
+  occupation_code?: string | null
+  skill_level?: string | null
+  exam_type?: string | null
+  application_type?: string | null
+  h3c_config?: H3CBatchConfig | null
+  nisp_config?: NispBatchConfig | null
+}

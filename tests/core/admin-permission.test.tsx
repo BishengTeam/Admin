@@ -201,9 +201,6 @@ describe('fixed administrator role navigation', () => {
 
   it('passes real business names into detail breadcrumbs', () => {
     const paths = [
-      'src/pages/certification/components/vendors/h3c/BatchOverrides.tsx',
-      'src/pages/certification/components/vendors/nisp/BatchOverrides.tsx',
-      'src/pages/certification/components/vendors/renshe/BatchOverrides.tsx',
       'src/pages/courses/List.tsx',
       'src/pages/classrooms/index.tsx',
     ]
