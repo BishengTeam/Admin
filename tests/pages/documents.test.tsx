@@ -43,6 +43,7 @@ describe('admin-managed operational documents', () => {
       'content/agreement-templates',
       'content/documents',
       'operations/homepage',
+      'operations/gzh-articles',
       'operations/jobs',
       'operations/training',
       'operations/activities',
