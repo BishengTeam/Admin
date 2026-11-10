@@ -1,10 +1,11 @@
+import React from 'react'
 import ProductAddModal from './ProductAddModal'
 import type { BatchProduct } from './service'
 /**
  * 认证批次管理 v2：跨厂商批次列表 + 编辑器
  */
 import { useCallback, useEffect, useState } from 'react'
-import { Badge, Button, Card, DatePicker, Drawer, Empty, Form, Input, InputNumber, Modal, Popconfirm, Select, Space, Table, Tag, TimePicker, Typography, message } from 'antd'
+import { Badge, Button, Card, DatePicker, Drawer, Empty, Form, Input, InputNumber, Modal, Popconfirm, Select, Space, Table, Tag, TimePicker, Tooltip, Typography, message } from 'antd'
 import { PlusOutlined, ReloadOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import dayjs, { type Dayjs } from 'dayjs'
@@ -52,6 +53,8 @@ export default function BatchManagement() {
   const [products, setProducts] = useState<CertProduct[]>([])
   const [loading, setLoading] = useState(false)
   const [statusFilter, setStatusFilter] = useState<string | undefined>()
+  const [keyword, setKeyword] = useState('')
+  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
   const [page, setPage] = useState(1)
   const [total, setTotal] = useState(0)
 
@@ -70,8 +73,12 @@ export default function BatchManagement() {
     try {
       const res = await batchService.list({ status: statusFilter, page, page_size: 50 })
       const data = res.data ?? res
-      setBatches((data as any).items ?? [])
-      setTotal((data as any).total ?? 0)
+      const items = ((data as any).items ?? []) as BatchListItem[]
+      const filtered = keyword.trim()
+        ? items.filter((b) => b.name.toLowerCase().includes(keyword.trim().toLowerCase()))
+        : items
+      setBatches(filtered)
+      setTotal(keyword.trim() ? filtered.length : ((data as any).total ?? 0))
     } catch (e) {
       message.error('加载批次列表失败')
     } finally {
@@ -148,7 +155,19 @@ export default function BatchManagement() {
       render: (s: string) => <Tag color={STATUS_META[s]?.color}>{STATUS_META[s]?.label ?? s}</Tag>,
     },
     { title: '产品数', dataIndex: 'product_count', width: 80, align: 'center' },
-    { title: '报名数', dataIndex: 'total_enrolled', width: 80, align: 'center' },
+    {
+      title: '报名数', dataIndex: 'total_enrolled', width: 80, align: 'center',
+      render: (v: number, record: BatchListItem) =>
+        record.product_count > 1 && v > 0 ? (
+          <Button size='small' type='link' onClick={async () => {
+            try {
+              const batch = await batchService.get(record.id)
+              setEditingBatch(batch)
+              setEditorOpen(true)
+            } catch { message.error('加载详情失败') }
+          }}>{v}</Button>
+        ) : v,
+    },
     { title: '报名开始', dataIndex: 'apply_start', width: 140, render: (v) => v ? formatDate(v, 'MM-DD HH:mm') : '-' },
     { title: '报名截止', dataIndex: 'apply_end', width: 140, render: (v) => v ? formatDate(v, 'MM-DD HH:mm') : '-' },
     { title: '考试日期', dataIndex: 'exam_date', width: 100, render: (v) => v ? formatDate(v, 'MM-DD') : '-' },
@@ -159,10 +178,14 @@ export default function BatchManagement() {
           <Space size='small' wrap>
             <Button size='small' type='link' onClick={() => openEditor(record.id)}>编辑</Button>
             {canWrite && s === 'draft' && (
+              <Tooltip title="发布前需：设置产品、时段、报名时间窗口">
               <ConfirmButton size='small' type='link' title='发布批次' description='发布后产品和时段将锁定，确定发布？' onConfirm={() => handleLifecycle(record.id, 'publish')}>发布</ConfirmButton>
+            </Tooltip>
             )}
             {canWrite && s === 'published' && (
+              <Tooltip title="关闭后 → 终审 → 归档">
               <ConfirmButton size='small' type='link' title='关闭报名' description='关闭后用户不能再报名' onConfirm={() => handleLifecycle(record.id, 'close-registration')}>关闭报名</ConfirmButton>
+            </Tooltip>
             )}
             {canWrite && s === 'registration_closed' && (
               <ConfirmButton size='small' type='link' title='终审' description='终审后进入归档流程' onConfirm={() => handleLifecycle(record.id, 'finalize')}>终审</ConfirmButton>
@@ -192,7 +215,40 @@ export default function BatchManagement() {
             onChange={(v) => { setStatusFilter(v); setPage(1) }}
             options={Object.entries(STATUS_META).map(([value, meta]) => ({ value, label: meta.label }))}
           />
+          <Input.Search
+            placeholder="按批次名称搜索"
+            style={{ width: 200 }}
+            value={keyword}
+            onChange={(e) => setKeyword(e.target.value)}
+            allowClear
+          />
           <Button icon={<ReloadOutlined />} onClick={loadBatches}>刷新</Button>
+          {selectedRowKeys.length > 0 && canWrite && (
+            <>
+              <Popconfirm title={`确定发布选中的 ${selectedRowKeys.length} 个批次？`} onConfirm={async () => {
+                let ok = 0, fail = 0
+                for (const key of selectedRowKeys) {
+                  try { await batchService.publish(key as number); ok++ } catch { fail++ }
+                }
+                message.success(`发布完成：成功 ${ok}${fail > 0 ? `，失败 ${fail}` : ''}`)
+                setSelectedRowKeys([])
+                loadBatches()
+              }}>
+                <Button size='small'>批量发布 ({selectedRowKeys.length})</Button>
+              </Popconfirm>
+              <Popconfirm title={`确定归档选中的 ${selectedRowKeys.length} 个批次？`} onConfirm={async () => {
+                let ok = 0, fail = 0
+                for (const key of selectedRowKeys) {
+                  try { await batchService.archive(key as number); ok++ } catch { fail++ }
+                }
+                message.success(`归档完成：成功 ${ok}${fail > 0 ? `，失败 ${fail}` : ''}`)
+                setSelectedRowKeys([])
+                loadBatches()
+              }}>
+                <Button size='small' danger>批量归档 ({selectedRowKeys.length})</Button>
+              </Popconfirm>
+            </>
+          )}
           {canWrite && (
             <Button type='primary' icon={<PlusOutlined />} onClick={() => setCreateOpen(true)}>创建批次</Button>
           )}
@@ -200,6 +256,7 @@ export default function BatchManagement() {
 
         <Table
           rowKey='id'
+          rowSelection={{ selectedRowKeys, onChange: setSelectedRowKeys }}
           columns={columns}
           dataSource={batches}
           loading={loading}
@@ -257,7 +314,7 @@ export default function BatchManagement() {
 // 批次编辑器（Drawer 内嵌）
 // ============================================================
 
-import { List, Tooltip } from 'antd'
+import { List } from 'antd'
 import { DeleteOutlined, ClockCircleOutlined } from '@ant-design/icons'
 
 function BatchEditor({ batch, products, canWrite, onChanged }: {
@@ -356,6 +413,14 @@ function BatchEditor({ batch, products, canWrite, onChanged }: {
             renderItem={(seg) => (
               <List.Item
                 actions={canWrite ? [
+                  <Button key='up' size='small' type='text' onClick={async () => {
+                    await batchService.updateTimeSegment(batch.id, seg.id, { sort_order: Math.max(0, seg.sort_order - 1) })
+                    onChanged()
+                  }}>↑</Button>,
+                  <Button key='down' size='small' type='text' onClick={async () => {
+                    await batchService.updateTimeSegment(batch.id, seg.id, { sort_order: seg.sort_order + 1 })
+                    onChanged()
+                  }}>↓</Button>,
                   <Popconfirm key='del' title='确定删除？' onConfirm={async () => {
                     await batchService.removeTimeSegment(batch.id, seg.id)
                     message.success('已删除')
@@ -395,7 +460,10 @@ function BatchEditor({ batch, products, canWrite, onChanged }: {
             dataSource={batch.products}
             pagination={false}
             columns={[
-              { title: '厂商', dataIndex: 'product_type', width: 80, render: (t) => <Tag>{VENDOR_LABEL[t] ?? t}</Tag> },
+              {
+                title: '厂商', dataIndex: 'product_type', width: 80,
+                render: (t) => <Tag color={t === 'generic' ? 'orange' : undefined}>{VENDOR_LABEL[t] ?? t}</Tag>,
+              },
               { title: '产品', dataIndex: 'product_name' },
               { title: '编码', dataIndex: 'product_code', width: 120 },
               { title: '容量', dataIndex: 'capacity', width: 80, render: (c) => c === 0 ? '不限' : c },
@@ -431,6 +499,22 @@ function BatchEditor({ batch, products, canWrite, onChanged }: {
       {/* 添加时段弹窗 */}
       <Modal title='添加考试时段' open={addSegmentOpen} onOk={handleAddSegment} onCancel={() => setAddSegmentOpen(false)}>
         <Space direction='vertical' style={{ width: '100%' }} size='middle'>
+          <Space wrap>
+            <Text type='secondary'>快捷选择：</Text>
+            {[
+              { label: '上午场 09:00-12:00', start: '09:00', end: '12:00' },
+              { label: '下午场 14:00-17:00', start: '14:00', end: '17:00' },
+              { label: '晚上场 18:30-21:30', start: '18:30', end: '21:30' },
+            ].map((preset) => (
+              <Button key={preset.label} size='small' type='dashed' onClick={() => {
+                setSegmentLabel(preset.label.split(' ')[0])
+                setSegmentStart(dayjs(preset.start, 'HH:mm'))
+                setSegmentEnd(dayjs(preset.end, 'HH:mm'))
+              }}>
+                {preset.label}
+              </Button>
+            ))}
+          </Space>
           <Input placeholder='时段标签（如：上午场）' value={segmentLabel} onChange={(e) => setSegmentLabel(e.target.value)} maxLength={32} />
           <Space>
             <TimePicker value={segmentStart} onChange={setSegmentStart} format='HH:mm' placeholder='开始' minuteStep={30} />
