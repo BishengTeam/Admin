@@ -36,6 +36,7 @@ const QuizAuditLogs = lazy(() => import('@/pages/quiz/audit-logs'))
 const QuizAnalytics = lazy(() => import('@/pages/quiz/analytics'))
 const QuizReviews = lazy(() => import('@/pages/quiz/reviews'))
 const HomepageManagement = lazy(() => import('@/pages/operations/homepage'))
+const GzhArticles = lazy(() => import('@/pages/operations/gzhArticles'))
 const CourseList = lazy(() => import('@/pages/courses/List'))
 const CourseCategories = lazy(() => import('@/pages/courses/Categories'))
 const CourseDetail = lazy(() => import('@/pages/courses/Detail'))
@@ -402,6 +403,12 @@ export const adminRoutes: AppRoute[] = [
         path: 'operations/homepage',
         element: <HomepageManagement />,
         meta: { title: '首页配置', icon: 'PictureOutlined', permission: 'homepage:list' },
+      },
+      {
+        // 公众号资讯手动维护：群发文章官方接口拉不到，人工补录（方案 §5.4 退路）
+        path: 'operations/gzh-articles',
+        element: <GzhArticles />,
+        meta: { title: '公众号资讯', icon: 'ReadOutlined', permission: 'homepage:list' },
       },
       {
         path: 'operations/jobs',
