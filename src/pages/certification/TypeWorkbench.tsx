@@ -17,6 +17,7 @@ function hasPermission(permissions: string[], code?: string) {
 export default function TypeWorkbench({ type: typeProp }: { type?: string }) {
   const params = useParams<{ type: string }>()
   const [searchParams, setSearchParams] = useSearchParams()
+  const navigate = useNavigate()
   const type = typeProp ?? params.type
   const meta = CERT_TYPE_META[type as CertType]
   const profile = getVendorProfile(type as CertType)
@@ -77,11 +78,10 @@ export default function TypeWorkbench({ type: typeProp }: { type?: string }) {
 
     if (hasPermission(permissions, 'content:read')) items.push({ key: 'notice', label: '报名须知', children: <EnrollmentNoticeTab key={type} type={type as CertType} /> })
     return items
-  }, [type, profile, permissions])
+  }, [type, profile, permissions, navigate])
 
   if (!meta) return <Navigate to='/admin/certification' replace />
 
-  const navigate = useNavigate()
   return (
     <PageContainer title={`${meta.label}认证`}>
       <Tabs items={tabs} activeKey={tabs.some(tab => tab.key === searchParams.get('tab')) ? searchParams.get('tab')! : tabs[0]?.key} onChange={key => setSearchParams({ tab: key })} />
