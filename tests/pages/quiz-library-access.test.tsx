@@ -175,3 +175,17 @@ it('仍有已发布题目时阻断归档并引导停用', async () => {
   expect(screen.getByRole('button', { name: '前往停用题目' })).toBeInTheDocument()
   expect(quizService.transitionLibrary).not.toHaveBeenCalled()
 })
+
+it('未发布题库可移入回收站，撤销期文案为 30 个自然日', async () => {
+  vi.mocked(quizService.transitionLibrary).mockResolvedValue(library({
+    status: 'deleted', deleted_at: '2026-11-10T00:00:00Z', restore_until: '2026-12-10T00:00:00Z',
+  }))
+  render(<MemoryRouter><QuizLibraries /></MemoryRouter>)
+  fireEvent.click(await screen.findByRole('button', { name: '移入回收站' }))
+  expect((await screen.findAllByText('将未发布题库「网络基础」移入回收站？')).length).toBeGreaterThan(0)
+  expect(screen.getAllByText(
+    '未发布题库可整体移入回收站。删除后保留 30 个自然日撤销期，期间可在「回收站」恢复为草稿；到期未恢复将被自动清理（题库内容不为空时保留墓碑记录）。历史快照不会被覆盖。',
+  ).length).toBeGreaterThan(0)
+  fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: '移入回收站' }))
+  await waitFor(() => expect(quizService.transitionLibrary).toHaveBeenCalledWith(9, 'delete', 4))
+})

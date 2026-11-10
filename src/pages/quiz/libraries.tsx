@@ -159,14 +159,23 @@ function lifecycleCopy(library: QuizLibrary, action: QuizLibraryLifecycleAction)
     body: '归档是不可恢复的业务终态。必须先停用全部已发布题目；归档后只能删除以便清理。',
     okText: '确认归档',
   }
-  if (action === 'delete') return {
-    title: `将已归档题库「${library.name}」移入回收站？`,
-    body: '只有已归档题库可移入回收站。删除后保留 7 天撤销期，超过期限后不能通过管理后台恢复。历史快照不会被覆盖。',
-    okText: '移入回收站',
+  if (action === 'delete') {
+    if (library.status === 'draft') return {
+      title: `将未发布题库「${library.name}」移入回收站？`,
+      body: '未发布题库可整体移入回收站。删除后保留 30 个自然日撤销期，期间可在「回收站」恢复为草稿；到期未恢复将被自动清理（题库内容不为空时保留墓碑记录）。历史快照不会被覆盖。',
+      okText: '移入回收站',
+    }
+    return {
+      title: `将已归档题库「${library.name}」移入回收站？`,
+      body: '删除后保留 30 个自然日撤销期，超过期限后不能通过管理后台恢复。历史快照不会被覆盖。',
+      okText: '移入回收站',
+    }
   }
   return {
     title: `撤销删除题库「${library.name}」？`,
-    body: '题库会恢复为“已归档”，不会重新发布或开放给用户。',
+    body: library.archived_at == null
+      ? '题库会恢复为“草稿”（删自未发布状态），不会发布或开放给用户。'
+      : '题库会恢复为“已归档”，不会重新发布或开放给用户。',
     okText: '撤销删除',
   }
 }
@@ -353,7 +362,13 @@ export default function QuizLibraries() {
             setMigrationReport(await quizService.getMigrationReport())
             message.success(updated.open_migration_issue_count ? `检查完成，仍有 ${updated.open_migration_issue_count} 个问题` : '迁移问题已全部关闭')
           } else {
-            message.success(action === 'undo_delete' ? '已撤销删除，题库已移回归档' : action === 'delete' ? '题库已移入回收站' : action === 'archive' ? '题库已归档' : '题库状态已更新')
+            message.success(
+              action === 'undo_delete'
+                ? updated.status === 'draft' ? '已撤销删除，题库已恢复为草稿' : '已撤销删除，题库已移回归档'
+                : action === 'delete' ? '题库已移入回收站'
+                : action === 'archive' ? '题库已归档'
+                : '题库状态已更新',
+            )
           }
         } catch (error) {
           if (action === 'archive' && errorText(error).includes('停用全部已发布题目')) { archiveBlocked(library, errorText(error)); return }
@@ -578,6 +593,7 @@ export default function QuizLibraries() {
     if (canManage && library.access_mode === 'activation_code') buttons.push(<Button key="codes" aria-label="激活码" type="link" size="small" icon={<KeyOutlined />} onClick={() => void openCodes(library)}>激活码</Button>)
     if (isSuperAdmin && ALLOWED_TRANSITIONS[library.access_mode]?.length) buttons.push(<Button key="convert" type="link" size="small" icon={<SwapOutlined />} onClick={() => openConvertModal(library)}>转换模式</Button>)
     if (canManage && library.status === 'draft') buttons.push(<Button key="publish" type="link" size="small" onClick={() => transition(library, 'publish')}>发布</Button>)
+    if (canManage && library.status === 'draft') buttons.push(<Button key="trash" type="link" size="small" danger onClick={() => void transition(library, 'delete')}>移入回收站</Button>)
     if (canManage && library.status === 'published') buttons.push(<Button key="suspend" type="link" size="small" danger onClick={() => transition(library, 'suspend')}>停用</Button>)
     if (canManage && library.status === 'suspended') buttons.push(<Button key="restore" type="link" size="small" onClick={() => transition(library, 'restore')}>恢复</Button>)
     if (canManage && ['published', 'suspended'].includes(library.status)) buttons.push(<Button key="archive" type="link" size="small" danger onClick={() => transition(library, 'archive')}>归档</Button>)
