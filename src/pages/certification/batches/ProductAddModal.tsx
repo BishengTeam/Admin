@@ -1,10 +1,11 @@
 /**
  * 统一批次产品添加模态框 — 根据产品 type 动态渲染厂商专属配置表单
  */
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Form, Input, InputNumber, Modal, Select, Space, Typography } from 'antd'
 import type { CertProduct } from '@/types/certProduct'
 import type { H3CBatchConfig, NispBatchConfig } from './service'
+import { rensheService } from '@/services/renshe'
 
 const { Text } = Typography
 
@@ -29,11 +30,21 @@ export default function ProductAddModal({ open, onClose, onAdd, products }: Prod
   const [saving, setSaving] = useState(false)
   const [selectedProductId, setSelectedProductId] = useState<number | null>(null)
 
+  const [rensheProjects, setRensheProjects] = useState<Array<{ config_id: number; chinese_name: string }>>([])
+
   const selectedProduct = useMemo(
     () => products.find((p) => p.id === selectedProductId),
     [products, selectedProductId]
   )
   const productType = selectedProduct?.type || ''
+
+  useEffect(() => {
+    if (productType === 'renshe') {
+      rensheService.listProjects().then((items: any[]) => {
+        setRensheProjects(items.filter((i) => i.config_id).map((i) => ({ config_id: i.config_id as number, chinese_name: i.chinese_name as string })))
+      }).catch(() => {})
+    }
+  }, [productType])
 
   const availableProducts = products.filter(
     (p) => p.is_active && p.type !== 'generic'
@@ -121,7 +132,7 @@ export default function ProductAddModal({ open, onClose, onAdd, products }: Prod
 
         {productType === 'h3c' && <H3CConfigFields />}
         {productType === 'nisp' && <NispConfigFields />}
-        {productType === 'renshe' && <RensheConfigFields />}
+        {productType === 'renshe' && <RensheConfigFields rensheProjects={rensheProjects} />}
         {productType === 'sangfor' && (
           <Text type="secondary">深信服产品无需额外配置</Text>
         )}
@@ -189,12 +200,21 @@ function NispConfigFields() {
   )
 }
 
-function RensheConfigFields() {
+function RensheConfigFields({ rensheProjects }: { rensheProjects: Array<{ config_id: number; chinese_name: string }> }) {
   return (
     <>
       <Typography.Title level={5}>人社专属配置</Typography.Title>
-      <Form.Item name="renshe_config_id" label="项目配置 ID" rules={[{ required: true, message: '请输入人社项目配置 ID' }]}>
-        <InputNumber min={1} style={{ width: '100%' }} />
+      <Form.Item name="renshe_config_id" label="项目配置" rules={[{ required: true, message: '请选择人社项目' }]}>
+        <Select
+          showSearch
+          optionFilterProp="label"
+          placeholder="选择人社项目"
+          style={{ width: '100%' }}
+          options={rensheProjects.map((p) => ({
+            value: p.config_id,
+            label: `${p.chinese_name} (ID: ${p.config_id})`,
+          }))}
+        />
       </Form.Item>
       <Form.Item name="occupation_name" label="职业名称" rules={[{ required: true }]}>
         <Input maxLength={64} />

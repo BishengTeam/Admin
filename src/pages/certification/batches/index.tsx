@@ -1,9 +1,10 @@
 import ProductAddModal from './ProductAddModal'
+import type { BatchProduct } from './service'
 /**
  * 认证批次管理 v2：跨厂商批次列表 + 编辑器
  */
 import { useCallback, useEffect, useState } from 'react'
-import { Badge, Button, Card, Drawer, Empty, Form, Input, InputNumber, Modal, Popconfirm, Select, Space, Table, Tag, TimePicker, Typography, message } from 'antd'
+import { Badge, Button, Card, DatePicker, Drawer, Empty, Form, Input, InputNumber, Modal, Popconfirm, Select, Space, Table, Tag, TimePicker, Typography, message } from 'antd'
 import { PlusOutlined, ReloadOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import dayjs, { type Dayjs } from 'dayjs'
@@ -266,6 +267,7 @@ function BatchEditor({ batch, products, canWrite, onChanged }: {
   onChanged: () => void
 }) {
   const [addProductOpen, setAddProductOpen] = useState(false)
+  const [editingProduct, setEditingProduct] = useState<BatchProduct | null>(null)
   const [addSegmentOpen, setAddSegmentOpen] = useState(false)
   const [selectedProductId, setSelectedProductId] = useState<number | null>(null)
   const [productCapacity, setProductCapacity] = useState(0)
@@ -277,6 +279,15 @@ function BatchEditor({ batch, products, canWrite, onChanged }: {
     (p) => p.is_active && !batch.products.some((bp) => bp.product_id === p.id)
   )
 
+  const handleEditProduct = async (ppId: number, data: Record<string, unknown>) => {
+    try {
+      await batchService.updateProduct(batch.id, ppId, data as any)
+      onChanged()
+    } catch (e: any) {
+      message.error(e?.response?.data?.message || '更新失败')
+      throw e
+    }
+  }
   const handleAddProduct = async (payload: Record<string, unknown>) => {
     try {
       await batchService.addProduct(batch.id, payload as any)
@@ -310,15 +321,25 @@ function BatchEditor({ batch, products, canWrite, onChanged }: {
 
   return (
     <Space direction='vertical' style={{ width: '100%' }} size='large'>
-      {/* 基本信息 */}
+      {/* #4 发布前检查 */}
+      {batch.status === 'draft' && <PublishChecklist batch={batch} />}
+
+      {/* 基本信息 — draft 可编辑 */}
       <Card title='基本信息' size='small'>
-        <Space wrap>
-          <Tag color={STATUS_META[batch.status]?.color}>{STATUS_META[batch.status]?.label}</Tag>
-          <Text>报名：{batch.apply_start ? formatDate(batch.apply_start, 'MM-DD HH:mm') : '-'} ~ {batch.apply_end ? formatDate(batch.apply_end, 'MM-DD HH:mm') : '-'}</Text>
-          <Text>考试：{batch.exam_date ? formatDate(batch.exam_date, 'YYYY-MM-DD') : '-'}</Text>
-          {batch.exam_location && <Text>地点：{batch.exam_location}</Text>}
-          {batch.contact_name && <Text>联系人：{batch.contact_name}</Text>}
-        </Space>
+        {canWrite ? (
+          <BatchBasicInfoForm batch={batch} onSave={async (values) => {
+            await batchService.update(batch.id, values)
+            onChanged()
+          }} />
+        ) : (
+          <Space wrap>
+            <Tag color={STATUS_META[batch.status]?.color}>{STATUS_META[batch.status]?.label}</Tag>
+            <Text>报名：{batch.apply_start ? formatDate(batch.apply_start, 'MM-DD HH:mm') : '-'} ~ {batch.apply_end ? formatDate(batch.apply_end, 'MM-DD HH:mm') : '-'}</Text>
+            <Text>考试：{batch.exam_date ? formatDate(batch.exam_date, 'YYYY-MM-DD') : '-'}</Text>
+            {batch.exam_location && <Text>地点：{batch.exam_location}</Text>}
+            {batch.contact_name && <Text>联系人：{batch.contact_name}</Text>}
+          </Space>
+        )}
       </Card>
 
       {/* 考试时段 */}
@@ -400,6 +421,13 @@ function BatchEditor({ batch, products, canWrite, onChanged }: {
       {/* 添加产品弹窗 */}
       <ProductAddModal open={addProductOpen} onClose={() => setAddProductOpen(false)} onAdd={handleAddProduct} products={products} batchId={batch.id} />
 
+      <ProductEditModal
+        open={!!editingProduct}
+        onClose={() => setEditingProduct(null)}
+        onSave={handleEditProduct}
+        product={editingProduct}
+      />
+
       {/* 添加时段弹窗 */}
       <Modal title='添加考试时段' open={addSegmentOpen} onOk={handleAddSegment} onCancel={() => setAddSegmentOpen(false)}>
         <Space direction='vertical' style={{ width: '100%' }} size='middle'>
@@ -412,5 +440,172 @@ function BatchEditor({ batch, products, canWrite, onChanged }: {
         </Space>
       </Modal>
     </Space>
+  )
+}
+
+
+// ============================================================
+// #1 基本信息编辑表单（draft 可编辑）
+// ============================================================
+
+const { RangePicker } = DatePicker
+
+function BatchBasicInfoForm({ batch, onSave }: { batch: Batch; onSave: (values: Record<string, unknown>) => Promise<void> }) {
+  const [form] = Form.useForm()
+  const [saving, setSaving] = useState(false)
+
+  const handleSave = async () => {
+    const values = await form.validateFields()
+    setSaving(true)
+    try {
+      const payload: Record<string, unknown> = {}
+      if (values.name) payload.name = values.name
+      if (values.apply_range) {
+        payload.apply_start = values.apply_range[0]?.toISOString()
+        payload.apply_end = values.apply_range[1]?.toISOString()
+      }
+      if (values.exam_date) payload.exam_date = values.exam_date.toISOString()
+      if (values.exam_location !== undefined) payload.exam_location = values.exam_location
+      if (values.description !== undefined) payload.description = values.description
+      if (values.contact_name !== undefined) payload.contact_name = values.contact_name
+      if (values.contact_phone !== undefined) payload.contact_phone = values.contact_phone
+      await onSave(payload)
+      message.success('基本信息已保存')
+    } catch (e: any) {
+      message.error(e?.response?.data?.message || '保存失败')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Form form={form} layout='vertical' initialValues={{
+      name: batch.name,
+      apply_range: batch.apply_start && batch.apply_end ? [dayjs(batch.apply_start), dayjs(batch.apply_end)] : undefined,
+      exam_date: batch.exam_date ? dayjs(batch.exam_date) : undefined,
+      exam_location: batch.exam_location,
+      description: batch.description,
+      contact_name: batch.contact_name,
+      contact_phone: batch.contact_phone,
+    }}>
+      <Form.Item name='name' label='批次名称' rules={[{ required: true, message: '请输入批次名称' }]}>
+        <Input maxLength={128} />
+      </Form.Item>
+      <Form.Item name='apply_range' label='报名时间窗口' rules={[{ required: true, message: '请设置报名时间' }]}>
+        <RangePicker showTime style={{ width: '100%' }} />
+      </Form.Item>
+      <Form.Item name='exam_date' label='考试日期'>
+        <DatePicker showTime style={{ width: '100%' }} />
+      </Form.Item>
+      <Form.Item name='exam_location' label='考试地点'>
+        <Input maxLength={256} />
+      </Form.Item>
+      <Form.Item name='contact_name' label='联系人'>
+        <Input maxLength={64} />
+      </Form.Item>
+      <Form.Item name='contact_phone' label='联系电话'>
+        <Input maxLength={20} />
+      </Form.Item>
+      <Form.Item name='description' label='报名说明'>
+        <Input.TextArea rows={2} maxLength={5000} />
+      </Form.Item>
+      <Button type='primary' loading={saving} onClick={handleSave}>保存基本信息</Button>
+    </Form>
+  )
+}
+
+
+// ============================================================
+// #2 产品配置编辑弹窗
+// ============================================================
+
+function ProductEditModal({ open, onClose, onSave, product }: {
+  open: boolean
+  onClose: () => void
+  onSave: (ppId: number, data: Record<string, unknown>) => Promise<void>
+  product: BatchProduct | null
+}) {
+  const [form] = Form.useForm()
+  const [saving, setSaving] = useState(false)
+  if (!product) return null
+
+  const handleSave = async () => {
+    const values = await form.validateFields()
+    setSaving(true)
+    try {
+      const payload: Record<string, unknown> = { capacity: values.capacity }
+      if (product.product_type === 'renshe') {
+        if (values.occupation_name) payload.occupation_name = values.occupation_name
+        if (values.skill_level) payload.skill_level = values.skill_level
+      } else if (product.product_type === 'h3c' && values.h3c_config) {
+        payload.h3c_config = values.h3c_config
+      } else if (product.product_type === 'nisp' && values.nisp_config) {
+        payload.nisp_config = values.nisp_config
+      }
+      await onSave(product.id, payload)
+      message.success('产品配置已更新')
+      onClose()
+    } catch (e: any) {
+      message.error(e?.response?.data?.message || '更新失败')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Modal title={`编辑产品 — ${product.product_name}`} open={open} onOk={handleSave} onCancel={onClose} confirmLoading={saving} width={480}>
+      <Form form={form} layout='vertical' initialValues={{
+        capacity: product.capacity,
+        occupation_name: product.occupation_name,
+        skill_level: product.skill_level,
+      }}>
+        <Form.Item name='capacity' label='名额（0=不限）' rules={[{ required: true }]}>
+          <InputNumber min={0} style={{ width: '100%' }} />
+        </Form.Item>
+        {product.product_type === 'renshe' && (
+          <>
+            <Form.Item name='occupation_name' label='职业名称'>
+              <Input maxLength={64} />
+            </Form.Item>
+            <Form.Item name='skill_level' label='技能等级'>
+              <Input maxLength={32} />
+            </Form.Item>
+          </>
+        )}
+        {product.product_type === 'h3c' && (
+          <Typography.Text type='secondary'>H3C 三档价编辑：请使用厂商专用入口调整</Typography.Text>
+        )}
+        {product.product_type === 'nisp' && (
+          <Typography.Text type='secondary'>NISP 分级价编辑：请使用厂商专用入口调整</Typography.Text>
+        )}
+      </Form>
+    </Modal>
+  )
+}
+
+
+// ============================================================
+// #4 发布前检查清单
+// ============================================================
+
+function PublishChecklist({ batch }: { batch: Batch }) {
+  const items: { label: string; ok: boolean }[] = [
+    { label: `产品（${batch.products.length} 个）`, ok: batch.products.length > 0 },
+    { label: `考试时段（${batch.time_segments.length} 个）`, ok: batch.time_segments.length > 0 },
+    { label: '报名时间窗口', ok: !!(batch.apply_start && batch.apply_end) },
+    { label: '考试日期', ok: !!batch.exam_date },
+    { label: 'H3C/NISP 价格', ok: !batch.products.some((p) => (p.product_type === 'h3c' || p.product_type === 'nisp') && !p.remaining && p.capacity > 0) },
+  ]
+  const allOk = items.every((i) => i.ok)
+  return (
+    <Card size='small' style={{ marginBottom: 12, borderColor: allOk ? '#52c41a' : '#faad14' }}>
+      <Space direction='vertical' size={4}>
+        {items.map((item) => (
+          <Text key={item.label} type={item.ok ? 'success' : 'warning'}>
+            {item.ok ? '✅' : '❌'} {item.label}
+          </Text>
+        ))}
+      </Space>
+    </Card>
   )
 }

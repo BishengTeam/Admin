@@ -33,20 +33,6 @@ export default function TypeWorkbench({ type: typeProp }: { type?: string }) {
       },
     ]
 
-    const plansTab = {
-      key: 'plans',
-      label: '批次管理',
-      children: (
-        <div style={{ padding: '40px 0', textAlign: 'center' }}>
-          <Text type="secondary">批次管理已统一迁移到</Text>
-          <Button type="link" onClick={() => navigate('/admin/certification/batches')}>全局批次管理</Button>
-        </div>
-      ),
-    }
-    if (hasPermission(permissions, profile?.batchPermission)) {
-      if (profile?.batchFirst) items.push(plansTab)
-      else items.splice(1, 0, plansTab)
-    }
 
     if (profile) {
       for (const tab of authorizedTabs) {
