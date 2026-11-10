@@ -82,7 +82,7 @@ export default function BatchManagement() {
 
   useEffect(() => {
     // catalog 接口不含 is_active/chinese_name，改用完整产品列表
-    certProductService.list({ page: 1, page_size: 500 })
+    certProductService.list({ page: 1, page_size: 100 })
       .then((page) => setProducts(page.items))
       .catch(() => {})
   }, [])
