@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import {
-  Table, Button, Input, Switch, Space, Modal, Form, DatePicker, InputNumber,
+  Table, Button, Input, Select, Switch, Space, Modal, Form, DatePicker, InputNumber,
   Row, Col, Divider, Tag, Typography, message,
 } from 'antd'
 import { MinusCircleOutlined, PlusOutlined, SearchOutlined, TrophyOutlined } from '@ant-design/icons'
@@ -13,13 +13,23 @@ import { PdfAttachmentUpload } from '@/components/PdfAttachmentUpload'
 import { usePagination } from '@/hooks/usePagination'
 import { usePermission } from '@/hooks/usePermission'
 import { competitionAdminService } from '@/services/competition'
+import { quizService } from '@/services/quiz'
 import { formatDate } from '@/utils/format'
 import { requiredRule } from '@/utils/validator'
 import type { Competition } from '@/types/competition'
+import type { QuizLibrary } from '@/types/quiz'
 import FormFieldBuilder, { type FormField } from './FormFieldBuilder'
 
 const { RangePicker } = DatePicker
 const { Text } = Typography
+
+const LIBRARY_STATUS_LABELS: Record<QuizLibrary['status'], string> = {
+  draft: '草稿',
+  published: '已发布',
+  suspended: '已停用',
+  archived: '已归档',
+  deleted: '已删除',
+}
 
 type FormValues = {
   name?: string
@@ -34,6 +44,7 @@ type FormValues = {
   show_signup?: boolean
   tracks?: { id?: number | null; name: string; max_participants: number; sort_order: number }[]
   custom_fields?: FormField[]
+  quiz_library_id?: number | null
 }
 
 export default function CompetitionTab() {
@@ -43,21 +54,44 @@ export default function CompetitionTab() {
   const [modalOpen, setModalOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<Competition | null>(null)
   const [form] = Form.useForm<FormValues>()
+  const [libraryOptions, setLibraryOptions] = useState<{ value: number; label: string }[]>([])
+  const [libraryLoading, setLibraryLoading] = useState(false)
 
   const { data, loading, pagination, refresh } = usePagination(
     (page) => competitionAdminService.list({ keyword: searchText || undefined, ...page }),
     [searchText],
   )
 
+  const loadLibraryOptions = async () => {
+    setLibraryLoading(true)
+    try {
+      const libs = await quizService.listLibraries()
+      setLibraryOptions(
+        libs
+          .filter((lib) => lib.status !== 'archived' && lib.status !== 'deleted')
+          .map((lib) => ({
+            value: lib.id,
+            label: lib.status === 'published' ? lib.name : `${lib.name}（${LIBRARY_STATUS_LABELS[lib.status]}）`,
+          })),
+      )
+    } catch {
+      // 题库选项加载失败不阻塞赛事编辑，保留已加载选项
+    } finally {
+      setLibraryLoading(false)
+    }
+  }
+
   const handleAdd = () => {
     setEditingItem(null)
     form.resetFields()
     form.setFieldsValue({ is_active: true, show_schedule: true, show_signup: true, tracks: [{ name: '', max_participants: 0, sort_order: 0 }] })
+    void loadLibraryOptions()
     setModalOpen(true)
   }
 
   const handleEdit = (item: Competition) => {
     setEditingItem(item)
+    void loadLibraryOptions()
     form.setFieldsValue({
       name: item.name,
       description: item.description ?? '',
@@ -72,6 +106,7 @@ export default function CompetitionTab() {
       is_active: item.is_active,
       show_schedule: item.show_schedule ?? true,
       show_signup: item.show_signup ?? true,
+      quiz_library_id: item.quiz_library_id ?? undefined,
       tracks: item.tracks.map((t) => ({
         id: t.id,
         name: t.name,
@@ -120,6 +155,7 @@ export default function CompetitionTab() {
         sort_order: t.sort_order ?? i,
       })),
       custom_fields: values.custom_fields ?? [],
+      quiz_library_id: values.quiz_library_id ?? null,
     }
     if (editingItem) {
       await competitionAdminService.update(editingItem.id, payload)
@@ -157,6 +193,12 @@ export default function CompetitionTab() {
       ),
     },
     { title: '已报名', dataIndex: 'total_enrolled', width: 80, align: 'center' },
+    {
+      title: '练习题库', width: 170, ellipsis: true,
+      render: (_, r) => r.quiz_library_name
+        ? <Tag color='blue'>{r.quiz_library_name}</Tag>
+        : <Text type='secondary'>未绑定</Text>,
+    },
     {
       title: '比赛时间', width: 220,
       render: (_, r) => {
@@ -358,6 +400,26 @@ export default function CompetitionTab() {
 
           <Form.Item name='custom_fields' label={null}>
             <FormFieldBuilder />
+          </Form.Item>
+
+          <Divider orientation='left' orientationMargin={0} style={{ margin: '8px 0 16px' }}>
+            <Text type='secondary' style={{ fontSize: 13 }}>练习题库</Text>
+          </Divider>
+
+          <Form.Item
+            name='quiz_library_id'
+            label='绑定题库'
+            tooltip='绑定后，小程序赛事详情页底部展示「前往题库练习」入口'
+            extra='仅已发布且开启用户入口的题库会在小程序显示；草稿/已停用题库可先绑定，题库发布后自动生效'
+          >
+            <Select
+              showSearch
+              allowClear
+              optionFilterProp='label'
+              loading={libraryLoading}
+              placeholder='选择练习题库（可不绑）'
+              options={libraryOptions}
+            />
           </Form.Item>
 
           <Form.Item name='is_active' label='发布状态' valuePropName='checked' initialValue={true} style={{ marginTop: 16 }}>

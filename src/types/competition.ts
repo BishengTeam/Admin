@@ -31,6 +31,9 @@ export interface Competition {
   created_at: string
   custom_fields?: unknown[] | null
   attachments?: CompetitionAttachment[] | null
+  /** 绑定的练习题库（小程序详情页底部练习入口） */
+  quiz_library_id?: number | null
+  quiz_library_name?: string | null
 }
 
 
@@ -56,6 +59,7 @@ export interface CompetitionPayload {
   tracks?: CompetitionTrackInput[]
   custom_fields?: unknown[] | null
   attachments?: CompetitionAttachment[] | null
+  quiz_library_id?: number | null
 }
 
 export interface CompetitionRegistration {
