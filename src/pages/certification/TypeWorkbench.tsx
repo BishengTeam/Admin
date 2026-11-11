@@ -1,11 +1,12 @@
 import { Suspense, useMemo } from 'react'
-import { Button, Spin, Tabs, Typography } from 'antd'
-import {Navigate, useParams, useSearchParams, useNavigate} from 'react-router-dom'
+import { Spin, Tabs, Typography } from 'antd'
+import { Navigate, useParams, useSearchParams } from 'react-router-dom'
 import { PageContainer } from '@/components/PageContainer'
 import { useAuth } from '@/hooks/useAuth'
 import { CERT_TYPE_META, type CertType } from './components/vendors/type-registry'
 import { getVendorProfile } from './components/vendors/vendor-registry'
 import ProductTable from './components/shared/ProductTable'
+import PlanTable from './components/shared/PlanTable'
 import EnrollmentNoticeTab from './components/shared/EnrollmentNoticeTab'
 
 const { Text } = Typography
@@ -17,7 +18,6 @@ function hasPermission(permissions: string[], code?: string) {
 export default function TypeWorkbench({ type: typeProp }: { type?: string }) {
   const params = useParams<{ type: string }>()
   const [searchParams, setSearchParams] = useSearchParams()
-  const navigate = useNavigate()
   const type = typeProp ?? params.type
   const meta = CERT_TYPE_META[type as CertType]
   const profile = getVendorProfile(type as CertType)
@@ -33,6 +33,20 @@ export default function TypeWorkbench({ type: typeProp }: { type?: string }) {
       },
     ]
 
+    const plansTab = {
+      key: 'plans',
+      label: '批次管理',
+      children: (
+        <PlanTable
+          type={type as CertType}
+          overrides={profile?.batchOverrides ? <Suspense fallback={<Spin />}><profile.batchOverrides type={type as CertType} /></Suspense> : undefined}
+        />
+      ),
+    }
+    if (hasPermission(permissions, profile?.batchPermission)) {
+      if (profile?.batchFirst) items.push(plansTab)
+      else items.splice(1, 0, plansTab)
+    }
 
     if (profile) {
       for (const tab of authorizedTabs) {
@@ -64,7 +78,7 @@ export default function TypeWorkbench({ type: typeProp }: { type?: string }) {
 
     if (hasPermission(permissions, 'content:read')) items.push({ key: 'notice', label: '报名须知', children: <EnrollmentNoticeTab key={type} type={type as CertType} /> })
     return items
-  }, [type, profile, permissions, navigate])
+  }, [type, profile, permissions])
 
   if (!meta) return <Navigate to='/admin/certification' replace />
 

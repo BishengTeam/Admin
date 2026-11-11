@@ -16,6 +16,7 @@ export interface VendorProfile {
   productPermission?: string
   productTabLabel?: string
   productComponent?: LazyExoticComponent<ComponentType<{ type: CertType }>>
+  batchOverrides?: LazyExoticComponent<ComponentType<any>>
   batchFormExtra?: LazyExoticComponent<ComponentType<any>>
   tabs: VendorTab[]
 }
@@ -25,6 +26,7 @@ const vendorRegistry: VendorProfile[] = [
     type: 'h3c',
     batchFirst: true,
     productTabLabel: '产品设置',
+    batchOverrides: lazy(() => import('./h3c/BatchOverrides')),
     batchFormExtra: lazy(() => import('./h3c/BatchFormExtra')),
     tabs: [
       {
@@ -39,6 +41,7 @@ const vendorRegistry: VendorProfile[] = [
     type: 'nisp',
     batchFirst: true,
     productTabLabel: '产品设置',
+    batchOverrides: lazy(() => import('./nisp/BatchOverrides')),
     tabs: [
       {
         key: 'review',
@@ -59,6 +62,7 @@ const vendorRegistry: VendorProfile[] = [
     batchFirst: true,
     productTabLabel: '产品设置',
     productComponent: lazy(() => import('./renshe/ProjectTable')),
+    batchOverrides: lazy(() => import('./renshe/BatchOverrides')),
     tabs: [
       {
         key: 'refund',
@@ -74,6 +78,7 @@ const vendorRegistry: VendorProfile[] = [
     batchPermission: 'content:read',
     productPermission: 'content:read',
     productTabLabel: '产品设置',
+    batchOverrides: lazy(() => import('./sangfor/BatchOverrides')),
     tabs: [{
       key: 'refund',
       label: '退款管理',

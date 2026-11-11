@@ -112,7 +112,6 @@ describe('fixed administrator role navigation', () => {
     const certMenu = superMenu.find((item) => item.key === 'certification')
     expect(certMenu).toBeDefined()
     expect(certMenu!.children!.map((child) => child.key)).toEqual([
-      'certification/batches',
       'certification/overview',
       'certification/h3c',
       'certification/renshe',

@@ -49,7 +49,6 @@ const H3cBatchExportWorkbench = lazy(() => import('@/pages/certification/compone
 const NispBatchWorkbench = lazy(() => import('@/pages/certification/components/vendors/nisp/BatchWorkbench'))
 const RensheBatchWorkbench = lazy(() => import('@/pages/certification/components/vendors/renshe/BatchWorkbench'))
 const SangforBatchWorkbench = lazy(() => import('@/pages/certification/components/vendors/sangfor/BatchWorkbench'))
-const BatchManagement = lazy(() => import('@/pages/certification/batches'))
 const JobManagement = lazy(() => import('@/pages/operations/jobs'))
 const TrainingManagement = lazy(() => import('@/pages/operations/training'))
 const ActivityManagement = lazy(() => import('@/pages/operations/activities'))
@@ -139,11 +138,6 @@ export const adminRoutes: AppRoute[] = [
       ],
     },
     children: [
-      {
-        path: 'batches',
-        element: <BatchManagement />,
-        meta: { title: '批次管理', icon: 'CalendarOutlined', permissions: ['certification:list'] },
-      },
       {
         index: true,
         element: <Navigate to="overview" replace />,
