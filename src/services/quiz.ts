@@ -55,6 +55,7 @@ import {
   AdminQuizReviewClaimResponseSchema,
   AdminQuizReviewCompleteResponseSchema,
   AdminQuizReviewSubmitRequestSchema,
+  KnowledgePointDeleteSchema,
   UserStatsPageSchema,
   UserPracticeStatsSchema,
   VersionRequestSchema,
@@ -261,23 +262,23 @@ export const quizService = {
     return parsed(QuizCourseBindingSchema, await http.post(`/admin/quiz/course-bindings/${id}/status`, { status, lock_version }, { signal }))
   },
 
-  async generateActivationCodes(libraryId: number, quantity: number, note: string | null, validityDays: QuizActivationValidityDays, signal?: AbortSignal): Promise<QuizActivationCodeGenerateResponse> {
+  async generateActivationCodes(libraryId: number, quantity: number, note: string | null, validityDays: QuizActivationValidityDays, customCode?: string | null, signal?: AbortSignal): Promise<QuizActivationCodeGenerateResponse> {
     return parsed(
       QuizActivationCodeGenerateResponseSchema,
-      await http.post(`/admin/quiz/libraries/${libraryId}/activation-codes`, omitUndefined({ quantity, note, validity_days: validityDays }), queryConfig({ code_schema: 2 }, signal)),
+      await http.post(`/admin/quiz/libraries/${libraryId}/activation-codes`, omitUndefined({ quantity: customCode ? 1 : quantity, note, validity_days: validityDays, custom_code: customCode || null }), queryConfig({ code_schema: 3 }, signal)),
     )
   },
 
   async listActivationCodes(libraryId: number, params: { status?: QuizActivationCodeStatus; page?: number; page_size?: number } = {}, signal?: AbortSignal): Promise<PageData<QuizActivationCode>> {
     return parsed(
       pageSchema(QuizActivationCodeSchema),
-      await http.get(`/admin/quiz/libraries/${libraryId}/activation-codes`, queryConfig({ ...params, code_schema: 2 }, signal)),
+      await http.get(`/admin/quiz/libraries/${libraryId}/activation-codes`, queryConfig({ ...params, code_schema: 3 }, signal)),
     )
   },
 
   async exportActivationCodesCsv(libraryId: number, status?: QuizActivationCodeStatus, signal?: AbortSignal): Promise<Blob> {
     return http.get<Blob>(`/admin/quiz/libraries/${libraryId}/activation-codes/export`, {
-      params: { status, code_schema: 2 },
+      params: { status, code_schema: 3 },
       responseType: 'blob',
       timeout: 60000,
       signal,
@@ -327,8 +328,9 @@ export const quizService = {
     return parsed(QuizKnowledgePointSchema, await http.post(`/admin/quiz/knowledge-points/${id}/status`, payload, { signal }))
   },
 
-  async deleteKnowledgePoint(id: number, lock_version: number, signal?: AbortSignal): Promise<null> {
-    await http.delete(`/admin/quiz/knowledge-points/${id}`, { data: requestParsed(VersionRequestSchema, { lock_version }), signal })
+  async deleteKnowledgePoint(id: number, lock_version: number, moveQuestionsToModule?: boolean, signal?: AbortSignal): Promise<null> {
+    // quiz023：仍有题目时须 move_questions_to_module=true，题目下沉为模块直挂。
+    await http.delete(`/admin/quiz/knowledge-points/${id}`, { data: requestParsed(KnowledgePointDeleteSchema, { lock_version, ...(moveQuestionsToModule ? { move_questions_to_module: true } : {}) }), signal })
     return null
   },
 

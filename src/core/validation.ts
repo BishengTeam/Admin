@@ -192,6 +192,11 @@ export const QuestionUpdateSchema = z.object({
 }).strict().refine((value) => Object.keys(value).some((key) => key !== 'lock_version'), { message: '至少需要一个题目变更字段' }).superRefine(questionShapeRules)
 
 export const VersionRequestSchema = z.object({ lock_version: positiveInt }).strict()
+// quiz023：删除知识点时题目下沉开关（仅知识点删除接口使用）。
+export const KnowledgePointDeleteSchema = z.object({
+  lock_version: positiveInt,
+  move_questions_to_module: z.boolean().optional(),
+}).strict()
 
 export const BatchRequestSchema = z.object({
   items: z.array(z.object({ question_id: positiveInt, lock_version: positiveInt }).strict()).min(1).max(100),
@@ -244,7 +249,9 @@ export const QuizV2QuestionSchema = z.object({
   id: positiveInt,
   category_id: positiveInt.nullable(),
   library_id: positiveInt,
-  knowledge_point_id: positiveInt,
+  // quiz023：模块直挂题 knowledge_point_id 为 null。
+  knowledge_point_id: positiveInt.nullable(),
+  module_id: positiveInt.nullable(),
   question_type: questionTypeSchema,
   status: z.enum(['draft', 'published', 'disabled', 'deleted']),
   question_text: z.string(),
@@ -375,18 +382,19 @@ export const QuizLibraryUpdateSchema = z.object({
 export const QuizActivationCodeSchema = z.object({
   id: positiveInt,
   code: z.string().min(1),
-  status: z.enum(['issued', 'redeemed', 'revoked', 'expired']),
+  status: z.enum(['issued', 'redeemed', 'revoked']),
   note: nullableString,
   redeemed_by: positiveInt.nullable(),
   redeemed_by_phone: nullableString,
   redeemed_at: nullableString,
-  expires_at: dateString.nullable(),
+  // quiz022：激活后有效天数（null = 激活后永久）。
+  validity_days: z.number().int().nullable(),
   created_at: dateString,
 }).strict()
 
 export const QuizActivationCodeGenerateResponseSchema = z.object({
   codes: z.array(z.string().min(1)).min(1),
-  expires_at: dateString,
+  validity_days: z.number().int(),
 }).strict()
 
 export const QuizCourseBindingSchema = z.object({
@@ -438,6 +446,8 @@ export const QuizModuleSchema = z.object({
   sort_order: z.number().int(),
   lock_version: positiveInt,
   question_count: z.number().int().min(0),
+  // quiz023：模块直挂题数量。
+  direct_question_count: z.number().int().min(0),
   disabled_at: nullableString.optional().default(null),
   deleted_at: nullableString.optional().default(null),
   restore_until: nullableString.optional().default(null),
@@ -498,7 +508,9 @@ export const QuizKnowledgePointUpdateSchema = z.object({
 export const QuizContentStatusUpdateSchema = z.object({ status: z.enum(['active', 'disabled']), lock_version: positiveInt }).strict()
 
 export const QuizV2QuestionCreateSchema = z.object({
-  knowledge_point_id: positiveInt,
+  // quiz023：知识点或模块二选一（模块直挂）。
+  knowledge_point_id: positiveInt.optional(),
+  module_id: positiveInt.optional(),
   question_type: questionTypeSchema,
   question_text: z.string().min(1).max(1024),
   options: optionSchema.nullable().optional(),
@@ -506,11 +518,14 @@ export const QuizV2QuestionCreateSchema = z.object({
   explanation: z.string().max(1024).nullable().optional(),
   image_urls: imageUrlSchema.optional(),
   option_image_urls: optionImageUrlsSchema.optional(),
-}).strict().superRefine(questionShapeRules)
+}).strict().refine((value) => (value.knowledge_point_id != null) !== (value.module_id != null), {
+  message: '知识点与模块必须二选一',
+}).superRefine(questionShapeRules)
 
 export const QuizV2QuestionUpdateSchema = z.object({
   lock_version: positiveInt,
   knowledge_point_id: positiveInt.optional(),
+  module_id: positiveInt.optional(),
   question_type: questionTypeSchema.optional(),
   question_text: z.string().min(1).max(1024).optional(),
   options: optionSchema.nullable().optional(),
@@ -518,7 +533,9 @@ export const QuizV2QuestionUpdateSchema = z.object({
   explanation: z.string().max(1024).nullable().optional(),
   image_urls: imageUrlSchema.optional(),
   option_image_urls: optionImageUrlsSchema.optional(),
-}).strict().refine((value) => Object.keys(value).some((key) => key !== 'lock_version'), { message: '至少需要一个题目变更字段' }).superRefine(questionShapeRules)
+}).strict().refine((value) => !(value.knowledge_point_id != null && value.module_id != null), {
+  message: '知识点与模块不能同时提供',
+}).refine((value) => Object.keys(value).some((key) => key !== 'lock_version'), { message: '至少需要一个题目变更字段' }).superRefine(questionShapeRules)
 
 export const QuestionStatsSchema = z.object({
   question_id: z.number(),
@@ -567,8 +584,9 @@ export const QuestionStatsListItemSchema = QuestionStatsSchema.omit({ question_i
   library_name: z.string(),
   module_id: positiveInt,
   module_name: z.string(),
-  knowledge_point_id: positiveInt,
-  knowledge_point_name: z.string(),
+  // quiz023：模块直挂题无知识点。
+  knowledge_point_id: positiveInt.nullable(),
+  knowledge_point_name: z.string().nullable(),
   question_type: questionTypeSchema,
   status: z.enum(['draft', 'published', 'disabled', 'deleted']),
 }).strict()

@@ -53,26 +53,26 @@ async function selectMode(dialog: HTMLElement, label: string, editing = true) {
 }
 
 describe('题库访问模式保存', () => {
-  it('展示题量差额并使用默认 30 天生成激活码', async () => {
-    const expires_at = '2026-11-05T02:00:00Z'
-    const expired = { id: 5, code: 'ABCD-EFGH-JKMN-PQRS', status: 'expired' as const, expires_at,
-      note: null, redeemed_by: null, redeemed_by_phone: null, redeemed_at: null, created_at: expires_at }
+  it('展示题量差额并使用默认 30 天生成激活码（效期自兑换起算）', async () => {
+    const issued = { id: 5, code: 'ABCD-EFGH-JKMN-PQRS', status: 'issued' as const, validity_days: 30,
+      note: null, redeemed_by: null, redeemed_by_phone: null, redeemed_at: null, created_at: '2026-11-05T02:00:00Z' }
     vi.mocked(quizService.listLibraries).mockResolvedValue([library({
       access_mode: 'activation_code', question_count: 10,
       practice_counts: { practicable: 8, unpublished: 2, disabled: 0, unavailable_ownership: 0, invalid_revision: 0 },
     })])
-    vi.mocked(quizService.listActivationCodes).mockResolvedValue({ items: [expired], page: 1, page_size: 10, total: 1 })
-    vi.mocked(quizService.generateActivationCodes).mockResolvedValue({ codes: ['BCDE-FGHJ-KMNP-QRST'], expires_at })
+    vi.mocked(quizService.listActivationCodes).mockResolvedValue({ items: [issued], page: 1, page_size: 10, total: 1 })
+    vi.mocked(quizService.generateActivationCodes).mockResolvedValue({ codes: ['BCDE-FGHJ-KMNP-QRST'], validity_days: 30 })
     render(<ConfigProvider theme={{ token: { motion: false } }}><MemoryRouter><QuizLibraries /></MemoryRouter></ConfigProvider>)
     expect(await screen.findByText('总计 10 题 · 可练习 8 题')).toBeVisible()
     fireEvent.click(screen.getByRole('button', { name: /激活码$/ }))
-    await waitFor(() => expect(screen.getByText('已过期', { selector: '.ant-tag' })).toBeVisible())
-    expect(screen.queryByRole('button', { name: /作废/ })).toBeNull()
+    await waitFor(() => expect(screen.getByText('可兑换', { selector: '.ant-tag' })).toBeVisible())
+    // 可兑换的码提供作废入口（兑换截止已废除，不再有过期态）。
+    expect(screen.getByRole('button', { name: /作废/ })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /生成激活码/ }))
-    await waitFor(() => expect(screen.getByText(/预计截止.*以生成结果为准/)).toBeVisible())
+    await waitFor(() => expect(screen.getByText(/学生激活后可用 30 天/)).toBeVisible())
     fireEvent.click(screen.getByRole('button', { name: '确认生成' }))
-    await waitFor(() => expect(quizService.generateActivationCodes).toHaveBeenCalledWith(9, 20, null, 30))
-    await waitFor(() => expect(screen.getByText(/兑换截止时间/)).toBeVisible())
+    await waitFor(() => expect(quizService.generateActivationCodes).toHaveBeenCalledWith(9, 20, null, 30, null))
+    await waitFor(() => expect(screen.getByText(/激活后有效 30 天/)).toBeVisible())
   }, 15_000)
 
   it('发布检查使用后端结果，空库不会发出发布请求', async () => {

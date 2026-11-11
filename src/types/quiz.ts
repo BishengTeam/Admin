@@ -25,7 +25,7 @@ export type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue
 
 export type QuizLibraryStatus = 'draft' | 'published' | 'suspended' | 'archived' | 'deleted'
 export type QuizLibraryAccessMode = 'access_mode_pending' | 'free' | 'course_entitlement' | 'paid' | 'activation_code'
-export type QuizActivationCodeStatus = 'issued' | 'redeemed' | 'revoked' | 'expired'
+export type QuizActivationCodeStatus = 'issued' | 'redeemed' | 'revoked'
 export type QuizActivationValidityDays = 1 | 3 | 7 | 30 | 60 | 90 | 365
 export type QuizVendorTag = 'h3c' | 'nisp' | 'sangfor' | 'none'
 export type QuizContentStatus = 'active' | 'disabled' | 'deleted'
@@ -160,13 +160,14 @@ export interface QuizActivationCode {
   redeemed_by: number | null
   redeemed_by_phone: string | null
   redeemed_at: string | null
-  expires_at: string | null
+  /** quiz022：激活后有效天数（null = 激活后永久）。 */
+  validity_days: number | null
   created_at: string
 }
 
 export interface QuizActivationCodeGenerateResponse {
   codes: string[]
-  expires_at: string
+  validity_days: number
 }
 
 export interface QuizKnowledgePoint {
@@ -201,6 +202,8 @@ export interface QuizModule {
   sort_order: number
   lock_version: number
   question_count: number
+  /** quiz023：直挂模块（无知识点）的题目数。 */
+  direct_question_count: number
   disabled_at: string | null
   deleted_at: string | null
   restore_until: string | null
@@ -248,7 +251,9 @@ export interface QuizV2Question {
   id: number
   category_id: number | null
   library_id: number
-  knowledge_point_id: number
+  /** quiz023：知识点可选（模块直挂题为 null）。 */
+  knowledge_point_id: number | null
+  module_id: number | null
   question_type: QuestionType
   status: QuestionStatus | 'deleted'
   question_text: string
@@ -296,7 +301,9 @@ export interface QuizQuestionRevision {
 }
 
 export interface QuizV2QuestionCreate {
-  knowledge_point_id: number
+  /** quiz023：知识点或模块二选一（模块直挂）。 */
+  knowledge_point_id?: number
+  module_id?: number
   question_type: QuestionType
   question_text: string
   options?: Record<string, string> | null
@@ -311,6 +318,7 @@ export interface QuizV2QuestionCreate {
 export interface QuizV2QuestionUpdate {
   lock_version: number
   knowledge_point_id?: number
+  module_id?: number
   question_type?: QuestionType
   question_text?: string
   options?: Record<string, string> | null
@@ -512,8 +520,9 @@ export interface QuestionStatsListItem extends QuestionStats {
   library_name: string
   module_id: number
   module_name: string
-  knowledge_point_id: number
-  knowledge_point_name: string
+  /** quiz023：模块直挂题无知识点。 */
+  knowledge_point_id: number | null
+  knowledge_point_name: string | null
   question_type: QuestionType
   status: StatsQuestionStatus
 }

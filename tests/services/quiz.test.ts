@@ -117,25 +117,31 @@ describe('quizService frozen admin contract', () => {
   it('uses the versioned activation code contract for generation, filtering and export', async () => {
     const { quizService } = await import('@/services/quiz')
     const path = '/admin/quiz/libraries/9/activation-codes'
-    const expires_at = '2026-12-05T02:00:00Z'
     const code = 'ABCD-EFGH-JKMN-PQRS'
-    const batch = { codes: [code], expires_at }
+    // quiz022：效期自兑换起算，生成响应带 validity_days；列表项不再有兑换截止。
+    const batch = { codes: [code], validity_days: 30 }
     const page = {
-      items: [{ id: 1, code, status: 'expired', note: null, redeemed_by: null,
-        redeemed_by_phone: null, redeemed_at: null, created_at: '2026-11-05T02:00:00Z', expires_at }],
+      items: [{ id: 1, code, status: 'issued', note: null, redeemed_by: null,
+        redeemed_by_phone: null, redeemed_at: null, created_at: '2026-11-05T02:00:00Z', validity_days: 30 }],
       total: 1, page: 1, page_size: 10,
     }
     http.post.mockResolvedValueOnce(batch)
     http.get.mockResolvedValueOnce(page)
 
     await expect(quizService.generateActivationCodes(9, 1, null, 30)).resolves.toEqual(batch)
-    expect(http.post).toHaveBeenCalledWith(path, { quantity: 1, note: null, validity_days: 30 },
-      { params: { code_schema: 2 }, signal: undefined })
-    await expect(quizService.listActivationCodes(9, { status: 'expired' })).resolves.toEqual(page)
-    expect(http.get).toHaveBeenLastCalledWith(path, { params: { status: 'expired', code_schema: 2 }, signal: undefined })
-    await quizService.exportActivationCodesCsv(9, 'expired')
+    expect(http.post).toHaveBeenCalledWith(path, { quantity: 1, note: null, validity_days: 30, custom_code: null },
+      { params: { code_schema: 3 }, signal: undefined })
+    await expect(quizService.listActivationCodes(9, { status: 'issued' })).resolves.toEqual(page)
+    expect(http.get).toHaveBeenLastCalledWith(path, { params: { status: 'issued', code_schema: 3 }, signal: undefined })
+    await quizService.exportActivationCodesCsv(9, 'issued')
     expect(http.get).toHaveBeenLastCalledWith(`${path}/export`,
-      expect.objectContaining({ params: { status: 'expired', code_schema: 2 }, responseType: 'blob' }))
+      expect.objectContaining({ params: { status: 'issued', code_schema: 3 }, responseType: 'blob' }))
+
+    // 自定义码：quantity 固定 1，携带 custom_code。
+    http.post.mockResolvedValueOnce({ codes: ['SCSA2026'], validity_days: 90 })
+    await expect(quizService.generateActivationCodes(9, 1, '培训班', 90, 'scsa-2026')).resolves.toEqual({ codes: ['SCSA2026'], validity_days: 90 })
+    expect(http.post).toHaveBeenLastCalledWith(path, { quantity: 1, note: '培训班', validity_days: 90, custom_code: 'scsa-2026' },
+      { params: { code_schema: 3 }, signal: undefined })
   })
 
   it('keeps V2 lifecycle responses on the strict V2 question schema', async () => {
@@ -147,6 +153,7 @@ describe('quizService frozen admin contract', () => {
       category_id: 7,
       library_id: 9,
       knowledge_point_id: 12,
+      module_id: 3,
       status: 'published',
       deleted_at: null,
       restore_until: null,

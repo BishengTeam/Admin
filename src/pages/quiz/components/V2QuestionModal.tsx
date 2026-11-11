@@ -22,6 +22,8 @@ interface Props {
   question: QuizV2Question | null
   modules: QuizModule[]
   defaultPointId?: number
+  /** quiz023：模块直挂默认目标（按库/模块层级新增题目时带入）。 */
+  defaultModuleId?: number
   onClose: () => void
   onSaved: (question: QuizV2Question) => void
   onConflict: () => void
@@ -42,7 +44,7 @@ function sameValue(a: unknown, b: unknown) {
 }
 
 
-export default function V2QuestionModal({ open, question, modules, defaultPointId, onClose, onSaved, onConflict, onNotFound }: Props) {
+export default function V2QuestionModal({ open, question, modules, defaultPointId, defaultModuleId, onClose, onSaved, onConflict, onNotFound }: Props) {
   const [form] = Form.useForm()
   const type = Form.useWatch('question_type', form) as QuestionType | undefined
   const options = Form.useWatch('options', form) as OptionValue[] | undefined
@@ -55,14 +57,23 @@ export default function V2QuestionModal({ open, question, modules, defaultPointI
     if (!open) return
     if (!question) {
       form.resetFields()
-      form.setFieldsValue({ knowledge_point_id: defaultPointId, question_type: 'single_choice', options: [{ content: '' }, { content: '' }, { content: '' }], image_urls: [] })
+      form.setFieldsValue({
+        target: defaultPointId ? `point:${defaultPointId}` : defaultModuleId ? `module:${defaultModuleId}` : undefined,
+        question_type: 'single_choice',
+        options: [{ content: '' }, { content: '' }, { content: '' }],
+        image_urls: [],
+      })
       return
     }
     const alignedAnswer = Array.isArray(question.correct_answer) && question.correct_answer.every((item) => typeof item === 'string')
       ? [...(question.correct_answer as string[])]
       : undefined
     form.setFieldsValue({
-      knowledge_point_id: question.knowledge_point_id,
+      target: question.knowledge_point_id
+        ? `point:${question.knowledge_point_id}`
+        : question.module_id
+          ? `module:${question.module_id}`
+          : undefined,
       question_type: question.question_type,
       question_text: question.question_text,
       options: question.question_type === 'judge'
@@ -80,7 +91,7 @@ export default function V2QuestionModal({ open, question, modules, defaultPointI
       explanation: question.explanation ?? undefined,
       image_urls: question.image_urls ?? [],
     })
-  }, [defaultPointId, form, open, question])
+  }, [defaultModuleId, defaultPointId, form, open, question])
 
   const handleTypeChange = (next: QuestionType) => {
     if (next === 'fill_blank' || next === 'essay') {
@@ -151,9 +162,16 @@ export default function V2QuestionModal({ open, question, modules, defaultPointI
       const imageUrls: string[] = (values.image_urls ?? []).map(toAbsoluteMediaUrl)
       const score = typeof values.score === 'number' ? values.score : null
       const tags = ((values.tags ?? []) as string[]).map((item) => item.trim()).filter(Boolean)
+      // quiz023：归属位置二选一（point:知识点 id / module:模块 id）。
+      const [targetKind, targetIdRaw] = String(values.target ?? '').split(':')
+      const targetId = Number(targetIdRaw)
+      if ((targetKind !== 'point' && targetKind !== 'module') || !targetId) {
+        message.error('请选择题目归属（知识点或模块）')
+        return
+      }
       if (!question) {
         const payload: QuizV2QuestionCreate = {
-          knowledge_point_id: values.knowledge_point_id,
+          ...(targetKind === 'point' ? { knowledge_point_id: targetId } : { module_id: targetId }),
           question_type: questionType,
           question_text: questionText,
           options: Object.keys(optionRecord).length ? optionRecord : null,
@@ -168,7 +186,8 @@ export default function V2QuestionModal({ open, question, modules, defaultPointI
         return
       }
       const payload: QuizV2QuestionUpdate = { lock_version: question.lock_version }
-      if (values.knowledge_point_id !== question.knowledge_point_id) payload.knowledge_point_id = values.knowledge_point_id
+      if (targetKind === 'point' && targetId !== question.knowledge_point_id) payload.knowledge_point_id = targetId
+      if (targetKind === 'module' && targetId !== question.module_id) payload.module_id = targetId
       if (questionType !== question.question_type) payload.question_type = questionType
       if (questionText !== question.question_text) payload.question_text = questionText
       const normalizedOptions = Object.keys(optionRecord).length ? optionRecord : null
@@ -196,11 +215,26 @@ export default function V2QuestionModal({ open, question, modules, defaultPointI
     }
   }
 
-  const points = modules.flatMap((module) => module.knowledge_points.map((point: QuizKnowledgePoint) => ({
-    value: point.id,
-    label: `${module.name} / ${point.name}${module.status !== 'active' || point.status !== 'active' ? '（不可写）' : ''}`,
-    disabled: module.status !== 'active' || point.status !== 'active',
-  })))
+  // quiz023：归属位置下拉——知识点分组 + 每模块一个「直接挂模块」项。
+  const targetOptions = modules
+    .filter((module) => module.status !== 'deleted')
+    .map((module) => ({
+      label: module.name,
+      options: [
+        ...module.knowledge_points
+          .filter((point) => point.status !== 'deleted')
+          .map((point: QuizKnowledgePoint) => ({
+            value: `point:${point.id}`,
+            label: `${point.name}${module.status !== 'active' || point.status !== 'active' ? '（不可写）' : ''}`,
+            disabled: module.status !== 'active' || point.status !== 'active',
+          })),
+        {
+          value: `module:${module.id}`,
+          label: `直接挂到「${module.name}」（无知识点）`,
+          disabled: module.status !== 'active',
+        },
+      ],
+    }))
   const optionCount = options?.length ?? 0
   const keys = type === 'judge' ? ['A', 'B'] : QUESTION_OPTION_KEYS.slice(0, Math.min(optionCount, 8))
   const optionTexts = (options ?? []).map((item) => String(item?.content ?? '').trim()).filter(Boolean)
@@ -209,7 +243,7 @@ export default function V2QuestionModal({ open, question, modules, defaultPointI
     <Modal title={question ? '编辑题目并创建待发布修订' : '新增题目草稿'} open={open} onOk={save} onCancel={onClose} width={760} destroyOnClose>
       {question?.ever_published && <div style={{ marginBottom: 16, color: '#d46b08' }}>已发布题目的内容编辑会创建新的待发布修订，当前线上版本保持不变，需再次点击“发布修订”才会切换未来会话。</div>}
       <Form form={form} layout="vertical">
-        <Form.Item name="knowledge_point_id" label="所属知识点" rules={[{ required: true, message: '请选择知识点；模块和题库不能直接挂题' }]}><Select showSearch optionFilterProp="label" options={points} /></Form.Item>
+        <Form.Item name="target" label="归属位置" rules={[{ required: true, message: '请选择知识点或模块（可选「直接挂模块」）' }]}><Select showSearch optionFilterProp="label" options={targetOptions} /></Form.Item>
         <Form.Item name="question_type" label="题型" rules={[{ required: true }]}><Radio.Group onChange={(event) => handleTypeChange(event.target.value)}><Radio value="single_choice">单选题</Radio><Radio value="multiple_choice">多选题</Radio><Radio value="uncertain_choice">不定项选择题</Radio><Radio value="judge">判断题</Radio><Radio value="fill_blank">填空题</Radio><Radio value="essay">问答题</Radio><Radio value="matching">配对题</Radio><Radio value="ordering">排序题</Radio></Radio.Group></Form.Item>
         <Form.Item
           name="question_text"

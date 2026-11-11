@@ -25,7 +25,7 @@ export const quizPublication = {
   async list(libraryId: number, signal?: AbortSignal) { return validateOrThrow(z.array(operation), await http.get(`/admin/quiz/libraries/${libraryId}/publication-operations`, { signal })) },
   async get(id: number, signal?: AbortSignal) { return validateOrThrow(operation, await http.get(`/admin/quiz/publication-operations/${id}`, { signal })) },
   async resume(id: number, preflightVersion: string) { return validateOrThrow(operation, await http.post(`/admin/quiz/publication-operations/${id}/resume`, { preflight_version: preflightVersion })) },
-  async move(libraryId: number, pointId: number, items: { question_id: number; lock_version: number }[]) {
-    return validateOrThrow(z.object({ updated_count: z.number() }).strict(), await http.post('/admin/quiz/ownership-moves', { library_id: libraryId, knowledge_point_id: pointId, items }))
+  async move(libraryId: number, target: { knowledge_point_id?: number; module_id?: number }, items: { question_id: number; lock_version: number }[]) {
+    return validateOrThrow(z.object({ updated_count: z.number() }).strict(), await http.post('/admin/quiz/ownership-moves', { library_id: libraryId, ...target, items }))
   },
 }

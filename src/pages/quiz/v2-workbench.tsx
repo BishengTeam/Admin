@@ -7,6 +7,7 @@ import {
   Alert,
   Button,
   Card,
+  Checkbox,
   Col,
   Descriptions,
   Drawer,
@@ -85,6 +86,7 @@ export default function QuizV2Workbench() {
   const [moveOpen, setMoveOpen] = useState(false)
   const [moveModule, setMoveModule] = useState<number>()
   const [movePoint, setMovePoint] = useState<number>()
+  const [moveDirect, setMoveDirect] = useState(false)
   const [moving, setMoving] = useState(false)
   const selectedLibraryId = Number(params.get('library_id')) || undefined
   const workingLibrary = libraries.find(item => item.id === selectedLibraryId && !['archived', 'deleted'].includes(item.status))
@@ -263,7 +265,7 @@ export default function QuizV2Workbench() {
     }
   }
 
-  const runContentAction = async (kind: 'module' | 'point', item: QuizModule | QuizKnowledgePoint, action: 'toggle' | 'delete' | 'undo') => {
+  const runContentAction = async (kind: 'module' | 'point', item: QuizModule | QuizKnowledgePoint, action: 'toggle' | 'delete' | 'undo', sinkQuestions?: boolean) => {
     try {
       if (kind === 'module') {
         const module = item as QuizModule
@@ -273,7 +275,7 @@ export default function QuizV2Workbench() {
       } else {
         const point = item as QuizKnowledgePoint
         if (action === 'toggle') await quizService.updateKnowledgePointStatus(point.id, point.status === 'active' ? 'disabled' : 'active', point.lock_version)
-        else if (action === 'delete') await quizService.deleteKnowledgePoint(point.id, point.lock_version)
+        else if (action === 'delete') await quizService.deleteKnowledgePoint(point.id, point.lock_version, sinkQuestions)
         else await quizService.undoDeleteKnowledgePoint(point.id, point.lock_version)
       }
       await loadTree()
@@ -288,8 +290,11 @@ export default function QuizV2Workbench() {
   const confirmContentAction = (kind: 'module' | 'point', item: QuizModule | QuizKnowledgePoint, action: 'toggle' | 'delete' | 'undo') => {
     const label = kind === 'module' ? '模块' : '知识点'
     const target = action === 'toggle' ? (item.status === 'active' ? '停用' : '启用') : action === 'delete' ? '删除' : '撤销删除'
+    let sinkQuestions = false
     const warning = action === 'delete'
-      ? `只有已停用且为空的${label}可删除；服务端不会级联删除。删除后进回收站，30 个自然日内可恢复。`
+      ? kind === 'point'
+        ? `只有已停用的${label}可删除；仍有题目时须选择「题目下沉到模块」。删除后进回收站，30 个自然日内可恢复。`
+        : `只有已停用且为空的${label}可删除；服务端不会级联删除。删除后进回收站，30 个自然日内可恢复。`
       : action === 'toggle' && item.status === 'active'
         ? `${label}停用后会从新题池隐藏，但不会覆盖既有会话和历史快照。`
         : action === 'undo' ? `撤销后${label}恢复为停用状态，不会自动启用。` : `父级仍停用时，子项自身启用也不会进入新题池。`
@@ -297,20 +302,24 @@ export default function QuizV2Workbench() {
     Modal.confirm({
       title: `${target}${label}「${item.name}」？`,
       content: <Space direction="vertical" style={{ width: '100%' }}>
-        {isPublishedContentDisable && <Alert type="error" showIcon message="高风险：正在停用已发布题库的有效内容" description="服务端会重新计算剩余有效题池；如果该操作会使题库失去最后一条“模块 → 知识点 → 已发布题目”路径，将拒绝执行。紧急清空请先停用题库。" />}
+        {isPublishedContentDisable && <Alert type="error" showIcon message="高风险：正在停用已发布题库的有效内容" description="服务端会重新计算剩余有效题池；如果该操作会使题库失去最后一条可用练习路径，将拒绝执行。紧急清空请先停用题库。" />}
         <span>{warning}</span>
+        {action === 'delete' && kind === 'point' && (
+          <Checkbox onChange={(event) => { sinkQuestions = event.target.checked }}>题目下沉到模块（题目保留为模块直挂，可继续练习，不进回收站）</Checkbox>
+        )}
       </Space>,
       okText: `确认${target}`,
       okButtonProps: { danger: target === '停用' || action === 'delete' },
-      onOk: () => runContentAction(kind, item, action),
+      onOk: () => runContentAction(kind, item, action, sinkQuestions),
     })
   }
 
   const titleActions = (kind: 'module' | 'point', item: QuizModule | QuizKnowledgePoint) => canWrite && section === 'classification' ? <Space size={0} onClick={(event) => event.stopPropagation()}>
     {kind === 'module' && item.status !== 'deleted' && <Tooltip title="新增知识点"><Button aria-label={`为模块${item.name}新增知识点`} type="text" size="small" icon={<PlusOutlined />} disabled={item.status !== 'active'} onClick={() => openCreateContent('point', item.id)} /></Tooltip>}
-    {item.status !== 'deleted' && item.system_kind === 'none' && <Button aria-label={`编辑${kind === 'module' ? '模块' : '知识点'}${item.name}`} type="text" size="small" icon={<EditOutlined />} onClick={() => openEditContent(item, kind)} />}
-    {item.status !== 'deleted' && item.system_kind === 'none' && <Button aria-label={`${item.status === 'active' ? '停用' : '启用'}${kind === 'module' ? '模块' : '知识点'}${item.name}`} type="text" size="small" icon={item.status === 'active' ? <StopOutlined /> : <UndoOutlined />} onClick={() => confirmContentAction(kind, item, 'toggle')} />}
-    {item.status === 'disabled' && item.system_kind === 'none' && <Button aria-label={`删除${kind === 'module' ? '模块' : '知识点'}${item.name}`} danger type="text" size="small" icon={<DeleteOutlined />} onClick={() => confirmContentAction(kind, item, 'delete')} />}
+    {/* quiz023：默认/未分类节点也允许编辑与停用；删除仍按服务端闸门（模块须非系统节点）。 */}
+    {item.status !== 'deleted' && <Button aria-label={`编辑${kind === 'module' ? '模块' : '知识点'}${item.name}`} type="text" size="small" icon={<EditOutlined />} onClick={() => openEditContent(item, kind)} />}
+    {item.status !== 'deleted' && <Button aria-label={`${item.status === 'active' ? '停用' : '启用'}${kind === 'module' ? '模块' : '知识点'}${item.name}`} type="text" size="small" icon={item.status === 'active' ? <StopOutlined /> : <UndoOutlined />} onClick={() => confirmContentAction(kind, item, 'toggle')} />}
+    {item.status === 'disabled' && (kind === 'point' || item.system_kind === 'none') && <Button aria-label={`删除${kind === 'module' ? '模块' : '知识点'}${item.name}`} danger type="text" size="small" icon={<DeleteOutlined />} onClick={() => confirmContentAction(kind, item, 'delete')} />}
     {item.status !== 'deleted' && <Tooltip title={`清空该${kind === 'module' ? '模块' : '知识点'}下全部题目（进回收站，30 天可恢复）`}><Button aria-label={`清空${kind === 'module' ? '模块' : '知识点'}${item.name}下全部题目`} danger type="text" size="small" icon={<ClearOutlined />} onClick={() => confirmScopeClear(kind === 'module' ? { module_id: item.id } : { knowledge_point_id: item.id }, kind === 'module' ? '模块' : '知识点')} /></Tooltip>}
     {item.status === 'deleted' && <Button aria-label={`撤销删除${kind === 'module' ? '模块' : '知识点'}${item.name}`} type="text" size="small" disabled={!canUndo(item.restore_until)} onClick={() => confirmContentAction(kind, item, 'undo')}>撤销</Button>}
   </Space> : null
@@ -320,7 +329,7 @@ export default function QuizV2Workbench() {
     ...(tree?.modules.filter((module) => module.status !== 'deleted').map((module) => ({
       key: `module:${module.id}`,
       disabled: module.status === 'deleted',
-      title: <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span>{module.name}</span>{module.system_kind !== 'none' && <Tag color="warning">待整理</Tag>}{module.status !== 'active' && <Tag>{module.status === 'deleted' ? '已删除' : '停用'}</Tag>}<Tag color="blue">{module.question_count} 题</Tag>{titleActions('module', module)}</div>,
+      title: <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span>{module.name}</span>{module.system_kind !== 'none' && <Tag color="warning">待整理</Tag>}{module.status !== 'active' && <Tag>{module.status === 'deleted' ? '已删除' : '停用'}</Tag>}<Tag color="blue">{module.question_count} 题</Tag>{module.direct_question_count > 0 && <Tag color="geekblue">直挂 {module.direct_question_count} 题</Tag>}{titleActions('module', module)}</div>,
       children: module.knowledge_points.filter((point) => point.status !== 'deleted').map((point) => ({
         key: `point:${point.id}`,
         disabled: point.status === 'deleted',
@@ -397,7 +406,7 @@ export default function QuizV2Workbench() {
       updateParams({ question_id: undefined, include_deleted: undefined })
       return
     }
-    updateParams({ library_id: focused.library_id, module_id: undefined, knowledge_point_id: focused.knowledge_point_id })
+    updateParams({ library_id: focused.library_id, module_id: undefined, knowledge_point_id: focused.knowledge_point_id ?? undefined })
     void openRevisions(focused)
   }, [focusQuestionId, openRevisions, questions, updateParams])
 
@@ -484,8 +493,8 @@ export default function QuizV2Workbench() {
   const columns: ColumnsType<QuizV2Question> = [
     { title: 'ID', dataIndex: 'id', width: 80 },
     { title: '题干', dataIndex: 'question_text', ellipsis: true, width: 330, render: (value: string, item) => <Button type="link" style={{ padding: 0, height: 'auto', whiteSpace: 'normal', textAlign: 'left' }} onClick={() => void openRevisions(item)}>{value}</Button> },
-    { title: '模块', key: 'module', width: 120, render: (_, item) => { const point = findPoint(tree, item.knowledge_point_id); return point ? findModule(tree, point.module_id)?.name ?? '归属不可用' : '归属不可用' } },
-    { title: '知识点', dataIndex: 'knowledge_point_id', width: 140, render: (id: number, item) => <Space direction="vertical" size={0}><span>{findPoint(tree, id)?.name ?? `#${id}`}</span>{item.import_default_ownership && <Tooltip title="可进一步细分，不影响发布"><Tag>系统补齐</Tag></Tooltip>}</Space> },
+    { title: '模块', key: 'module', width: 120, render: (_, item) => { const point = item.knowledge_point_id != null ? findPoint(tree, item.knowledge_point_id) : undefined; const module = point ? findModule(tree, point.module_id) : item.module_id != null ? findModule(tree, item.module_id) : undefined; return module?.name ?? '归属不可用' } },
+    { title: '知识点', dataIndex: 'knowledge_point_id', width: 140, render: (id: number | null, item) => <Space direction="vertical" size={0}><span>{id != null ? findPoint(tree, id)?.name ?? `#${id}` : '模块直挂'}</span>{item.import_default_ownership && <Tooltip title="可进一步细分，不影响发布"><Tag>系统补齐</Tag></Tooltip>}</Space> },
     { title: '题型', dataIndex: 'question_type', width: 90, render: (value: QuizV2Question['question_type']) => typeLabels[value] },
     { title: '状态', dataIndex: 'status', width: 90, render: (value: QuizV2Question['status']) => <Tag color={statusColors[value]}>{statusLabels[value]}</Tag> },
     { title: '修订', key: 'revision', width: 160, render: (_, item) => <Space direction="vertical" size={0}><span>线上 v{item.current_revision_no ?? '-'}</span>{item.has_pending_revision && <Tag color="processing">待发布 v{item.pending_revision_no}</Tag>}</Space> },
@@ -546,7 +555,7 @@ export default function QuizV2Workbench() {
                 {Object.keys(selectedRows).length > 0 && <><Button disabled={!canWrite} onClick={() => setMoveOpen(true)}>批量调整归属</Button><Button disabled={!canPublish} onClick={() => setPublicationOpen(true)}>批量发布修订 ({Object.keys(selectedRows).length})</Button><Button danger disabled={!canPublish} onClick={() => batch('disable')}>批量停用</Button><Button danger disabled={!canWrite} onClick={() => batch('delete')}>批量删除</Button></>}
                 <Select aria-label="归属筛选" allowClear placeholder="全部归属" value={params.get('ownership') || undefined} onChange={(ownership) => updateParams({ ownership })} options={[{ value: 'default', label: '系统补齐归属' }, { value: 'unavailable', label: '归属不可用' }]} style={{ width: 160 }} />
                 {canImport && <Tooltip title={importBlocked ? '只有未归档、未删除的题库可以创建导入任务' : '模块和知识点选填，导入前确认系统补齐的归属'}><Button icon={<UploadOutlined />} disabled={importBlocked} onClick={() => setSection('imports')}>导入</Button></Tooltip>}
-                {canWrite && currentScope && !historical && <Tooltip title={scopeClearBlocked ? '题库已发布，请先停用题库再整库清空' : `清空${currentScope.label}下全部题目（进回收站，30 天可恢复）`}><Button danger icon={<ClearOutlined />} disabled={scopeClearBlocked} onClick={() => confirmScopeClear(currentScope.scope, currentScope.label)}>清空{currentScope.label}</Button></Tooltip>}{canWrite && <Tooltip title={!selectedPoint ? '题目只能挂到知识点，请先选择知识点' : undefined}><Button type="primary" icon={<PlusOutlined />} disabled={!selectedPoint || selectedPoint.status !== 'active'} onClick={() => openQuestion()}>新增题目</Button></Tooltip>}
+                {canWrite && currentScope && !historical && <Tooltip title={scopeClearBlocked ? '题库已发布，请先停用题库再整库清空' : `清空${currentScope.label}下全部题目（进回收站，30 天可恢复）`}><Button danger icon={<ClearOutlined />} disabled={scopeClearBlocked} onClick={() => confirmScopeClear(currentScope.scope, currentScope.label)}>清空{currentScope.label}</Button></Tooltip>}{canWrite && <Tooltip title={!historical && selectedLibrary ? undefined : '题库不可用'}><Button type="primary" icon={<PlusOutlined />} disabled={!selectedLibrary || historical} onClick={() => openQuestion()}>新增题目</Button></Tooltip>}
               </Space>
             </Space>
             {false && selection.kind !== 'point' && <Alert style={{ marginBottom: 12 }} type="warning" showIcon message={selection.kind === 'module' ? '当前展示整个模块的题目；新增单题仍需选择知识点，导入可直接选择当前题库。' : '当前展示整库题目；新增单题仍需选择知识点，导入可直接选择当前题库。'} />}
@@ -557,15 +566,16 @@ export default function QuizV2Workbench() {
       </Space>
       </div>
       {publicationOpen && selectedLibraryId && selectedLibrary && <PublicationDialog readOnly={historical} libraryId={selectedLibraryId} selectedIds={Object.values(selectedRows).map((i) => i.id)} onClose={() => setPublicationOpen(false)} onChanged={() => void refreshAll()} />}
-      <Modal title={`批量调整归属（${Object.keys(selectedRows).length}题）`} open={moveOpen} confirmLoading={moving} onCancel={() => setMoveOpen(false)} onOk={async () => {
-        if (!selectedLibraryId || !movePoint || moving) return
+      <Modal title={`批量调整归属（${Object.keys(selectedRows).length}题）`} open={moveOpen} confirmLoading={moving} onCancel={() => { setMoveOpen(false); setMoveDirect(false) }} onOk={async () => {
+        if (!selectedLibraryId || moving || (moveDirect ? !moveModule : !movePoint)) return
         setMoving(true)
-        try { await quizPublication.move(selectedLibraryId, movePoint, Object.values(selectedRows).map((q) => ({ question_id: q.id, lock_version: q.lock_version }))); setMoveOpen(false); setSelectedRows({}); await refreshAll(); message.success('归属已调整，题目内容和历史答题快照保持原样') }
+        try { await quizPublication.move(selectedLibraryId, moveDirect ? { module_id: moveModule } : { knowledge_point_id: movePoint }, Object.values(selectedRows).map((q) => ({ question_id: q.id, lock_version: q.lock_version }))); setMoveOpen(false); setMoveDirect(false); setSelectedRows({}); await refreshAll(); message.success('归属已调整，题目内容和历史答题快照保持原样') }
         catch (e) { message.error(e instanceof Error ? e.message : '调整失败，请刷新重试') } finally { setMoving(false) }
-      }} okButtonProps={{ disabled: !movePoint }}>
+      }} okButtonProps={{ disabled: moveDirect ? !moveModule : !movePoint }}>
         <Space direction="vertical" style={{ width: '100%' }}>
           <Select style={{ width: '100%' }} placeholder="选择目标模块" value={moveModule} onChange={(id) => { setMoveModule(id); setMovePoint(undefined) }} options={(tree?.modules ?? []).filter((m) => m.status === 'active' && m.system_kind === 'none').map((m) => ({ value: m.id, label: m.name }))} />
-          <Select style={{ width: '100%' }} placeholder="选择目标知识点" value={movePoint} onChange={setMovePoint} options={(tree?.modules.find((m) => m.id === moveModule)?.knowledge_points ?? []).filter((p) => p.status === 'active' && p.system_kind === 'none').map((p) => ({ value: p.id, label: p.name }))} />
+          <Select style={{ width: '100%' }} placeholder="选择目标知识点" disabled={moveDirect} value={movePoint} onChange={setMovePoint} options={(tree?.modules.find((m) => m.id === moveModule)?.knowledge_points ?? []).filter((p) => p.status === 'active' && p.system_kind === 'none').map((p) => ({ value: p.id, label: p.name }))} />
+          <Checkbox checked={moveDirect} onChange={(event) => { setMoveDirect(event.target.checked); setMovePoint(undefined) }}>不选知识点，题目直接挂到模块（quiz023 模块直挂）</Checkbox>
           <Space><Button onClick={() => openCreateContent('module')}>新建模块</Button><Button disabled={!moveModule} onClick={() => { if (moveModule) openCreateContent('point', moveModule) }}>新建知识点</Button></Space>
         </Space>
       </Modal>
@@ -579,7 +589,7 @@ export default function QuizV2Workbench() {
         </Form>
       </Modal>
 
-      <V2QuestionModal open={questionModalOpen} question={editingQuestion} modules={tree?.modules ?? []} defaultPointId={selectedPoint?.id} onClose={() => setQuestionModalOpen(false)} onSaved={async () => { setQuestionModalOpen(false); setEditingQuestion(null); await Promise.all([loadQuestions(), loadTree(), loadLibraries()]); message.success(editingQuestion ? '已创建待发布修订' : '题目草稿已创建') }} onConflict={() => { setQuestionModalOpen(false); void loadQuestions(); message.warning('题目版本已变化，列表已刷新') }} onNotFound={() => { setQuestionModalOpen(false); void refreshAll(); message.warning('题目或知识点不存在，数据已刷新') }} />
+      <V2QuestionModal open={questionModalOpen} question={editingQuestion} modules={tree?.modules ?? []} defaultPointId={selectedPoint?.id} defaultModuleId={selection.kind === 'module' ? selection.id : undefined} onClose={() => setQuestionModalOpen(false)} onSaved={async () => { setQuestionModalOpen(false); setEditingQuestion(null); await Promise.all([loadQuestions(), loadTree(), loadLibraries()]); message.success(editingQuestion ? '已创建待发布修订' : '题目草稿已创建') }} onConflict={() => { setQuestionModalOpen(false); void loadQuestions(); message.warning('题目版本已变化，列表已刷新') }} onNotFound={() => { setQuestionModalOpen(false); void refreshAll(); message.warning('题目或知识点不存在，数据已刷新') }} />
 
       <Drawer title={viewing ? `题目 #${viewing.id} · 修订历史` : '修订历史'} open={Boolean(viewing)} onClose={() => { setViewing(null); setRevisions([]) }} width={780}>
         {viewing && <Descriptions bordered size="small" column={2} style={{ marginBottom: 16 }}>

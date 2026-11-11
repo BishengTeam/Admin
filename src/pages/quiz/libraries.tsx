@@ -10,6 +10,7 @@ import {
   InputNumber,
   message,
   Modal,
+  Radio,
   Select,
   Space,
   Switch,
@@ -75,7 +76,6 @@ const accessLabels: Record<QuizLibraryAccessMode, string> = {
 
 const activationCodeStatusLabels: Record<QuizActivationCodeStatus, string> = {
   issued: '可兑换',
-  expired: '已过期',
   redeemed: '已兑换',
   revoked: '已作废',
 }
@@ -222,8 +222,9 @@ export default function QuizLibraries() {
   const [generateOpen, setGenerateOpen] = useState(false)
   const [generating, setGenerating] = useState(false)
   const [generatedCodes, setGeneratedCodes] = useState<QuizActivationCodeGenerateResponse | null>(null)
-  const [generateForm] = Form.useForm<{ quantity: number; validityDays: QuizActivationValidityDays; note?: string }>()
+  const [generateForm] = Form.useForm<{ generateMode: 'random' | 'custom'; quantity: number; validityDays: QuizActivationValidityDays; note?: string; customCode?: string }>()
   const validityDays = Form.useWatch('validityDays', generateForm)
+  const generateMode = Form.useWatch('generateMode', generateForm)
   const codeRequest = useRef<AbortController>()
   const [migrationLibrary, setMigrationLibrary] = useState<QuizLibrary | null>(null)
   const [migrationReport, setMigrationReport] = useState<QuizMigrationReport | null>(null)
@@ -480,9 +481,21 @@ export default function QuizLibraries() {
     if (!codeLibrary || generating) return
     const values = await generateForm.validateFields().catch(() => undefined)
     if (!values) return
+    const customMode = values.generateMode === 'custom'
+    const customCode = customMode ? values.customCode?.trim() : undefined
+    if (customMode && !customCode) {
+      message.error('请输入自定义激活码内容')
+      return
+    }
     setGenerating(true)
     try {
-      const result = await quizService.generateActivationCodes(codeLibrary.id, values.quantity, values.note?.trim() || null, values.validityDays)
+      const result = await quizService.generateActivationCodes(
+        codeLibrary.id,
+        values.quantity,
+        values.note?.trim() || null,
+        values.validityDays,
+        customMode ? customCode : null,
+      )
       setGeneratedCodes(result)
       setGenerateOpen(false)
       generateForm.resetFields()
@@ -769,7 +782,7 @@ export default function QuizLibraries() {
           type="info"
           showIcon
           style={{ marginBottom: 16 }}
-          message="激活码只能在截止前首次兑换。兑换成功后，题库练习权益长期有效。"
+          message="激活码仅可兑换一次，本身无兑换截止；学生激活后按所选天数有效（自兑换时刻起算）。"
         />
         {generatedCodes && (
           <Alert
@@ -779,7 +792,7 @@ export default function QuizLibraries() {
             style={{ marginBottom: 16 }}
             message={`已生成 ${generatedCodes.codes.length} 个激活码，请复制或导出后交发放方`}
             description={<Space direction="vertical" style={{ width: '100%' }} size={4}>
-              <Typography.Text>兑换截止时间 {formatDate(generatedCodes.expires_at)}</Typography.Text>
+              <Typography.Text>激活后有效 {generatedCodes.validity_days} 天（自兑换时刻起算）</Typography.Text>
               {generatedCodes.codes.map((code) => <Typography.Text key={code} copyable>{code}</Typography.Text>)}
             </Space>}
           />
@@ -809,13 +822,13 @@ export default function QuizLibraries() {
           }}
           columns={[
             { title: '激活码', dataIndex: 'code', width: 200, render: (value: string) => <Typography.Text copyable>{value}</Typography.Text> },
-            { title: '状态', dataIndex: 'status', width: 90, render: (status: QuizActivationCodeStatus) => <Tag color={status === 'redeemed' ? 'success' : status === 'expired' ? 'warning' : status === 'revoked' ? 'default' : 'processing'}>{activationCodeStatusLabels[status]}</Tag> },
+            { title: '状态', dataIndex: 'status', width: 90, render: (status: QuizActivationCodeStatus) => <Tag color={status === 'redeemed' ? 'success' : status === 'revoked' ? 'default' : 'processing'}>{activationCodeStatusLabels[status]}</Tag> },
             { title: '兑换用户', key: 'redeemed_by', width: 160, render: (_, item) => item.redeemed_by ? `#${item.redeemed_by}${item.redeemed_by_phone ? ` / ${item.redeemed_by_phone}` : ''}` : '-' },
             { title: '兑换时间', dataIndex: 'redeemed_at', width: 170, render: (value: string | null) => value ? formatDate(value) : '-' },
-            { title: '兑换截止', dataIndex: 'expires_at', width: 170, render: (value: string | null) => value ? formatDate(value) : '无截止时间' },
+            { title: '有效期', dataIndex: 'validity_days', width: 140, render: (value: number | null) => value != null ? `激活后 ${value} 天` : '激活后永久' },
             { title: '备注', dataIndex: 'note', ellipsis: true, render: (value: string | null) => value || '-' },
             { title: '创建时间', dataIndex: 'created_at', width: 170, render: (value: string) => formatDate(value) },
-            { title: '操作', width: 90, render: (_, item) => canManage && item.status === 'issued' && (!item.expires_at || Date.parse(item.expires_at) > Date.now()) ? <Button type="link" size="small" danger onClick={() => Modal.confirm({ title: `作废激活码「${item.code}」？`, content: '作废后该码无法被兑换，已生成的码列表中仍会保留记录。', okText: '确认作废', okButtonProps: { danger: true }, onOk: () => revokeActivationCode(item) })}>作废</Button> : null },
+            { title: '操作', width: 90, render: (_, item) => canManage && item.status === 'issued' ? <Button type="link" size="small" danger onClick={() => Modal.confirm({ title: `作废激活码「${item.code}」？`, content: '作废后该码无法被兑换，已生成的码列表中仍会保留记录。', okText: '确认作废', okButtonProps: { danger: true }, onOk: () => revokeActivationCode(item) })}>作废</Button> : null },
           ]}
         />
       </Drawer>
@@ -829,15 +842,39 @@ export default function QuizLibraries() {
         onOk={() => void submitGenerateCodes()}
         destroyOnClose
       >
-        <Form form={generateForm} initialValues={{ quantity: 20, validityDays: 30 }} layout="vertical">
-          <Form.Item name="quantity" label="数量" rules={[{ required: true, message: '请输入生成数量' }]} extra="一次最多 500 个">
-            <InputNumber min={1} max={500} precision={0} style={{ width: '100%' }} />
+        <Form form={generateForm} initialValues={{ generateMode: 'random', quantity: 20, validityDays: 30 }} layout="vertical">
+          <Form.Item name="generateMode" label="生成方式" rules={[{ required: true }]}>
+            <Radio.Group
+              options={[
+                { value: 'random', label: '随机批量生成' },
+                { value: 'custom', label: '自定义码内容' },
+              ]}
+              optionType="button"
+              buttonStyle="solid"
+            />
           </Form.Item>
+          {generateMode === 'custom' ? (
+            <Form.Item
+              name="customCode"
+              label="激活码内容"
+              rules={[
+                { required: true, message: '请输入激活码内容' },
+                { pattern: /^[2-9A-HJ-NP-Za-hj-np-z0-9-]{4,24}$/, message: '4-24 位字母或数字（自动去分隔符并转大写）' },
+              ]}
+              extra="仍是一码一用；适合给班级/渠道起一个好记的码"
+            >
+              <Input maxLength={32} placeholder="如：SCSA-BAN-01" allowClear />
+            </Form.Item>
+          ) : (
+            <Form.Item name="quantity" label="数量" rules={[{ required: true, message: '请输入生成数量' }]} extra="一次最多 500 个">
+              <InputNumber min={1} max={500} precision={0} style={{ width: '100%' }} />
+            </Form.Item>
+          )}
           <Form.Item
             name="validityDays"
-            label="兑换有效期"
-            rules={[{ required: true, message: '请选择兑换有效期' }]}
-            extra={validityDays ? `预计截止 ${formatDate(new Date(Date.now() + validityDays * 86_400_000))}，以生成结果为准` : undefined}
+            label="激活后有效期"
+            rules={[{ required: true, message: '请选择激活后有效期' }]}
+            extra={validityDays ? `学生激活后可用 ${validityDays} 天（自兑换时刻起算），激活码本身无兑换截止` : '效期自学生兑换时起算'}
           >
             <Select options={activationValidityOptions} />
           </Form.Item>
