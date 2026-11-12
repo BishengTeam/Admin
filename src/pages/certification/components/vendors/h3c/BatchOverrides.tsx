@@ -196,9 +196,10 @@ export default function BatchOverrides(_props: { type: CertType; productCode: st
       values.identity_tag
       ?? (selectedProduct ? extractIdentityTag(selectedProduct) : ''),
     ),
-    coupon_price_cents: yuanToCents(values.coupon_price_cents as number | undefined),
-    student_price_cents: yuanToCents(values.student_price_cents as number | undefined),
-    full_price_cents: yuanToCents(values.full_price_cents as number | undefined),
+    // v2 多产品：价格可选传入（兼容旧调用），多产品模式下由后端从产品级读取
+    ...(values.coupon_price_cents != null ? { coupon_price_cents: yuanToCents(values.coupon_price_cents as number) } : {}),
+    ...(values.student_price_cents != null ? { student_price_cents: yuanToCents(values.student_price_cents as number) } : {}),
+    ...(values.full_price_cents != null ? { full_price_cents: yuanToCents(values.full_price_cents as number) } : {}),
     payment_timeout_minutes: values.payment_timeout_minutes == null
       ? undefined
       : Number(values.payment_timeout_minutes),
@@ -241,10 +242,21 @@ export default function BatchOverrides(_props: { type: CertType; productCode: st
         return
       }
 
-      const created = await h3cService.createBatch({
+      // v2 多产品：如果选择了多个产品，传 product_ids；否则兼容单产品模式
+      const selectedProductIds = (values.product_ids as number[] | undefined) ?? []
+      const createPayload: Record<string, unknown> = {
         ...buildPayload(values),
         certification_code: String(values.certification_code ?? ''),
-      })
+      }
+      if (selectedProductIds.length > 1) {
+        createPayload.product_ids = selectedProductIds
+        // 多产品模式不传价格（后端从产品级读取）
+        delete createPayload.coupon_price_cents
+        delete createPayload.student_price_cents
+        delete createPayload.full_price_cents
+      }
+
+      const created = await h3cService.createBatch(createPayload as any)
       if (action === 'publish') {
         try {
           await h3cService.publishBatch(created.id)

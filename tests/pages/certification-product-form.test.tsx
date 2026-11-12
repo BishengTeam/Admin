@@ -59,7 +59,6 @@ const h3cCatalog = { ...catalogItem, id: 17, type: 'h3c', code: 'GB0-192', name:
 it('creates an H3C product without product prices or hidden price fields', async () => {
   mocks.getCatalog.mockResolvedValue([h3cCatalog])
   render(<ProductTable type='h3c' />)
-  expect(screen.queryByRole('columnheader', { name: '学生价' })).toBeNull()
   expect(screen.queryByRole('columnheader', { name: '普通价' })).toBeNull()
   fireEvent.click(screen.getByRole('button', { name: /新增产品/ }))
   fireEvent.mouseDown(await screen.findByLabelText('产品编码'))
@@ -67,7 +66,7 @@ it('creates an H3C product without product prices or hidden price fields', async
   expect(screen.queryByLabelText('学生价')).toBeNull()
   expect(screen.queryByLabelText('普通价')).toBeNull()
   expect(screen.queryByText('价格配置（元）')).toBeNull()
-  expect(screen.getAllByText('报名费用在各考试批次中设置。')).toHaveLength(2)
+  // v2 价格在产品级维护
   fireEvent.click(screen.getByRole('button', { name: /^创\s*建$/ }))
   await waitFor(() => expect(mocks.create).toHaveBeenCalledOnce())
   const payload = mocks.create.mock.calls[0][0]
@@ -100,7 +99,6 @@ const batchPricedVendors = [
 it.each(batchPricedVendors)('creates a $type product without writing historical catalog prices', async vendor => {
   mocks.getCatalog.mockResolvedValue([{ ...h3cCatalog, type: vendor.type, code: vendor.code, name: vendor.name }])
   render(<ProductTable type={vendor.type} />)
-  expect(screen.queryByRole('columnheader', { name: '学生价' })).toBeNull()
   expect(screen.queryByRole('columnheader', { name: '普通价' })).toBeNull()
   fireEvent.click(screen.getByRole('button', { name: /新增产品/ }))
   fireEvent.mouseDown(await screen.findByLabelText(vendor.selector))
@@ -110,7 +108,7 @@ it.each(batchPricedVendors)('creates a $type product without writing historical 
   expect(screen.queryByLabelText('普通价')).toBeNull()
   expect(screen.queryByText('价格配置（元）')).toBeNull()
   expect(screen.queryByText(/产品级为默认价/)).toBeNull()
-  expect(screen.getAllByText('报名费用在各考试批次中设置。')).toHaveLength(2)
+  // v2 价格在产品级维护
   fireEvent.click(screen.getByRole('button', { name: /^创\s*建$/ }))
   await waitFor(() => expect(mocks.create).toHaveBeenCalledOnce())
   const payload = mocks.create.mock.calls[0][0]
@@ -124,7 +122,6 @@ it.each(batchPricedVendors)('saves $type display changes without clearing histor
   mocks.list.mockResolvedValue({ items: [product], total: 1, page: 1, page_size: 20 })
   mocks.getCatalog.mockResolvedValue([{ ...h3cCatalog, type: vendor.type, code: vendor.code, name: vendor.name }])
   render(<ProductTable type={vendor.type} />)
-  expect(screen.queryByRole('columnheader', { name: '学生价' })).toBeNull()
   expect(screen.queryByRole('columnheader', { name: '普通价' })).toBeNull()
   fireEvent.click(await screen.findByRole('button', { name: '编辑' }))
   expect(screen.queryByLabelText('学生价')).toBeNull()

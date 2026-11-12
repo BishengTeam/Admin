@@ -36,6 +36,10 @@ export interface CertProduct {
   home_cover_url: string | null
   is_active: boolean
   sort_order: number
+  /** H3C 产品级三档价（单位：分） */
+  coupon_price_cents?: number | null
+  student_price_cents?: number | null
+  full_price_cents?: number | null
   prices: CertProductPrice[]
   created_at: string
   updated_at: string

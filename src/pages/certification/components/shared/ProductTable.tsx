@@ -17,7 +17,11 @@ interface ProductTableProps {
   type: CertType
 }
 
-type ProductFormValues = Omit<CertProductCreatePayload, 'prices' | 'sort_order'>
+type ProductFormValues = Omit<CertProductCreatePayload, 'prices' | 'sort_order'> & {
+  coupon_price?: number
+  student_price?: number
+  full_price?: number
+}
 
 const defaultFormValues: ProductFormValues = {
   type: '',
@@ -112,6 +116,10 @@ export default function ProductTable({ type }: ProductTableProps) {
       chinese_name: item.chinese_name,
       description: item.description ?? '',
       home_cover_url: item.home_cover_url ?? '',
+      // v2 H3C 产品级三档价（元显示，分存储）
+      coupon_price: item.coupon_price_cents != null ? item.coupon_price_cents / 100 : undefined,
+      student_price: item.student_price_cents != null ? item.student_price_cents / 100 : undefined,
+      full_price: item.full_price_cents != null ? item.full_price_cents / 100 : undefined,
       is_active: item.is_active,
     })
     setModalOpen(true)
@@ -139,6 +147,10 @@ export default function ProductTable({ type }: ProductTableProps) {
       chinese_name: values.chinese_name,
       description: values.description,
       home_cover_url: homeCover,
+      // v2 H3C 产品级三档价
+      ...(type === 'h3c' && values.coupon_price != null ? { coupon_price_cents: Math.round(values.coupon_price * 100) } : {}),
+      ...(type === 'h3c' && values.student_price != null ? { student_price_cents: Math.round(values.student_price * 100) } : {}),
+      ...(type === 'h3c' && values.full_price != null ? { full_price_cents: Math.round(values.full_price * 100) } : {}),
       is_active: values.is_active,
     }
     if (editingItem) {
@@ -170,6 +182,20 @@ export default function ProductTable({ type }: ProductTableProps) {
     { title: 'ID', dataIndex: 'id', width: 70 },
     { title: '产品编码', dataIndex: 'code', width: 110 },
     { title: '名称', dataIndex: 'chinese_name', ellipsis: true },
+    ...(type === 'h3c' ? [
+      {
+        title: '考券价', dataIndex: 'coupon_price_cents', width: 90,
+        render: (v: number | null) => v != null ? `¥${(v / 100).toFixed(0)}` : <Tag color='orange'>未配</Tag>,
+      },
+      {
+        title: '学生价', dataIndex: 'student_price_cents', width: 90,
+        render: (v: number | null) => v != null ? `¥${(v / 100).toFixed(0)}` : <Tag color='orange'>未配</Tag>,
+      },
+      {
+        title: '全额价', dataIndex: 'full_price_cents', width: 90,
+        render: (v: number | null) => v != null ? `¥${(v / 100).toFixed(0)}` : <Tag color='orange'>未配</Tag>,
+      },
+    ] : []),
     { title: '描述', dataIndex: 'description', ellipsis: true, render: (v: string | null) => v || '-' },
     {
       title: '状态', dataIndex: 'is_active', width: 90,
@@ -357,6 +383,25 @@ export default function ProductTable({ type }: ProductTableProps) {
               hint={'小程序首页认证专区通栏大图\n固定裁剪输出：1404 × 640 px（约 2.2 : 1）\n裁剪框大小固定，拖动选择截取位置\n不传则首页按厂商配色渐变展示\n输出 JPG，单张 ≤ 5MB'}
             />
           </Form.Item>
+      {type === 'h3c' && (
+        <Row gutter={12}>
+          <Col span={8}>
+            <Form.Item name='coupon_price' label='考券价（元）'>
+              <Input type='number' min={0} step={1} placeholder='如 300' />
+            </Form.Item>
+          </Col>
+          <Col span={8}>
+            <Form.Item name='student_price' label='学生价（元）'>
+              <Input type='number' min={0} step={1} placeholder='如 200' />
+            </Form.Item>
+          </Col>
+          <Col span={8}>
+            <Form.Item name='full_price' label='全额价（元）'>
+              <Input type='number' min={0} step={1} placeholder='如 500' />
+            </Form.Item>
+          </Col>
+        </Row>
+      )}
 
           <Text type='secondary'>报名费用在各考试批次中设置。</Text>
         </Form>
