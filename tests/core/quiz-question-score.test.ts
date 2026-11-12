@@ -42,6 +42,7 @@ describe('quiz question response score coercion', () => {
     const parsed = QuizV2QuestionSchema.parse({
       ...baseQuestion,
       library_id: 6,
+      module_id: 5,
       knowledge_point_id: 22,
       deleted_at: null,
       restore_until: null,
