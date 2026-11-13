@@ -1,8 +1,11 @@
-import { useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   Table, Button, Input, Space, Modal, Form, DatePicker, Tag, Typography, message, Alert,
 } from 'antd'
-import { PlusOutlined, SearchOutlined, DeleteOutlined, ImportOutlined } from '@ant-design/icons'
+import {
+  PlusOutlined, SearchOutlined, DeleteOutlined, ImportOutlined,
+  CloudDownloadOutlined, SyncOutlined,
+} from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import type { TableRowSelection } from 'antd/es/table/interface'
 import type { Rule } from 'antd/es/form'
@@ -40,23 +43,31 @@ function ThumbField({ value, onChange }: { value?: string; onChange?: (v: string
         onChange={(e) => onChange?.(e.target.value)}
         allowClear
       />
+      {/* ImageUpload 卡片内已带图片预览，不再叠放大图，避免弹窗被撑高后按钮够不着 */}
       <ImageUpload value={value} onChange={onChange} />
-      {value && (
-        <img
-          src={value}
-          alt="封面预览"
-          style={{ maxHeight: 120, borderRadius: 4, border: '1px solid #f0f0f0' }}
-        />
-      )}
     </Space>
   )
 }
 
 interface ParsedRow extends Partial<GzhArticleImportItem> {
   error?: string
+  /** 纯链接行：标题/封面/时间待 fetch-meta 自动拉取 */
+  needsFetch?: boolean
+  fetchState?: 'loading' | 'ok' | 'failed'
 }
 
-/** 解析批量粘贴文本：每行「标题 | 链接 [| 封面URL [| 发布时间]]」 */
+/** fetch-meta 按链接的拉取状态（key=链接原文，粘贴文本重解析时回填） */
+interface FetchMetaState {
+  state: 'loading' | 'ok' | 'failed'
+  title?: string
+  thumb_url?: string | null
+  publish_time?: string | null
+  error?: string
+}
+
+const httpsUrlPrefixRe = /^https:\/\//i
+
+/** 解析批量粘贴文本：每行「纯链接」（自动拉取）或「标题 | 链接 [| 封面URL [| 发布时间]]」 */
 function parseImportText(text: string): ParsedRow[] {
   return text
     .split('\n')
@@ -64,11 +75,15 @@ function parseImportText(text: string): ParsedRow[] {
     .filter(Boolean)
     .map((line) => {
       const parts = line.split('|').map((p) => p.trim())
+      if (httpsUrlPrefixRe.test(parts[0])) {
+        // 纯链接行（同行的其他段忽略），由 fetch-meta 补全
+        return { url: parts[0], needsFetch: true }
+      }
       const [title = '', url = '', thumb = '', time = ''] = parts
       if (parts.length < 2 || !title || !url) {
-        return { title, url, error: '每行至少为「标题 | 链接」' }
+        return { title, url, error: '每行一条：纯链接，或「标题 | 链接 [| 封面URL [| 发布时间]]」' }
       }
-      if (!/^https:\/\//i.test(url)) {
+      if (!httpsUrlPrefixRe.test(url)) {
         return { title, url, error: '链接须以 https:// 开头' }
       }
       let publish_time: string | undefined
@@ -93,20 +108,109 @@ export default function GzhArticles() {
   const [importOpen, setImportOpen] = useState(false)
   const [importText, setImportText] = useState('')
   const [importing, setImporting] = useState(false)
+  const [fetchMetaMap, setFetchMetaMap] = useState<Record<string, FetchMetaState>>({})
+  const [filling, setFilling] = useState(false)
   const [form] = Form.useForm()
+  const fetchMetaMapRef = useRef(fetchMetaMap)
+  const fetchingRef = useRef(new Set<string>())
 
   const { data, loading, pagination, refresh } = usePagination(
     (page) => gzhArticleService.list({ keyword: searchText || undefined, ...page }),
     [searchText],
   )
 
-  const parsedRows = parseImportText(importText)
-  const validRows = parsedRows.filter((r) => !r.error)
+  /** 并发拉取缺失信息（后端有 mp.weixin.qq.com 域名限制与反爬引导文案） */
+  const runFetchMeta = useCallback(async (urls: string[]) => {
+    const todo = urls.filter((u) => !fetchingRef.current.has(u))
+    if (todo.length === 0) return
+    todo.forEach((u) => fetchingRef.current.add(u))
+    setFetchMetaMap((prev) => {
+      const next = { ...prev }
+      todo.forEach((u) => { next[u] = { state: 'loading' } })
+      return next
+    })
+    const queue = [...todo]
+    const worker = async () => {
+      while (queue.length > 0) {
+        const url = queue.shift() as string
+        try {
+          const meta = await gzhArticleService.fetchMeta(url)
+          setFetchMetaMap((prev) => ({
+            ...prev,
+            [url]: {
+              state: 'ok',
+              title: meta.title,
+              thumb_url: meta.thumb_url ?? null,
+              publish_time: meta.publish_time ?? null,
+            },
+          }))
+        } catch (e) {
+          const errText = e instanceof Error ? e.message : '拉取失败'
+          setFetchMetaMap((prev) => ({ ...prev, [url]: { state: 'failed', error: errText } }))
+        } finally {
+          fetchingRef.current.delete(url)
+        }
+      }
+    }
+    await Promise.all(Array.from({ length: Math.min(3, queue.length) }, worker))
+  }, [])
+
+  // 粘贴内容变化后自动拉取纯链接行（防抖，避免每敲一个字符触发）
+  useEffect(() => {
+    if (!importOpen) return undefined
+    const timer = setTimeout(() => {
+      const pending = parseImportText(importText)
+        .filter((r) => r.needsFetch && r.url && !fetchMetaMapRef.current[r.url])
+        .map((r) => r.url as string)
+      if (pending.length > 0) void runFetchMeta(pending)
+    }, 600)
+    return () => clearTimeout(timer)
+  }, [importText, importOpen, runFetchMeta])
+
+  const closeImportModal = () => {
+    setImportOpen(false)
+    setImportText('')
+    setFetchMetaMap({})
+    fetchingRef.current.clear()
+  }
+
+  const retryFailedFetch = () => {
+    const failed = Object.entries(fetchMetaMap)
+      .filter(([, s]) => s.state === 'failed')
+      .map(([u]) => u)
+    if (failed.length === 0) return
+    setFetchMetaMap((prev) => {
+      const next = { ...prev }
+      failed.forEach((u) => { delete next[u] })
+      return next
+    })
+    void runFetchMeta(failed)
+  }
+
+  // 纯链接行按 fetch-meta 结果回填；失败/未返回的行不进可导入清单
+  const parsedRows: ParsedRow[] = parseImportText(importText).map((r) => {
+    if (!r.needsFetch || !r.url) return r
+    const m = fetchMetaMap[r.url]
+    if (!m || m.state === 'loading') return { ...r, fetchState: 'loading' }
+    if (m.state === 'failed') return { ...r, fetchState: 'failed', error: m.error }
+    const title = (m.title || '').trim()
+    if (!title) return { ...r, fetchState: 'failed', error: '页面未返回标题，请改为「标题 | 链接」手填' }
+    return {
+      ...r,
+      fetchState: 'ok',
+      title,
+      thumb_url: m.thumb_url || r.thumb_url || undefined,
+      publish_time: r.publish_time || m.publish_time || undefined,
+    }
+  })
+  const validRows = parsedRows.filter((r) => !r.error && r.title && r.url)
   // 前端先按链接去重预览；后端 batch-import 还有兜底去重
   const dedupedRows = validRows.filter(
     (r, i) => validRows.findIndex((x) => x.url === r.url) === i,
   )
   const dupCount = validRows.length - dedupedRows.length
+  const fetchingCount = parsedRows.filter((r) => r.fetchState === 'loading' && !r.error).length
+  const failedFetchCount = parsedRows.filter((r) => r.fetchState === 'failed').length
 
   const handleAdd = () => {
     setEditingItem(null)
@@ -152,8 +256,7 @@ export default function GzhArticles() {
       }))
       const result = await gzhArticleService.batchImport(items)
       message.success(`导入完成：新增 ${result.created} 条，跳过 ${result.skipped} 条`)
-      setImportOpen(false)
-      setImportText('')
+      closeImportModal()
       refresh()
     } finally {
       setImporting(false)
@@ -182,6 +285,29 @@ export default function GzhArticles() {
     }
     setModalOpen(false)
     refresh()
+  }
+
+  const watchUrl = Form.useWatch('url', form) as string | undefined
+
+  /** 新增/编辑弹窗：按链接拉取并回填标题/封面/发布时间 */
+  const handleFillFromUrl = async () => {
+    const url = String(form.getFieldValue('url') || '').trim()
+    if (!httpsUrlPrefixRe.test(url)) return
+    setFilling(true)
+    try {
+      const meta = await gzhArticleService.fetchMeta(url)
+      form.setFieldsValue({
+        title: meta.title,
+        // 已有封面（如本地上传）且拉取无封面时不清空
+        thumb_url: meta.thumb_url || form.getFieldValue('thumb_url') || '',
+        publish_time: meta.publish_time ? dayjs(meta.publish_time) : undefined,
+      })
+      message.success(meta.exists ? '该链接已在资讯库中，已按库内信息填充' : '已按文章页面自动填充')
+    } catch (e) {
+      message.error(e instanceof Error ? e.message : '拉取失败，请手动填写')
+    } finally {
+      setFilling(false)
+    }
   }
 
   const columns: ColumnsType<GzhArticle> = [
@@ -247,12 +373,32 @@ export default function GzhArticles() {
   const importColumns: ColumnsType<ParsedRow> = [
     {
       title: '状态',
-      width: 80,
-      render: (_, r) => (r.error ? <Tag color="red">错误</Tag> : <Tag color="green">可导入</Tag>),
+      width: 90,
+      render: (_, r) => {
+        if (r.error) return <Tag color="red">错误</Tag>
+        if (r.fetchState === 'loading') return <Tag color="processing">拉取中</Tag>
+        if (r.fetchState === 'ok') return <Tag color="green">已拉取</Tag>
+        return <Tag color="green">可导入</Tag>
+      },
     },
-    { title: '标题', dataIndex: 'title', ellipsis: true },
+    {
+      title: '标题',
+      dataIndex: 'title',
+      ellipsis: true,
+      render: (t?: string) => t || <Text type="secondary">待拉取</Text>,
+    },
     { title: '链接', dataIndex: 'url', ellipsis: true },
-    { title: '错误', dataIndex: 'error', ellipsis: true, render: (e?: string) => e || '-' },
+    {
+      title: '说明',
+      ellipsis: true,
+      render: (_, r) => {
+        if (r.error) return <Text type="danger">{r.error}</Text>
+        if (r.fetchState === 'ok') {
+          return <Text type="secondary">自动拉取{r.thumb_url ? '（含封面）' : '（无封面，可编辑补）'}</Text>
+        }
+        return '-'
+      },
+    },
   ]
 
   return (
@@ -307,6 +453,7 @@ export default function GzhArticles() {
         onOk={handleSubmit}
         onCancel={() => setModalOpen(false)}
         width={640}
+        styles={{ body: { maxHeight: 'calc(100vh - 240px)', overflowY: 'auto', paddingRight: 8 } }}
         destroyOnClose
       >
         <Form form={form} layout="vertical" style={{ marginTop: 20 }}>
@@ -318,6 +465,19 @@ export default function GzhArticles() {
             label="文章链接"
             rules={[requiredRule('链接'), httpsUrlRule]}
             tooltip="微信推文的分享链接（https://mp.weixin.qq.com/s/...）；小程序点击资讯后经 web-view 打开"
+            extra={(
+              <Button
+                type="link"
+                size="small"
+                icon={<CloudDownloadOutlined />}
+                loading={filling}
+                disabled={!httpsUrlPrefixRe.test(watchUrl || '')}
+                onClick={handleFillFromUrl}
+                style={{ padding: 0 }}
+              >
+                按链接自动填充标题/封面/发布时间
+              </Button>
+            )}
           >
             <Input placeholder="https://mp.weixin.qq.com/s/..." maxLength={512} />
           </Form.Item>
@@ -343,24 +503,25 @@ export default function GzhArticles() {
         title="批量导入"
         open={importOpen}
         onOk={handleImport}
-        onCancel={() => setImportOpen(false)}
+        onCancel={closeImportModal}
         okButtonProps={{ disabled: dedupedRows.length === 0, loading: importing }}
         okText={`导入 ${dedupedRows.length} 条`}
         width={720}
+        styles={{ body: { maxHeight: 'calc(100vh - 240px)', overflowY: 'auto', paddingRight: 8 } }}
         destroyOnClose
       >
         <Alert
           type="info"
           showIcon
           style={{ marginBottom: 12 }}
-          message="每行一条：标题 | 链接 [| 封面URL [| 发布时间]]"
-          description="发布时间格式 YYYY-MM-DD HH:mm，可省略；封面 URL 可直接贴微信图床地址。链接已存在的行会被跳过。"
+          message="每行一条：纯链接（自动拉取标题/封面/发布时间），或「标题 | 链接 [| 封面URL [| 发布时间]]」"
+          description="纯链接请用微信内打开文章点「···→复制链接」的地址（公众号后台素材库复制的裸链接会被微信反爬拦截）；拉取失败的行可改为手填格式。发布时间格式 YYYY-MM-DD HH:mm，可省略；封面 URL 可直接贴微信图床地址。链接已存在的行会被跳过。"
         />
         <Input.TextArea
           rows={8}
           value={importText}
           onChange={(e) => setImportText(e.target.value)}
-          placeholder={'跨省连评名单 | https://mp.weixin.qq.com/s/abc | https://mmbiz.qpic.cn/x.jpg | 2026-11-10 09:00\n第二篇 | https://mp.weixin.qq.com/s/def'}
+          placeholder={'https://mp.weixin.qq.com/s/abc?__biz=...&chksm=...\n跨省连评名单 | https://mp.weixin.qq.com/s/def | https://mmbiz.qpic.cn/x.jpg | 2026-11-10 09:00'}
         />
         {parsedRows.length > 0 && (
           <>
@@ -368,9 +529,15 @@ export default function GzhArticles() {
               <Space>
                 <Text>解析结果：{parsedRows.length} 行</Text>
                 <Tag color="green">可导入 {dedupedRows.length}</Tag>
+                {fetchingCount > 0 && <Tag color="processing">拉取中 {fetchingCount}</Tag>}
+                {failedFetchCount > 0 && (
+                  <Button size="small" icon={<SyncOutlined />} onClick={retryFailedFetch}>
+                    重拉失败 {failedFetchCount}
+                  </Button>
+                )}
                 {dupCount > 0 && <Tag>本轮重复 {dupCount}</Tag>}
-                {parsedRows.length - validRows.length > 0 && (
-                  <Tag color="red">错误 {parsedRows.length - validRows.length}</Tag>
+                {parsedRows.length - validRows.length - fetchingCount > 0 && (
+                  <Tag color="red">错误 {parsedRows.length - validRows.length - fetchingCount}</Tag>
                 )}
               </Space>
             </div>

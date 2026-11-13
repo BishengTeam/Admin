@@ -31,3 +31,13 @@ export interface GzhArticleImportItem {
   thumb_url?: string | null
   publish_time?: string | null
 }
+
+/** 按链接自动拉取的文章信息（后端 GzhArticleFetchMetaResult） */
+export interface GzhArticleFetchMeta {
+  title: string
+  thumb_url?: string | null
+  publish_time?: string | null
+  /** 链接已存在于资讯库（true 时其余字段为库内条目值） */
+  exists: boolean
+  source?: GzhArticleSource | null
+}
