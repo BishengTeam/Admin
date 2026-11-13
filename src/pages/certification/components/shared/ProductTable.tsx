@@ -234,7 +234,7 @@ export default function ProductTable({ type }: ProductTableProps) {
         </Space>
         <Text type='secondary'>共 {data?.total ?? 0} 个产品</Text>
       </div>
-      <Text type='secondary' style={{ display: 'block', marginBottom: 12 }}>报名费用在各考试批次中设置。</Text>
+      <Text type='secondary' style={{ display: 'block', marginBottom: 12 }}>三档价在此设置，所有批次共用。</Text>
       <Table rowKey='id' columns={columns} dataSource={data?.items} loading={loading} pagination={pagination} scroll={{ x: 850 }} size='middle' />
 
       <Modal
@@ -403,7 +403,7 @@ export default function ProductTable({ type }: ProductTableProps) {
         </Row>
       )}
 
-          <Text type='secondary'>报名费用在各考试批次中设置。</Text>
+          <Text type='secondary'>三档价在此设置，所有批次共用。</Text>
         </Form>
       </Modal>
     </>
