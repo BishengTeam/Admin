@@ -1,7 +1,7 @@
 /**
  * H3C 考场开放计划管理
  */
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Button, Card, DatePicker, Drawer, Empty, Form, Input, InputNumber, Modal, Popconfirm, Select, Space, Table, Tag, TimePicker, Typography, message } from 'antd'
 import { PlusOutlined, ReloadOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
@@ -34,6 +34,42 @@ interface ScheduleDetail {
   seat_quotas: Array<{ subject_id: number; slot_id: number; total_seats: number }>
 }
 
+interface Holiday {
+  id: number
+  name: string
+  holiday_date: string
+  is_annual: boolean
+}
+
+type ListPayload<T> = T[] | { data?: T[]; items?: T[] } | undefined
+type DateRangeValue = [dayjs.Dayjs | null, dayjs.Dayjs | null] | undefined
+
+function normalizeList<T>(payload: ListPayload<T>): T[] {
+  if (Array.isArray(payload)) return payload
+  if (Array.isArray(payload?.items)) return payload.items
+  if (Array.isArray(payload?.data)) return payload.data
+  return []
+}
+
+function generateBookableFridays(
+  range: DateRangeValue,
+  holidays: Set<string>,
+): dayjs.Dayjs[] {
+  const start = range?.[0]
+  const end = range?.[1]
+  if (!start || !end || start.isAfter(end)) return []
+
+  const dates: dayjs.Dayjs[] = []
+  let current = start
+  while (current.isBefore(end) || current.isSame(end, 'day')) {
+    if (current.day() === 5 && !holidays.has(current.format('YYYY-MM-DD'))) {
+      dates.push(current)
+    }
+    current = current.add(1, 'day')
+  }
+  return dates
+}
+
 const STATUS_MAP: Record<string, { color: string; label: string }> = {
   draft: { color: 'default', label: '草稿' },
   published: { color: 'green', label: '已发布' },
@@ -42,6 +78,7 @@ const STATUS_MAP: Record<string, { color: string; label: string }> = {
 
 const api = {
   list: () => request.get('/admin/h3c/exam-schedules'),
+  holidays: () => request.get('/admin/holidays'),
   get: (id: number) => request.get(`/admin/h3c/exam-schedules/${id}`),
   create: (data: any) => request.post('/admin/h3c/exam-schedules', data),
   update: (id: number, data: any) => request.put(`/admin/h3c/exam-schedules/${id}`, data),
@@ -64,12 +101,21 @@ export default function ExamSchedulePage() {
   const [editorOpen, setEditorOpen] = useState(false)
   const [editingId, setEditingId] = useState<number | null>(null)
   const [detail, setDetail] = useState<ScheduleDetail | null>(null)
+  const [holidayDates, setHolidayDates] = useState<Set<string>>(() => new Set())
+  const dateRange = Form.useWatch('date_range', form) as DateRangeValue
+  const bookableDates = useMemo(
+    () => generateBookableFridays(dateRange, holidayDates),
+    [dateRange, holidayDates],
+  )
 
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await api.list()
-      setSchedules(res.data ?? [])
+      const [schedulePayload, holidayPayload] = await Promise.all([api.list(), api.holidays()])
+      setSchedules(normalizeList<Schedule>(schedulePayload as ListPayload<Schedule>))
+      setHolidayDates(new Set(
+        normalizeList<Holiday>(holidayPayload as ListPayload<Holiday>).map(h => h.holiday_date),
+      ))
     } catch {
       message.error('加载失败')
     } finally {
@@ -105,7 +151,7 @@ export default function ExamSchedulePage() {
     setEditingId(id)
     try {
       const res = await api.get(id)
-      setDetail(res.data)
+      setDetail(res as unknown as ScheduleDetail)
     } catch {
       message.error('加载详情失败')
     }
@@ -157,6 +203,16 @@ export default function ExamSchedulePage() {
           <Form.Item name='date_range' label='开放日期范围' rules={[{ required: true }]}>
             <RangePicker style={{ width: '100%' }} />
           </Form.Item>
+          {dateRange?.[0] && dateRange?.[1] && (
+            <Form.Item>
+              <Text type='secondary'>
+                该范围内可预约日期（仅周五，排除假期）：
+                {bookableDates.length > 0
+                  ? bookableDates.map(d => d.format('MM-DD')).join('、')
+                  : '无可用日期'}
+              </Text>
+            </Form.Item>
+          )}
           <Form.Item name='pre_exam_notice' label='考前注意事项'>
             <Input.TextArea rows={3} maxLength={5000} placeholder='请携带有效身份证件...' />
           </Form.Item>
