@@ -116,7 +116,7 @@ export default function BatchOverrides(_props: { type: CertType; productCode: st
   const [statusFilter, setStatusFilter] = useState<string | undefined>(returnContext.status)
   const [form] = Form.useForm()
 
-  const watchProductCode = Form.useWatch('certification_code', form)
+  const watchProductCodes = Form.useWatch('product_codes', form) as string[] | undefined
   const watchName = Form.useWatch('name', form)
   const watchApplyStart = Form.useWatch('apply_start', form)
   const watchApplyEnd = Form.useWatch('apply_end', form)
@@ -126,7 +126,9 @@ export default function BatchOverrides(_props: { type: CertType; productCode: st
   const watchStudentPrice = Form.useWatch('student_price_cents', form)
   const watchFullPrice = Form.useWatch('full_price_cents', form)
 
-  const selectedProduct = products.find((item) => item.code === watchProductCode)
+  const selectedProduct = watchProductCodes?.length === 1
+    ? products.find((item) => item.code === watchProductCodes[0])
+    : undefined
 
   useEffect(() => {
     certProductService
@@ -689,35 +691,59 @@ export default function BatchOverrides(_props: { type: CertType; productCode: st
           </Row>
 
           <Divider orientation='left' orientationMargin={0}>⑤ 报名类型</Divider>
-          <Typography.Paragraph type='secondary'>费用由产品级三档价决定（在产品设置中维护），此处仅展示。</Typography.Paragraph>
-          <Row gutter={16}>
-            {(['coupon', 'student', 'full'] as const).map((type) => (
-              <Col span={8} key={type}>
-                <div
-                  style={{
-                    padding: 12,
-                    height: '100%',
-                    borderRadius: 8,
-                    border: '1px solid #edf0f5',
-                    background: '#fafbfc',
-                  }}
-                >
-                  <Typography.Text strong>{TYPE_LABELS[type]}</Typography.Text>
-                  <div style={{ marginTop: 8, marginBottom: 8, fontSize: 16, fontWeight: 600, color: '#1677ff' }}>
-                    ¥{(() => {
-                      const _p = selectedProduct
-                      if (!_p) return '—'
-                      const cents = type === 'coupon' ? _p.coupon_price_cents : type === 'student' ? _p.student_price_cents : _p.full_price_cents
-                      return cents != null ? (cents / 100).toFixed(2) : '未配置'
-                    })()}
+
+          {/* 单产品：显示该产品的三档价 */}
+          {watchProductCodes?.length === 1 && selectedProduct && (
+            <>
+              <Typography.Paragraph type='secondary'>费用由产品级三档价决定（在产品设置中维护），此处仅展示。</Typography.Paragraph>
+              <Row gutter={16}>
+                {(['coupon', 'student', 'full'] as const).map((type) => (
+                  <Col span={8} key={type}>
+                    <div style={{ padding: 12, height: '100%', borderRadius: 8, border: '1px solid #edf0f5', background: '#fafbfc' }}>
+                      <Typography.Text strong>{TYPE_LABELS[type]}</Typography.Text>
+                      <div style={{ marginTop: 8, marginBottom: 8, fontSize: 16, fontWeight: 600, color: '#1677ff' }}>
+                        ¥{(() => {
+                          const _p = selectedProduct
+                          if (!_p) return '—'
+                          const cents = type === 'coupon' ? _p.coupon_price_cents : type === 'student' ? _p.student_price_cents : _p.full_price_cents
+                          return cents != null ? (cents / 100).toFixed(2) : '未配置'
+                        })()}
+                      </div>
+                      <Typography.Paragraph type='secondary' style={{ fontSize: 12, marginBottom: 0 }}>
+                        {REGISTRATION_REQUIREMENTS[type]}
+                      </Typography.Paragraph>
+                    </div>
+                  </Col>
+                ))}
+              </Row>
+            </>
+          )}
+
+          {/* 多产品：列出每个科目的价格 */}
+          {watchProductCodes && watchProductCodes.length > 1 && (
+            <div>
+              <Typography.Paragraph type='secondary'>多产品批次，各科目费用如下：</Typography.Paragraph>
+              {watchProductCodes.map((code) => {
+                const p = products.find((item) => item.code === code)
+                if (!p) return null
+                return (
+                  <div key={code} style={{ margin: '8px 0', padding: 8, background: '#fafbfc', borderRadius: 8, border: '1px solid #edf0f5' }}>
+                    <Typography.Text strong>{p.chinese_name}</Typography.Text>
+                    <Typography.Text type='secondary'>
+                      {'　'}考券 ¥{((p.coupon_price_cents ?? 0) / 100).toFixed(2)}
+                      {'　'}学生 ¥{((p.student_price_cents ?? 0) / 100).toFixed(2)}
+                      {'　'}全额 ¥{((p.full_price_cents ?? 0) / 100).toFixed(2)}
+                    </Typography.Text>
                   </div>
-                  <Typography.Paragraph type='secondary' style={{ fontSize: 12, marginBottom: 0 }}>
-                    {REGISTRATION_REQUIREMENTS[type]}
-                  </Typography.Paragraph>
-                </div>
-              </Col>
-            ))}
-          </Row>
+                )
+              })}
+            </div>
+          )}
+
+          {/* 未选产品 */}
+          {(!watchProductCodes || watchProductCodes.length === 0) && (
+            <Typography.Paragraph type='secondary'>请先选择认证产品。</Typography.Paragraph>
+          )}
 
           <Divider orientation='left' orientationMargin={0}>高级规则</Divider>
           <Row gutter={16}>
