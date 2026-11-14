@@ -682,8 +682,8 @@ export default function BatchOverrides(_props: { type: CertType; productCode: st
           <Divider orientation='left' orientationMargin={0}>④ 考试安排</Divider>
           <Row gutter={16}>
             <Col span={12}>
-              <Form.Item name='exam_date' label='考试时间' rules={[{ required: true, message: '请选择' }]}>
-                <DatePicker showTime style={{ width: '100%' }} placeholder='考试时间' />
+              <Form.Item name='exam_date' label='预计考试周期（仅供参考，实际由考生预约）'>
+                <DatePicker showTime style={{ width: '100%' }} placeholder='可选' />
               </Form.Item>
             </Col>
             <Col span={12}>
@@ -693,8 +693,8 @@ export default function BatchOverrides(_props: { type: CertType; productCode: st
             </Col>
           </Row>
 
-          <Divider orientation='left' orientationMargin={0}>⑤ 报名类型与费用</Divider>
-          <Typography.Paragraph type='secondary'>以下费用为本批次实际报名金额，发布后不可修改。</Typography.Paragraph>
+          <Divider orientation='left' orientationMargin={0}>⑤ 报名类型</Divider>
+          <Typography.Paragraph type='secondary'>费用由产品级三档价决定（在产品设置中维护），此处仅展示。</Typography.Paragraph>
           <Row gutter={16}>
             {(['coupon', 'student', 'full'] as const).map((type) => (
               <Col span={8} key={type}>
@@ -708,14 +708,14 @@ export default function BatchOverrides(_props: { type: CertType; productCode: st
                   }}
                 >
                   <Typography.Text strong>{TYPE_LABELS[type]}</Typography.Text>
-                  <Form.Item
-                    name={`${type}_price_cents`}
-                    label='本批次费用（元）'
-                    style={{ marginTop: 8, marginBottom: 8 }}
-                    rules={[{ required: true, message: '必填' }]}
-                  >
-                    <InputNumber min={0} precision={2} style={{ width: '100%' }} prefix='¥' placeholder='0.00' />
-                  </Form.Item>
+                  <div style={{ marginTop: 8, marginBottom: 8, fontSize: 16, fontWeight: 600, color: '#1677ff' }}>
+                    ¥{(() => {
+                      const _p = selectedProduct
+                      if (!_p) return '—'
+                      const cents = type === 'coupon' ? _p.coupon_price_cents : type === 'student' ? _p.student_price_cents : _p.full_price_cents
+                      return cents != null ? (cents / 100).toFixed(2) : '未配置'
+                    })()}
+                  </div>
                   <Typography.Paragraph type='secondary' style={{ fontSize: 12, marginBottom: 0 }}>
                     {REGISTRATION_REQUIREMENTS[type]}
                   </Typography.Paragraph>
