@@ -120,7 +120,6 @@ export default function BatchOverrides(_props: { type: CertType; productCode: st
   const watchName = Form.useWatch('name', form)
   const watchApplyStart = Form.useWatch('apply_start', form)
   const watchApplyEnd = Form.useWatch('apply_end', form)
-  const watchExamDate = Form.useWatch('exam_date', form)
   const watchExamLocation = Form.useWatch('exam_location', form)
   const watchCapacity = Form.useWatch('capacity', form)
   const watchCouponPrice = Form.useWatch('coupon_price_cents', form)
@@ -188,7 +187,6 @@ export default function BatchOverrides(_props: { type: CertType; productCode: st
     name: String(values.name ?? '').trim(),
     apply_start: (values.apply_start as dayjs.Dayjs | undefined)?.toISOString(),
     apply_end: (values.apply_end as dayjs.Dayjs | undefined)?.toISOString(),
-    exam_date: (values.exam_date as dayjs.Dayjs | undefined)?.toISOString(),
     exam_location: values.exam_location ? String(values.exam_location).trim() : undefined,
     capacity: Number(values.capacity),
     exam_code: String(values.exam_code ?? selectedProduct?.code ?? ''),
@@ -225,7 +223,6 @@ export default function BatchOverrides(_props: { type: CertType; productCode: st
     const scheduleError = validateSchedule(
       values.apply_start as dayjs.Dayjs | undefined,
       values.apply_end as dayjs.Dayjs | undefined,
-      values.exam_date as dayjs.Dayjs | undefined,
     )
     if (scheduleError) {
       message.warning(scheduleError)
@@ -322,7 +319,6 @@ export default function BatchOverrides(_props: { type: CertType; productCode: st
       identity_tag: batch.identity_tag,
       apply_start: batch.apply_start ? dayjs(batch.apply_start) : undefined,
       apply_end: batch.apply_end ? dayjs(batch.apply_end) : undefined,
-      exam_date: batch.exam_date ? dayjs(batch.exam_date) : undefined,
       coupon_price_cents: centsToYuan(
         batch.prices.find((price) => price.registration_type === 'coupon')?.price_cents,
       ),
@@ -421,12 +417,6 @@ export default function BatchOverrides(_props: { type: CertType; productCode: st
       title: '报名时间',
       width: 210,
       render: (_, row) => `${formatDateOrNull(row.apply_start)} ~ ${formatDateOrNull(row.apply_end)}`,
-    },
-    {
-      title: '考试时间',
-      dataIndex: 'exam_date',
-      width: 120,
-      render: (value: string | null) => formatDateOrNull(value),
     },
     {
       title: '名额',
@@ -691,12 +681,7 @@ export default function BatchOverrides(_props: { type: CertType; productCode: st
 
           <Divider orientation='left' orientationMargin={0}>④ 考试安排</Divider>
           <Row gutter={16}>
-            <Col span={12}>
-              <Form.Item name='exam_date' label='预计考试周期（仅供参考，实际由考生预约）'>
-                <DatePicker showTime style={{ width: '100%' }} placeholder='可选' />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
+            <Col span={24}>
               <Form.Item name='exam_location' label='考试地点'>
                 <Input maxLength={256} placeholder='线下考试填写地址' />
               </Form.Item>
@@ -785,7 +770,7 @@ export default function BatchOverrides(_props: { type: CertType; productCode: st
               {
                 key: 'exam',
                 label: '考试安排',
-                children: `${formatDateOrNull(watchExamDate?.toISOString())}${watchExamLocation ? ` · ${watchExamLocation}` : ''}`,
+                children: watchExamLocation || '以考生预约为准',
               },
               { key: 'capacity', label: '总名额', children: watchCapacity ?? '-' },
               {
