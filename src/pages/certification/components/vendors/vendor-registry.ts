@@ -30,6 +30,12 @@ const vendorRegistry: VendorProfile[] = [
     batchFormExtra: lazy(() => import('./h3c/BatchFormExtra')),
     tabs: [
       {
+        key: 'exam-schedule',
+        label: '考场管理',
+        permission: 'h3c:batch_manage',
+        component: lazy(() => import('./h3c/ExamSchedule')),
+      },
+      {
         key: 'refund',
         label: '退款管理',
         permission: 'h3c:refund',
