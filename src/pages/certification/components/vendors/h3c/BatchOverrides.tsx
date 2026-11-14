@@ -242,14 +242,19 @@ export default function BatchOverrides(_props: { type: CertType; productCode: st
         return
       }
 
-      // v2 多产品：如果选择了多个产品，传 product_ids；否则兼容单产品模式
-      const selectedProductIds = (values.product_ids as number[] | undefined) ?? []
+      // v2 多产品：根据 product_codes 数量分支
+      const codes = (values.product_codes as string[] | undefined) ?? []
       const createPayload: Record<string, unknown> = {
         ...buildPayload(values),
-        certification_code: String(values.certification_code ?? ''),
       }
-      if (selectedProductIds.length > 1) {
-        createPayload.product_ids = selectedProductIds
+      if (codes.length === 1) {
+        // 单产品模式
+        createPayload.certification_code = codes[0]
+      } else if (codes.length > 1) {
+        // 多产品模式：code → id
+        createPayload.product_ids = codes
+          .map((code) => products.find((p) => p.code === code)?.id)
+          .filter((id): id is number => id != null)
         // 多产品模式不传价格（后端从产品级读取）
         delete createPayload.coupon_price_cents
         delete createPayload.student_price_cents
@@ -309,6 +314,7 @@ export default function BatchOverrides(_props: { type: CertType; productCode: st
     form.resetFields()
     form.setFieldsValue({
       certification_code: batch.certification_code,
+      product_codes: batch.certification_code ? [batch.certification_code] : [],
       name: batch.name,
       capacity: batch.capacity,
       exam_location: batch.exam_location,
@@ -628,18 +634,22 @@ export default function BatchOverrides(_props: { type: CertType; productCode: st
             <InputNumber precision={0} />
           </Form.Item>
 
-          <Divider orientation='left' orientationMargin={0}>① 认证产品</Divider>
+          <Divider orientation='left' orientationMargin={0}>① 认证产品（可多选）</Divider>
           <Form.Item
-            name='certification_code'
+            name='product_codes'
             label='认证产品'
             rules={[{ required: true, message: '请选择认证产品' }]}
           >
             <Select
-              placeholder='搜索并选择 H3C 认证产品'
+              mode='multiple'
+              placeholder='搜索并选择 H3C 认证产品（选 2+ 个为多产品批次）'
               showSearch
               optionFilterProp='label'
               disabled={Boolean(editingBatch)}
-              onChange={handleProductSelect}
+              onChange={(vals: string[]) => {
+                if (vals.length === 1) handleProductSelect(vals[0])
+                else form.setFieldValue('certification_code', undefined)
+              }}
               options={products.map((item) => ({
                 label: `${item.code} · ${item.chinese_name}`,
                 value: item.code,
