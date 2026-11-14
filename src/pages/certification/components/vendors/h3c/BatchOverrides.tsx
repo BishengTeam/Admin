@@ -191,7 +191,7 @@ export default function BatchOverrides(_props: { type: CertType; productCode: st
     apply_end: (values.apply_end as dayjs.Dayjs | undefined)?.toISOString(),
     exam_location: values.exam_location ? String(values.exam_location).trim() : undefined,
     capacity: Number(values.capacity),
-    exam_code: String(values.exam_code ?? selectedProduct?.code ?? ''),
+    exam_code: String(selectedProduct?.code ?? watchProductCodes?.[0] ?? ''),
     identity_tag: String(
       values.identity_tag
       ?? (selectedProduct ? extractIdentityTag(selectedProduct) : ''),
@@ -317,7 +317,6 @@ export default function BatchOverrides(_props: { type: CertType; productCode: st
       name: batch.name,
       capacity: batch.capacity,
       exam_location: batch.exam_location,
-      exam_code: batch.exam_code,
       identity_tag: batch.identity_tag,
       apply_start: batch.apply_start ? dayjs(batch.apply_start) : undefined,
       apply_end: batch.apply_end ? dayjs(batch.apply_end) : undefined,
@@ -760,16 +759,6 @@ export default function BatchOverrides(_props: { type: CertType; productCode: st
             <Col span={8}>
               <Form.Item name='max_resubmissions' label='补正次数上限'>
                 <InputNumber min={0} max={10} precision={0} style={{ width: '100%' }} />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item
-                name='exam_code'
-                label='考试信息例外调整'
-                tooltip='默认使用认证产品代码，仅确有业务需要时修改'
-                rules={[{ required: true, message: '请确认考试代码' }]}
-              >
-                <Input maxLength={64} placeholder='默认自动带出' />
               </Form.Item>
             </Col>
           </Row>
