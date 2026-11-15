@@ -34,7 +34,9 @@ describe('H3C exam schedule management', () => {
     const source = readComponent()
 
     expect(source).toContain('function generateBookableDates')
-    expect(source).toContain('enabled.has(current.day())')
+    expect(source).toContain('const pythonWeekday = (current.day() + 6) % 7')
+    expect(source).toContain('enabled.has(pythonWeekday)')
+    expect(source).not.toContain('enabled.has(current.day())')
     expect(source).toContain("!holidays.has(current.format('YYYY-MM-DD'))")
     expect(source).toContain('该范围内可预约日期（排除假期）')
     expect(source).toContain('当前无可预约日期')

@@ -115,7 +115,10 @@ function generateBookableDates(
   const dates: dayjs.Dayjs[] = []
   let current = start
   while (current.isBefore(end) || current.isSame(end, 'day')) {
-    if (enabled.has(current.day()) && !holidays.has(current.format('YYYY-MM-DD'))) {
+    // Backend uses Python weekday(): 0=Monday ... 6=Sunday.
+    // dayjs.day(): 0=Sunday ... 6=Saturday.
+    const pythonWeekday = (current.day() + 6) % 7
+    if (enabled.has(pythonWeekday) && !holidays.has(current.format('YYYY-MM-DD'))) {
       dates.push(current)
     }
     current = current.add(1, 'day')
