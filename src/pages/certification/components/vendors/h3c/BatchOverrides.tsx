@@ -312,8 +312,12 @@ export default function BatchOverrides(_props: { type: CertType; productCode: st
     setEditingBatch(batch)
     form.resetFields()
     form.setFieldsValue({
-      certification_code: batch.certification_code,
-      product_codes: batch.certification_code ? [batch.certification_code] : [],
+      certification_code: batch.product_codes?.length === 1
+        ? batch.product_codes[0]
+        : batch.certification_code,
+      product_codes: batch.product_codes ?? (
+        batch.certification_code ? [batch.certification_code] : []
+      ),
       name: batch.name,
       capacity: batch.capacity,
       exam_location: batch.exam_location,
@@ -396,8 +400,10 @@ export default function BatchOverrides(_props: { type: CertType; productCode: st
       width: 170,
       ellipsis: true,
       render: (_, row) => {
-        const label = products.find((item) => item.code === row.certification_code)
-          ?.chinese_name ?? row.certification_code
+        const codes = row.product_codes ?? (row.certification_code ? [row.certification_code] : [])
+        const label = codes
+          .map((code) => products.find((item) => item.code === code)?.chinese_name ?? code)
+          .join('、')
         return (
           <Typography.Text ellipsis={{ tooltip: label }} style={{ maxWidth: 150 }}>
             {label}

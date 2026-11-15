@@ -764,7 +764,7 @@ export default function BatchExportWorkbench() {
       {batch && (
         <Card size='small' style={{ marginBottom: 16 }}>
           <Space wrap size={24}>
-            <span><Text type='secondary'>认证产品：</Text>{batch.certification_code}</span>
+            <span><Text type='secondary'>认证产品：</Text>{(batch.product_codes ?? [batch.certification_code]).join('、')}</span>
             <span><Text type='secondary'>考试时间：</Text>{formatDate(batch.exam_date)}</span>
             <span><Text type='secondary'>批次状态：</Text><Tag color={PLAN_STATUS_MAP[batch.status as PlanStatus]?.color}>{PLAN_STATUS_MAP[batch.status as PlanStatus]?.text || '未知状态'}</Tag></span>
             <span><Text type='secondary'>名额：</Text>{batch.occupied_count}/{batch.capacity}</span>

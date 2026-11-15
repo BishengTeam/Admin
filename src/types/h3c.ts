@@ -21,7 +21,8 @@ export interface H3cPriceOption {
 export interface H3cExamBatch {
   id: number
   plan_id: number
-  certification_code: string
+  certification_code: string | null
+  product_codes?: string[]
   name: string
   status: string
   apply_start: string
