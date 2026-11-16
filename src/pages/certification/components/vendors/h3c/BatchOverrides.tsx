@@ -120,7 +120,6 @@ export default function BatchOverrides(_props: { type: CertType; productCode: st
   const watchName = Form.useWatch('name', form)
   const watchApplyStart = Form.useWatch('apply_start', form)
   const watchApplyEnd = Form.useWatch('apply_end', form)
-  const watchExamLocation = Form.useWatch('exam_location', form)
   const watchCapacity = Form.useWatch('capacity', form)
   const watchCouponPrice = Form.useWatch('coupon_price_cents', form)
   const watchStudentPrice = Form.useWatch('student_price_cents', form)
@@ -189,7 +188,6 @@ export default function BatchOverrides(_props: { type: CertType; productCode: st
     name: String(values.name ?? '').trim(),
     apply_start: (values.apply_start as dayjs.Dayjs | undefined)?.toISOString(),
     apply_end: (values.apply_end as dayjs.Dayjs | undefined)?.toISOString(),
-    exam_location: values.exam_location ? String(values.exam_location).trim() : undefined,
     capacity: Number(values.capacity),
     exam_code: String(selectedProduct?.code ?? watchProductCodes?.[0] ?? ''),
     identity_tag: String(
@@ -320,7 +318,6 @@ export default function BatchOverrides(_props: { type: CertType; productCode: st
       ),
       name: batch.name,
       capacity: batch.capacity,
-      exam_location: batch.exam_location,
       identity_tag: batch.identity_tag,
       apply_start: batch.apply_start ? dayjs(batch.apply_start) : undefined,
       apply_end: batch.apply_end ? dayjs(batch.apply_end) : undefined,
@@ -687,13 +684,9 @@ export default function BatchOverrides(_props: { type: CertType; productCode: st
           </Row>
 
           <Divider orientation='left' orientationMargin={0}>④ 考试安排</Divider>
-          <Row gutter={16}>
-            <Col span={24}>
-              <Form.Item name='exam_location' label='考试地点'>
-                <Input maxLength={256} placeholder='线下考试填写地址' />
-              </Form.Item>
-            </Col>
-          </Row>
+          <Typography.Text type='secondary'>
+            考试地点在「考场管理」中设置，此处无需填写；考生预约后显示实际考场地址。
+          </Typography.Text>
 
           <Divider orientation='left' orientationMargin={0}>⑤ 报名类型</Divider>
 
@@ -791,7 +784,7 @@ export default function BatchOverrides(_props: { type: CertType; productCode: st
               {
                 key: 'exam',
                 label: '考试安排',
-                children: watchExamLocation || '以考生预约为准',
+                children: '以考生预约为准',
               },
               { key: 'capacity', label: '总名额', children: watchCapacity ?? '-' },
               {
