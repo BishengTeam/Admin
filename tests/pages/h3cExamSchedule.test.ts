@@ -24,6 +24,9 @@ describe('H3C exam schedule management', () => {
     expect(source).toContain('name=\'product_ids\'')
     expect(source).toContain('<Form.List')
     expect(source).toContain('seat_quotas: productsForPayload.flatMap')
+    expect(source).toContain('exam_location: values.exam_location')
+    expect(source).toContain("name='exam_location'")
+    expect(source).toContain('如：成都市高新区天府软件园B区3楼')
     expect(source).toContain('publish,')
     expect(source).toContain('保存草稿')
     expect(source).toContain('保存并发布')
@@ -34,6 +37,7 @@ describe('H3C exam schedule management', () => {
     const source = readComponent()
 
     expect(source).toContain('function generateBookableDates')
+    expect(source).toContain('exam_location?: string')
     expect(source).toContain('const pythonWeekday = (current.day() + 6) % 7')
     expect(source).toContain('enabled.has(pythonWeekday)')
     expect(source).not.toContain('enabled.has(current.day())')

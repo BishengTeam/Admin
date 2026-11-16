@@ -22,6 +22,7 @@ interface Schedule {
   open_date_start: string
   open_date_end: string
   allowed_weekdays: number[]
+  exam_location: string | null
   status: string
   published_at: string | null
 }
@@ -33,6 +34,7 @@ interface ScheduleDetail {
   open_date_start: string
   open_date_end: string
   allowed_weekdays: number[]
+  exam_location?: string
   pre_exam_notice: string | null
   subjects: Array<{ id: number; product_id: number; product_name: string }>
   time_slots: Array<{ id: number; label: string; start_time: string }>
@@ -61,6 +63,7 @@ interface CreateFormValues {
   name: string
   date_range: [dayjs.Dayjs, dayjs.Dayjs]
   allowed_weekdays: number[]
+  exam_location?: string
   pre_exam_notice?: string
   product_ids: number[]
   time_slots: TimeSlotValue[]
@@ -273,6 +276,7 @@ export default function ExamSchedulePage() {
         open_date_start: values.date_range[0].format('YYYY-MM-DD'),
         open_date_end: values.date_range[1].format('YYYY-MM-DD'),
         allowed_weekdays: values.allowed_weekdays,
+        exam_location: values.exam_location,
         pre_exam_notice: values.pre_exam_notice,
         product_ids: values.product_ids,
         time_slots: slotConfigs.map(slot => ({
@@ -400,6 +404,9 @@ export default function ExamSchedulePage() {
               rules={[{ required: true, message: '请至少选择一个可用星期' }]}
             >
               <Checkbox.Group options={WEEKDAY_OPTIONS} />
+            </Form.Item>
+            <Form.Item name='exam_location' label='考试地点'>
+              <Input placeholder='如：成都市高新区天府软件园B区3楼' maxLength={256} />
             </Form.Item>
             <Form.Item>
               <Text type='secondary'>
