@@ -18,6 +18,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { checkPermission } from '@/core/permission'
 import { gzhArticleService } from '@/services/gzhArticle'
 import { formatDate } from '@/utils/format'
+import { proxiedImageUrl } from '@/utils/mediaUrl'
 import { requiredRule } from '@/utils/validator'
 import type { GzhArticle, GzhArticleImportItem } from '@/types/gzhArticle'
 
@@ -317,7 +318,7 @@ export default function GzhArticles() {
       width: 100,
       render: (thumb: string | null) =>
         thumb ? (
-          <img src={thumb} alt="封面" style={{ width: 80, height: 45, objectFit: 'cover', borderRadius: 4 }} />
+          <img src={proxiedImageUrl(thumb)} alt="封面" style={{ width: 80, height: 45, objectFit: 'cover', borderRadius: 4 }} />
         ) : (
           <Text type="secondary">无</Text>
         ),

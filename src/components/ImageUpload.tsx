@@ -3,6 +3,7 @@ import { Tooltip, Upload, message } from 'antd'
 import { PlusOutlined, LoadingOutlined, QuestionCircleOutlined } from '@ant-design/icons'
 import type { RcFile } from 'antd/es/upload/interface'
 import { http } from '@/core/request'
+import { proxiedImageUrl } from '@/utils/mediaUrl'
 import { CoverCropper, type CoverCropConfig } from '@/components/CoverCropper'
 
 interface ImageUploadProps {
@@ -151,8 +152,8 @@ export function ImageUpload({
         beforeUpload={beforeUpload}
         customRequest={customRequest as never}
       >
-        {value ? (
-          <img src={value} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        {proxiedImageUrl(value) ? (
+          <img src={proxiedImageUrl(value)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
         ) : (
           uploadButton
         )}
