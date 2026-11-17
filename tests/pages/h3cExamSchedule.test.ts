@@ -23,7 +23,7 @@ describe('H3C exam schedule management', () => {
     expect(source).toContain("certProductService.list({ type: 'h3c', page: 1, page_size: 100 })")
     expect(source).toContain('name=\'product_ids\'')
     expect(source).toContain('<Form.List')
-    expect(source).toContain('seat_quotas: productsForPayload.flatMap')
+    expect(source).toContain('shared_quotas: slotConfigs.map')
     expect(source).toContain('exam_location: values.exam_location')
     expect(source).toContain("name='exam_location'")
     expect(source).toContain('如：成都市高新区天府软件园B区3楼')
@@ -31,6 +31,7 @@ describe('H3C exam schedule management', () => {
     expect(source).toContain('保存草稿')
     expect(source).toContain('保存并发布')
     expect(source).not.toContain('{ value: 1, label: \'H3CNE\' }')
+    expect(source).not.toContain('quotaKey')
   })
 
   it('previews bookable dates for selected weekdays while excluding holidays', () => {
@@ -46,11 +47,16 @@ describe('H3C exam schedule management', () => {
     expect(source).toContain('当前无可预约日期')
   })
 
-  it('keeps quota adjustments available after publication with booked-count guardrails', () => {
+  it('uses one shared pool per time slot and keeps post-publication guardrails', () => {
     const source = readComponent()
 
+    expect(source).toContain('④ 考位配额（所有科目共享）')
+    expect(source).toContain('同一时段所有科目共享机位，先到先得')
+    expect(source).toContain('shared_quotas: items')
+    expect(source).toContain('slot_start: string')
     expect(source).toContain('const canEdit = detail.status !== \'closed\'')
     expect(source).toContain('已约 {booked}')
-    expect(source).toContain('发布后可将限量调整为不低于已约人数')
+    expect(source).toContain('发布后可将限量调整为不低于该时段已约人数')
+    expect(source).not.toContain('subject_id')
   })
 })

@@ -39,8 +39,8 @@ interface ScheduleDetail {
   subjects: Array<{ id: number; product_id: number; product_name: string }>
   time_slots: Array<{ id: number; label: string; start_time: string }>
   seat_quotas: Array<{
-    subject_id: number
     slot_id: number
+    slot_start: string
     total_seats: number
     booked?: number
     remaining?: number
@@ -129,10 +129,6 @@ function generateBookableDates(
   return dates
 }
 
-function quotaKey(productId: number, slotTime: string) {
-  return `${productId}:${slotTime}`
-}
-
 const STATUS_MAP: Record<string, { color: string; label: string }> = {
   draft: { color: 'default', label: '草稿' },
   published: { color: 'green', label: '已发布' },
@@ -171,7 +167,6 @@ export default function ExamSchedulePage() {
 
   const dateRange = Form.useWatch('date_range', form) as DateRangeValue
   const allowedWeekdays = Form.useWatch('allowed_weekdays', form) as number[] | undefined
-  const selectedProductIds = Form.useWatch('product_ids', form) as number[] | undefined
   const watchedSlots = Form.useWatch('time_slots', form) as TimeSlotValue[] | undefined
   const defaultQuota = Form.useWatch('default_quota', form) as number | undefined
 
@@ -184,10 +179,6 @@ export default function ExamSchedulePage() {
       }))
   ), [watchedSlots])
   const slotKey = useMemo(() => slotConfigs.map(slot => slot.time).join('|'), [slotConfigs])
-  const selectedProducts = useMemo(
-    () => products.filter(product => selectedProductIds?.includes(product.id)),
-    [products, selectedProductIds],
-  )
   const normalizedDefaultQuota = defaultQuota ?? 5
   const bookableDates = useMemo(
     () => generateBookableDates(dateRange, holidayDates, allowedWeekdays ?? [4]),
@@ -198,18 +189,15 @@ export default function ExamSchedulePage() {
     const previousDefaultQuota = previousDefaultQuotaRef.current
     setQuotaMatrix(prev => {
       const next: QuotaMatrix = {}
-      for (const product of selectedProducts) {
-        for (const slot of slotConfigs) {
-          const key = quotaKey(product.id, slot.time)
-          next[key] = key in prev && prev[key] !== previousDefaultQuota
-            ? prev[key]
-            : normalizedDefaultQuota
-        }
+      for (const slot of slotConfigs) {
+        next[slot.time] = slot.time in prev && prev[slot.time] !== previousDefaultQuota
+          ? prev[slot.time]
+          : normalizedDefaultQuota
       }
       return next
     })
     previousDefaultQuotaRef.current = normalizedDefaultQuota
-  }, [selectedProducts, slotConfigs, slotKey, normalizedDefaultQuota])
+  }, [slotConfigs, slotKey, normalizedDefaultQuota])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -268,7 +256,6 @@ export default function ExamSchedulePage() {
       return
     }
 
-    const productsForPayload = products.filter(product => values.product_ids.includes(product.id))
     setCreatingAction(publish ? 'publish' : 'draft')
     try {
       await api.create({
@@ -284,11 +271,10 @@ export default function ExamSchedulePage() {
           label: watchedSlots?.find(item => item.start_time?.format('HH:mm') === slot.time)?.label,
         })),
         default_quota: values.default_quota,
-        seat_quotas: productsForPayload.flatMap(product => slotConfigs.map(slot => ({
-          product_id: product.id,
+        shared_quotas: slotConfigs.map(slot => ({
           slot_start: slot.time,
-          total_seats: quotaMatrix[quotaKey(product.id, slot.time)] ?? values.default_quota,
-        }))),
+          total_seats: quotaMatrix[slot.time] ?? values.default_quota,
+        })),
         publish,
       })
       message.success(publish ? '考场计划已创建并发布' : '考场计划草稿已创建')
@@ -480,49 +466,49 @@ export default function ExamSchedulePage() {
             </Form.Item>
           </Card>
 
-          <Card type='inner' title='④ 考位配额' size='small' style={{ marginTop: 16 }}>
-            <Form.Item name='default_quota' label='默认每格配额' initialValue={5}>
+          <Card
+            type='inner'
+            title='④ 考位配额（所有科目共享）'
+            size='small'
+            style={{ marginTop: 16 }}
+          >
+            <Form.Item name='default_quota' label='默认每个时段机位' initialValue={5}>
               <InputNumber min={0} precision={0} />
             </Form.Item>
-            {selectedProducts.length > 0 && slotConfigs.length > 0 && (
+            {slotConfigs.length > 0 && (
               <table style={{ borderCollapse: 'collapse', width: '100%' }}>
                 <thead>
                   <tr>
-                    <th style={tableHeaderStyle}>科目</th>
-                    {slotConfigs.map(slot => (
-                      <th key={slot.time} style={tableHeaderStyle}>{slot.time}</th>
-                    ))}
+                    <th style={tableHeaderStyle}>时段</th>
+                    <th style={tableHeaderStyle}>共享机位</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {selectedProducts.map(product => (
-                    <tr key={product.id}>
-                      <td style={tableCellStyle}>{product.chinese_name || product.name}</td>
-                      {slotConfigs.map(slot => {
-                        const key = quotaKey(product.id, slot.time)
-                        return (
-                          <td key={key} style={{ ...tableCellStyle, textAlign: 'center' }}>
-                            <InputNumber
-                              min={0}
-                              precision={0}
-                              size='small'
-                              style={{ width: 72 }}
-                              value={quotaMatrix[key] ?? normalizedDefaultQuota}
-                              onChange={value => setQuotaMatrix(prev => ({
-                                ...prev,
-                                [key]: value ?? 0,
-                              }))}
-                            />
-                          </td>
-                        )
-                      })}
+                  {slotConfigs.map(slot => (
+                    <tr key={slot.time}>
+                      <td style={tableCellStyle}>{slot.time}</td>
+                      <td style={{ ...tableCellStyle, textAlign: 'center' }}>
+                        <InputNumber
+                          min={0}
+                          precision={0}
+                          size='small'
+                          style={{ width: 72 }}
+                          value={quotaMatrix[slot.time] ?? normalizedDefaultQuota}
+                          onChange={value => setQuotaMatrix(prev => ({
+                            ...prev,
+                            [slot.time]: value ?? 0,
+                          }))}
+                        />
+                      </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             )}
             <div style={{ marginTop: 8 }}>
-              <Text type='secondary'>0 = 不限机位。配额对所有可预约日期共享。</Text>
+              <Text type='secondary'>
+                同一时段所有科目共享机位，先到先得。0 = 不限；配额对所有可预约日期共享。
+              </Text>
             </div>
           </Card>
 
@@ -619,7 +605,7 @@ function ScheduleEditor({
         )}
         {!canEditStructure && (
           <Text type='secondary' style={{ display: 'block', marginTop: 8 }}>
-            已发布/已关闭计划不可增删科目；发布后仍可调整配额。
+            已发布/已关闭计划不可增删科目；发布后仍可调整共享配额。
           </Text>
         )}
       </Card>
@@ -636,7 +622,7 @@ function ScheduleEditor({
       </Card>
 
       {detail.subjects.length > 0 && detail.time_slots.length > 0 && (
-        <Card title='机位配额' size='small'>
+        <Card title='共享机位配额' size='small'>
           <SeatQuotaGrid detail={detail} onChanged={onChanged} />
         </Card>
       )}
@@ -664,7 +650,7 @@ function SeatQuotaGrid({ detail, onChanged }: { detail: ScheduleDetail; onChange
   useEffect(() => {
     const map: QuotaMatrix = {}
     for (const q of detail.seat_quotas) {
-      map[`${q.subject_id}-${q.slot_id}`] = q.total_seats
+      map[String(q.slot_id)] = q.total_seats
     }
     setQuotas(map)
   }, [detail])
@@ -672,7 +658,7 @@ function SeatQuotaGrid({ detail, onChanged }: { detail: ScheduleDetail; onChange
   const quotaMeta = useMemo(() => {
     const meta = new Map<string, { booked: number }>()
     for (const q of detail.seat_quotas) {
-      meta.set(`${q.subject_id}-${q.slot_id}`, { booked: q.booked ?? 0 })
+      meta.set(String(q.slot_id), { booked: q.booked ?? 0 })
     }
     return meta
   }, [detail])
@@ -680,12 +666,12 @@ function SeatQuotaGrid({ detail, onChanged }: { detail: ScheduleDetail; onChange
   const handleSave = async () => {
     setSaving(true)
     try {
-      const items = Object.entries(quotas).map(([key, val]) => {
-        const [subjectId, slotId] = key.split('-').map(Number)
-        return { subject_id: subjectId, slot_id: slotId, total_seats: val }
-      })
-      await api.setQuotas(detail.id, { quotas: items })
-      message.success('机位配额已保存')
+      const items = Object.entries(quotas).map(([slotId, totalSeats]) => ({
+        slot_id: Number(slotId),
+        total_seats: totalSeats,
+      }))
+      await api.setQuotas(detail.id, { shared_quotas: items })
+      message.success('共享机位配额已保存')
       onChanged()
     } catch (error) {
       message.error(getErrorMessage(error, '保存失败'))
@@ -699,47 +685,41 @@ function SeatQuotaGrid({ detail, onChanged }: { detail: ScheduleDetail; onChange
       <table style={{ borderCollapse: 'collapse', width: '100%' }}>
         <thead>
           <tr>
-            <th style={tableHeaderStyle}>科目</th>
-            {detail.time_slots.map(t => (
-              <th key={t.id} style={tableHeaderStyle}>
-                {t.label}<br /><Text type='secondary'>{t.start_time}</Text>
-              </th>
-            ))}
+            <th style={tableHeaderStyle}>时段</th>
+            <th style={tableHeaderStyle}>共享机位</th>
           </tr>
         </thead>
         <tbody>
-          {detail.subjects.map(s => (
-            <tr key={s.id}>
-              <td style={tableCellStyle}>{s.product_name}</td>
-              {detail.time_slots.map(t => {
-                const key = `${s.id}-${t.id}`
-                const value = quotas[key] ?? 0
-                const booked = quotaMeta.get(key)?.booked ?? 0
-                return (
-                  <td key={t.id} style={{ ...tableCellStyle, textAlign: 'center' }}>
-                    <InputNumber
-                      min={0}
-                      size='small'
-                      style={{ width: 70 }}
-                      disabled={!canEdit}
-                      value={value}
-                      onChange={v => setQuotas(prev => ({ ...prev, [key]: v ?? 0 }))}
-                    />
-                    <div>
-                      <Text type='secondary' style={{ fontSize: 12 }}>
-                        已约 {booked} / {value === 0 ? '不限' : `余 ${Math.max(0, value - booked)}`}
-                      </Text>
-                    </div>
-                  </td>
-                )
-              })}
-            </tr>
-          ))}
+          {detail.time_slots.map(t => {
+            const key = String(t.id)
+            const value = quotas[key] ?? 0
+            const booked = quotaMeta.get(key)?.booked ?? 0
+            return (
+              <tr key={t.id}>
+                <td style={tableCellStyle}>{t.label} ({t.start_time})</td>
+                <td style={{ ...tableCellStyle, textAlign: 'center' }}>
+                  <InputNumber
+                    min={0}
+                    size='small'
+                    style={{ width: 70 }}
+                    disabled={!canEdit}
+                    value={value}
+                    onChange={v => setQuotas(prev => ({ ...prev, [key]: v ?? 0 }))}
+                  />
+                  <div>
+                    <Text type='secondary' style={{ fontSize: 12 }}>
+                      已约 {booked} / {value === 0 ? '不限' : `余 ${Math.max(0, value - booked)}`}
+                    </Text>
+                  </div>
+                </td>
+              </tr>
+            )
+          })}
         </tbody>
       </table>
       <div style={{ marginTop: 12 }}>
         <Text type='secondary'>
-          0 = 不限机位。发布后可将限量调整为不低于已约人数，或改为 0 不限；关闭后不可修改。
+          同一时段所有科目共享机位。0 = 不限；发布后可将限量调整为不低于该时段已约人数；关闭后不可修改。
         </Text>
         <Button
           type='primary'
