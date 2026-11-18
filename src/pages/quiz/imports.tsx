@@ -484,7 +484,9 @@ export default function QuizImports({ onOpenWorkbench, embeddedLibraryId, readOn
     {
       title: '操作', key: 'actions', width: 380, fixed: 'right', render: (_, job) => (
         <Space size={0}>
-          <Button type="link" size="small" onClick={() => { if (job.error_count) void openErrors(job); else if (job.status === 'awaiting_category_confirmation') void openImpact(job); else setDetail(job) }}>检查</Button>
+          <Tooltip title={isExpired(job.expires_at) ? '该任务的检查数据已超过 7 天保留期' : undefined}>
+            <Button type="link" size="small" disabled={isExpired(job.expires_at)} onClick={() => { if (job.error_count) void openErrors(job); else if (job.status === 'awaiting_category_confirmation') void openImpact(job); else setDetail(job) }}>检查</Button>
+          </Tooltip>
           {!isExpired(job.expires_at) && <Button type="link" size="small" icon={<FileOutlined />} loading={signedLoading === `source:${job.id}`} onClick={() => void openSignedFile(job, 'source')}>源文件</Button>}
           {job.error_count > 0 && !isExpired(job.expires_at) && <Button type="link" size="small" onClick={() => void openErrors(job)}>错误明细</Button>}
           {job.status === 'awaiting_category_confirmation' && <Button type="link" size="small" icon={<FolderOpenOutlined />} onClick={() => void openImpact(job)}>检查并确认</Button>}
@@ -522,6 +524,8 @@ export default function QuizImports({ onOpenWorkbench, embeddedLibraryId, readOn
   }
 
   const handleExportXlsx = () => void exportQuestions()
+  const detailExpired = detail ? isExpired(detail.expires_at) : false
+  const expiredHint = detailExpired ? '该任务的检查数据已超过 7 天保留期' : undefined
 
   return (
     <PageContainer title="导入任务">
@@ -554,7 +558,12 @@ export default function QuizImports({ onOpenWorkbench, embeddedLibraryId, readOn
             <Link to={`/admin/quiz/questions?tab=content&library_id=${detail.library_id}`} onClick={() => { setDetail(null); onOpenWorkbench?.() }}>打开目标题库工作台</Link>
           )}
           {detail.error_message && <Alert type={detail.error_count ? 'error' : 'warning'} message={detail.error_message} />}
-          <Space><Button loading={previewLoading} onClick={() => void loadPreview(detail.id)}>查看题目预览</Button><Button loading={signedLoading === `source:${detail.id}`} onClick={() => void openSignedFile(detail, 'source')}>下载源文件</Button>{detail.report_available && <Button onClick={() => void openSignedFile(detail, 'report')}>下载错误明细</Button>}<Button onClick={() => { if (detail.status === 'awaiting_category_confirmation') void loadImpact(detail); else if (detail.error_count) void openErrors(detail) }}>重新加载检查</Button></Space>
+          <Space>
+            <Tooltip title={expiredHint}><Button disabled={detailExpired} loading={previewLoading} onClick={() => void loadPreview(detail.id)}>查看题目预览</Button></Tooltip>
+            <Tooltip title={expiredHint}><Button disabled={detailExpired} loading={signedLoading === `source:${detail.id}`} onClick={() => void openSignedFile(detail, 'source')}>下载源文件</Button></Tooltip>
+            {detail.report_available && <Tooltip title={expiredHint}><Button disabled={detailExpired} onClick={() => void openSignedFile(detail, 'report')}>下载错误明细</Button></Tooltip>}
+            <Tooltip title={expiredHint}><Button disabled={detailExpired} onClick={() => { if (detail.status === 'awaiting_category_confirmation') void loadImpact(detail); else if (detail.error_count) void openErrors(detail) }}>重新加载检查</Button></Tooltip>
+          </Space>
           {previewTotal > 0 && <Table rowKey="row" size="small" dataSource={previewRows} loading={previewLoading} columns={[{ title: '行号', dataIndex: 'row', width: 70 }, { title: '题干', dataIndex: 'question_text' }, { title: '题型', dataIndex: 'question_type', width: 130 }, { title: '答案', dataIndex: 'correct_answer', render: (answer: unknown) => JSON.stringify(answer) }]} pagination={{ current: previewPage, total: previewTotal, pageSize: 20, onChange: (page) => void loadPreview(detail.id, page) }} />}
           {errorJob && <><Select allowClear placeholder="全部错误字段" value={errorFilter.field} onChange={(field) => changeErrorFilter({ page: 1, field })} options={(errorData?.available_fields ?? []).map((field) => ({ value: field, label: field }))} /><Table rowKey={(i) => `${i.row}:${i.field}:${i.message}`} columns={errorColumns} dataSource={errorData?.items ?? []} loading={errorLoading} pagination={{ pageSize: 50, current: errorFilter.page, total: errorData?.total ?? 0, onChange: (page) => changeErrorFilter({ ...errorFilter, page }) }} /></>}
           {impactLoading && <div>正在生成分类安排…</div>}
