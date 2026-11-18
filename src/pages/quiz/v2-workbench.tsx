@@ -1,4 +1,3 @@
-import QuizImports from './imports'
 import { PublicationDialog } from './components/PublicationDialog'
 import { quizPublication, type PublicationPreflight } from '@/services/quizPublication'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -35,12 +34,10 @@ import {
   ReloadOutlined,
   StopOutlined,
   UndoOutlined,
-  UploadOutlined,
 } from '@ant-design/icons'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { PageContainer } from '@/components/PageContainer'
 import { quizService } from '@/services/quiz'
-import { QUIZ_IMPORT_SUCCEEDED_EVENT } from '@/utils/quizEvents'
 import { usePermission } from '@/hooks/usePermission'
 import { QUESTION_PAGE_SIZE_OPTIONS, useQuestionPagination } from '@/hooks/useQuestionPagination'
 import { ApiError, isConflictError, isNotFoundError, isRateLimitError } from '@/core/request'
@@ -210,19 +207,12 @@ export default function QuizV2Workbench() {
     await Promise.all([loadLibraries(), loadTree(), loadQuestions()])
   }, [loadLibraries, loadTree, loadQuestions])
   useEffect(() => {
-    if (section !== 'imports') return
-    const refresh = () => void refreshAll()
-    window.addEventListener(QUIZ_IMPORT_SUCCEEDED_EVENT, refresh)
-    return () => window.removeEventListener(QUIZ_IMPORT_SUCCEEDED_EVENT, refresh)
-  }, [section, refreshAll])
-  useEffect(() => {
     const controller = new AbortController()
     setSummary(undefined)
     if (selectedLibraryId) void quizPublication.check(selectedLibraryId, controller.signal).then(setSummary).catch(() => {})
     return () => controller.abort()
   }, [selectedLibraryId, treeResult])
   const selectedPoint = selection.kind === 'point' ? findPoint(tree, selection.id) : undefined
-  const importBlocked = !selectedLibrary || ['archived', 'deleted'].includes(selectedLibrary.status)
 
   const openCreateContent = (kind: 'module' | 'point', moduleId?: number) => {
     setEditingContent(null)
@@ -525,10 +515,9 @@ export default function QuizV2Workbench() {
   return (
     <PageContainer title="题库内容工作台">
       {historical && <Alert showIcon type="info" style={{ marginBottom: 16 }} message={`「${selectedLibrary?.name}」${selectedLibrary?.status === 'deleted' ? '已移入回收站' : '已归档'}，当前仅可查看历史`} action={<Button onClick={() => navigate('/admin/recycle-bin')}>前往回收站</Button>} />}
-      {selectedLibrary && <Space wrap style={{ marginBottom: 16 }}><Button type={historical ? 'default' : 'primary'} onClick={() => setPublicationOpen(true)}>{historical ? '发布历史' : '检查并发布'}</Button>{!historical && canImport && <Button onClick={() => setSection('imports')}>上传题库</Button>}<span>总计 {selectedLibrary?.question_count ?? '—'} 题 · 可练习 {selectedLibrary?.practice_counts?.practicable ?? '—'} 题{summary && ` · 待审核 ${summary.counts.draft} · 内容异常 ${summary.counts.abnormal} · 归属不可用 ${summary.counts.unavailable_ownership}`}</span></Space>}
-      {selectedLibraryId && <Tabs activeKey={section} onChange={setSection} items={[{ key: 'questions', label: '题目' }, { key: 'classification', label: '分类管理' }, { key: 'imports', label: '导入记录' }]} />}
-      {section === 'imports' && selectedLibraryId && <QuizImports key={selectedLibraryId} embeddedLibraryId={selectedLibraryId} readOnly={historical} onOpenWorkbench={() => setSection('questions')} />}
-      <div style={{ display: section === 'imports' ? 'none' : undefined }}>
+      {selectedLibrary && <Space wrap style={{ marginBottom: 16 }}><Button type={historical ? 'default' : 'primary'} onClick={() => setPublicationOpen(true)}>{historical ? '发布历史' : '检查并发布'}</Button>{!historical && canImport && <Button onClick={() => navigate(`/admin/quiz/imports?library_id=${selectedLibraryId}`)}>上传题库</Button>}<span>总计 {selectedLibrary?.question_count ?? '—'} 题 · 可练习 {selectedLibrary?.practice_counts?.practicable ?? '—'} 题{summary && ` · 待审核 ${summary.counts.draft} · 内容异常 ${summary.counts.abnormal} · 归属不可用 ${summary.counts.unavailable_ownership}`}</span></Space>}
+      {selectedLibraryId && <Tabs activeKey={section} onChange={setSection} items={[{ key: 'questions', label: '题目' }, { key: 'classification', label: '分类管理' }]} />}
+      <div>
       <Space direction="vertical" style={{ width: '100%' }} size="middle">
 
         <Space wrap>
@@ -554,7 +543,6 @@ export default function QuizV2Workbench() {
               <Space wrap>
                 {Object.keys(selectedRows).length > 0 && <><Button disabled={!canWrite} onClick={() => setMoveOpen(true)}>批量调整归属</Button><Button disabled={!canPublish} onClick={() => setPublicationOpen(true)}>批量发布修订 ({Object.keys(selectedRows).length})</Button><Button danger disabled={!canPublish} onClick={() => batch('disable')}>批量停用</Button><Button danger disabled={!canWrite} onClick={() => batch('delete')}>批量删除</Button></>}
                 <Select aria-label="归属筛选" allowClear placeholder="全部归属" value={params.get('ownership') || undefined} onChange={(ownership) => updateParams({ ownership })} options={[{ value: 'default', label: '系统补齐归属' }, { value: 'unavailable', label: '归属不可用' }]} style={{ width: 160 }} />
-                {canImport && <Tooltip title={importBlocked ? '只有未归档、未删除的题库可以创建导入任务' : '模块和知识点选填，导入前确认系统补齐的归属'}><Button icon={<UploadOutlined />} disabled={importBlocked} onClick={() => setSection('imports')}>导入</Button></Tooltip>}
                 {canWrite && currentScope && !historical && <Tooltip title={scopeClearBlocked ? '题库已发布，请先停用题库再整库清空' : `清空${currentScope.label}下全部题目（进回收站，30 天可恢复）`}><Button danger icon={<ClearOutlined />} disabled={scopeClearBlocked} onClick={() => confirmScopeClear(currentScope.scope, currentScope.label)}>清空{currentScope.label}</Button></Tooltip>}{canWrite && <Tooltip title={!historical && selectedLibrary ? undefined : '题库不可用'}><Button type="primary" icon={<PlusOutlined />} disabled={!selectedLibrary || historical} onClick={() => openQuestion()}>新增题目</Button></Tooltip>}
               </Space>
             </Space>

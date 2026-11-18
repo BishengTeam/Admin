@@ -93,7 +93,7 @@ function errorLocation(item: ImportErrorItem) {
   return '-'
 }
 
-export default function QuizImports({ onOpenWorkbench, embeddedLibraryId, readOnly = false }: { onOpenWorkbench?: () => void; embeddedLibraryId?: number; readOnly?: boolean } = {}) {
+export default function QuizImports() {
   const [previewRows, setPreviewRows] = useState<{ row: number; question_text: string; question_type: string; category_path: string[]; correct_answer: unknown }[]>([])
   const [previewTotal, setPreviewTotal] = useState(0)
   const [previewPage, setPreviewPage] = useState(1)
@@ -104,14 +104,13 @@ export default function QuizImports({ onOpenWorkbench, embeddedLibraryId, readOn
     catch (e) { message.error(errorText(e)) } finally { setPreviewLoading(false) }
   }
   const importPermission = usePermission('quiz:import')
-  const canImport = importPermission && !readOnly
+  const canImport = importPermission
   const canWrite = usePermission('quiz:write')
   const [libraries, setLibraries] = useState<QuizLibrary[]>([])
   const [historicalLibraries, setHistoricalLibraries] = useState<QuizLibrary[]>([])
   const historicalTarget = (id?: number | null) => historicalLibraries.some(item => item.id === id && ['archived', 'deleted'].includes(item.status))
   const libraryName = (id?: number | null) => libraries.find(item => item.id === id)?.name ?? historicalLibraries.find(item => item.id === id)?.name
   const [libraryId, setLibraryId] = useState<number | undefined>(() => {
-    if (embeddedLibraryId) return embeddedLibraryId
     const value = typeof window === 'undefined' ? 0 : Number(new URLSearchParams(window.location.search).get('library_id'))
     return Number.isSafeInteger(value) && value > 0 ? value : undefined
   })
@@ -175,7 +174,7 @@ export default function QuizImports({ onOpenWorkbench, embeddedLibraryId, readOn
     controller.current = next
     if (!options.quiet) setLoading(true)
     try {
-      const result = await quizService.listImports({ ...params, ...(embeddedLibraryId ? { library_id: embeddedLibraryId } : {}) }, next.signal)
+      const result = await quizService.listImports(params, next.signal)
       if (!next.signal.aborted) {
         const signature = result.items.map((job) => `${job.id}:${job.status}:${job.updated_at}:${job.error_count}`).join('|')
         if (signature !== lastSignature.current) { lastSignature.current = signature; pollStarted.current = Date.now() }
@@ -531,7 +530,7 @@ export default function QuizImports({ onOpenWorkbench, embeddedLibraryId, readOn
     <PageContainer title="导入任务">
       {canImport && <Card size="small" title="提交导入任务" style={{ marginBottom: 16 }}>
         <Space direction="vertical" style={{ width: '100%' }} size="middle">
-          <Select aria-label="导入目标题库" showSearch optionFilterProp="label" placeholder="选择目标题库（必选）" value={libraryId} disabled={Boolean(embeddedLibraryId)} onChange={setLibraryId} options={libraries.map((library) => ({ value: library.id, label: `${library.name} (${library.library_code})` }))} style={{ width: 420 }} />
+          <Select aria-label="导入目标题库" showSearch optionFilterProp="label" placeholder="选择目标题库（必选）" value={libraryId} onChange={setLibraryId} options={libraries.map((library) => ({ value: library.id, label: `${library.name} (${library.library_code})` }))} style={{ width: 420 }} />
           <Upload beforeUpload={() => false} maxCount={1} accept=".xlsx" fileList={fileList} onChange={({ fileList: next }) => setFileList(next)}>
             <Button icon={<UploadOutlined />}>选择 .xlsx 文件</Button>
           </Upload>
@@ -555,7 +554,7 @@ export default function QuizImports({ onOpenWorkbench, embeddedLibraryId, readOn
         {detail && <Space direction="vertical" style={{ width: '100%' }} size="middle">
           <Descriptions bordered size="small" column={2}><Descriptions.Item label="文件" span={2}>{detail.source_filename ?? `导入任务 #${detail.id} 源文件`}</Descriptions.Item><Descriptions.Item label="目标题库">{libraryName(detail.library_id) ?? detail.library_id}</Descriptions.Item><Descriptions.Item label="状态">{statusLabels[detail.status]}</Descriptions.Item><Descriptions.Item label="读取题目">{detail.total_rows}</Descriptions.Item><Descriptions.Item label="内容检查通过">{detail.validated_rows}</Descriptions.Item><Descriptions.Item label="本次创建草稿">{detail.created_count}</Descriptions.Item><Descriptions.Item label="需要修改">{detail.error_count}</Descriptions.Item><Descriptions.Item label="来源">{detail.source_type.toUpperCase()}</Descriptions.Item><Descriptions.Item label="文件大小">{(detail.source_size_bytes / 1024).toFixed(1)} KB</Descriptions.Item></Descriptions>
           {detail.status === 'succeeded' && detail.library_id && (
-            <Link to={`/admin/quiz/questions?tab=content&library_id=${detail.library_id}`} onClick={() => { setDetail(null); onOpenWorkbench?.() }}>打开目标题库工作台</Link>
+            <Link to={`/admin/quiz/questions?tab=content&library_id=${detail.library_id}`} onClick={() => setDetail(null)}>打开目标题库工作台</Link>
           )}
           {detail.error_message && <Alert type={detail.error_count ? 'error' : 'warning'} message={detail.error_message} />}
           <Space>
