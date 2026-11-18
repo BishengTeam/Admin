@@ -99,7 +99,7 @@ export default function ApplicationDetailDrawer({ applicationId, open, onClose, 
   </Space> : null
   return <>
     <RegistrationProcessingDrawer key={applicationId} open={open} onClose={onClose} registrationNo={String(applicationId || '')}
-      name={String(current?.realname_snapshot.real_name || '')} batch={detail ? `${detail.plan.project_name || '人社认证'} · ${detail.plan.name}` : ''}
+      name={String(current?.realname_snapshot.real_name || '')} batch={detail ? `${detail.plan.project_name || '职业技能等级认证'} · ${detail.plan.name}` : ''}
       status={status ? <Tag color={status.color}>{status.text}</Tag> : '加载中'} payment={detail?.payment_summary} loading={loading} onRefresh={refresh} footer={footer}>
       {detail && <Space direction='vertical' size={24} style={{ width: '100%' }}>
         {detail.frozen_at && <Alert type='warning' message='报名已冻结，暂不能审核，请先处理退款或冻结事项' />}

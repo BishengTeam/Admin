@@ -8,7 +8,7 @@ describe('marketing jump targets', () => {
     expect(new Set(BANNER_PAGES.map(page => page.value)).size).toBe(BANNER_PAGES.length)
     expect(BANNER_PAGES.length).toBeLessThan(30)
     expect(BANNER_PAGES.some(page => /course|\/form|order-detail|payment|employment/.test(page.value))).toBe(false)
-    expect(BANNER_PAGES.find(page => page.label === '人社认证产品列表')?.value).toBe('/pages/registration/category?vendor=%E4%BA%BA%E7%A4%BE')
+    expect(BANNER_PAGES.find(page => page.label === '职业技能等级认证产品列表')?.value).toBe('/pages/registration/category?vendor=%E4%BA%BA%E7%A4%BE')
     expect(BANNER_PAGES.find(page => page.label === '英才计划')?.value).toBe('/pages/activity-zone/index?tab=yingcai')
   })
 

@@ -183,7 +183,7 @@ export const adminRoutes: AppRoute[] = [
         path: 'renshe',
         element: <TypeWorkbench type='renshe' />,
         meta: {
-          title: '人社认证',
+          title: '职业技能等级认证',
           icon: 'AuditOutlined',
           permissions: ['user:list', 'user:write', 'order:list'],
         },

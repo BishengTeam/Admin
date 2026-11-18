@@ -176,7 +176,7 @@ describe('fixed administrator role navigation', () => {
   it('builds breadcrumbs for dynamic detail routes and real detail titles', () => {
     expect(findBreadcrumb('certification/renshe/batches/12', adminRoutes, '', undefined)).toEqual([
       { title: '认证报名' },
-      { title: '人社认证' },
+      { title: '职业技能等级认证' },
       { title: '人社批次工作台' },
     ])
     expect(findBreadcrumb(
@@ -186,7 +186,7 @@ describe('fixed administrator role navigation', () => {
       '2026 春季批次',
     )).toEqual([
       { title: '认证报名' },
-      { title: '人社认证' },
+      { title: '职业技能等级认证' },
       { title: '2026 春季批次' },
     ])
   })

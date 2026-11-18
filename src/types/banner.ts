@@ -25,7 +25,7 @@ export const BANNER_PAGE_GROUPS = [
     { label: 'NISP认证产品列表', value: '/pages/registration/category?vendor=NISP' },
     { label: 'NISP一级报名批次', value: '/pages/nisp/index?level=1' },
     { label: 'NISP二级报名批次', value: '/pages/nisp/index?level=2' },
-    { label: '人社认证产品列表', value: '/pages/registration/category?vendor=%E4%BA%BA%E7%A4%BE' },
+    { label: '职业技能等级认证产品列表', value: '/pages/registration/category?vendor=%E4%BA%BA%E7%A4%BE' },
   ] },
   { label: '积分与权益', options: [
     { label: '积分商城', value: '/pages/mine/points' },
