@@ -142,7 +142,8 @@ export default function UserDetailDrawer({
   return (
     <Drawer title="用户详情" open={open} onClose={onClose} width="min(900px, 94vw)">
       <Descriptions title="基本信息" bordered size="small" column={2} style={{ marginBottom: 20 }}>
-        <Descriptions.Item label="用户名">{user.openid}</Descriptions.Item>
+        <Descriptions.Item label="用户 ID">{user.id}</Descriptions.Item>
+        <Descriptions.Item label="OpenID">{user.openid}</Descriptions.Item>
         <Descriptions.Item label="手机号">{profile?.phone || user.phone || '-'}</Descriptions.Item>
         <Descriptions.Item label="注册时间">{formatDate(user.created_at)}</Descriptions.Item>
         <Descriptions.Item label="状态"><StatusTag status={user.is_active} map={USER_STATUS_MAP} /></Descriptions.Item>

@@ -9,6 +9,7 @@ export interface User {
 }
 
 export interface UserFilter {
+  user_id?: number
   openid?: string
   phone?: string
   created_at_start?: string

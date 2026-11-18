@@ -97,7 +97,8 @@ type ReviewQuickFilter =
   | 'rejected'
 
 const searchFields: SearchField[] = [
-  { name: 'openid', label: '用户名', span: 6, render: () => <Input placeholder="用户名" /> },
+  { name: 'user_id', label: '用户 ID', span: 6, render: () => <InputNumber min={1} precision={0} placeholder="用户 ID" style={{ width: '100%' }} /> },
+  { name: 'openid', label: 'OpenID', span: 6, render: () => <Input placeholder="OpenID" /> },
   { name: 'phone', label: '手机号', span: 6, render: () => <Input placeholder="手机号" /> },
   { name: 'created_at_range', label: '注册时间', span: 8, render: () => <RangePicker /> },
 ]
@@ -154,9 +155,10 @@ export default function UserList() {
   }, [refreshReviewSummary])
 
   const handleSearch = useCallback((values: Record<string, unknown>) => {
-    const { openid, phone, created_at_range } = values
+    const { openid, user_id, phone, created_at_range } = values
     const rangeArr = created_at_range as [string, string] | undefined
     setSearchFilters({
+      user_id: (user_id as number | undefined) || undefined,
       openid: openid as string | undefined,
       phone: phone as string | undefined,
       created_at_start: (rangeArr?.filter(Boolean).length === 2) ? rangeArr![0] : undefined,
@@ -250,7 +252,8 @@ export default function UserList() {
   }
 
   const columns: ColumnsType<User> = [
-    { title: '用户名', dataIndex: 'openid', width: 120 },
+    { title: '用户 ID', dataIndex: 'id', width: 90 },
+    { title: 'OpenID', dataIndex: 'openid', width: 180 },
     {
       title: '手机号',
       dataIndex: 'phone',
