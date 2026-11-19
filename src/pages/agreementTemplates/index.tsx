@@ -21,6 +21,7 @@ import { usePermission } from '@/hooks/usePermission'
 import { agreementTemplateService } from '@/services/agreementTemplate'
 import { formatDate } from '@/utils/format'
 import RichEditor from '@/components/RichEditor'
+import { sanitizeHtml } from '@/utils/sanitizeHtml'
 import ProtocolCard from './ProtocolCard'
 import styles from './index.module.css'
 import type {
@@ -265,7 +266,7 @@ export default function AgreementTemplateManagement() {
             </Space>
             <div
               className={styles.previewContent}
-              dangerouslySetInnerHTML={{ __html: previewing.content }}
+              dangerouslySetInnerHTML={{ __html: sanitizeHtml(previewing.content) }}
             />
           </>
         )}

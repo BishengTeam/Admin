@@ -3,6 +3,7 @@ import { Drawer, Table, Button, Tag, Space, InputNumber, Progress, Typography, m
 import type { ColumnsType } from 'antd/es/table'
 import { classroomService } from '@/services/classroom'
 import { formatDate } from '@/utils/format'
+import { sanitizeHtml } from '@/utils/sanitizeHtml'
 import type {
   Classroom, ClassroomQuiz, ClassroomSubmission,
   ClassroomSubmissionQuestion,
@@ -165,7 +166,7 @@ export default function GradingDrawer({ classroom, quiz, onClose }: Props) {
                     }}
                   >
                     <style>{`.ql-editor img { max-width: 100%; }`}</style>
-                    <div dangerouslySetInnerHTML={{ __html: studentAnswer || '<p>（未作答）</p>' }} />
+                    <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(studentAnswer) || '<p>（未作答）</p>' }} />
                   </div>
                 </>
               ) : (

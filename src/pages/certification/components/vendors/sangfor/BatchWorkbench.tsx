@@ -28,6 +28,7 @@ export default function SangforBatchWorkbench() {
   const canReview = usePermission('sangfor:review'), canExport = usePermission('sangfor:export')
   const canViewOffline = usePermission('offline:view'), canApproveRefund = usePermission('order:write'), canRecordRefund = usePermission('offline:refund')
   const canManageRefund = canViewOffline && (canApproveRefund || canRecordRefund)
+  const canViewRegistrations = usePermission('order:list')
   const { ensureReauthenticated, reauthDialog } = useReauthentication()
   const [batch, setBatch] = useState<SangforBatch | null>(null)
   const [rows, setRows] = useState<SangforRegistration[]>([]), [total, setTotal] = useState(0)
@@ -41,6 +42,7 @@ export default function SangforBatchWorkbench() {
   const [current, setCurrent] = useState<SangforRegistration | null>(null)
   const [action, setAction] = useState<string | null>(null), [saving, setSaving] = useState(false)
   const [detailLoading, setDetailLoading] = useState(false), [exporting, setExporting] = useState(false)
+  const [openingId, setOpeningId] = useState<number | null>(null), [detailError, setDetailError] = useState('')
   const [exportRows, setExportRows] = useState<SangforExportRecord[]>([]), [recordsLoading, setRecordsLoading] = useState(false), [recordsError, setRecordsError] = useState('')
   const [peopleRecord, setPeopleRecord] = useState<SangforExportRecord | null>(null)
   const [refundOrderId, setRefundOrderId] = useState<number | null>(null)
@@ -49,13 +51,18 @@ export default function SangforBatchWorkbench() {
   const detailGeneration = useRef(0), listGeneration = useRef(0), recordGeneration = useRef(0)
   const exportLock = useRef(false)
   const tab = searchParams.get('tab')
-  const activeTab = tab === 'refunds' || (tab === 'records' && canExport) ? tab : 'people'
+  const activeTab = ((tab === 'refunds' && canViewOffline) || (tab === 'records' && canExport)) ? tab : 'people'
   const setTab = (value: string) => setSearchParams(previous => { const next = new URLSearchParams(previous); next.set('tab', value); return next })
   const load = useCallback(async () => {
     const generation = ++listGeneration.current
     setLoading(true); setError('')
     try {
-      const [info, result] = await Promise.all([sangforService.batch(batchId), sangforService.registrations({ batch_id: batchId, page, page_size: pageSize, state, payment_state: paymentState, keyword: keyword || undefined })])
+      const [info, result] = await Promise.all([
+        sangforService.batch(batchId),
+        canViewRegistrations
+          ? sangforService.registrations({ batch_id: batchId, page, page_size: pageSize, state, payment_state: paymentState, keyword: keyword || undefined })
+          : Promise.resolve({ items: [] as SangforRegistration[], total: 0, page, page_size: pageSize }),
+      ])
       if (generation !== listGeneration.current) return
       setBatch(info); setRows(result.items); setTotal(result.total)
       setSelected(previous => {
@@ -65,7 +72,7 @@ export default function SangforBatchWorkbench() {
       })
     } catch (reason) { if (generation === listGeneration.current) { setError(reason instanceof Error ? reason.message : '加载失败，请重试'); setRows([]) } }
     finally { if (generation === listGeneration.current) setLoading(false) }
-  }, [batchId, page, pageSize, state, paymentState, keyword])
+  }, [batchId, page, pageSize, state, paymentState, keyword, canViewRegistrations])
   useEffect(() => { void load(); return () => { listGeneration.current++ } }, [load])
   useEffect(() => { setSelected(new Map()); setSelectionMode(null) }, [batchId, state, paymentState, keyword])
   const loadRecords = useCallback(async () => {
@@ -79,11 +86,18 @@ export default function SangforBatchWorkbench() {
   useEffect(() => { if (activeTab === 'records') void loadRecords(); return () => { recordGeneration.current++ } }, [activeTab, loadRecords])
   useEffect(() => { setRefundOrderId(null); setCurrent(null); detailGeneration.current++ }, [batchId])
   const open = async (id: number) => {
+    if (detailLoading && openingId === id) return
     const generation = ++detailGeneration.current
+    setOpeningId(id)
+    setDetailError('')
     setDetailLoading(true)
-    try { const item = await sangforService.registration(id); if (item.batch_id !== batchId) throw new Error('报名不属于当前批次'); if (generation === detailGeneration.current) setCurrent(item) }
-    catch (reason) { message.error(reason instanceof Error ? reason.message : '报名加载失败'); throw reason }
-    finally { if (generation === detailGeneration.current) setDetailLoading(false) }
+    let ok = false
+    try { const item = await sangforService.registration(id); if (item.batch_id !== batchId) throw new Error('报名不属于当前批次'); if (generation === detailGeneration.current) setCurrent(item); ok = true }
+    catch (reason) {
+      if (generation === detailGeneration.current) setDetailError(reason instanceof Error ? reason.message : '报名加载失败，请重试')
+      throw reason
+    }
+    finally { if (generation === detailGeneration.current) { setDetailLoading(false); if (ok) setOpeningId(null) } }
   }
   useEffect(() => {
     const id = Number(searchParams.get('openRegistrationId'))
@@ -143,7 +157,7 @@ export default function SangforBatchWorkbench() {
       { title: '当前资料', width: 90, render: (_, row) => formatVersion(row) },
       { title: '有效导出', width: 130, render: (_, row) => <Tag color={hasExport(row) ? 'green' : 'default'}>{hasExport(row) ? '当前版本已导出' : '未导出'}</Tag> },
       { title: '报名时间', dataIndex: 'created_at', width: 175, render: value => formatDate(value) },
-      { title: '操作', fixed: 'right', width: 75, render: (_, row) => <Button type='link' size='small' onClick={() => void open(row.id).catch(() => {})}>办理</Button> },
+      { title: '操作', fixed: 'right', width: 75, render: (_, row) => <Button type='link' size='small' loading={openingId === row.id} onClick={() => void open(row.id).catch(() => {})}>办理</Button> },
     ]} />
   const previewColumns = [{ title: '报名编号', dataIndex: 'registration_no' }, { title: '姓名', render: (_: unknown, row: SangforRegistration) => row.candidate_snapshot.name },
     { title: '资料版本', render: (_: unknown, row: SangforRegistration) => formatVersion(row) },
@@ -152,15 +166,26 @@ export default function SangforBatchWorkbench() {
     { key: 'people', label: '报名列表', children: <Card title='报名人员' extra={canExport ? <Button type='primary' icon={<DownloadOutlined />} disabled={!selected.size} loading={exporting} onClick={() => setSelectionMode('export')}>导出所选报名信息</Button> : undefined}>
       <Space direction='vertical' size={12} style={{ width: '100%' }}>
         <Space wrap>
-          <Button onClick={() => { setState(undefined); setPaymentState('under_review'); setPage(1) }}>待核账</Button>
-          <Button onClick={() => { setState('pending_review'); setPaymentState('confirmed'); setPage(1) }}>待审核</Button>
+          <Button type={!state && paymentState === 'under_review' ? 'primary' : 'default'}
+            onClick={() => { setState(undefined); setPaymentState('under_review'); setPage(1) }}>待核账</Button>
+          <Button type={state === 'pending_review' && paymentState === 'confirmed' ? 'primary' : 'default'}
+            onClick={() => { setState('pending_review'); setPaymentState('confirmed'); setPage(1) }}>待初审</Button>
           <Select allowClear placeholder='核账状态' style={{ width: 160 }} value={paymentState} options={PAYMENT_FILTER_OPTIONS} onChange={value => { setPaymentState(value); setPage(1) }} />
           <Input.Search allowClear placeholder='姓名 / 手机号 / 报名编号' style={{ width: 240 }} value={keywordInput} onChange={event => setKeywordInput(event.target.value)} onSearch={value => { setKeyword(value.trim()); setPage(1) }} />
           <Radio.Group optionType='button' buttonStyle='solid' value={state || 'all'} options={quickStatuses} onChange={event => { setState(event.target.value === 'all' ? undefined : event.target.value); setPage(1) }} />
           <Select allowClear placeholder='其他报名状态' style={{ width: 150 }} value={state && !['pending_review', 'returned', 'approved'].includes(state) ? state : undefined} options={Object.entries(SANGFOR_STATUS).filter(([value]) => !['pending_review', 'returned', 'approved'].includes(value)).map(([value, label]) => ({ value, label }))} onChange={value => { setState(value); setPage(1) }} />
           <Button icon={<ReloadOutlined />} onClick={() => void load()}>刷新</Button><Button onClick={clearFilters}>重置</Button>
         </Space>
+        {(state || paymentState || keyword) && <Space wrap size={4}>
+          <Text type='secondary'>当前条件：</Text>
+          {state && <Tag closable onClose={() => { setState(undefined); setPage(1) }}>{SANGFOR_STATUS[state] || state}</Tag>}
+          {paymentState && <Tag closable onClose={() => { setPaymentState(undefined); setPage(1) }}>
+            核账：{PAYMENT_FILTER_OPTIONS.find(option => option.value === paymentState)?.label || paymentState}
+          </Tag>}
+          {keyword && <Tag closable onClose={() => { setKeyword(''); setKeywordInput(''); setPage(1) }}>关键词：{keyword}</Tag>}
+        </Space>}
         {canExport && <Space wrap><Text type='secondary'>已选 {selected.size} 人</Text><Button size='small' disabled={!selected.size} onClick={() => setSelectionMode('view')}>查看名单</Button><Button size='small' disabled={!selected.size} onClick={() => setSelected(new Map())}>清空选择</Button></Space>}
+        {!canViewRegistrations && <Alert type='warning' showIcon message='当前账号没有报名查看权限（order:list），无法加载报名人员。' />}
         {error && <Alert type='error' showIcon message={error} action={<Button size='small' onClick={() => void load()}>重试</Button>} />}
         {peopleTable}
       </Space>
@@ -174,10 +199,10 @@ export default function SangforBatchWorkbench() {
           { title: '操作', render: (_, row) => <Button type='link' size='small' icon={<EyeOutlined />} onClick={() => setPeopleRecord(row)}>查看人员</Button> },
         ]} />
     </Card> }] : []),
-    { key: 'refunds', label: '退款记录', children: <Card title='退款记录'>
+    ...(canViewOffline ? [{ key: 'refunds', label: '退款记录', children: <Card title='退款记录'>
       {activeTab === 'refunds' && <RefundWorkbench key={batchId} vendor='sangfor' batchId={batchId} embedded refreshToken={refundRefresh}
         onChanged={() => { void load(); if (current) void open(current.id).catch(() => {}) }} />}
-    </Card> },
+    </Card> }] : []),
   ]
   return <PageContainer title={`深信服批次工作台${batch ? ` · ${batch.name}` : ''}`} extra={<Space>
     <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/admin/certification/sangfor')}>返回批次列表</Button>
@@ -189,8 +214,12 @@ export default function SangforBatchWorkbench() {
       <span><Text type='secondary'>名额：</Text>{batch.enrolled ?? 0}/{batch.capacity || '不限'}</span><span><Text type='secondary'>报名费：</Text>{formatPrice(batch.price_cents)}</span>
     </Space></Card>}
     <Tabs activeKey={activeTab} onChange={setTab} items={tabItems} />
-    <RegistrationProcessingDrawer open={!!current} onClose={() => { detailGeneration.current++; setCurrent(null) }} loading={detailLoading}
+    <RegistrationProcessingDrawer open={detailLoading || !!current || !!detailError}
+      onClose={() => { detailGeneration.current++; setCurrent(null); setDetailError(''); setOpeningId(null) }} loading={detailLoading}
       registrationNo={current?.registration_no || ''} name={snapshot.name} batch={batch?.name} status={<StatusTag status={current?.status || ''} map={REGISTRATION_STATUS} />}
+      topNotice={<>{detailLoading && !current && <Alert type='info' showIcon message='正在加载报名详情…' />}
+        {detailError && <Alert type='error' showIcon message={detailError}
+          action={<Button size='small' onClick={() => { if (openingId) void open(openingId).catch(() => {}) }}>重试</Button>} />}</>}
       payment={current?.payment_summary} onRefresh={async () => { if (current) await open(current.id); await load() }} footer={current && <Space wrap>
         {canReview && current.status === 'pending_review' && <><Button type='primary' onClick={() => startReview('approve')}>初审通过</Button><Button onClick={() => startReview('return')}>打回补正</Button></>}
         {canReview && current.status === 'approved' && hasExport(current) && <><Button type='primary' onClick={() => startReview('final_approve')}>登记外审通过</Button><Button onClick={() => startReview('final_return')}>外审退回</Button></>}

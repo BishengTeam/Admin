@@ -70,7 +70,7 @@ it('does not send an empty correction reason or omit the correction deadline', a
 it('clears conflicting registration filters for the pending-receipt shortcut', async () => {
   render(<MemoryRouter initialEntries={['/batches/5']}><Routes><Route path='/batches/:batchId' element={<BatchWorkbench />} /></Routes></MemoryRouter>)
   await screen.findByRole('button', { name: '办理' })
-  fireEvent.click(screen.getByRole('button', { name: '待审核' }))
+  fireEvent.click(screen.getByRole('button', { name: '待初审' }))
   await waitFor(() => expect(mocks.registrations).toHaveBeenLastCalledWith(expect.objectContaining({ state: 'pending_review', payment_state: 'confirmed', page: 1 })))
   fireEvent.click(screen.getByRole('button', { name: '待核账' }))
   await waitFor(() => expect(mocks.registrations).toHaveBeenLastCalledWith(expect.objectContaining({ state: undefined, payment_state: 'under_review', page: 1 })))
@@ -123,4 +123,44 @@ it('previews the selected people before authentication and exports the selected 
   fireEvent.click(screen.getByRole('button', { name: '二次验证并导出' }))
   await waitFor(() => expect(mocks.export).toHaveBeenCalledWith(5, [7], 'reauth-fixture', { 7: 2 }))
   await waitFor(() => expect(mocks.download).toHaveBeenCalled())
+})
+
+it('opens the drawer immediately with a loading state before details arrive', async () => {
+  let resolveDetail: (value: typeof record) => void = () => {}
+  mocks.registration.mockReturnValue(new Promise(resolve => { resolveDetail = resolve }))
+  render(<MemoryRouter initialEntries={['/batches/5']}><Routes><Route path='/batches/:batchId' element={<BatchWorkbench />} /></Routes></MemoryRouter>)
+
+  fireEvent.click(await screen.findByRole('button', { name: '办理' }))
+  expect(await screen.findByText('正在加载报名详情…')).toBeTruthy()
+
+  resolveDetail(record)
+  await waitFor(() => expect(screen.queryByText('正在加载报名详情…')).toBeNull())
+  expect(await screen.findByText('VENDOR-123')).toBeTruthy()
+})
+
+it('does not request registrations without order:list permission', async () => {
+  mocks.permissions = ['content:read']
+  render(<MemoryRouter initialEntries={['/batches/5']}><Routes><Route path='/batches/:batchId' element={<BatchWorkbench />} /></Routes></MemoryRouter>)
+
+  expect(await screen.findByText(/没有报名查看权限/)).toBeTruthy()
+  expect(mocks.registrations).not.toHaveBeenCalled()
+})
+
+it('retries a failed detail request instead of ignoring the click', async () => {
+  mocks.registration.mockRejectedValueOnce(new Error('详情服务异常')).mockResolvedValueOnce(record)
+  render(<MemoryRouter initialEntries={['/batches/5']}><Routes><Route path='/batches/:batchId' element={<BatchWorkbench />} /></Routes></MemoryRouter>)
+
+  fireEvent.click(await screen.findByRole('button', { name: '办理' }))
+  expect(await screen.findByText('详情服务异常')).toBeTruthy()
+  fireEvent.click(screen.getByRole('button', { name: /重\s*试/ }))
+  await waitFor(() => expect(mocks.registration).toHaveBeenCalledTimes(2))
+  expect(await screen.findByText('VENDOR-123')).toBeTruthy()
+})
+
+it('does not activate the refund tab from a deep link without offline:view', async () => {
+  mocks.permissions = ['content:read', 'order:list']
+  render(<MemoryRouter initialEntries={['/batches/5?tab=refunds']}><Routes><Route path='/batches/:batchId' element={<BatchWorkbench />} /></Routes></MemoryRouter>)
+
+  expect(await screen.findByText('报名人员')).toBeTruthy()
+  expect(screen.queryByRole('tab', { name: '退款记录' })).toBeNull()
 })

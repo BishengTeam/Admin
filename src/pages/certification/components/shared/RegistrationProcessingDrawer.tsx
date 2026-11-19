@@ -5,10 +5,10 @@ import { PaymentStatusTag } from './RegistrationPayment'
 import type { RegistrationPaymentSummary } from './RegistrationPayment'
 
 export default function RegistrationProcessingDrawer({ open, onClose, registrationNo, name, batch, status,
-  payment, loading, onRefresh, footer, children }: {
+  payment, loading, onRefresh, footer, children, topNotice }: {
   open: boolean; onClose: () => void; registrationNo: string; name?: string; batch?: string; status: ReactNode
   payment?: RegistrationPaymentSummary | null; loading?: boolean; onRefresh: () => Promise<void>
-  footer?: ReactNode; children: ReactNode
+  footer?: ReactNode; children: ReactNode; topNotice?: ReactNode
 }) {
   const [step, setStep] = useState('payment')
   const [financeActionsHost, setFinanceActionsHost] = useState<HTMLDivElement | null>(null)
@@ -31,10 +31,11 @@ export default function RegistrationProcessingDrawer({ open, onClose, registrati
     <Space direction='vertical' size={24} style={{ width: '100%' }}>
       <Descriptions bordered size='small' column={{ xs: 1, sm: 2 }}>
         <Descriptions.Item label='姓名'>{name || '—'}</Descriptions.Item><Descriptions.Item label='报名编号'>{registrationNo}</Descriptions.Item>
-        <Descriptions.Item label='认证产品／批次' span={2}>{batch || '—'}</Descriptions.Item>
+        <Descriptions.Item label='认证产品／批次' span={{ xs: 1, sm: 2 }}>{batch || '—'}</Descriptions.Item>
         <Descriptions.Item label='核账状态'><PaymentStatusTag summary={payment} /></Descriptions.Item>
         <Descriptions.Item label='报名审核状态'>{status}</Descriptions.Item>
       </Descriptions>
+      {topNotice}
       {error && <Alert type='error' message={error} />}
       <Tabs activeKey={allowed ? step : 'payment'} onChange={setStep} items={[
         { key: 'payment', label: '① 核账', children: <>

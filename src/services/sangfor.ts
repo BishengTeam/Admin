@@ -31,7 +31,7 @@ export interface SangforExportRecord {
   people: Array<{ registration_id: number; registration_no: string; name: string; version: number; is_current: boolean }>
 }
 export const SANGFOR_STATUS: Record<string, string> = {
-  pending_payment: '待付款／核账', pending_review: '待初审', returned: '待补正', approved: '初审通过',
+  pending_payment: '待付款', pending_review: '待初审', returned: '待补正', approved: '初审通过，待外审',
   final_approved: '外审通过', refund_processing: '退款处理中', refunded_closed: '已退款', cancelled: '已关闭',
 }
 export const sangforService = {

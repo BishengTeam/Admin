@@ -4,7 +4,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Button, Card, Checkbox, DatePicker, Drawer, Empty, Form, Input, InputNumber,
-  Modal, Popconfirm, Select, Space, Table, Tag, TimePicker, Typography, Upload, message,
+  Modal, Popconfirm, Select, Space, Table, Tag, TimePicker, Tooltip, Typography, Upload, message,
 } from 'antd'
 import {
   DeleteOutlined, MinusCircleOutlined, PlusOutlined, ReloadOutlined, UploadOutlined,
@@ -97,6 +97,14 @@ function normalizeList<T>(payload: ListPayload<T>): T[] {
   return []
 }
 
+function readTotal(payload: unknown, fallback: number) {
+  if (payload && typeof payload === 'object' && 'total' in payload) {
+    const total = (payload as { total?: unknown }).total
+    if (typeof total === 'number') return total
+  }
+  return fallback
+}
+
 function getErrorMessage(error: unknown, fallback: string) {
   return error instanceof Error && error.message ? error.message : fallback
 }
@@ -141,8 +149,8 @@ const STATUS_MAP: Record<string, { color: string; label: string }> = {
 }
 
 const api = {
-  list: (vendor?: string) => request.get(
-    `/admin/h3c/exam-schedules${vendor ? `?vendor=${vendor}` : ''}`,
+  list: (vendor: string | undefined, page: number, pageSize: number) => request.get(
+    `/admin/h3c/exam-schedules?vendor=${encodeURIComponent(vendor ?? '')}&page=${page}&page_size=${pageSize}`,
   ),
   holidays: () => request.get('/admin/holidays'),
   get: (id: number) => request.get(`/admin/h3c/exam-schedules/${id}`),
@@ -160,10 +168,13 @@ const api = {
     request.get('/admin/cert-attachments', { params: { vendor, schedule_id: scheduleId } }),
   createAttachment: (data: unknown) => request.post('/admin/cert-attachments', data),
   deleteAttachment: (id: number) => request.delete(`/admin/cert-attachments/${id}`),
-  upload: (file: File) => {
+  upload: (file: File, vendor: string) => {
     const form = new FormData()
     form.append('file', file)
-    return request.post('/admin/cert-attachments/upload', form)
+    return request.post(
+      `/admin/cert-attachments/upload?vendor=${encodeURIComponent(vendor)}`,
+      form,
+    )
   },
 }
 
@@ -177,6 +188,9 @@ export default function ExamSchedulePage({ type = 'h3c' }: { type?: string }) {
   const vendor = type === 'sangfor' ? 'sangfor' : 'h3c'
   const quotaEnabled = vendor !== 'sangfor'
   const [schedules, setSchedules] = useState<Schedule[]>([])
+  const [total, setTotal] = useState(0)
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(20)
   const [products, setProducts] = useState<CertProduct[]>([])
   const [loading, setLoading] = useState(false)
   const [createOpen, setCreateOpen] = useState(false)
@@ -188,6 +202,7 @@ export default function ExamSchedulePage({ type = 'h3c' }: { type?: string }) {
   const [holidayDates, setHolidayDates] = useState<Set<string>>(() => new Set())
   const [quotaMatrix, setQuotaMatrix] = useState<QuotaMatrix>({})
   const previousDefaultQuotaRef = useRef(5)
+  const editorRequestRef = useRef(0)
 
   const dateRange = Form.useWatch('date_range', form) as DateRangeValue
   const allowedWeekdays = Form.useWatch('allowed_weekdays', form) as number[] | undefined
@@ -227,11 +242,14 @@ export default function ExamSchedulePage({ type = 'h3c' }: { type?: string }) {
     setLoading(true)
     try {
       const [schedulePayload, holidayPayload, productPage] = await Promise.all([
-        api.list(vendor),
-        api.holidays(),
+        api.list(vendor, page, pageSize),
+        // 假期是 H3C 全局配置；深信服运营没有该权限，不能用它阻断页面加载。
+        vendor === 'h3c' ? api.holidays() : Promise.resolve([]),
         certProductService.list({ type: vendor, page: 1, page_size: 100 }),
       ])
-      setSchedules(normalizeList<Schedule>(schedulePayload as ListPayload<Schedule>))
+      const rows = normalizeList<Schedule>(schedulePayload as ListPayload<Schedule>)
+      setSchedules(rows)
+      setTotal(readTotal(schedulePayload, rows.length))
       setHolidayDates(new Set(
         normalizeList<Holiday>(holidayPayload as ListPayload<Holiday>).map(h => h.holiday_date),
       ))
@@ -241,9 +259,10 @@ export default function ExamSchedulePage({ type = 'h3c' }: { type?: string }) {
     } finally {
       setLoading(false)
     }
-  }, [vendor])
+  }, [vendor, page, pageSize])
 
   useEffect(() => { load() }, [load])
+  useEffect(() => { setPage(1) }, [vendor])
 
   const openCreate = () => {
     form.resetFields()
@@ -316,15 +335,38 @@ export default function ExamSchedulePage({ type = 'h3c' }: { type?: string }) {
   }
 
   const openEditor = async (id: number) => {
+    const requestId = ++editorRequestRef.current
     setEditorOpen(true)
     setEditingId(id)
+    setDetail(null)
     try {
       const res = await api.get(id)
+      // 快速切换计划时丢弃过期响应，避免附件/配额操作绑定到错误计划。
+      if (requestId !== editorRequestRef.current) return
       setDetail(res as unknown as ScheduleDetail)
     } catch (error) {
+      if (requestId !== editorRequestRef.current) return
       message.error(getErrorMessage(error, '加载详情失败'))
     }
   }
+
+  const searchProducts = useCallback(async (keyword: string) => {
+    if (!keyword.trim()) return
+    try {
+      const result = await certProductService.list({
+        type: vendor,
+        keyword: keyword.trim(),
+        page: 1,
+        page_size: 50,
+      })
+      const merged = new Map<string, CertProduct>()
+      for (const item of products) merged.set(item.code, item)
+      for (const item of result.items) merged.set(item.code, item)
+      setProducts([...merged.values()].filter(item => item.is_active))
+    } catch {
+      // 远程搜索失败时保留本地选项，不打断表单。
+    }
+  }, [products, vendor])
 
   const columns = [
     { title: 'ID', dataIndex: 'id', width: 60 },
@@ -377,7 +419,22 @@ export default function ExamSchedulePage({ type = 'h3c' }: { type?: string }) {
         </Button>
       </Space>
 
-      <Table rowKey='id' columns={columns} dataSource={schedules} loading={loading} pagination={false} />
+      <Table
+        rowKey='id'
+        columns={columns}
+        dataSource={schedules}
+        loading={loading}
+        pagination={{
+          current: page,
+          pageSize,
+          total,
+          showSizeChanger: true,
+          onChange: (nextPage, nextSize) => {
+            setPage(nextPage)
+            setPageSize(nextSize)
+          },
+        }}
+      />
 
       <Modal
         title={`${VENDOR_LABELS[vendor]} · 一体化创建考场计划`}
@@ -491,6 +548,7 @@ export default function ExamSchedulePage({ type = 'h3c' }: { type?: string }) {
                 placeholder={`搜索并选择${VENDOR_LABELS[vendor]}考试科目（可多选）`}
                 showSearch
                 optionFilterProp='label'
+                onSearch={value => { void searchProducts(value) }}
                 options={products.map(product => ({
                   label: productOptionLabel(product),
                   value: product.id,
@@ -563,11 +621,12 @@ export default function ExamSchedulePage({ type = 'h3c' }: { type?: string }) {
 
       <Drawer title={detail ? `${VENDOR_LABELS[detail.vendor ?? 'h3c'] ?? detail.vendor}考场计划：${detail.name}` : '编辑'}
         open={editorOpen} onClose={() => { setEditorOpen(false); setDetail(null) }}
-        width={760} destroyOnClose>
+        width='min(760px, 100vw)' destroyOnClose>
         {detail && (
           <ScheduleEditor
             detail={detail}
             products={products}
+            onSearchProducts={searchProducts}
             onChanged={() => openEditor(editingId!)}
           />
         )}
@@ -590,10 +649,12 @@ const tableCellStyle = {
 function ScheduleEditor({
   detail,
   products,
+  onSearchProducts,
   onChanged,
 }: {
   detail: ScheduleDetail
   products: CertProduct[]
+  onSearchProducts: (keyword: string) => Promise<void>
   onChanged: () => void
 }) {
   const [addSlotOpen, setAddSlotOpen] = useState(false)
@@ -636,6 +697,7 @@ function ScheduleEditor({
             placeholder={`添加${VENDOR_LABELS[detailVendor] ?? detailVendor}产品`}
             style={{ width: 260 }}
             showSearch optionFilterProp='label'
+            onSearch={value => { void onSearchProducts(value) }}
             onSelect={value => handleAddSubject(value as number)}
             options={products.map(product => ({
               label: productOptionLabel(product),
@@ -815,7 +877,7 @@ function AttachmentManager({ vendor, scheduleId }: { vendor: string; scheduleId:
 
   const handleUpload = async (file: File) => {
     try {
-      const uploaded = await api.upload(file) as {
+      const uploaded = await api.upload(file, vendor) as {
         url?: string
         filename?: string
         size?: number
@@ -871,7 +933,15 @@ function AttachmentManager({ vendor, scheduleId }: { vendor: string; scheduleId:
                   }
                 }}
               >
-                <Button size='small' type='text' danger icon={<DeleteOutlined />} />
+                <Tooltip title='删除附件'>
+                  <Button
+                    size='small'
+                    type='text'
+                    danger
+                    aria-label={`删除附件 ${item.title}`}
+                    icon={<DeleteOutlined />}
+                  />
+                </Tooltip>
               </Popconfirm>
             </Space>
           ))}

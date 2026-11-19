@@ -21,6 +21,7 @@ const date = (value: string | null) => value ? formatDate(value) : '-'
 export default function SangforBatchOverrides() {
   const navigate = useNavigate()
   const canWrite = usePermission('content:write')
+  const canViewRegistrations = usePermission('order:list')
   const context = useMemo(readBatchListContext, [])
   const [rows, setRows] = useState<SangforBatch[]>([])
   const [products, setProducts] = useState<CertProduct[]>([])
@@ -112,17 +113,20 @@ export default function SangforBatchOverrides() {
   }
   const confirmClose = (row: SangforBatch) => Modal.confirm({ title: '关闭报名？', content: '关闭后不再接受新报名，已有报名仍可继续核账、审核和补正。', okText: '关闭报名', cancelText: '再想想', onOk: () => act(row, 'close') })
   const columns: ColumnsType<SangforBatch> = [
-    { title: '批次名称', dataIndex: 'name', width: 220, ellipsis: true, render: (value, row) => <Button type='link' size='small' onClick={() => openWorkbench(row)}>{value}</Button> },
+    { title: '批次名称', dataIndex: 'name', width: 220, ellipsis: true, render: (value, row) => canViewRegistrations
+      ? <Button type='link' size='small' onClick={() => openWorkbench(row)}>{value}</Button>
+      : <Typography.Text ellipsis={{ tooltip: value }}>{value}</Typography.Text> },
     { title: '认证产品', dataIndex: 'product_name', width: 210, ellipsis: true, render: (value, row) => <Typography.Text ellipsis={{ tooltip: row.exam_direction }} style={{ maxWidth: 190 }}>{value}</Typography.Text> },
     { title: '状态', dataIndex: 'status', width: 100, render: value => <StatusTag status={value} map={BATCH_STATUS} /> },
     { title: '报名时间', width: 210, render: (_, row) => `${date(row.apply_start)} ~ ${date(row.apply_end)}` },
     { title: '考试时间', dataIndex: 'exam_date', width: 140, render: date },
     { title: '报名费', dataIndex: 'price_cents', width: 100, render: value => formatPrice(value) },
     { title: '名额', width: 95, render: (_, row) => `${row.enrolled}/${row.capacity || '不限'}` },
-    { title: '报名办理', width: 175, render: (_, row) => <Space size={4} wrap>{[['pending_review', '待初审'], ['returned', '待补正'], ['approved', '初审通过']].map(([state, label]) =>
+    ...(canViewRegistrations ? [{ title: '报名办理', width: 175, render: (_: unknown, row: SangforBatch) => <Space size={4} wrap>{[['pending_review', '待初审'], ['returned', '待补正'], ['approved', '初审通过']].map(([state, label]) =>
       <Button key={state} type='link' size='small' style={{ padding: 0, height: 22 }} onClick={() => openWorkbench(row, state)}>{label} {row.registration_counts ? row.registration_counts[state] || 0 : '-'}</Button>)}</Space> },
+    ] : []),
     { title: '操作', fixed: 'right', width: canWrite ? 180 : 100, render: (_, row) => <Space size={4}>
-      <Button size='small' type='primary' ghost onClick={() => openWorkbench(row)}>管理报名</Button>
+      {canViewRegistrations && <Button size='small' type='primary' ghost onClick={() => openWorkbench(row)}>管理报名</Button>}
       {canWrite && ['draft', 'published'].includes(row.status) && <Dropdown trigger={['click']} menu={{ items: row.status === 'draft'
         ? [{ key: 'edit', label: '编辑批次' }, { key: 'publish', label: '发布批次' }] : [{ key: 'close', label: '关闭报名' }],
         onClick: ({ key }) => { if (key === 'edit') edit(row); if (key === 'publish') void act(row, 'publish'); if (key === 'close') void confirmClose(row) } }}>
