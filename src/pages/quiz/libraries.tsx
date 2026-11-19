@@ -651,9 +651,7 @@ export default function QuizLibraries() {
       extra={canManage && view === 'working' ? <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>新建题库</Button> : undefined}
     >
 
-      <Space wrap style={{ marginBottom: 8 }}>
-        <Tabs activeKey="working" items={[{ key: 'working', label: '题库列表' }]} />
-      </Space>
+      <Tabs activeKey="working" items={[{ key: 'working', label: '题库列表' }]} style={{ marginBottom: 8 }} />
       <Space wrap style={{ marginBottom: 16 }}>
         <Input value={keyword} onChange={(event) => setKeyword(event.target.value)} onPressEnter={() => setFilter((current) => ({ ...current, keyword: keyword.trim() || undefined }))} allowClear prefix={<SearchOutlined />} placeholder="题库名称或编码" style={{ width: 240 }} />
         {view === 'working' && <Select allowClear placeholder="状态" value={filter.status} onChange={(status) => setFilter((current) => ({ ...current, status }))} options={Object.entries(statusLabels).filter(([value]) => !['archived', 'deleted'].includes(value)).map(([value, label]) => ({ value, label }))} style={{ width: 130 }} />}
@@ -730,9 +728,6 @@ export default function QuizLibraries() {
           <Form.Item name="access_mode" label="访问模式" rules={[{ required: true }]}>
             <Select options={Object.entries(accessLabels).map(([value, label]) => ({ value, label }))} />
           </Form.Item>
-          <Form.Item name="vendor_tag" label="厂商标签" tooltip="小程序练习助手按厂商标签筛选题库；未匹配厂商的题库归入「其他」">
-            <Select options={Object.entries(vendorLabels).map(([value, label]) => ({ value, label }))} />
-          </Form.Item>
           <Form.Item noStyle shouldUpdate={(prev, cur) => prev.access_mode !== cur.access_mode}>
               {({ getFieldValue }) => getFieldValue('access_mode') === 'paid' ? (
                 <Form.Item name="price_cents" label="价格（分）" rules={[{ required: true, message: '付费题库必须设置价格' }, { type: 'integer', min: 1, max: 2147483647, message: '请输入大于0的整数价格（分）' }]} extra="用于题库商品参考价；实际兑换积分在积分商城配置。">
@@ -740,6 +735,9 @@ export default function QuizLibraries() {
                 </Form.Item>
               ) : null}
             </Form.Item>
+          <Form.Item name="vendor_tag" label="厂商标签" tooltip="小程序练习助手按厂商标签筛选题库；未匹配厂商的题库归入「其他」">
+            <Select options={Object.entries(vendorLabels).map(([value, label]) => ({ value, label }))} />
+          </Form.Item>
             <Form.Item name="sort_order" label="排序"><InputNumber precision={0} style={{ width: '100%' }} /></Form.Item>
         </Form>
       </Modal>
