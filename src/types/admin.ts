@@ -46,6 +46,30 @@ export interface ReauthResponse {
 
 export type AdminAccount = AdminInfo
 
+// 系统管理→管理员账号专用：带按人权限覆盖信息（登录//me 的 AdminInfo 没有这两个字段）
+export type AdminPermissionSource = 'wildcard' | 'preset' | 'override'
+
+export interface AdminSettingsAccount extends AdminInfo {
+  permissions: string[]
+  permissions_source: AdminPermissionSource
+}
+
+export interface AdminPermissionCatalogItem {
+  permission: string
+  label: string
+}
+
+export interface AdminPermissionCatalogGroup {
+  key: string
+  label: string
+  permissions: AdminPermissionCatalogItem[]
+}
+
+export interface AdminPermissionCatalog {
+  groups: AdminPermissionCatalogGroup[]
+  role_presets: Record<AdminRole, string[]>
+}
+
 export interface AdminAccountFilters extends PageParams {
   search?: string
   role?: AdminRole
@@ -55,7 +79,7 @@ export interface AdminAccountFilters extends PageParams {
 }
 
 export interface AdminAccountMutationResult {
-  admin: AdminAccount
+  admin: AdminSettingsAccount
   temporary_password: string
 }
 

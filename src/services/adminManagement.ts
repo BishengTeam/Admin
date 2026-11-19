@@ -2,16 +2,18 @@ import { http } from '@/core/request'
 import {
   AdminAccountMutationResultSchema,
   AdminAccountPageSchema,
-  AdminAccountSchema,
+  AdminPermissionCatalogSchema,
+  AdminSettingsAccountSchema,
   parseAdminResponse,
   SecurityAuditPageSchema,
 } from '@/core/adminValidation'
 import type { PageData } from '@/types/api'
 import type {
-  AdminAccount,
   AdminAccountFilters,
   AdminAccountMutationResult,
   AdminCreatableRole,
+  AdminPermissionCatalog,
+  AdminSettingsAccount,
   SecurityAuditFilters,
   SecurityAuditItem,
 } from '@/types/admin'
@@ -48,33 +50,42 @@ function credentialMutationConfig(reauthToken: string) {
 }
 
 export const adminManagementService = {
-  listAdmins(params: AdminAccountFilters, signal?: AbortSignal): Promise<PageData<AdminAccount>> {
+  listAdmins(params: AdminAccountFilters, signal?: AbortSignal): Promise<PageData<AdminSettingsAccount>> {
     return http.get('/admin/settings/admins', { params, signal })
       .then((value) => parseAdminResponse(AdminAccountPageSchema, value))
   },
 
+  getPermissionCatalog(signal?: AbortSignal): Promise<AdminPermissionCatalog> {
+    return http.get('/admin/settings/permission-catalog', { signal })
+      .then((value) => parseAdminResponse(AdminPermissionCatalogSchema, value))
+  },
+
   createAdmin(
-    payload: { username: string; display_name: string; role: AdminCreatableRole },
+    payload: { username: string; display_name: string; role: AdminCreatableRole; permissions?: string[] },
     reauthToken: string,
   ): Promise<AdminAccountMutationResult> {
     return http.post('/admin/settings/admins', payload, credentialMutationConfig(reauthToken))
       .then((value) => parseAdminResponse(AdminAccountMutationResultSchema, value))
   },
 
-  updateDisplayName(adminId: number, displayName: string, reauthToken: string): Promise<AdminAccount> {
+  updateAdmin(
+    adminId: number,
+    payload: { display_name?: string; permissions?: string[] | null },
+    reauthToken: string,
+  ): Promise<AdminSettingsAccount> {
     return http.patch(
       `/admin/settings/admins/${adminId}`,
-      { display_name: displayName },
+      payload,
       reauthConfig(reauthToken),
-    ).then((value) => parseAdminResponse(AdminAccountSchema, value))
+    ).then((value) => parseAdminResponse(AdminSettingsAccountSchema, value))
   },
 
-  disableAdmin(adminId: number, reauthToken: string): Promise<AdminAccount> {
+  disableAdmin(adminId: number, reauthToken: string): Promise<AdminSettingsAccount> {
     return http.post(
       `/admin/settings/admins/${adminId}/disable`,
       {},
       reauthConfig(reauthToken),
-    ).then((value) => parseAdminResponse(AdminAccountSchema, value))
+    ).then((value) => parseAdminResponse(AdminSettingsAccountSchema, value))
   },
 
   enableAdmin(adminId: number, reauthToken: string): Promise<AdminAccountMutationResult> {
@@ -93,12 +104,12 @@ export const adminManagementService = {
     ).then((value) => parseAdminResponse(AdminAccountMutationResultSchema, value))
   },
 
-  unlockAdmin(adminId: number, reauthToken: string): Promise<AdminAccount> {
+  unlockAdmin(adminId: number, reauthToken: string): Promise<AdminSettingsAccount> {
     return http.post(
       `/admin/settings/admins/${adminId}/unlock`,
       {},
       reauthConfig(reauthToken),
-    ).then((value) => parseAdminResponse(AdminAccountSchema, value))
+    ).then((value) => parseAdminResponse(AdminSettingsAccountSchema, value))
   },
 
   listSecurityAudit(

@@ -17,6 +17,12 @@ export const AdminAccountSchema = z.object({
   updated_at: dateString,
 }).strict()
 
+// 系统管理→管理员账号接口专用：比登录//me 的 AdminInfo 多按人权限覆盖字段
+export const AdminSettingsAccountSchema = AdminAccountSchema.extend({
+  permissions: z.array(z.string()),
+  permissions_source: z.enum(['wildcard', 'preset', 'override']),
+}).strict()
+
 export const AdminAuthSessionSchema = z.object({
   access_token: z.string().min(1),
   expires_in: positiveInt,
@@ -37,7 +43,7 @@ export const ReauthResponseSchema = z.object({
 }).strict()
 
 export const AdminAccountPageSchema = z.object({
-  items: z.array(AdminAccountSchema),
+  items: z.array(AdminSettingsAccountSchema),
   total: z.number().int().min(0),
   page: positiveInt,
   page_size: positiveInt,
@@ -45,8 +51,20 @@ export const AdminAccountPageSchema = z.object({
 }).strict()
 
 export const AdminAccountMutationResultSchema = z.object({
-  admin: AdminAccountSchema,
+  admin: AdminSettingsAccountSchema,
   temporary_password: z.string().min(12).max(128),
+}).strict()
+
+export const AdminPermissionCatalogSchema = z.object({
+  groups: z.array(z.object({
+    key: z.string().min(1),
+    label: z.string().min(1),
+    permissions: z.array(z.object({
+      permission: z.string().min(1),
+      label: z.string().min(1),
+    }).strict()),
+  }).strict()),
+  role_presets: z.record(z.string(), z.array(z.string())),
 }).strict()
 
 export const SecurityAuditItemSchema = z.object({

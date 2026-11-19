@@ -14,6 +14,8 @@ const account = {
   username: 'quiz.ops',
   display_name: '题库运营',
   role: 'quiz_admin',
+  permissions: ['quiz:list', 'quiz:write', 'quiz:import'],
+  permissions_source: 'preset',
   is_active: true,
   must_change_password: false,
   locked_until: null,
@@ -38,6 +40,34 @@ describe('administrator management service contract', () => {
     sessionStorage.clear()
   })
 
+  it('fetches the permission catalog and sends checked permissions on create', async () => {
+    const { adminManagementService } = await import('@/services/adminManagement')
+    const signal = new AbortController().signal
+    http.get.mockResolvedValueOnce({
+      groups: [{
+        key: 'points_mall',
+        label: '积分商城',
+        permissions: [{ permission: 'points:manage', label: '积分商城管理' }],
+      }],
+      role_presets: { quiz_admin: ['quiz:list'], super_admin: ['*'] },
+    })
+    const catalog = await adminManagementService.getPermissionCatalog(signal)
+    expect(http.get).toHaveBeenCalledWith('/admin/settings/permission-catalog', { signal })
+    expect(catalog.groups[0].permissions[0]).toEqual({ permission: 'points:manage', label: '积分商城管理' })
+    expect(catalog.role_presets.quiz_admin).toEqual(['quiz:list'])
+
+    http.post.mockResolvedValueOnce(mutation)
+    await adminManagementService.createAdmin(
+      { username: 'mall.ops', display_name: '商城运营', role: 'quiz_admin', permissions: ['points:manage'] },
+      'reauth-4',
+    )
+    expect(http.post).toHaveBeenCalledWith(
+      '/admin/settings/admins',
+      { username: 'mall.ops', display_name: '商城运营', role: 'quiz_admin', permissions: ['points:manage'] },
+      expect.objectContaining({ headers: expect.objectContaining({ 'X-Reauth-Token': 'reauth-4' }) }),
+    )
+  })
+
   it('sends the selected non-super role and the in-memory reauth header', async () => {
     const { adminManagementService } = await import('@/services/adminManagement')
     http.post.mockResolvedValueOnce(mutation)
@@ -57,7 +87,7 @@ describe('administrator management service contract', () => {
     )
   })
 
-  it('uses PATCH only for display name and dedicated POST action endpoints', async () => {
+  it('uses PATCH for display name and permissions plus dedicated POST action endpoints', async () => {
     const { adminManagementService } = await import('@/services/adminManagement')
     http.patch.mockResolvedValueOnce(account)
     http.post
@@ -66,7 +96,7 @@ describe('administrator management service contract', () => {
       .mockResolvedValueOnce(mutation)
       .mockResolvedValueOnce(account)
 
-    await adminManagementService.updateDisplayName(7, '新显示名', 'reauth-2')
+    await adminManagementService.updateAdmin(7, { display_name: '新显示名', permissions: ['points:manage'] }, 'reauth-2')
     await adminManagementService.disableAdmin(7, 'reauth-2')
     await adminManagementService.enableAdmin(7, 'reauth-2')
     await adminManagementService.resetPassword(7, 'reauth-2')
@@ -74,7 +104,7 @@ describe('administrator management service contract', () => {
 
     expect(http.patch).toHaveBeenCalledWith(
       '/admin/settings/admins/7',
-      { display_name: '新显示名' },
+      { display_name: '新显示名', permissions: ['points:manage'] },
       { headers: { 'X-Reauth-Token': 'reauth-2' } },
     )
     for (const action of ['disable', 'unlock']) {

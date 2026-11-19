@@ -1,7 +1,8 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import {
   Alert,
   Button,
+  Checkbox,
   Form,
   Input,
   Modal,
@@ -35,6 +36,8 @@ import type {
   AdminAccountFilters,
   AdminAccountMutationResult,
   AdminCreatableRole,
+  AdminPermissionCatalog,
+  AdminSettingsAccount,
 } from '@/types/admin'
 
 const { Paragraph, Text } = Typography
@@ -43,10 +46,12 @@ interface AdminCreateValues {
   username: string
   display_name: string
   role: AdminCreatableRole
+  permissions: string[]
 }
 
 interface AdminEditValues {
   display_name: string
+  permissions: string[]
 }
 
 const booleanOptions = [
@@ -114,7 +119,7 @@ function ReadonlySuperAdminActions() {
     <Tooltip title={reason}>
       <span>
         <Space size={0}>
-          <Button type="link" size="small" disabled>编辑显示名</Button>
+          <Button type="link" size="small" disabled>编辑</Button>
           <Button type="link" size="small" disabled>停用</Button>
           <Button type="link" size="small" disabled>重置密码</Button>
         </Space>
@@ -123,12 +128,61 @@ function ReadonlySuperAdminActions() {
   )
 }
 
+// 受控分组勾选：作为 Form.Item 的单一子元素，由 antd 注入 value/onChange。
+function PermissionCheckboxes({
+  value = [],
+  onChange,
+  catalog,
+}: {
+  value?: string[]
+  onChange?: (next: string[]) => void
+  catalog: AdminPermissionCatalog
+}) {
+  const toggle = (permission: string, checked: boolean) => {
+    onChange?.(checked ? [...value, permission] : value.filter((item) => item !== permission))
+  }
+  return (
+    <div style={{ maxHeight: 320, overflow: 'auto', border: '1px solid #f0f0f0', borderRadius: 6, padding: '8px 12px' }}>
+      {catalog.groups.map((group) => {
+        const groupValues = group.permissions.map((item) => item.permission)
+        const allChecked = groupValues.every((item) => value.includes(item))
+        return (
+          <div key={group.key} style={{ marginBottom: 8 }}>
+            <Space size={8}>
+              <Checkbox
+                checked={allChecked}
+                indeterminate={!allChecked && groupValues.some((item) => value.includes(item))}
+                onChange={(event) => {
+                  const next = event.target.checked
+                    ? Array.from(new Set([...value, ...groupValues]))
+                    : value.filter((item) => !groupValues.includes(item))
+                  onChange?.(next)
+                }}
+              >
+                <Text strong>{group.label}</Text>
+              </Checkbox>
+            </Space>
+            <div style={{ paddingLeft: 24 }}>
+              <Checkbox.Group
+                options={group.permissions.map((item) => ({ label: item.label, value: item.permission }))}
+                value={groupValues.filter((item) => value.includes(item))}
+                onChange={(next) => onChange?.([...next, ...value.filter((item) => !groupValues.includes(item))])}
+              />
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 export default function AdminAccountsPage() {
   const [filters, setFilters] = useState<AdminAccountFilters>({})
   const [createOpen, setCreateOpen] = useState(false)
-  const [editing, setEditing] = useState<AdminAccount | null>(null)
+  const [editing, setEditing] = useState<AdminSettingsAccount | null>(null)
   const [temporaryPassword, setTemporaryPassword] = useState<AdminAccountMutationResult | null>(null)
   const [mutationKey, setMutationKey] = useState<string | null>(null)
+  const [catalog, setCatalog] = useState<AdminPermissionCatalog | null>(null)
   const [createForm] = Form.useForm<AdminCreateValues>()
   const [editForm] = Form.useForm<AdminEditValues>()
   const [searchForm] = Form.useForm<AdminAccountFilters>()
@@ -138,6 +192,21 @@ export default function AdminAccountsPage() {
     (page, signal) => adminManagementService.listAdmins({ ...filters, ...page }, signal),
     [JSON.stringify(filters)],
   )
+
+  useEffect(() => {
+    const controller = new AbortController()
+    adminManagementService.getPermissionCatalog(controller.signal)
+      .then((value) => setCatalog(value))
+      .catch((error) => {
+        if (!controller.signal.aborted) message.warning(`权限目录加载失败：${errorMessage(error)}`)
+      })
+    return () => controller.abort()
+  }, [])
+
+  const applyRolePreset = useCallback((role: AdminCreatableRole) => {
+    if (!catalog) return
+    createForm.setFieldValue('permissions', catalog.role_presets[role] ?? [])
+  }, [catalog, createForm])
 
   const finishMutation = useCallback(async (successText: string) => {
     message.success(successText)
@@ -163,34 +232,42 @@ export default function AdminAccountsPage() {
 
   const submitCreate = async () => {
     const values = await createForm.validateFields()
-    const result = await runHighRisk('create', (token) => adminManagementService.createAdmin({
+    // 目录未加载时不带 permissions（服务端存 NULL、跟随角色预设），优雅降级
+    const payload = {
       username: values.username.trim().toLowerCase(),
       display_name: values.display_name.trim(),
       role: values.role,
-    }, token))
+      ...(catalog ? { permissions: values.permissions ?? [] } : {}),
+    }
+    const result = await runHighRisk('create', (token) => adminManagementService.createAdmin(payload, token))
     if (!result) return
     setCreateOpen(false)
     createForm.resetFields()
+    applyRolePreset('quiz_admin')
     setTemporaryPassword(result)
     await finishMutation('管理员已创建')
   }
 
-  const openEdit = (admin: AdminAccount) => {
+  const openEdit = (admin: AdminSettingsAccount) => {
     setEditing(admin)
-    editForm.setFieldsValue({ display_name: admin.display_name })
+    editForm.setFieldsValue({ display_name: admin.display_name, permissions: admin.permissions })
   }
 
   const submitEdit = async () => {
     if (!editing) return
     const values = await editForm.validateFields()
+    const payload: { display_name: string; permissions?: string[] } = {
+      display_name: values.display_name.trim(),
+    }
+    if (catalog) payload.permissions = values.permissions ?? []
     const result = await runHighRisk(
       `edit-${editing.id}`,
-      (token) => adminManagementService.updateDisplayName(editing.id, values.display_name.trim(), token),
+      (token) => adminManagementService.updateAdmin(editing.id, payload, token),
     )
     if (!result) return
     setEditing(null)
     editForm.resetFields()
-    await finishMutation('管理员显示名已更新')
+    await finishMutation('管理员已更新')
   }
 
   const confirmHighRiskAction = async (
@@ -257,7 +334,7 @@ export default function AdminAccountsPage() {
     })
   }
 
-  const columns: ColumnsType<AdminAccount> = [
+  const columns: ColumnsType<AdminSettingsAccount> = [
     { title: 'ID', dataIndex: 'id', width: 70 },
     { title: '用户名', dataIndex: 'username', width: 150 },
     { title: '显示名', dataIndex: 'display_name', width: 150 },
@@ -268,6 +345,20 @@ export default function AdminAccountsPage() {
       render: (role: AdminAccount['role']) => (
         <Tag color={role === 'super_admin' ? 'gold' : 'blue'}>{getAdminRoleLabel(role)}</Tag>
       ),
+    },
+    {
+      title: '权限',
+      width: 130,
+      render: (_, admin: AdminSettingsAccount) => admin.role === 'super_admin'
+        ? <Tag color="gold">全部权限</Tag>
+        : (
+          <Space size={4}>
+            <span>{admin.permissions.length} 项</span>
+            <Tag color={admin.permissions_source === 'override' ? 'processing' : 'default'}>
+              {admin.permissions_source === 'override' ? '自定义' : '预设'}
+            </Tag>
+          </Space>
+        ),
     },
     {
       title: '综合状态',
@@ -299,7 +390,7 @@ export default function AdminAccountsPage() {
         return (
           <Space size={0} wrap>
             <Button type="link" size="small" icon={<EditOutlined />} onClick={() => openEdit(admin)}>
-              编辑显示名
+              编辑
             </Button>
             {admin.is_active ? (
               <Button
@@ -368,7 +459,13 @@ export default function AdminAccountsPage() {
       extra={(
         <Space>
           <Button icon={<ReloadOutlined />} onClick={refresh}>刷新</Button>
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateOpen(true)}>创建管理员</Button>
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            onClick={() => { setCreateOpen(true); createForm.setFieldsValue({ role: 'quiz_admin' }); applyRolePreset('quiz_admin') }}
+          >
+            创建管理员
+          </Button>
         </Space>
       )}
     >
@@ -400,7 +497,7 @@ export default function AdminAccountsPage() {
         </Form.Item>
       </Form>
 
-      <Table<AdminAccount>
+      <Table<AdminSettingsAccount>
         rowKey="id"
         columns={columns}
         dataSource={data?.items ?? []}
@@ -417,15 +514,22 @@ export default function AdminAccountsPage() {
         confirmLoading={mutationKey === 'create'}
         maskClosable={false}
         onOk={() => void submitCreate()}
-        onCancel={() => { setCreateOpen(false); createForm.resetFields() }}
+        onCancel={() => { setCreateOpen(false); createForm.resetFields(); applyRolePreset('quiz_admin') }}
       >
         <Paragraph type="secondary">系统将生成只显示一次的临时密码；新管理员首次登录时必须修改。</Paragraph>
-        <Form<AdminCreateValues> form={createForm} layout="vertical">
+        <Form<AdminCreateValues>
+          form={createForm}
+          layout="vertical"
+          initialValues={{ role: 'quiz_admin' }}
+          onValuesChange={(changed) => {
+            if ('role' in changed && typeof changed.role === 'string') applyRolePreset(changed.role as AdminCreatableRole)
+          }}
+        >
           <Form.Item
             name="role"
             label="管理员角色"
-            initialValue="quiz_admin"
             rules={[{ required: true, message: '请选择管理员角色' }]}
+            extra="角色决定权限预设模板；切换角色会按预设重填下方勾选"
           >
             <Select
               options={[...ADMIN_CREATABLE_ROLE_OPTIONS]}
@@ -450,11 +554,21 @@ export default function AdminAccountsPage() {
           ]}>
             <Input autoComplete="off" placeholder="用于顶部账号区域和审计记录" />
           </Form.Item>
+          <Form.Item
+            name="permissions"
+            label="权限勾选（覆盖式：勾选结果即该账号的最终权限）"
+          >
+            {catalog ? (
+              <PermissionCheckboxes catalog={catalog} />
+            ) : (
+              <Alert type="info" showIcon message="权限目录加载中或加载失败" description="暂不提交权限时，新账号将默认跟随角色预设；可稍后重新打开本弹窗重试。" />
+            )}
+          </Form.Item>
         </Form>
       </Modal>
 
       <Modal
-        title={`编辑显示名 · ${editing?.username ?? ''}`}
+        title={`编辑管理员 · ${editing?.username ?? ''}`}
         open={Boolean(editing)}
         okText="保存"
         cancelText="取消"
@@ -468,6 +582,26 @@ export default function AdminAccountsPage() {
             { max: 64, message: '显示名不能超过 64 个字符' },
           ]}>
             <Input autoComplete="off" />
+          </Form.Item>
+          <Form.Item
+            name="permissions"
+            label={(() => {
+              const source = editing?.permissions_source
+              const text = source === 'override' ? '当前为自定义权限' : source === 'wildcard' ? '超级管理员' : '当前跟随角色预设'
+              return (
+                <Space size={8}>
+                  <span>权限勾选</span>
+                  <Tag color={source === 'override' ? 'processing' : source === 'wildcard' ? 'gold' : 'default'}>{text}</Tag>
+                </Space>
+              )
+            })()}
+            extra={editing?.permissions_source !== 'override' ? '保存后将以勾选结果覆盖预设；勾选结果即最终权限' : undefined}
+          >
+            {catalog ? (
+              <PermissionCheckboxes catalog={catalog} />
+            ) : (
+              <Alert type="info" showIcon message="权限目录加载中或加载失败" description="本次保存将不修改权限，仅更新显示名。" />
+            )}
           </Form.Item>
         </Form>
       </Modal>
