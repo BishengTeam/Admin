@@ -602,6 +602,8 @@ export const DailyStatsSchema = z.array(DailyStatsItemSchema)
 export const UserStatsListItemSchema = z.object({
   user_id: positiveInt,
   nickname: nullableString,
+  name: nullableString.optional(),
+  name_source: z.enum(['declared', 'realname', 'none']).optional(),
   phone_masked: nullableString,
   practice_total_attempts: z.number().int().min(0),
   practice_first_attempts: z.number().int().min(0),
@@ -609,6 +611,34 @@ export const UserStatsListItemSchema = z.object({
   practice_answered_questions: z.number().int().min(0),
   checkin_days: z.number().int().min(0),
   consecutive_days: z.number().int().min(0),
+}).strict()
+
+export const StudentStatsItemSchema = z.object({
+  user_id: positiveInt,
+  name: nullableString,
+  name_source: z.enum(['declared', 'realname', 'none']),
+  phone_masked: nullableString,
+  practice_total_attempts: z.number().int().min(0),
+  practice_first_attempts: z.number().int().min(0),
+  practice_first_correct: z.number().int().min(0),
+  practice_first_accuracy: z.coerce.number().min(0).max(100),
+  practice_answered_questions: z.number().int().min(0),
+  practice_active_days: z.number().int().min(0),
+  practice_last_at: nullableString,
+  exam_count: z.number().int().min(0),
+  exam_average_score: z.coerce.number().min(0).max(100).nullable(),
+  exam_high_score: z.coerce.number().min(0).max(100).nullable(),
+  exam_low_score: z.coerce.number().min(0).max(100).nullable(),
+  exam_pass_count: z.number().int().min(0),
+  exam_pass_rate: z.coerce.number().min(0).max(100).nullable(),
+  exam_last_at: nullableString,
+}).strict()
+
+export const StudentStatsPageSchema = z.object({
+  items: z.array(StudentStatsItemSchema),
+  total: z.number().int().min(0),
+  page: positiveInt,
+  page_size: positiveInt,
 }).strict()
 
 export const UserStatsPageSchema = z.object({

@@ -58,6 +58,7 @@ import {
   KnowledgePointDeleteSchema,
   UserStatsPageSchema,
   UserPracticeStatsSchema,
+  StudentStatsPageSchema,
   VersionRequestSchema,
 } from '@/core/validation'
 import type { PageData } from '@/types/api'
@@ -94,6 +95,7 @@ import type {
   StatsQuestionFilter,
   UserStatsListItem,
   UserPracticeStats,
+  StudentStatsItem,
   VersionRequest,
   QuizContentTree,
   QuizCourseBinding,
@@ -540,6 +542,25 @@ export const quizService = {
     signal?: AbortSignal,
   ): Promise<UserPracticeStats> {
     return parsed(UserPracticeStatsSchema, await http.get('/admin/quiz/stats/user-practice', queryConfig(params, signal)))
+  },
+
+  async listStudentStats(
+    params: { library_id: number; date_from?: string; date_to?: string; page?: number; page_size?: number },
+    signal?: AbortSignal,
+  ): Promise<PageData<StudentStatsItem>> {
+    return parsed(StudentStatsPageSchema, await http.get('/admin/quiz/stats/students', queryConfig(params, signal)))
+  },
+
+  async exportStudentStatsCsv(
+    params: { library_id: number; date_from?: string; date_to?: string },
+    signal?: AbortSignal,
+  ): Promise<Blob> {
+    return http.get<Blob>('/admin/quiz/stats/students/export', {
+      params,
+      responseType: 'blob',
+      timeout: 60000,
+      signal,
+    })
   },
 
   async createImageUpload(input: { filename: string; content_type: string; size_bytes: number }, signal?: AbortSignal): Promise<QuizImageUpload> {

@@ -550,6 +550,8 @@ export interface DailyStatsItem {
 export interface UserStatsListItem {
   user_id: number
   nickname: string | null
+  name?: string | null
+  name_source?: 'declared' | 'realname' | 'none'
   phone_masked: string | null
   practice_total_attempts: number
   practice_first_attempts: number
@@ -557,6 +559,27 @@ export interface UserStatsListItem {
   practice_answered_questions: number
   checkin_days: number
   consecutive_days: number
+}
+
+export interface StudentStatsItem {
+  user_id: number
+  name: string | null
+  name_source: 'declared' | 'realname' | 'none'
+  phone_masked: string | null
+  practice_total_attempts: number
+  practice_first_attempts: number
+  practice_first_correct: number
+  practice_first_accuracy: number
+  practice_answered_questions: number
+  practice_active_days: number
+  practice_last_at: string | null
+  exam_count: number
+  exam_average_score: number | null
+  exam_high_score: number | null
+  exam_low_score: number | null
+  exam_pass_count: number
+  exam_pass_rate: number | null
+  exam_last_at: string | null
 }
 
 export interface UserPracticeDay {

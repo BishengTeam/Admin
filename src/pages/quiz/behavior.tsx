@@ -207,6 +207,12 @@ export default function QuizBehavior() {
   const userColumns: ColumnsType<UserStatsListItem> = [
     { title: '排名', width: 70, render: (_value, _record, index) => ((users?.page ?? 1) - 1) * (users?.page_size ?? 20) + index + 1 },
     { title: '用户 ID', dataIndex: 'user_id', width: 100 },
+    {
+      title: '姓名',
+      dataIndex: 'name',
+      width: 120,
+      render: (value: string | null | undefined) => value || <Text type="secondary">未填写</Text>,
+    },
     { title: '昵称', dataIndex: 'nickname', width: 140, render: (value: string | null) => value ?? <Text type="secondary">未填写</Text> },
     { title: '手机号', dataIndex: 'phone_masked', width: 140, render: (value: string | null) => value ?? '—' },
     { title: '累计作答', dataIndex: 'practice_total_attempts', width: 100 },
