@@ -1,12 +1,14 @@
 /**
- * H3C 考场开放计划管理
+ * 考场开放计划管理（H3C / 深信服共用）
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Button, Card, Checkbox, DatePicker, Drawer, Empty, Form, Input, InputNumber,
-  Modal, Popconfirm, Select, Space, Table, Tag, TimePicker, Typography, message,
+  Modal, Popconfirm, Select, Space, Table, Tag, TimePicker, Typography, Upload, message,
 } from 'antd'
-import { MinusCircleOutlined, PlusOutlined, ReloadOutlined } from '@ant-design/icons'
+import {
+  DeleteOutlined, MinusCircleOutlined, PlusOutlined, ReloadOutlined, UploadOutlined,
+} from '@ant-design/icons'
 import dayjs from 'dayjs'
 import request from '@/core/request'
 import { certProductService } from '@/services/certProduct'
@@ -30,6 +32,7 @@ interface Schedule {
 interface ScheduleDetail {
   id: number
   name: string
+  vendor?: string
   status: string
   open_date_start: string
   open_date_end: string
@@ -60,6 +63,7 @@ interface TimeSlotValue {
 }
 
 interface CreateFormValues {
+  vendor: string
   name: string
   date_range: [dayjs.Dayjs, dayjs.Dayjs]
   allowed_weekdays: number[]
@@ -75,6 +79,7 @@ type DateRangeValue = [dayjs.Dayjs | null, dayjs.Dayjs | null] | undefined
 type QuotaMatrix = Record<string, number>
 
 const DEFAULT_SLOT_TIMES = ['09:30', '11:30', '14:30', '16:30']
+const VENDOR_LABELS: Record<string, string> = { h3c: 'H3C', sangfor: '深信服' }
 const WEEKDAY_OPTIONS = [
   { label: '周一', value: 0 },
   { label: '周二', value: 1 },
@@ -136,7 +141,9 @@ const STATUS_MAP: Record<string, { color: string; label: string }> = {
 }
 
 const api = {
-  list: () => request.get('/admin/h3c/exam-schedules'),
+  list: (vendor?: string) => request.get(
+    `/admin/h3c/exam-schedules${vendor ? `?vendor=${vendor}` : ''}`,
+  ),
   holidays: () => request.get('/admin/holidays'),
   get: (id: number) => request.get(`/admin/h3c/exam-schedules/${id}`),
   create: (data: unknown) => request.post('/admin/h3c/exam-schedules', data),
@@ -149,9 +156,26 @@ const api = {
     request.post(`/admin/h3c/exam-schedules/${id}/time-slots`, data),
   setQuotas: (id: number, data: unknown) =>
     request.put(`/admin/h3c/exam-schedules/${id}/seat-quotas`, data),
+  attachments: (vendor: string, scheduleId: number) =>
+    request.get('/admin/cert-attachments', { params: { vendor, schedule_id: scheduleId } }),
+  createAttachment: (data: unknown) => request.post('/admin/cert-attachments', data),
+  deleteAttachment: (id: number) => request.delete(`/admin/cert-attachments/${id}`),
+  upload: (file: File) => {
+    const form = new FormData()
+    form.append('file', file)
+    return request.post('/admin/cert-attachments/upload', form)
+  },
 }
 
-export default function ExamSchedulePage() {
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '')
+
+function resolveFileUrl(url: string) {
+  return /^https?:\/\//i.test(url) ? url : `${API_BASE_URL}${url}`
+}
+
+export default function ExamSchedulePage({ type = 'h3c' }: { type?: string }) {
+  const vendor = type === 'sangfor' ? 'sangfor' : 'h3c'
+  const quotaEnabled = vendor !== 'sangfor'
   const [schedules, setSchedules] = useState<Schedule[]>([])
   const [products, setProducts] = useState<CertProduct[]>([])
   const [loading, setLoading] = useState(false)
@@ -203,9 +227,9 @@ export default function ExamSchedulePage() {
     setLoading(true)
     try {
       const [schedulePayload, holidayPayload, productPage] = await Promise.all([
-        api.list(),
+        api.list(vendor),
         api.holidays(),
-        certProductService.list({ type: 'h3c', page: 1, page_size: 100 }),
+        certProductService.list({ type: vendor, page: 1, page_size: 100 }),
       ])
       setSchedules(normalizeList<Schedule>(schedulePayload as ListPayload<Schedule>))
       setHolidayDates(new Set(
@@ -217,13 +241,14 @@ export default function ExamSchedulePage() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [vendor])
 
   useEffect(() => { load() }, [load])
 
   const openCreate = () => {
     form.resetFields()
     form.setFieldsValue({
+      vendor,
       allowed_weekdays: [4],
       product_ids: [],
       default_quota: 5,
@@ -259,6 +284,7 @@ export default function ExamSchedulePage() {
     setCreatingAction(publish ? 'publish' : 'draft')
     try {
       await api.create({
+        vendor,
         name: values.name,
         open_date_start: values.date_range[0].format('YYYY-MM-DD'),
         open_date_end: values.date_range[1].format('YYYY-MM-DD'),
@@ -270,11 +296,13 @@ export default function ExamSchedulePage() {
           start_time: slot.time,
           label: watchedSlots?.find(item => item.start_time?.format('HH:mm') === slot.time)?.label,
         })),
-        default_quota: values.default_quota,
-        shared_quotas: slotConfigs.map(slot => ({
-          slot_start: slot.time,
-          total_seats: quotaMatrix[slot.time] ?? values.default_quota,
-        })),
+        ...(quotaEnabled ? {
+          default_quota: values.default_quota,
+          shared_quotas: slotConfigs.map(slot => ({
+            slot_start: slot.time,
+            total_seats: quotaMatrix[slot.time] ?? values.default_quota,
+          })),
+        } : {}),
         publish,
       })
       message.success(publish ? '考场计划已创建并发布' : '考场计划草稿已创建')
@@ -301,6 +329,8 @@ export default function ExamSchedulePage() {
   const columns = [
     { title: 'ID', dataIndex: 'id', width: 60 },
     { title: '名称', dataIndex: 'name', ellipsis: true },
+    { title: '厂商', dataIndex: 'vendor', width: 90, render: (value: string) =>
+      VENDOR_LABELS[value] ?? value },
     { title: '开放范围', width: 200, render: (_: unknown, r: Schedule) =>
       `${r.open_date_start} ~ ${r.open_date_end}` },
     { title: '状态', dataIndex: 'status', width: 90, render: (s: string) =>
@@ -342,13 +372,15 @@ export default function ExamSchedulePage() {
     <Card>
       <Space style={{ marginBottom: 16 }} wrap>
         <Button icon={<ReloadOutlined />} onClick={load}>刷新</Button>
-        <Button type='primary' icon={<PlusOutlined />} onClick={openCreate}>创建考场计划</Button>
+        <Button type='primary' icon={<PlusOutlined />} onClick={openCreate}>
+          创建{VENDOR_LABELS[vendor]}考场计划
+        </Button>
       </Space>
 
       <Table rowKey='id' columns={columns} dataSource={schedules} loading={loading} pagination={false} />
 
       <Modal
-        title='一体化创建考场计划'
+        title={`${VENDOR_LABELS[vendor]} · 一体化创建考场计划`}
         open={createOpen}
         onCancel={closeCreate}
         width={1080}
@@ -369,8 +401,9 @@ export default function ExamSchedulePage() {
       >
         <Form form={form} layout='vertical'>
           <Card type='inner' title='① 基本信息' size='small'>
+            <Form.Item name='vendor' hidden><Input /></Form.Item>
             <Form.Item name='name' label='计划名称' rules={[{ required: true, message: '请输入计划名称' }]}>
-              <Input placeholder='如：2026年12月H3C考场' maxLength={128} />
+              <Input placeholder={`如：2026年12月${VENDOR_LABELS[vendor]}考场`} maxLength={128} />
             </Form.Item>
             <Form.Item
               name='date_range'
@@ -455,7 +488,7 @@ export default function ExamSchedulePage() {
             >
               <Select
                 mode='multiple'
-                placeholder='搜索并选择 H3C 考试科目（可多选）'
+                placeholder={`搜索并选择${VENDOR_LABELS[vendor]}考试科目（可多选）`}
                 showSearch
                 optionFilterProp='label'
                 options={products.map(product => ({
@@ -466,51 +499,59 @@ export default function ExamSchedulePage() {
             </Form.Item>
           </Card>
 
-          <Card
-            type='inner'
-            title='④ 考位配额（所有科目共享）'
-            size='small'
-            style={{ marginTop: 16 }}
-          >
-            <Form.Item name='default_quota' label='默认每个时段机位' initialValue={5}>
-              <InputNumber min={0} precision={0} />
-            </Form.Item>
-            {slotConfigs.length > 0 && (
-              <table style={{ borderCollapse: 'collapse', width: '100%' }}>
-                <thead>
-                  <tr>
-                    <th style={tableHeaderStyle}>时段</th>
-                    <th style={tableHeaderStyle}>共享机位</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {slotConfigs.map(slot => (
-                    <tr key={slot.time}>
-                      <td style={tableCellStyle}>{slot.time}</td>
-                      <td style={{ ...tableCellStyle, textAlign: 'center' }}>
-                        <InputNumber
-                          min={0}
-                          precision={0}
-                          size='small'
-                          style={{ width: 72 }}
-                          value={quotaMatrix[slot.time] ?? normalizedDefaultQuota}
-                          onChange={value => setQuotaMatrix(prev => ({
-                            ...prev,
-                            [slot.time]: value ?? 0,
-                          }))}
-                        />
-                      </td>
+          {quotaEnabled ? (
+            <Card
+              type='inner'
+              title='④ 考位配额（所有科目共享）'
+              size='small'
+              style={{ marginTop: 16 }}
+            >
+              <Form.Item name='default_quota' label='默认每个时段机位' initialValue={5}>
+                <InputNumber min={0} precision={0} />
+              </Form.Item>
+              {slotConfigs.length > 0 && (
+                <table style={{ borderCollapse: 'collapse', width: '100%' }}>
+                  <thead>
+                    <tr>
+                      <th style={tableHeaderStyle}>时段</th>
+                      <th style={tableHeaderStyle}>共享机位</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-            <div style={{ marginTop: 8 }}>
+                  </thead>
+                  <tbody>
+                    {slotConfigs.map(slot => (
+                      <tr key={slot.time}>
+                        <td style={tableCellStyle}>{slot.time}</td>
+                        <td style={{ ...tableCellStyle, textAlign: 'center' }}>
+                          <InputNumber
+                            min={0}
+                            precision={0}
+                            size='small'
+                            style={{ width: 72 }}
+                            value={quotaMatrix[slot.time] ?? normalizedDefaultQuota}
+                            onChange={value => setQuotaMatrix(prev => ({
+                              ...prev,
+                              [slot.time]: value ?? 0,
+                            }))}
+                          />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+              <div style={{ marginTop: 8 }}>
+                <Text type='secondary'>
+                  同一时段所有科目共享机位，先到先得。0 = 不限；配额对所有可预约日期共享。
+                </Text>
+              </div>
+            </Card>
+          ) : (
+            <Card type='inner' title='④ 考位配额' size='small' style={{ marginTop: 16 }}>
               <Text type='secondary'>
-                同一时段所有科目共享机位，先到先得。0 = 不限；配额对所有可预约日期共享。
+                深信服考试不设机位配额，考生可选择任意已发布时段，无需配置余量。
               </Text>
-            </div>
-          </Card>
+            </Card>
+          )}
 
           <Card type='inner' title='⑤ 考前注意事项' size='small' style={{ marginTop: 16 }}>
             <Form.Item name='pre_exam_notice'>
@@ -520,7 +561,7 @@ export default function ExamSchedulePage() {
         </Form>
       </Modal>
 
-      <Drawer title={detail ? `考场计划：${detail.name}` : '编辑'}
+      <Drawer title={detail ? `${VENDOR_LABELS[detail.vendor ?? 'h3c'] ?? detail.vendor}考场计划：${detail.name}` : '编辑'}
         open={editorOpen} onClose={() => { setEditorOpen(false); setDetail(null) }}
         width={760} destroyOnClose>
         {detail && (
@@ -558,6 +599,8 @@ function ScheduleEditor({
   const [addSlotOpen, setAddSlotOpen] = useState(false)
   const [slotForm] = Form.useForm()
   const canEditStructure = detail.status === 'draft'
+  const detailVendor = detail.vendor ?? 'h3c'
+  const quotaEnabled = detailVendor !== 'sangfor'
 
   const handleAddSubject = async (productId: number) => {
     try {
@@ -590,7 +633,7 @@ function ScheduleEditor({
       <Card title='科目管理' size='small'
         extra={canEditStructure && (
           <Select
-            placeholder='添加 H3C 产品'
+            placeholder={`添加${VENDOR_LABELS[detailVendor] ?? detailVendor}产品`}
             style={{ width: 260 }}
             showSearch optionFilterProp='label'
             onSelect={value => handleAddSubject(value as number)}
@@ -621,11 +664,15 @@ function ScheduleEditor({
         )}
       </Card>
 
-      {detail.subjects.length > 0 && detail.time_slots.length > 0 && (
+      {quotaEnabled && detail.subjects.length > 0 && detail.time_slots.length > 0 && (
         <Card title='共享机位配额' size='small'>
           <SeatQuotaGrid detail={detail} onChanged={onChanged} />
         </Card>
       )}
+
+      <Card title='配套附件' size='small'>
+        <AttachmentManager vendor={detailVendor} scheduleId={detail.id} />
+      </Card>
 
       <Modal title='添加时段' open={addSlotOpen} onOk={handleAddSlot}
         onCancel={() => { setAddSlotOpen(false); slotForm.resetFields() }}>
@@ -731,5 +778,105 @@ function SeatQuotaGrid({ detail, onChanged }: { detail: ScheduleDetail; onChange
         >保存配额</Button>
       </div>
     </>
+  )
+}
+
+interface AttachmentItem {
+  id: number
+  title: string
+  file_url: string
+  file_size: number | null
+}
+
+function formatFileSize(bytes: number | null) {
+  if (!bytes || bytes < 0) return ''
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`
+}
+
+function AttachmentManager({ vendor, scheduleId }: { vendor: string; scheduleId: number }) {
+  const [items, setItems] = useState<AttachmentItem[]>([])
+  const [loading, setLoading] = useState(false)
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    try {
+      const payload = await api.attachments(vendor, scheduleId)
+      setItems(normalizeList<AttachmentItem>(payload as ListPayload<AttachmentItem>))
+    } catch (error) {
+      message.error(getErrorMessage(error, '附件加载失败'))
+    } finally {
+      setLoading(false)
+    }
+  }, [vendor, scheduleId])
+
+  useEffect(() => { void load() }, [load])
+
+  const handleUpload = async (file: File) => {
+    try {
+      const uploaded = await api.upload(file) as {
+        url?: string
+        filename?: string
+        size?: number
+      }
+      if (!uploaded?.url) throw new Error('上传结果缺少文件地址')
+      await api.createAttachment({
+        vendor,
+        schedule_id: scheduleId,
+        title: uploaded.filename || file.name,
+        file_url: uploaded.url,
+        file_size: uploaded.size ?? file.size,
+      })
+      message.success('附件已上传')
+      await load()
+    } catch (error) {
+      message.error(getErrorMessage(error, '附件上传失败'))
+    }
+  }
+
+  return (
+    <Space direction='vertical' style={{ width: '100%' }}>
+      <Upload
+        showUploadList={false}
+        customRequest={({ file, onSuccess, onError }) => {
+          handleUpload(file as File)
+            .then(() => onSuccess?.({}))
+            .catch(error => onError?.(error as Error))
+        }}
+      >
+        <Button size='small' icon={<UploadOutlined />}>上传附件</Button>
+      </Upload>
+      {items.length === 0 ? (
+        <Text type='secondary'>
+          {loading ? '正在加载附件…' : '暂无附件。考试须知、考场指引等可上传给考生下载。'}
+        </Text>
+      ) : (
+        <Space direction='vertical' style={{ width: '100%' }}>
+          {items.map(item => (
+            <Space key={item.id} wrap>
+              <Typography.Link href={resolveFileUrl(item.file_url)} target='_blank' rel='noreferrer'>
+                {item.title}
+              </Typography.Link>
+              <Text type='secondary'>{formatFileSize(item.file_size)}</Text>
+              <Popconfirm
+                title='确定删除该附件？'
+                onConfirm={async () => {
+                  try {
+                    await api.deleteAttachment(item.id)
+                    message.success('附件已删除')
+                    await load()
+                  } catch (error) {
+                    message.error(getErrorMessage(error, '删除失败'))
+                  }
+                }}
+              >
+                <Button size='small' type='text' danger icon={<DeleteOutlined />} />
+              </Popconfirm>
+            </Space>
+          ))}
+        </Space>
+      )}
+    </Space>
   )
 }

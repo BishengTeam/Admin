@@ -85,12 +85,20 @@ const vendorRegistry: VendorProfile[] = [
     productPermission: 'content:read',
     productTabLabel: '产品设置',
     batchOverrides: lazy(() => import('./sangfor/BatchOverrides')),
-    tabs: [{
-      key: 'refund',
-      label: '退款管理',
-      permission: 'order:list',
-      component: lazy(() => import('./sangfor/RefundTab')),
-    }],
+    tabs: [
+      {
+        key: 'exam-schedule',
+        label: '考场管理',
+        permission: 'content:write',
+        component: lazy(() => import('./h3c/ExamSchedule')),
+      },
+      {
+        key: 'refund',
+        label: '退款管理',
+        permission: 'order:list',
+        component: lazy(() => import('./sangfor/RefundTab')),
+      },
+    ],
   },
 ]
 

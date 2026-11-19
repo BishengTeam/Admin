@@ -20,7 +20,7 @@ describe('H3C exam schedule management', () => {
     const source = readComponent()
 
     expect(source).toContain("const DEFAULT_SLOT_TIMES = ['09:30', '11:30', '14:30', '16:30']")
-    expect(source).toContain("certProductService.list({ type: 'h3c', page: 1, page_size: 100 })")
+    expect(source).toContain('certProductService.list({ type: vendor, page: 1, page_size: 100 })')
     expect(source).toContain('name=\'product_ids\'')
     expect(source).toContain('<Form.List')
     expect(source).toContain('shared_quotas: slotConfigs.map')
@@ -58,5 +58,18 @@ describe('H3C exam schedule management', () => {
     expect(source).toContain('已约 {booked}')
     expect(source).toContain('发布后可将限量调整为不低于该时段已约人数')
     expect(source).not.toContain('subject_id')
+  })
+
+  it('reuses the workbench for Sangfor schedules without seat quotas', () => {
+    const source = readComponent()
+
+    expect(source).toContain("const vendor = type === 'sangfor' ? 'sangfor' : 'h3c'")
+    expect(source).toContain('const quotaEnabled = vendor !== \'sangfor\'')
+    expect(source).toContain('深信服考试不设机位配额')
+    expect(source).toContain('vendor,')
+    expect(source).toContain('api.list(vendor)')
+    expect(source).toContain("'/admin/cert-attachments'")
+    expect(source).toContain('<AttachmentManager')
+    expect(source).toContain('配套附件')
   })
 })
