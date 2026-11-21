@@ -41,6 +41,12 @@ const vendorRegistry: VendorProfile[] = [
         permission: 'h3c:refund',
         component: lazy(() => import('./h3c/RefundTab')),
       },
+      {
+        key: 'attachments',
+        label: '附件管理',
+        permission: 'h3c:batch_manage',
+        component: lazy(() => import('../shared/CertAttachmentManager')),
+      },
     ],
   },
   {
@@ -61,6 +67,12 @@ const vendorRegistry: VendorProfile[] = [
         permission: 'nisp:refund',
         component: lazy(() => import('./nisp/RefundTab')),
       },
+      {
+        key: 'attachments',
+        label: '附件管理',
+        permission: 'content:write',
+        component: lazy(() => import('../shared/CertAttachmentManager')),
+      },
     ],
   },
   {
@@ -75,6 +87,12 @@ const vendorRegistry: VendorProfile[] = [
         label: '退款管理',
         permission: 'order:list',
         component: lazy(() => import('./renshe/RefundTab')),
+      },
+      {
+        key: 'attachments',
+        label: '附件管理',
+        permission: 'content:write',
+        component: lazy(() => import('../shared/CertAttachmentManager')),
       },
     ],
   },
@@ -97,6 +115,12 @@ const vendorRegistry: VendorProfile[] = [
         label: '退款管理',
         permission: 'order:list',
         component: lazy(() => import('./sangfor/RefundTab')),
+      },
+      {
+        key: 'attachments',
+        label: '附件管理',
+        permission: 'content:write',
+        component: lazy(() => import('../shared/CertAttachmentManager')),
       },
     ],
   },

@@ -15,6 +15,7 @@ import { BATCH_LIST_CONTEXT_KEY, BATCH_STATUS, STATUS_OPTIONS, readBatchListCont
 interface BatchFormValues {
   product_code: string; name: string; apply_start?: Dayjs; apply_end?: Dayjs; exam_date?: Dayjs
   fee: number; capacity: number; exam_location?: string; description?: string
+  registration_notice?: string
 }
 const date = (value: string | null) => value ? formatDate(value) : '-'
 
@@ -75,7 +76,8 @@ export default function SangforBatchOverrides() {
     setEditing(batch); createdDraftId.current = null; setCreatedDraft(false); form.resetFields()
     form.setFieldsValue(batch ? { product_code: batch.product_code, name: batch.name, fee: batch.price_cents / 100, capacity: batch.capacity,
       apply_start: batch.apply_start ? dayjs(batch.apply_start) : undefined, apply_end: batch.apply_end ? dayjs(batch.apply_end) : undefined,
-      exam_date: batch.exam_date ? dayjs(batch.exam_date) : undefined, exam_location: batch.exam_location || '', description: batch.description || '' }
+      exam_date: batch.exam_date ? dayjs(batch.exam_date) : undefined, exam_location: batch.exam_location || '', description: batch.description || '',
+      registration_notice: batch.registration_notice || '' }
       : { capacity: 0, product_code: undefined })
     setOpen(true)
     void loadProducts(!batch)
@@ -93,7 +95,8 @@ export default function SangforBatchOverrides() {
       }
       const payload = { name: values.name.trim(), apply_start: values.apply_start?.toISOString() || null, apply_end: values.apply_end?.toISOString() || null,
         exam_date: values.exam_date?.toISOString() || null, price_cents: Math.round(values.fee * 100), capacity: values.capacity,
-        exam_location: values.exam_location?.trim() || null, description: values.description?.trim() || null }
+        exam_location: values.exam_location?.trim() || null, description: values.description?.trim() || null,
+        registration_notice: values.registration_notice?.trim() || null }
       let id = editing?.id || createdDraftId.current
       if (id) await sangforService.updateBatch(id, payload)
       else {
@@ -166,6 +169,9 @@ export default function SangforBatchOverrides() {
         <Divider orientation='left' orientationMargin={0}>② 基本信息</Divider>
         <Form.Item name='name' label='批次名称' rules={[{ required: true, whitespace: true, message: '请输入批次名称' }]}><Input maxLength={128} placeholder='请输入便于识别的考试批次名称' /></Form.Item>
         <Form.Item name='description' label='报名说明'><Input.TextArea maxLength={5000} rows={3} placeholder='选填；向考生展示的批次说明' /></Form.Item>
+        <Form.Item name='registration_notice' label='报名注意事项' tooltip='报名阶段展示的退改规则等强约束，与考场须知分开维护'>
+          <Input.TextArea maxLength={5000} rows={3} placeholder='如：报名完成后不可退款，请确认后提交。' />
+        </Form.Item>
         <Divider orientation='left' orientationMargin={0}>③ 报名安排</Divider>
         <Row gutter={16}>
           <Col xs={24} sm={12}><Form.Item name='apply_start' label='报名开始' rules={[{ required: true, message: '请选择报名开始时间' }]}><DatePicker showTime style={{ width: '100%' }} placeholder='报名开始时间' /></Form.Item></Col>

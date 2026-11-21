@@ -198,6 +198,7 @@ export default function BatchOverrides(_props: { type: CertType; productCode: st
     ...(values.coupon_price_cents != null ? { coupon_price_cents: yuanToCents(values.coupon_price_cents as number) } : {}),
     ...(values.student_price_cents != null ? { student_price_cents: yuanToCents(values.student_price_cents as number) } : {}),
     ...(values.full_price_cents != null ? { full_price_cents: yuanToCents(values.full_price_cents as number) } : {}),
+    registration_notice: String(values.registration_notice ?? '').trim() || null,
     payment_timeout_minutes: values.payment_timeout_minutes == null
       ? undefined
       : Number(values.payment_timeout_minutes),
@@ -317,6 +318,7 @@ export default function BatchOverrides(_props: { type: CertType; productCode: st
         batch.certification_code ? [batch.certification_code] : []
       ),
       name: batch.name,
+      registration_notice: batch.registration_notice || '',
       capacity: batch.capacity,
       identity_tag: batch.identity_tag,
       apply_start: batch.apply_start ? dayjs(batch.apply_start) : undefined,
@@ -662,6 +664,14 @@ export default function BatchOverrides(_props: { type: CertType; productCode: st
             rules={[{ required: true, whitespace: true, message: '请输入批次名称' }]}
           >
             <Input maxLength={128} placeholder={suggestedBatchName(selectedProduct)} />
+          </Form.Item>
+
+          <Form.Item
+            name='registration_notice'
+            label='报名注意事项'
+            tooltip='报名阶段展示的退改规则等强约束，与考场须知分开维护'
+          >
+            <Input.TextArea rows={3} maxLength={5000} placeholder='如：报名完成后不可退款，请确认后提交。' />
           </Form.Item>
 
           <Divider orientation='left' orientationMargin={0}>③ 报名安排</Divider>

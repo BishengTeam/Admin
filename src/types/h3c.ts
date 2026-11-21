@@ -33,6 +33,7 @@ export interface H3cExamBatch {
   remaining_count: number
   exam_location: string | null
   description: string | null
+  registration_notice?: string | null
   sort_order: number
   exam_code: string
   identity_tag: string

@@ -14,6 +14,7 @@ export interface SangforRefund {
 export interface SangforBatch {
   id: number; product_code: string; product_name: string; name: string; status: string
   exam_direction: string; description: string | null; exam_date: string | null; exam_location: string | null
+  registration_notice?: string | null
   apply_start: string | null; apply_end: string | null; price_cents: number; capacity: number; enrolled: number; remaining_count: number
   registration_counts?: Record<string, number>
 }
