@@ -47,6 +47,12 @@ const vendorRegistry: VendorProfile[] = [
         permission: 'h3c:batch_manage',
         component: lazy(() => import('../shared/CertAttachmentManager')),
       },
+      {
+        key: 'holidays',
+        label: '假期管理',
+        permission: 'h3c:batch_manage',
+        component: lazy(() => import('../shared/HolidayManager')),
+      },
     ],
   },
   {
@@ -73,6 +79,12 @@ const vendorRegistry: VendorProfile[] = [
         permission: 'content:write',
         component: lazy(() => import('../shared/CertAttachmentManager')),
       },
+      {
+        key: 'holidays',
+        label: '假期管理',
+        permission: 'content:write',
+        component: lazy(() => import('../shared/HolidayManager')),
+      },
     ],
   },
   {
@@ -93,6 +105,12 @@ const vendorRegistry: VendorProfile[] = [
         label: '附件管理',
         permission: 'content:write',
         component: lazy(() => import('../shared/CertAttachmentManager')),
+      },
+      {
+        key: 'holidays',
+        label: '假期管理',
+        permission: 'user:write',
+        component: lazy(() => import('../shared/HolidayManager')),
       },
     ],
   },
@@ -121,6 +139,12 @@ const vendorRegistry: VendorProfile[] = [
         label: '附件管理',
         permission: 'content:write',
         component: lazy(() => import('../shared/CertAttachmentManager')),
+      },
+      {
+        key: 'holidays',
+        label: '假期管理',
+        permission: 'content:write',
+        component: lazy(() => import('../shared/HolidayManager')),
       },
     ],
   },

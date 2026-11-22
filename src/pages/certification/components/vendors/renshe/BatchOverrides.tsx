@@ -62,6 +62,9 @@ interface PlanFormValues {
   capacity: number
   exam_date?: Dayjs | null
   exam_location?: string
+  exam_org_name?: string
+  exam_org_code?: string
+  exam_date_note?: string
   description?: string
   contact_name?: string
   contact_phone?: string
@@ -88,6 +91,9 @@ function toFormValues(plan: CertificationPlan): PlanFormValues {
     capacity: plan.capacity,
     exam_date: plan.exam_date ? dayjs(plan.exam_date) : null,
     exam_location: plan.exam_location || undefined,
+    exam_org_name: plan.exam_org_name || undefined,
+    exam_org_code: plan.exam_org_code || undefined,
+    exam_date_note: plan.exam_date_note || undefined,
     description: plan.description || undefined,
     contact_name: plan.contact_name || undefined,
     contact_phone: plan.contact_phone || undefined,
@@ -105,6 +111,9 @@ function toPayload(values: PlanFormValues): CertificationPlanPayload {
     capacity: values.capacity,
     exam_date: values.exam_date?.toISOString() || null,
     exam_location: values.exam_location?.trim() || null,
+    exam_org_name: values.exam_org_name?.trim() || null,
+    exam_org_code: values.exam_org_code?.trim() || null,
+    exam_date_note: values.exam_date_note?.trim() || null,
     description: values.description?.trim() || null,
     contact_name: values.contact_name?.trim() || null,
     contact_phone: values.contact_phone?.trim() || null,
@@ -192,11 +201,11 @@ export default function BatchOverrides(_props: BatchOverridesProps) {
     setModalOpen(true)
   }
 
-  const submitPlan = async () => {
+  const submitPlan = async (confirmHoliday = false) => {
     const values = await form.validateFields()
     setSaving(true)
     try {
-      const payload = toPayload(values)
+      const payload = { ...toPayload(values), confirm_holiday: confirmHoliday }
       if (editingPlan) {
         const { name: _name, ...publishedPayload } = payload
         await certificationService.updatePlan(editingPlan.product_type, editingPlan.id, {
@@ -216,7 +225,18 @@ export default function BatchOverrides(_props: BatchOverridesProps) {
       setModalOpen(false)
       await loadPlans()
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '保存人社批次失败')
+      const text = error instanceof Error ? error.message : '保存人社批次失败'
+      if (!confirmHoliday && text.includes('假期')) {
+        Modal.confirm({
+          title: '考试日期为假期',
+          content: text,
+          okText: '确认为假期考试',
+          cancelText: '返回修改',
+          onOk: () => submitPlan(true),
+        })
+        return
+      }
+      message.error(text)
     } finally {
       setSaving(false)
     }
@@ -356,6 +376,7 @@ export default function BatchOverrides(_props: BatchOverridesProps) {
       render: (_, plan) => `${plan.enrolled}/${plan.capacity || '不限'}`,
     },
     { title: '考试时间', dataIndex: 'exam_date', width: 160, render: (value: string | null) => value ? formatDate(value, 'YYYY-MM-DD HH:mm') : '-' },
+    { title: '考试机构', dataIndex: 'exam_org_name', width: 180, ellipsis: true, render: (value: string | null) => value || '-' },
     { title: '考试地点', dataIndex: 'exam_location', width: 160, ellipsis: true, render: (value: string | null) => value || '-' },
     {
       title: '状态',
@@ -507,7 +528,7 @@ export default function BatchOverrides(_props: BatchOverridesProps) {
         styles={{ body: { maxHeight: 'calc(100vh - 240px)', overflowY: 'auto', paddingRight: 8 } }}
         okText="保存"
         okButtonProps={{ loading: saving }}
-        onOk={submitPlan}
+        onOk={() => void submitPlan()}
         onCancel={() => setModalOpen(false)}
         destroyOnClose
       >
@@ -555,8 +576,17 @@ export default function BatchOverrides(_props: BatchOverridesProps) {
           <Form.Item name="exam_date" label="考试时间">
             <DatePicker showTime style={{ width: '100%' }} />
           </Form.Item>
+          <Form.Item name="exam_date_note" label="考试时间备注">
+            <Input maxLength={64} placeholder="如：暂定" />
+          </Form.Item>
           <Form.Item name="exam_location" label="考试地点">
             <Input maxLength={256} />
+          </Form.Item>
+          <Form.Item name="exam_org_name" label="考试机构">
+            <Input maxLength={128} placeholder="如：四川省职业技能鉴定中心" />
+          </Form.Item>
+          <Form.Item name="exam_org_code" label="考试机构代码">
+            <Input maxLength={64} placeholder="选填，用于导出/对账" />
           </Form.Item>
           <Form.Item name="description" label="报名说明">
             <Input.TextArea rows={4} maxLength={5000} showCount />

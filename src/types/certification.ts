@@ -48,6 +48,9 @@ export interface CertificationPlan {
   application_type: string
   price_cents: number
   exam_location: string | null
+  exam_org_name?: string | null
+  exam_org_code?: string | null
+  exam_date_note?: string | null
   description: string | null
   contact_name: string | null
   contact_phone: string | null
@@ -75,9 +78,13 @@ export interface CertificationPlanPayload {
   capacity?: number | null
   price_cents?: number
   exam_location?: string | null
+  exam_org_name?: string | null
+  exam_org_code?: string | null
+  exam_date_note?: string | null
   description?: string | null
   contact_name?: string | null
   contact_phone?: string | null
   sort_order?: number
   program_code?: string
+  confirm_holiday?: boolean
 }
