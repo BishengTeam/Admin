@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Image, Modal, Space, Table, Tabs, Tag, Typography, message } from 'antd'
+import { Button, Image, Modal, Space, Table, Tabs, Tag, Typography, message } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { PageContainer } from '@/components/PageContainer'
 import { usePermission } from '@/hooks/usePermission'
@@ -33,6 +33,8 @@ export default function TicketManagement() {
   const [statusFilter, setStatusFilter] = useState<string>('')
   const [detail, setDetail] = useState<Ticket | null>(null)
   const [updating, setUpdating] = useState<number | null>(null)
+  const [selectedIds, setSelectedIds] = useState<number[]>([])
+  const [batchUpdating, setBatchUpdating] = useState<TicketStatus | null>(null)
   const detailImages = detail ? parseTicketImages(detail.content) : []
 
   const { data, loading, pagination, refresh } = usePagination(
@@ -53,6 +55,32 @@ export default function TicketManagement() {
     } finally {
       setUpdating(null)
     }
+  }
+
+  const batchUpdateStatus = (status: TicketStatus) => {
+    if (selectedIds.length === 0 || batchUpdating !== null) return
+    const label = STATUS_CONFIG[status]?.text ?? status
+    const ids = selectedIds
+    Modal.confirm({
+      title: `批量标记 ${ids.length} 条工单为「${label}」？`,
+      content: '仅对当前页勾选的工单生效；已是目标状态的工单会自动跳过。',
+      okText: '确认更新',
+      cancelText: '取消',
+      onOk: async () => {
+        setBatchUpdating(status)
+        try {
+          const result = await ticketService.batchUpdateStatus(ids, status)
+          message.success(`已更新 ${result.updated} 条，跳过 ${result.skipped} 条`)
+          setSelectedIds([])
+          setDetail(current => (current && ids.includes(current.id) ? null : current))
+          refresh()
+        } catch (error) {
+          message.error(error instanceof Error ? error.message : '批量更新失败，请重试')
+        } finally {
+          setBatchUpdating(null)
+        }
+      },
+    })
   }
 
   const locateFeedbackQuestion = async (ticket: Ticket) => {
@@ -120,7 +148,10 @@ export default function TicketManagement() {
     <PageContainer title="客服工单">
       <Tabs
         activeKey={statusFilter}
-        onChange={key => setStatusFilter(key)}
+        onChange={key => {
+          setStatusFilter(key)
+          setSelectedIds([])
+        }}
         items={[
           { key: '', label: '全部' },
           { key: 'waiting_manual', label: '待处理' },
@@ -132,12 +163,42 @@ export default function TicketManagement() {
       <Text type="secondary" style={{ display: 'block', marginBottom: 16 }}>
         学生在练习页提交的「题目纠错」会以【题目反馈】开头进入这里；点击「处理」会自动标记处理中并跳转到对应题目，修正后请标记已解决，形成处理闭环。
       </Text>
+      <Space style={{ marginBottom: 12 }}>
+        <Text type="secondary">已选 {selectedIds.length} 条</Text>
+        <Button
+          size="small"
+          disabled={selectedIds.length === 0}
+          loading={batchUpdating === 'processing'}
+          onClick={() => batchUpdateStatus('processing')}
+        >
+          批量标记处理中
+        </Button>
+        <Button
+          size="small"
+          type="primary"
+          disabled={selectedIds.length === 0}
+          loading={batchUpdating === 'resolved'}
+          onClick={() => batchUpdateStatus('resolved')}
+        >
+          批量标记已解决
+        </Button>
+        {selectedIds.length > 0 && (
+          <Button size="small" type="link" onClick={() => setSelectedIds([])}>
+            取消选择
+          </Button>
+        )}
+      </Space>
       <Table
         rowKey="id"
         columns={columns}
         dataSource={data?.items ?? []}
         loading={loading}
         pagination={pagination}
+        rowSelection={{
+          selectedRowKeys: selectedIds,
+          onChange: keys => setSelectedIds(keys as number[]),
+        }}
+        onChange={() => setSelectedIds([])}
       />
 
       <Modal
