@@ -24,6 +24,7 @@ import type { ColumnsType } from 'antd/es/table'
 import { Navigate, useNavigate, useSearchParams } from 'react-router-dom'
 import { DownloadOutlined, KeyOutlined, LinkOutlined, PlusOutlined, ReloadOutlined, SearchOutlined, SwapOutlined } from '@ant-design/icons'
 import { PageContainer } from '@/components/PageContainer'
+import { PAGE_SIZE_OPTIONS } from '@/core/constants'
 import { quizService } from '@/services/quiz'
 import { ImageUpload } from '@/components/ImageUpload'
 import { usePermission } from '@/hooks/usePermission'
@@ -226,6 +227,7 @@ export default function QuizLibraries() {
   const [codes, setCodes] = useState<PageData<QuizActivationCode> | null>(null)
   const [codeStatus, setCodeStatus] = useState<QuizActivationCodeStatus | undefined>(undefined)
   const [codePage, setCodePage] = useState(1)
+  const [codePageSize, setCodePageSize] = useState(10)
   const [codesLoading, setCodesLoading] = useState(false)
   const [generateOpen, setGenerateOpen] = useState(false)
   const [generating, setGenerating] = useState(false)
@@ -458,13 +460,14 @@ export default function QuizLibraries() {
     } finally { setBindingLoading(false) }
   }
 
-  const loadCodesFor = async (library: QuizLibrary, page: number, status?: QuizActivationCodeStatus) => {
+  // size 显式传入：setState 是异步的，切换每页条数当次请求不能读旧 state
+  const loadCodesFor = async (library: QuizLibrary, page: number, status?: QuizActivationCodeStatus, size?: number) => {
     codeRequest.current?.abort()
     const request = new AbortController()
     codeRequest.current = request
     setCodesLoading(true)
     try {
-      const result = await quizService.listActivationCodes(library.id, { page, page_size: 10, status }, request.signal)
+      const result = await quizService.listActivationCodes(library.id, { page, page_size: size ?? codePageSize, status }, request.signal)
       if (!request.signal.aborted) setCodes(result)
     } catch (error) {
       if (!request.signal.aborted) message.error(errorText(error))
@@ -473,8 +476,8 @@ export default function QuizLibraries() {
     }
   }
 
-  const loadCodes = (page: number, status?: QuizActivationCodeStatus) =>
-    codeLibrary ? loadCodesFor(codeLibrary, page, status) : undefined
+  const loadCodes = (page: number, status?: QuizActivationCodeStatus, size?: number) =>
+    codeLibrary ? loadCodesFor(codeLibrary, page, status, size) : undefined
 
   const openCodes = (library: QuizLibrary) => {
     setCodeLibrary(library)
@@ -829,11 +832,12 @@ export default function QuizLibraries() {
           dataSource={codes?.items ?? []}
           pagination={{
             current: codePage,
-            pageSize: 10,
+            pageSize: codePageSize,
             total: codes?.total ?? 0,
-            showSizeChanger: false,
+            showSizeChanger: true,
+            pageSizeOptions: PAGE_SIZE_OPTIONS,
             showTotal: (total) => `共 ${total} 个`,
-            onChange: (page) => { setCodePage(page); void loadCodes(page, codeStatus) },
+            onChange: (page, size) => { setCodePageSize(size); const next = size !== codePageSize ? 1 : page; setCodePage(next); void loadCodes(next, codeStatus, size) },
           }}
           columns={[
             { title: '激活码', dataIndex: 'code', width: 200, render: (value: string) => <Typography.Text copyable>{value}</Typography.Text> },

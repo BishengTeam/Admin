@@ -3,6 +3,7 @@ import { Button, Card, Col, Input, Progress, Row, Select, Space, Statistic, Tabl
 import { ReloadOutlined, SearchOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import { PageContainer } from '@/components/PageContainer'
+import { PAGE_SIZE_OPTIONS } from '@/core/constants'
 import { quizService } from '@/services/quiz'
 import type { QuestionStatsListItem, QuestionType, QuizContentTree, QuizLibrary, StatsOverview, StatsQuestionFilter, StatsQuestionStatus } from '@/types/quiz'
 
@@ -138,7 +139,7 @@ export default function QuizStats() {
           pageSize: data?.page_size ?? filters.page_size ?? 20,
           total: data?.total ?? 0,
           showSizeChanger: true,
-          pageSizeOptions: [10, 20, 50, 100],
+          pageSizeOptions: PAGE_SIZE_OPTIONS,
           showTotal: (total) => `共 ${total} 道题`,
           onChange: (page, pageSize) => setFilters((current) => ({ ...current, page, page_size: pageSize })),
         }}

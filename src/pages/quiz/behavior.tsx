@@ -5,6 +5,7 @@ import dayjs, { type Dayjs } from 'dayjs'
 import type { ColumnsType } from 'antd/es/table'
 import ReactECharts from 'echarts-for-react'
 import { PageContainer } from '@/components/PageContainer'
+import { PAGE_SIZE_OPTIONS } from '@/core/constants'
 import { quizService } from '@/services/quiz'
 import { userService } from '@/services/users'
 import { formatDate } from '@/utils/format'
@@ -35,6 +36,7 @@ export default function QuizBehavior() {
   const [daily, setDaily] = useState<DailyStatsItem[] | null>(null)
   const [users, setUsers] = useState<{ items: UserStatsListItem[]; total: number; page: number; page_size: number } | null>(null)
   const [userPage, setUserPage] = useState(1)
+  const [userPageSize, setUserPageSize] = useState(20)
   const [libraries, setLibraries] = useState<QuizLibrary[]>([])
   const [wrongItems, setWrongItems] = useState<{ items: QuestionStatsListItem[]; total: number; page: number; page_size: number } | null>(null)
   const [wrongFilter, setWrongFilter] = useState<StatsQuestionFilter>({ sort: 'practice_wrong_count', order: 'desc', page: 1, page_size: 20 })
@@ -63,7 +65,7 @@ export default function QuizBehavior() {
     try {
       const [dailyResult, userResult, wrongResult, libraryResult] = await Promise.all([
         quizService.getDailyStats(days, next.signal),
-        quizService.listUserStats({ page: userPage, page_size: 20 }, next.signal),
+        quizService.listUserStats({ page: userPage, page_size: userPageSize }, next.signal),
         quizService.listQuestionStats(wrongFilter, next.signal),
         quizService.listLibraries({ include_deleted: false }, next.signal),
       ])
@@ -82,7 +84,7 @@ export default function QuizBehavior() {
         setLoadingWrong(false)
       }
     }
-  }, [days, userPage, wrongFilter])
+  }, [days, userPage, userPageSize, wrongFilter])
 
   useEffect(() => {
     void load()
@@ -352,10 +354,11 @@ export default function QuizBehavior() {
               dataSource={users?.items ?? []}
               pagination={{
                 current: users?.page ?? userPage,
-                pageSize: users?.page_size ?? 20,
+                pageSize: users?.page_size ?? userPageSize,
                 total: users?.total ?? 0,
-                showSizeChanger: false,
-                onChange: (page) => setUserPage(page),
+                showSizeChanger: true,
+                pageSizeOptions: PAGE_SIZE_OPTIONS,
+                onChange: (page, size) => { setUserPageSize(size); setUserPage(size !== userPageSize ? 1 : page) },
               }}
             />
           </Card>
@@ -385,10 +388,11 @@ export default function QuizBehavior() {
               dataSource={wrongItems?.items ?? []}
               pagination={{
                 current: wrongItems?.page ?? wrongFilter.page ?? 1,
-                pageSize: wrongItems?.page_size ?? 20,
+                pageSize: wrongItems?.page_size ?? wrongFilter.page_size ?? 20,
                 total: wrongItems?.total ?? 0,
-                showSizeChanger: false,
-                onChange: (page) => setWrongFilter((current) => ({ ...current, page })),
+                showSizeChanger: true,
+                pageSizeOptions: PAGE_SIZE_OPTIONS,
+                onChange: (page, size) => setWrongFilter((current) => ({ ...current, page: size !== current.page_size ? 1 : page, page_size: size })),
               }}
             />
             <Text type="secondary" style={{ display: 'block', marginTop: 8 }}>

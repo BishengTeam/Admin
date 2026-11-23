@@ -8,7 +8,8 @@ import {
   PercentageOutlined,
 } from '@ant-design/icons'
 
-export const PAGE_SIZE_OPTIONS = ['10', '20', '50', '100']
+/** 列表每页条数：全站与题库工作台共用，大批量数据可一次查看更多 */
+export const PAGE_SIZE_OPTIONS = [10, 20, 50, 100, 200, 500, 1000, 1500, 2000]
 export const DEFAULT_PAGE_SIZE = 20
 
 export const ORDER_STATUS_MAP: Record<string, { color: string; text: string }> = {

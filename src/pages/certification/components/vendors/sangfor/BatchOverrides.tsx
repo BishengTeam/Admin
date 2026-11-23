@@ -4,6 +4,7 @@ import type { ColumnsType } from 'antd/es/table'
 import dayjs, { type Dayjs } from 'dayjs'
 import { useNavigate } from 'react-router-dom'
 import { DownOutlined, PlusOutlined, ReloadOutlined } from '@ant-design/icons'
+import { PAGE_SIZE_OPTIONS } from '@/core/constants'
 import { StatusTag } from '@/components/StatusTag'
 import { usePermission } from '@/hooks/usePermission'
 import { certProductService } from '@/services/certProduct'
@@ -152,7 +153,7 @@ export default function SangforBatchOverrides() {
     {error && <Alert type='error' showIcon message={error} action={<Button size='small' onClick={() => void load()}>重试</Button>} style={{ marginBottom: 16 }} />}
     <Table rowKey='id' loading={loading} dataSource={filtered} columns={columns} scroll={{ x: 1450 }}
       locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description='当前筛选条件下暂无考试批次' /> }}
-      pagination={{ current: page, pageSize, showSizeChanger: true, showTotal: total => `共 ${total} 条`, onChange: (value, size) => { setPage(value); setPageSize(size) } }} />
+      pagination={{ current: page, pageSize, showSizeChanger: true, pageSizeOptions: PAGE_SIZE_OPTIONS, showTotal: total => `共 ${total} 条`, onChange: (value, size) => { setPage(value); setPageSize(size) } }} />
     <Drawer title={editing ? `编辑深信服批次 · ${editing.name}` : '新建深信服考试批次'} open={open} onClose={() => !savingAction && setOpen(false)} width='min(820px, 94vw)' destroyOnClose
       footer={<Space style={{ display: 'flex', justifyContent: 'flex-end' }}>
         <Button disabled={!!savingAction} onClick={() => setOpen(false)}>取消</Button>

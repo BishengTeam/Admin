@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Alert, Button, Checkbox, Descriptions, Modal, Space, Table, message } from 'antd'
 import { isConflictError } from '@/core/request'
+import { PAGE_SIZE_OPTIONS } from '@/core/constants'
 import { usePermission } from '@/hooks/usePermission'
 import { quizPublication, type PublicationOperation, type PublicationPreflight } from '@/services/quizPublication'
 
@@ -84,7 +85,7 @@ function PublicationSession({ libraryId, selectedIds = [], readOnly = false, onC
       {check.warnings.map((text) => <div key={text} style={{ color: '#666' }}>{text}</div>)}
       <div>仅勾选已人工审核的题目；未选择的草稿保留。题目通过检查不代表内容已审核。</div>
       <Space wrap><strong>共 {candidates.length} 道候选题 · 已选 {selected.length} 道</strong><Button type="link" disabled={busy || !selected.length} onClick={() => setSelected([])}>清空选择</Button></Space>
-      <Table size="small" rowKey="question_id" dataSource={candidates} locale={{ emptyText: '暂无通过检查的待发布题目' }} pagination={{ current, pageSize, showSizeChanger: true, pageSizeOptions: [20, 50, 100], onChange: (page, size) => { setCurrent(size === pageSize ? page : 1); setPageSize(size) } }} rowSelection={canPublish && !closedLibrary ? { preserveSelectedRowKeys: true, selectedRowKeys: selected, onChange: setSelected, getCheckboxProps: () => ({ disabled: busy || stale }), getTitleCheckboxProps: () => ({ 'aria-label': '全选本页', disabled: busy || stale }), columnTitle: node => <Space size={4}>{node}<span>全选本页</span></Space>, columnWidth: 100 } : undefined} columns={[{ title: '题目', dataIndex: 'question_id', width: 80 }, { title: '题干摘要', render: (_, row) => check.question_previews?.[String(row.question_id)] ?? '请在题目列表核对内容' }, { title: '待发布修订', dataIndex: 'revision_id' }, { title: '版本', dataIndex: 'lock_version' }]} />
+      <Table size="small" rowKey="question_id" dataSource={candidates} locale={{ emptyText: '暂无通过检查的待发布题目' }} pagination={{ current, pageSize, showSizeChanger: true, pageSizeOptions: PAGE_SIZE_OPTIONS, onChange: (page, size) => { setCurrent(size === pageSize ? page : 1); setPageSize(size) } }} rowSelection={canPublish && !closedLibrary ? { preserveSelectedRowKeys: true, selectedRowKeys: selected, onChange: setSelected, getCheckboxProps: () => ({ disabled: busy || stale }), getTitleCheckboxProps: () => ({ 'aria-label': '全选本页', disabled: busy || stale }), columnTitle: node => <Space size={4}>{node}<span>全选本页</span></Space>, columnWidth: 100 } : undefined} columns={[{ title: '题目', dataIndex: 'question_id', width: 80 }, { title: '题干摘要', render: (_, row) => check.question_previews?.[String(row.question_id)] ?? '请在题目列表核对内容' }, { title: '待发布修订', dataIndex: 'revision_id' }, { title: '版本', dataIndex: 'lock_version' }]} />
       <Checkbox disabled={!canManage || closedLibrary || busy || stale} checked={publishLibrary} onChange={(e) => setPublishLibrary(e.target.checked)}>发布题库</Checkbox>
       <Checkbox disabled={!canManage || closedLibrary || busy || stale} checked={openEntry} onChange={(e) => setOpenEntry(e.target.checked)}>同时开放小程序入口（继续按现有访问权限解锁）</Checkbox>
     </Space>}

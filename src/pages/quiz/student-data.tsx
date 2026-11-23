@@ -4,6 +4,7 @@ import { DownloadOutlined, ReloadOutlined } from '@ant-design/icons'
 import dayjs, { type Dayjs } from 'dayjs'
 import type { ColumnsType } from 'antd/es/table'
 import { PageContainer } from '@/components/PageContainer'
+import { PAGE_SIZE_OPTIONS } from '@/core/constants'
 import { quizService } from '@/services/quiz'
 import { formatDate } from '@/utils/format'
 import type { QuizLibrary, StudentStatsItem } from '@/types/quiz'
@@ -34,6 +35,7 @@ export default function QuizStudentData() {
   const [libraryId, setLibraryId] = useState<number | null>(null)
   const [range, setRange] = useState<[Dayjs, Dayjs] | null>(null)
   const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(20)
   const [data, setData] = useState<{ items: StudentStatsItem[]; total: number; page: number; page_size: number } | null>(null)
   const [loading, setLoading] = useState(false)
   const [exporting, setExporting] = useState(false)
@@ -64,7 +66,7 @@ export default function QuizStudentData() {
           date_from: range?.[0]?.format('YYYY-MM-DD'),
           date_to: range?.[1]?.format('YYYY-MM-DD'),
           page,
-          page_size: 20,
+          page_size: pageSize,
         },
         next.signal,
       )
@@ -74,7 +76,7 @@ export default function QuizStudentData() {
     } finally {
       if (!next.signal.aborted) setLoading(false)
     }
-  }, [libraryId, page, range])
+  }, [libraryId, page, pageSize, range])
 
   useEffect(() => {
     void load()
@@ -195,11 +197,12 @@ export default function QuizStudentData() {
             dataSource={data?.items ?? []}
             pagination={{
               current: data?.page ?? page,
-              pageSize: data?.page_size ?? 20,
+              pageSize: data?.page_size ?? pageSize,
               total: data?.total ?? 0,
-              showSizeChanger: false,
+              showSizeChanger: true,
+              pageSizeOptions: PAGE_SIZE_OPTIONS,
               showTotal: (total) => `共 ${total} 名学生`,
-              onChange: (nextPage) => setPage(nextPage),
+              onChange: (nextPage, nextSize) => { setPageSize(nextSize); setPage(nextSize !== pageSize ? 1 : nextPage) },
             }}
           />
         )}

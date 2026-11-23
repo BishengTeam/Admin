@@ -3,6 +3,7 @@ import { Button, DatePicker, Descriptions, Drawer, Input, InputNumber, Select, S
 import type { ColumnsType } from 'antd/es/table'
 import { ReloadOutlined } from '@ant-design/icons'
 import { PageContainer } from '@/components/PageContainer'
+import { PAGE_SIZE_OPTIONS } from '@/core/constants'
 import { quizService } from '@/services/quiz'
 import { ApiError } from '@/core/request'
 import type { AuditFilter, AuditLog } from '@/types/quiz'
@@ -68,7 +69,7 @@ export default function QuizAuditLogs() {
         <Button icon={<ReloadOutlined />} disabled={invalidRange} onClick={() => load(filters)}>刷新</Button>
       </Space>
       {invalidRange && <div style={{ color: '#ff4d4f', marginBottom: 12 }}>开始时间不能晚于结束时间</div>}
-      <Table<AuditLog> rowKey="id" scroll={{ x: 1000 }} columns={columns} dataSource={data?.items ?? []} loading={loading} pagination={{ current: data?.page ?? 1, pageSize: data?.page_size ?? 20, total: data?.total ?? 0, showSizeChanger: true, onChange: (page, pageSize) => setFilters((current) => ({ ...current, page, page_size: pageSize })) }} />
+      <Table<AuditLog> rowKey="id" scroll={{ x: 1000 }} columns={columns} dataSource={data?.items ?? []} loading={loading} pagination={{ current: data?.page ?? 1, pageSize: data?.page_size ?? 20, total: data?.total ?? 0, showSizeChanger: true, pageSizeOptions: PAGE_SIZE_OPTIONS, onChange: (page, pageSize) => setFilters((current) => ({ ...current, page, page_size: pageSize })) }} />
       <Drawer title={`审计详情 #${selected?.id ?? ''}`} open={Boolean(selected)} onClose={() => setSelected(null)} width={560}>
         {selected && <Descriptions column={1} bordered size="small">
           <Descriptions.Item label="时间">{formatDate(selected.created_at)}</Descriptions.Item>

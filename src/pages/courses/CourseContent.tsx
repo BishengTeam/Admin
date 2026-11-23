@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Alert, Button, Card, Empty, Input, Modal, Progress, Space, Table, Tag, Typography, message } from 'antd'
 import { ArrowDownOutlined, ArrowUpOutlined, ReloadOutlined, UploadOutlined } from '@ant-design/icons'
 import { courseManagementService as service } from '@/services/courseManagement'
+import { PAGE_SIZE_OPTIONS } from '@/core/constants'
 import type { CourseChapter, CourseUpload } from '@/types/course'
 
 const fileAccept = '.mp4,.mov,.mkv,.pdf'
@@ -96,7 +97,7 @@ export default function CourseContent({ courseId, canWrite }: { courseId: number
     <Typography.Paragraph type="secondary">共{chapters.length}章 · 视频{chapters.filter(row => row.resource_type === 'video').length}章 · 文档{chapters.filter(row => row.resource_type === 'document').length}章</Typography.Paragraph>
     <Typography.Paragraph type="secondary">支持视频及 PDF，每个文件生成一个章节。PDF ≤50MB；视频 MP4／MOV／MKV ≤5GB。</Typography.Paragraph>
     {error && <Alert type="error" showIcon message={error} style={{ marginBottom: 16 }} />}
-    <Table<CourseChapter> rowKey="id" loading={loading} dataSource={chapters} pagination={{ pageSize: 20, showSizeChanger: true }} scroll={{ x: 1000 }} locale={{ emptyText: <Empty description="暂无课程内容，请上传文件" image={Empty.PRESENTED_IMAGE_SIMPLE} /> }} columns={[
+    <Table<CourseChapter> rowKey="id" loading={loading} dataSource={chapters} pagination={{ pageSize: 20, showSizeChanger: true, pageSizeOptions: PAGE_SIZE_OPTIONS }} scroll={{ x: 1000 }} locale={{ emptyText: <Empty description="暂无课程内容，请上传文件" image={Empty.PRESENTED_IMAGE_SIMPLE} /> }} columns={[
       { title: '排序', width: 70, render: (_, row) => chapters.findIndex(chapter => chapter.id === row.id) + 1 },
       { title: '章节名称', width: 230, render: (_, row) => <Space direction="vertical" size={0}><Typography.Text strong>{row.title}</Typography.Text><Typography.Text type="secondary" style={{ fontSize: 12 }}>{row.original_filename}</Typography.Text></Space> },
       { title: '内容', width: 140, render: (_, row) => row.resource_type === 'document' ? <Tag>PDF · {row.page_count}页</Tag> : <Tag color="blue">视频 · {Math.ceil((row.duration || 0) / 60)}分</Tag> },

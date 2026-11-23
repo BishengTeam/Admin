@@ -1,4 +1,5 @@
 import { http } from '@/core/request'
+import { PAGE_SIZE_OPTIONS } from '@/core/constants'
 import { Link } from 'react-router-dom'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Alert, Button, Card, Descriptions, Drawer, Collapse, Empty, Modal, Progress, Select, Space, Table, Tag, Tooltip, Tree, Typography, Upload, message } from 'antd'
@@ -548,7 +549,7 @@ export default function QuizImports() {
         <Select allowClear placeholder="来源" value={filter.source_type} onChange={(value) => setFilter((current) => ({ ...current, source_type: value, page: 1 }))} options={[{ value: 'xlsx', label: 'Excel' }, { value: 'csv', label: 'CSV' }, { value: 'json', label: 'JSON' }]} style={{ width: 120 }} />
         <Button icon={<ReloadOutlined />} onClick={() => load(filter)}>刷新</Button>
       </Space>
-      <Table<ImportJob> rowKey="id" scroll={{ x: 1450 }} columns={columns} dataSource={data?.items ?? []} loading={loading} pagination={{ current: data?.page ?? 1, pageSize: data?.page_size ?? 20, total: data?.total ?? 0, showSizeChanger: true, onChange: (page, pageSize) => setFilter((current) => ({ ...current, page, page_size: pageSize })) }} />
+      <Table<ImportJob> rowKey="id" scroll={{ x: 1450 }} columns={columns} dataSource={data?.items ?? []} loading={loading} pagination={{ current: data?.page ?? 1, pageSize: data?.page_size ?? 20, total: data?.total ?? 0, showSizeChanger: true, pageSizeOptions: PAGE_SIZE_OPTIONS, onChange: (page, pageSize) => setFilter((current) => ({ ...current, page, page_size: pageSize })) }} />
       <Drawer title={`导入检查 #${detail?.id ?? ''}`} open={Boolean(detail)} width={860} onClose={() => { setDetail(null); setErrorJob(null); setImpactJob(null); setErrorData(null); setImpact(null) }}
         footer={impact && impactJob ? <Space><Button danger disabled={!canImport} loading={impactAction === 'cancel'} onClick={() => void cancelAwaitingJob()}>取消任务</Button><Tooltip title={!canWrite ? '创建或调整分类需要内容编辑权限，请交由有权限的管理员确认' : undefined}><Button type="primary" disabled={!canImport || !canWrite || historicalTarget(impactJob.library_id) || Boolean(impact.blocking_reasons.length)} loading={impactAction === 'confirm'} onClick={() => void confirmCategories()}>确认导入 {impact.affected_question_count} 道草稿</Button></Tooltip></Space> : undefined}>
         {detail && <Space direction="vertical" style={{ width: '100%' }} size="middle">

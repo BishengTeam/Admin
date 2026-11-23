@@ -7,6 +7,7 @@ import { StatusTag } from '@/components/StatusTag'
 import { usePermission } from '@/hooks/usePermission'
 import { useReauthentication } from '@/hooks/useReauthentication'
 import { isApiError } from '@/core/request'
+import { PAGE_SIZE_OPTIONS } from '@/core/constants'
 import { RefundWorkbench } from '@/components/RefundWorkbench'
 import OfflineRefundDrawer from '@/pages/orders/components/OfflineRefundDrawer'
 import { sangforService, SANGFOR_STATUS, type SangforBatch, type SangforExportRecord, type SangforRegistration } from '@/services/sangfor'
@@ -148,7 +149,7 @@ export default function SangforBatchWorkbench() {
     rowSelection={canExport ? { selectedRowKeys: [...selected.keys()], preserveSelectedRowKeys: true, onChange: (keys, chosen) => {
       setSelected(previous => { const next = new Map([...previous].filter(([id]) => keys.includes(id))); chosen.forEach(row => { if (row && exportable(row)) next.set(row.id, row) }); return next })
     }, getCheckboxProps: row => ({ disabled: !exportable(row) }) } : undefined}
-    pagination={{ current: page, pageSize, total, showTotal: value => `共 ${value} 条`, showSizeChanger: true, onChange: (value, size) => { setPage(value); setPageSize(size) } }} columns={[
+    pagination={{ current: page, pageSize, total, showTotal: value => `共 ${value} 条`, showSizeChanger: true, pageSizeOptions: PAGE_SIZE_OPTIONS, onChange: (value, size) => { setPage(value); setPageSize(size) } }} columns={[
       { title: '报名编号', dataIndex: 'registration_no', width: 190, ellipsis: true, render: (value, row) => <Button type='link' size='small' onClick={() => void open(row.id).catch(() => {})}>{value}</Button> },
       { title: '姓名', width: 130, render: (_, row) => <Space direction='vertical' size={0}><Text>{row.candidate_snapshot.name}</Text><Text type='secondary'>{row.candidate_snapshot.phone}</Text></Space> },
       { title: '报名状态', dataIndex: 'status', width: 130, render: value => <StatusTag status={value} map={REGISTRATION_STATUS} /> },
@@ -192,7 +193,7 @@ export default function SangforBatchWorkbench() {
     </Card> },
     ...(canExport ? [{ key: 'records', label: '导出记录', children: <Card title='导出记录' extra={<Button icon={<ReloadOutlined />} onClick={() => void loadRecords()}>刷新</Button>}>
       {recordsError && <Alert type='error' showIcon message={recordsError} style={{ marginBottom: 16 }} />}
-      <Table<SangforExportRecord> rowKey='id' dataSource={exportRows} loading={recordsLoading} scroll={{ x: 850 }} pagination={{ pageSize: 20, showSizeChanger: true, showTotal: value => `共 ${value} 条` }}
+      <Table<SangforExportRecord> rowKey='id' dataSource={exportRows} loading={recordsLoading} scroll={{ x: 850 }} pagination={{ pageSize: 20, showSizeChanger: true, pageSizeOptions: PAGE_SIZE_OPTIONS, showTotal: value => `共 ${value} 条` }}
         locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description='暂无导出记录' /> }} columns={[
           { title: '报送文件', render: () => '报名信息.xlsx' }, { title: '生成时间', dataIndex: 'created_at', render: value => formatDate(value) },
           { title: '人数', dataIndex: 'people_count' }, { title: '资料版本', render: (_, row) => <Tag color={row.people.every(person => person.is_current) ? 'green' : 'orange'}>{row.people.every(person => person.is_current) ? '当前资料' : '包含历史版本'}</Tag> },

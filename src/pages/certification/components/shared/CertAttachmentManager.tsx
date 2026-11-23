@@ -5,6 +5,7 @@ import {
 } from 'antd'
 import { DeleteOutlined, ReloadOutlined, UploadOutlined } from '@ant-design/icons'
 import request from '@/core/request'
+import { PAGE_SIZE_OPTIONS } from '@/core/constants'
 import { h3cService } from '@/services/h3c'
 import { nispService } from '@/services/nisp'
 import { rensheService } from '@/services/renshe'
@@ -191,7 +192,7 @@ export default function CertAttachmentManager({ type = 'sangfor' }: { type?: Cer
         columns={columns}
         dataSource={rows}
         loading={loading}
-        pagination={{ pageSize: 20, showSizeChanger: true }}
+        pagination={{ pageSize: 20, showSizeChanger: true, pageSizeOptions: PAGE_SIZE_OPTIONS }}
       />
 
       <Modal

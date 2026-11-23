@@ -11,6 +11,7 @@ import {
 } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import request from '@/core/request'
+import { PAGE_SIZE_OPTIONS } from '@/core/constants'
 import { certProductService } from '@/services/certProduct'
 import type { CertProduct } from '@/types/certProduct'
 
@@ -429,6 +430,7 @@ export default function ExamSchedulePage({ type = 'h3c' }: { type?: string }) {
           pageSize,
           total,
           showSizeChanger: true,
+          pageSizeOptions: PAGE_SIZE_OPTIONS,
           onChange: (nextPage, nextSize) => {
             setPage(nextPage)
             setPageSize(nextSize)

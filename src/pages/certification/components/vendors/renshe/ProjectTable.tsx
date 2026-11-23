@@ -6,6 +6,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { ImageUpload } from '@/components/ImageUpload'
 import { ConfirmButton } from '@/components/ConfirmButton'
 import { usePermission } from '@/hooks/usePermission'
+import { PAGE_SIZE_OPTIONS } from '@/core/constants'
 import { rensheService } from '@/services/renshe'
 import type { RensheCapabilities, RensheProject, RensheProjectWrite } from '@/types/rensheProject'
 import { formatBytes } from '@/utils/renshe'
@@ -248,7 +249,7 @@ export default function ProjectTable() {
       </Space>
       <Text type='secondary'>共 {items.length} 个项目</Text>
     </div>
-    <Table rowKey='id' columns={columns} dataSource={items.filter(item => (!status || item.status === status) && `${item.chinese_name}${item.config.occupation_name}`.includes(keyword.trim()))} loading={loading} scroll={{ x: 1100 }} size='middle' />
+    <Table rowKey='id' columns={columns} dataSource={items.filter(item => (!status || item.status === status) && `${item.chinese_name}${item.config.occupation_name}`.includes(keyword.trim()))} loading={loading} scroll={{ x: 1100 }} size='middle' pagination={{ pageSize: 20, showSizeChanger: true, pageSizeOptions: PAGE_SIZE_OPTIONS, showTotal: total => `共 ${total} 条` }} />
     <Modal title={<Space><SafetyCertificateOutlined style={{ color: '#1677ff' }} /><span>{readOnly ? '查看报考项目' : editing ? '编辑报考项目' : '新增人社报考项目'}</span></Space>} open={open} onCancel={() => setOpen(false)} width={760} styles={{ body: { maxHeight: 'calc(100vh - 240px)', overflowY: 'auto', paddingRight: 8 } }} destroyOnClose footer={readOnly ? <Button onClick={() => setOpen(false)}>关闭</Button> : <Space><Button onClick={() => setOpen(false)}>取消</Button><Button loading={saving} onClick={() => void save('draft')}>保存草稿</Button><Button type='primary' loading={saving} disabled={!canEnable || (graduated && !commitmentTemplate)} onClick={() => void save('available')}>保存并启用</Button></Space>}>
       <Form form={form} layout='vertical' disabled={readOnly} style={{ marginTop: 20 }} requiredMark='optional' preserve>
         {editing?.review_notices?.map(item => <Alert key={item} type='warning' showIcon message={item} style={{ marginBottom: 12 }} />)}

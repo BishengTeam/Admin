@@ -6,6 +6,7 @@ import { PageContainer } from '@/components/PageContainer'
 import { quizService } from '@/services/quiz'
 import { useAuthStore } from '@/stores/authStore'
 import { ApiError, isConflictError } from '@/core/request'
+import { PAGE_SIZE_OPTIONS } from '@/core/constants'
 import type {
   AdminQuizReviewDetail,
   AdminQuizReviewListItem,
@@ -47,7 +48,7 @@ export default function QuizReviews() {
   const [items, setItems] = useState<AdminQuizReviewListItem[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
-  const [pageSize] = useState(20)
+  const [pageSize, setPageSize] = useState(20)
   const [loading, setLoading] = useState(false)
   const [detail, setDetail] = useState<AdminQuizReviewDetail | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
@@ -238,7 +239,7 @@ export default function QuizReviews() {
           columns={columns}
           dataSource={items}
           loading={loading}
-          pagination={{ current: page, pageSize, total, showSizeChanger: false, onChange: setPage }}
+          pagination={{ current: page, pageSize, total, showSizeChanger: true, pageSizeOptions: PAGE_SIZE_OPTIONS, onChange: (nextPage, nextSize) => { setPageSize(nextSize); setPage(nextSize !== pageSize ? 1 : nextPage) } }}
         />
       </Card>
 
