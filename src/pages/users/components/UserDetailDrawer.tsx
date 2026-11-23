@@ -87,12 +87,16 @@ export default function UserDetailDrawer({
 }: UserDetailDrawerProps) {
   const [reviewing, setReviewing] = useState<ReviewTarget | null>(null)
   const canReview = usePermission('user:write')
+  // 签名 URL 接口要求 cert:renshe（细粒度 renshe:review），无权限时不自动拉图，避免 403 红字
+  const canPreviewMaterials = usePermission('renshe:review')
 
   if (!user) return null
 
     const { profile, realname, student } = user
     const eligible = realname?.status === 'verified' && student?.status === 'verified'
     const hasPendingReview = realname?.status === 'pending' || student?.status === 'pending'
+    // 学历证明槽位按 JPEG 上传，历史上有 PDF 存量，PDF 仍只走预览不自动取缩略图
+    const degreeCertIsPdf = isPdfMaterial(student?.degree_cert_oss)
 
   const submitReview = async (target: ReviewTarget, status: 'verified' | 'rejected', comment?: string) => {
     setReviewing(target)
@@ -210,6 +214,9 @@ export default function UserDetailDrawer({
               <MaterialPreview
                 available={Boolean(realname.id_card_front_oss)}
                 filename="身份证正面"
+                thumbnail={canPreviewMaterials}
+                contentType={canPreviewMaterials ? 'image/jpeg' : undefined}
+                resourceKey={`${user.id}:id_card_front:${realname.id_card_front_oss ?? ''}`}
                 getSignedUrl={(download) => rensheService.getVerificationMaterialSignedUrl(user.id, 'id_card_front', download)}
               />
             </Descriptions.Item>
@@ -217,6 +224,9 @@ export default function UserDetailDrawer({
               <MaterialPreview
                 available={Boolean(realname.id_card_back_oss)}
                 filename="身份证背面"
+                thumbnail={canPreviewMaterials}
+                contentType={canPreviewMaterials ? 'image/jpeg' : undefined}
+                resourceKey={`${user.id}:id_card_back:${realname.id_card_back_oss ?? ''}`}
                 getSignedUrl={(download) => rensheService.getVerificationMaterialSignedUrl(user.id, 'id_card_back', download)}
               />
             </Descriptions.Item>
@@ -224,6 +234,9 @@ export default function UserDetailDrawer({
               <MaterialPreview
                 available={Boolean(realname.avatar_oss)}
                 filename="证件照"
+                thumbnail={canPreviewMaterials}
+                contentType={canPreviewMaterials ? 'image/jpeg' : undefined}
+                resourceKey={`${user.id}:portrait:${realname.avatar_oss ?? ''}`}
                 getSignedUrl={(download) => rensheService.getVerificationMaterialSignedUrl(user.id, 'portrait', download)}
               />
             </Descriptions.Item>
@@ -248,6 +261,9 @@ export default function UserDetailDrawer({
               <MaterialPreview
                 available={Boolean(student.student_card_oss)}
                 filename="学生证"
+                thumbnail={canPreviewMaterials}
+                contentType={canPreviewMaterials ? 'image/jpeg' : undefined}
+                resourceKey={`${user.id}:student_card:${student.student_card_oss ?? ''}`}
                 getSignedUrl={(download) => rensheService.getVerificationMaterialSignedUrl(user.id, 'student_card', download)}
               />
             </Descriptions.Item>
@@ -262,8 +278,11 @@ export default function UserDetailDrawer({
             <Descriptions.Item label="学历证明" span={2}>
               <MaterialPreview
                 available={Boolean(student.degree_cert_oss)}
-                filename={isPdfMaterial(student.degree_cert_oss) ? '学历证明.pdf' : '学历证明'}
-                isPdf={isPdfMaterial(student.degree_cert_oss)}
+                filename={degreeCertIsPdf ? '学历证明.pdf' : '学历证明'}
+                isPdf={degreeCertIsPdf}
+                thumbnail={canPreviewMaterials}
+                contentType={canPreviewMaterials && !degreeCertIsPdf ? 'image/jpeg' : undefined}
+                resourceKey={`${user.id}:education_proof:${student.degree_cert_oss ?? ''}`}
                 getSignedUrl={(download) => rensheService.getVerificationMaterialSignedUrl(user.id, 'education_proof', download)}
               />
             </Descriptions.Item>
