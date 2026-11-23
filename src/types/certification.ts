@@ -30,12 +30,32 @@ export const PLAN_STATUS_MAP: Record<PlanStatus, { text: string; color: string }
   cancelled: { text: '已取消', color: 'red' },
 }
 
+export interface CertificationPlanProject {
+  id: number
+  product_id: number
+  product_code: string
+  product_name: string
+  skill_level?: string | null
+  config_id?: number | null
+  config?: import('./rensheProject').RensheProjectConfig | null
+  price_cents: number
+  sort_order: number
+  is_active: boolean
+  updated_at: string
+}
+
+export interface CertificationPlanProjectInput {
+  product_id: number
+  price_cents: number
+  sort_order?: number
+}
+
 export interface CertificationPlan {
   project_name?: string | null
   renshe_config_id?: number | null
   renshe_config?: import('./rensheProject').RensheProjectConfig | null
   id: number
-  product_type: string
+  product_type: string | null
   name: string
   apply_start: string | null
   apply_end: string | null
@@ -51,6 +71,7 @@ export interface CertificationPlan {
   exam_org_name?: string | null
   exam_org_code?: string | null
   exam_date_note?: string | null
+  registration_notice?: string | null
   description: string | null
   contact_name: string | null
   contact_phone: string | null
@@ -64,6 +85,7 @@ export interface CertificationPlan {
   status: PlanStatus
   created_at: string
   updated_at: string
+  projects?: CertificationPlanProject[]
 }
 
 export interface CertificationPlanPayload {
@@ -81,10 +103,12 @@ export interface CertificationPlanPayload {
   exam_org_name?: string | null
   exam_org_code?: string | null
   exam_date_note?: string | null
+  registration_notice?: string | null
   description?: string | null
   contact_name?: string | null
   contact_phone?: string | null
   sort_order?: number
   program_code?: string
   confirm_holiday?: boolean
+  projects?: CertificationPlanProjectInput[]
 }

@@ -115,6 +115,18 @@ export default function RensheBatchWorkbench() {
   const canRefund = usePermission('order:list')
   const [plan, setPlan] = useState<CertificationPlan | null>(null)
   const graduated = plan?.renshe_config?.qualification_rule === 'related_major_graduated_degree_v1'
+    || Boolean((plan?.projects ?? []).some(item => item.config?.qualification_rule === 'related_major_graduated_degree_v1'))
+  const projectList = plan?.projects ?? []
+  const isMultiBatch = plan?.product_type === null
+  const priceSummary = isMultiBatch
+    ? (() => {
+        const prices = projectList.map(item => item.price_cents)
+        if (!prices.length) return '-'
+        const min = Math.min(...prices)
+        const max = Math.max(...prices)
+        return min === max ? formatPrice(min) : `${formatPrice(min)} ~ ${formatPrice(max)}`
+      })()
+    : formatPrice(plan?.price_cents ?? 0)
   const [filters, setFilters] = useState<PeopleFilters>(() => ({
     keyword: '',
     status: parseInitialStatus(searchParams.get('status')),
@@ -416,13 +428,13 @@ export default function RensheBatchWorkbench() {
         <Descriptions bordered size='small' column={4} style={{ marginBottom: 16 }}>
           <Descriptions.Item label='批次'>{plan.name}</Descriptions.Item>
           <Descriptions.Item label='状态'><Tag color={PLAN_STATUS_MAP[plan.status]?.color}>{PLAN_STATUS_MAP[plan.status]?.text || '未知状态'}</Tag></Descriptions.Item>
-          <Descriptions.Item label='报名费'>{formatPrice(plan.price_cents)}</Descriptions.Item>
+          <Descriptions.Item label='报名费'>{priceSummary}</Descriptions.Item>
           <Descriptions.Item label='名额'>{plan.enrolled}/{plan.capacity || '不限'}</Descriptions.Item>
-          <Descriptions.Item label='报考项目'>{plan.project_name || '待核实'}</Descriptions.Item>
-          <Descriptions.Item label='职业／工种'>{plan.occupation_name || '待核实'}</Descriptions.Item>
-          <Descriptions.Item label='技能等级'>{plan.skill_level || '待核实'}</Descriptions.Item>
-          <Descriptions.Item label='考试类型'>{plan.exam_type || '待核实'}</Descriptions.Item>
-          <Descriptions.Item label='申报类型'>{plan.application_type || '待核实'}</Descriptions.Item>
+          <Descriptions.Item label='报考项目'>{isMultiBatch ? `${projectList.map(item => item.product_name).join('、') || '待核实'}（共 ${projectList.length} 个）` : plan.project_name || '待核实'}</Descriptions.Item>
+          <Descriptions.Item label='职业／工种'>{isMultiBatch ? '按项目分别配置' : plan.occupation_name || '待核实'}</Descriptions.Item>
+          <Descriptions.Item label='技能等级'>{isMultiBatch ? '按项目分别配置' : plan.skill_level || '待核实'}</Descriptions.Item>
+          <Descriptions.Item label='考试类型'>{isMultiBatch ? '按项目分别配置' : plan.exam_type || '待核实'}</Descriptions.Item>
+          <Descriptions.Item label='申报类型'>{isMultiBatch ? '按项目分别配置' : plan.application_type || '待核实'}</Descriptions.Item>
           <Descriptions.Item label='报名时间' span={2}>
             {formatDateOrNull(plan.apply_start)} ~ {formatDateOrNull(plan.apply_end)}
           </Descriptions.Item>

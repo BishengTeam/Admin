@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import dayjs, { type Dayjs } from 'dayjs'
 import {
   Alert,
@@ -10,8 +10,10 @@ import {
   InputNumber,
   List,
   Modal,
+  Radio,
   Select,
   Space,
+  Switch,
   Table,
   Tag,
   Typography,
@@ -37,10 +39,15 @@ import { usePermission } from '@/hooks/usePermission'
 import { certificationService } from '@/services/certification'
 import { rensheService } from '@/services/renshe'
 import type { RensheProject } from '@/types/rensheProject'
-import type { CertificationPlan, CertificationPlanPayload } from '@/types/certification'
+import type {
+  CertificationPlan,
+  CertificationPlanPayload,
+  CertificationPlanProject,
+} from '@/types/certification'
 import { PLAN_STATUS_MAP } from '@/types/certification'
 import type { RensheCleanupRun } from '@/types/renshe'
 import { formatDate, formatPrice } from '@/utils/format'
+import { hydrateProjectManager } from './multiBatchState'
 import type { CertType } from '../type-registry'
 
 const { RangePicker } = DatePicker
@@ -52,6 +59,8 @@ interface BatchOverridesProps {
 }
 
 interface PlanFormValues {
+  batch_kind?: 'single' | 'multi'
+  projects?: { product_id: number; price_yuan: number }[]
   project_code: string
   project_config_id?: number
   exam_type?: string
@@ -65,6 +74,7 @@ interface PlanFormValues {
   exam_org_name?: string
   exam_org_code?: string
   exam_date_note?: string
+  registration_notice?: string
   description?: string
   contact_name?: string
   contact_phone?: string
@@ -81,7 +91,12 @@ const CLEANUP_STATUS_MAP: Record<string, { text: string; color: string }> = {
 
 function toFormValues(plan: CertificationPlan): PlanFormValues {
   return {
-    project_code: plan.product_type,
+    batch_kind: plan.product_type ? 'single' : 'multi',
+    projects: (plan.projects ?? []).map(item => ({
+      product_id: item.product_id,
+      price_yuan: item.price_cents / 100,
+    })),
+    project_code: plan.product_type ?? '',
     project_config_id: plan.renshe_config_id ?? undefined,
     exam_type: plan.exam_type,
     application_type: plan.application_type,
@@ -94,10 +109,40 @@ function toFormValues(plan: CertificationPlan): PlanFormValues {
     exam_org_name: plan.exam_org_name || undefined,
     exam_org_code: plan.exam_org_code || undefined,
     exam_date_note: plan.exam_date_note || undefined,
+    registration_notice: plan.registration_notice || undefined,
     description: plan.description || undefined,
     contact_name: plan.contact_name || undefined,
     contact_phone: plan.contact_phone || undefined,
     sort_order: plan.sort_order,
+  }
+}
+
+function isMultiPlan(plan: CertificationPlan): boolean {
+  return plan.product_type === null
+}
+
+function toMultiPayload(values: PlanFormValues): CertificationPlanPayload {
+  const [applyStart, applyEnd] = values.apply_range!
+  return {
+    name: values.name.trim(),
+    apply_start: applyStart.toISOString(),
+    apply_end: applyEnd.toISOString(),
+    capacity: values.capacity,
+    exam_date: values.exam_date?.toISOString() || null,
+    exam_location: values.exam_location?.trim() || null,
+    exam_org_name: values.exam_org_name?.trim() || null,
+    exam_org_code: values.exam_org_code?.trim() || null,
+    exam_date_note: values.exam_date_note?.trim() || null,
+    registration_notice: values.registration_notice?.trim() || null,
+    description: values.description?.trim() || null,
+    contact_name: values.contact_name?.trim() || null,
+    contact_phone: values.contact_phone?.trim() || null,
+    sort_order: values.sort_order,
+    projects: (values.projects ?? []).map((item, index) => ({
+      product_id: item.product_id,
+      price_cents: Math.round(item.price_yuan * 100),
+      sort_order: index,
+    })),
   }
 }
 
@@ -114,6 +159,7 @@ function toPayload(values: PlanFormValues): CertificationPlanPayload {
     exam_org_name: values.exam_org_name?.trim() || null,
     exam_org_code: values.exam_org_code?.trim() || null,
     exam_date_note: values.exam_date_note?.trim() || null,
+    registration_notice: values.registration_notice?.trim() || null,
     description: values.description?.trim() || null,
     contact_name: values.contact_name?.trim() || null,
     contact_phone: values.contact_phone?.trim() || null,
@@ -138,8 +184,15 @@ export default function BatchOverrides(_props: BatchOverridesProps) {
   const [cleanupRuns, setCleanupRuns] = useState<RensheCleanupRun[]>([])
   const [cleanupLoading, setCleanupLoading] = useState(false)
   const [form] = Form.useForm<PlanFormValues>()
+  const batchKind = Form.useWatch('batch_kind', form) ?? 'single'
+  const multiMode = editingPlan ? isMultiPlan(editingPlan) : batchKind === 'multi'
   const projectCode = Form.useWatch('project_code', form)
   const configId = Form.useWatch('project_config_id', form)
+  const [projectManagerPlan, setProjectManagerPlan] = useState<CertificationPlan | null>(null)
+  const [projectSavingId, setProjectSavingId] = useState<number | null>(null)
+  const [projectSaving, setProjectSaving] = useState(false)
+  const projectRequest = useRef(0)
+  const projectWriteLock = useRef(false)
   const selectedProject = projects.find(item => item.code === projectCode)
   const coreLocked = Boolean(editingPlan?.published_at)
   const selectedConfig = editingPlan && configId === editingPlan.renshe_config_id && projectCode === editingPlan.product_type ? editingPlan.renshe_config : selectedProject?.config
@@ -147,14 +200,19 @@ export default function BatchOverrides(_props: BatchOverridesProps) {
   const { admin } = useAuth()
   const isSuperAdmin = admin?.role === 'super_admin'
 
-  const loadPlans = useCallback(async () => {
-    setLoading(true)
+  const loadPlans = useCallback(async (silent = false): Promise<CertificationPlan[] | null> => {
+    if (!silent) setLoading(true)
     try {
-      setPlans(await rensheService.listBatches())
+      const rows = await rensheService.listBatches()
+      setPlans(rows)
+      return rows
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '加载人社批次失败')
+      if (!silent) {
+        message.error(error instanceof Error ? error.message : '加载人社批次失败')
+      }
+      return null
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
     }
   }, [])
 
@@ -173,7 +231,7 @@ export default function BatchOverrides(_props: BatchOverridesProps) {
   const openCreate = () => {
     setEditingPlan(null)
     form.resetFields()
-    form.setFieldsValue({ price_yuan: 500, capacity: 0, sort_order: 0 })
+    form.setFieldsValue({ batch_kind: 'single', price_yuan: 500, capacity: 0, sort_order: 0 })
     const available = projects.filter(item => item.status === 'available')
     const preferred = available.find(item => item.id === projectFilter) ?? (available.length === 1 ? available[0] : undefined)
     if (preferred) selectProject(preferred.code)
@@ -201,26 +259,149 @@ export default function BatchOverrides(_props: BatchOverridesProps) {
     setModalOpen(true)
   }
 
+  const openProjectManager = (plan: CertificationPlan) => {
+    projectRequest.current += 1
+    setProjectSavingId(null)
+    setProjectManagerPlan(plan)
+  }
+
+  const closeProjectManager = () => {
+    // 关闭只取消展示：写请求与写锁保持到请求落定，避免后台已变更但列表不同步。
+    projectRequest.current += 1
+    setProjectManagerPlan(null)
+  }
+
+  const toggleProjectActive = async (project: CertificationPlanProject, active: boolean) => {
+    if (!projectManagerPlan || projectWriteLock.current) return
+    const run = async () => {
+      const request = ++projectRequest.current
+      projectWriteLock.current = true
+      setProjectSaving(true)
+      setProjectSavingId(project.id)
+      try {
+        const updated = await certificationService.updateMultiProject(projectManagerPlan.id, project.id, { is_active: active })
+        if (request === projectRequest.current) {
+          setProjectManagerPlan(updated)
+          message.success(active ? '报考项目已启用' : '报考项目已下架')
+        }
+      } catch (error) {
+        if (request === projectRequest.current) {
+          message.error(error instanceof Error ? error.message : '更新报考项目失败')
+        }
+      } finally {
+        // 写锁保持到静默刷新与水合完成，避免弹窗仍显示旧状态时被再次点击。
+        const rows = await loadPlans(true)
+        if (rows) {
+          // 若请求期间已重新打开同一批次，仍打开的弹窗也要水合到最新开关状态。
+          setProjectManagerPlan(current => hydrateProjectManager(current, rows))
+        }
+        projectWriteLock.current = false
+        setProjectSaving(false)
+        setProjectSavingId(null)
+      }
+    }
+    if (!active) {
+      Modal.confirm({
+        title: `下架项目「${project.product_name}」`,
+        content: '下架后该项目不再接受新报名，已报名考生不受影响。确认下架？',
+        okText: '确认下架',
+        okButtonProps: { danger: true },
+        cancelText: '取消',
+        onOk: run,
+      })
+      return
+    }
+    await run()
+  }
+
+  const publishPlanByKind = (plan: CertificationPlan) => (
+    plan.product_type
+      ? certificationService.publishPlan(plan.product_type, plan.id)
+      : certificationService.publishMultiBatch(plan.id)
+  )
+
+  const closePlanByKind = (plan: CertificationPlan) => (
+    plan.product_type
+      ? certificationService.closeRegistration(plan.product_type, plan.id)
+      : certificationService.closeMultiBatch(plan.id)
+  )
+
+  const archivePlanByKind = (plan: CertificationPlan) => (
+    plan.product_type
+      ? certificationService.archivePlan(plan.product_type, plan.id)
+      : certificationService.archiveMultiBatch(plan.id)
+  )
+
+  const cancelPlanByKind = (plan: CertificationPlan) => (
+    plan.product_type
+      ? certificationService.cancelPlan(plan.product_type, plan.id)
+      : certificationService.cancelMultiBatch(plan.id)
+  )
+
+  const finalizePlanByKind = (plan: CertificationPlan) => (
+    plan.product_type
+      ? certificationService.finalizePlan(plan.product_type, plan.id)
+      : certificationService.finalizeMultiBatch(plan.id)
+  )
+
+  const deletePlanByKind = (plan: CertificationPlan) => (
+    plan.product_type
+      ? certificationService.deletePlan(plan.product_type, plan.id)
+      : certificationService.deleteMultiBatch(plan.id)
+  )
+
   const submitPlan = async (confirmHoliday = false) => {
     const values = await form.validateFields()
+    const multi = editingPlan ? isMultiPlan(editingPlan) : values.batch_kind === 'multi'
+    const publishedMulti = Boolean(multi && editingPlan && coreLocked)
+    if (multi && !publishedMulti) {
+      const rows = values.projects ?? []
+      if (!rows.length) {
+        message.warning('请至少选择一个报考项目')
+        return
+      }
+      if (new Set(rows.map(item => item.product_id)).size !== rows.length) {
+        message.warning('同一报考项目不能重复添加')
+        return
+      }
+    }
     setSaving(true)
     try {
-      const payload = { ...toPayload(values), confirm_holiday: confirmHoliday }
-      if (editingPlan) {
-        const { name: _name, ...publishedPayload } = payload
-        await certificationService.updatePlan(editingPlan.product_type, editingPlan.id, {
-          ...(coreLocked ? publishedPayload : payload),
-          ...(editingPlan.status === 'draft'
-            ? { project_code: values.project_code, project_config_id: values.project_config_id, exam_type: values.exam_type, application_type: values.application_type }
-            : {}),
-        })
-        message.success('批次已更新')
+      if (multi) {
+        const basePayload = toMultiPayload(values)
+        const { name: _multiName, projects: _multiProjects, ...publishedPayload } = basePayload
+        if (editingPlan) {
+          const payload: Partial<CertificationPlanPayload> = {
+            ...(publishedMulti ? publishedPayload : basePayload),
+            confirm_holiday: confirmHoliday,
+          }
+          await certificationService.updateMultiBatch(editingPlan.id, payload)
+          message.success('多项目批次已更新')
+        } else {
+          await certificationService.createMultiBatch({
+            ...basePayload,
+            confirm_holiday: confirmHoliday,
+          })
+          message.success('多项目批次已创建')
+        }
       } else {
-        await certificationService.createPlan(values.project_code, {
-          ...payload,
-          project_config_id: values.project_config_id, exam_type: values.exam_type, application_type: values.application_type,
-        })
-        message.success('批次已创建')
+        const payload = { ...toPayload(values), confirm_holiday: confirmHoliday }
+        if (editingPlan) {
+          const { name: _name, ...publishedPayload } = payload
+          await certificationService.updatePlan(editingPlan.product_type ?? values.project_code, editingPlan.id, {
+            ...(coreLocked ? publishedPayload : payload),
+            ...(editingPlan.status === 'draft'
+              ? { project_code: values.project_code, project_config_id: values.project_config_id, exam_type: values.exam_type, application_type: values.application_type }
+              : {}),
+          })
+          message.success('批次已更新')
+        } else {
+          await certificationService.createPlan(values.project_code, {
+            ...payload,
+            project_config_id: values.project_config_id, exam_type: values.exam_type, application_type: values.application_type,
+          })
+          message.success('批次已创建')
+        }
       }
       setModalOpen(false)
       await loadPlans()
@@ -273,8 +454,8 @@ export default function BatchOverrides(_props: BatchOverridesProps) {
       okButtonProps: { danger: true },
       onOk: () => mutatePlan(
         () => isFinalize
-          ? certificationService.finalizePlan(plan.product_type, plan.id)
-          : certificationService.cancelPlan(plan.product_type, plan.id),
+          ? finalizePlanByKind(plan)
+          : cancelPlanByKind(plan),
         isFinalize ? '批次已终结' : '批次已取消',
       ),
     })
@@ -357,7 +538,12 @@ export default function BatchOverrides(_props: BatchOverridesProps) {
       title: '报考项目',
       width: 210,
       ellipsis: true,
-      render: (_, plan) => (
+      render: (_, plan) => isMultiPlan(plan) ? (
+        <Space direction='vertical' size={0}>
+          <Text>{(plan.projects ?? []).map(item => item.product_name).join('、') || '待核实'}</Text>
+          <Text type='secondary'>共 {plan.projects?.length ?? 0} 个报考项目</Text>
+        </Space>
+      ) : (
         <Space direction='vertical' size={0}>
           <Text>{plan.project_name || projects.find(item => item.code === plan.product_type)?.chinese_name || '待核实'}</Text>
           <Text type='secondary'>{plan.occupation_name || '待核实'} · {plan.skill_level || '待核实'}</Text>
@@ -369,7 +555,18 @@ export default function BatchOverrides(_props: BatchOverridesProps) {
       width: 250,
       render: (_, plan) => `${plan.apply_start ? formatDate(plan.apply_start, 'YYYY-MM-DD HH:mm') : '-'} ~ ${plan.apply_end ? formatDate(plan.apply_end, 'YYYY-MM-DD HH:mm') : '-'}`,
     },
-    { title: '价格', dataIndex: 'price_cents', width: 100, render: (value: number) => formatPrice(value) },
+    {
+      title: '价格',
+      width: 130,
+      render: (_, plan) => {
+        if (!isMultiPlan(plan)) return formatPrice(plan.price_cents)
+        const prices = (plan.projects ?? []).map(item => item.price_cents)
+        if (!prices.length) return '-'
+        const min = Math.min(...prices)
+        const max = Math.max(...prices)
+        return min === max ? formatPrice(min) : `${formatPrice(min)} ~ ${formatPrice(max)}`
+      },
+    },
     {
       title: '名额',
       width: 100,
@@ -412,7 +609,7 @@ export default function BatchOverrides(_props: BatchOverridesProps) {
                 size="small"
                 icon={<SendOutlined />}
                 onConfirm={() => mutatePlan(
-                  () => certificationService.publishPlan(plan.product_type, plan.id),
+                  () => publishPlanByKind(plan),
                   '批次已发布',
                 )}
               >
@@ -426,7 +623,7 @@ export default function BatchOverrides(_props: BatchOverridesProps) {
                 size="small"
                 icon={<DeleteOutlined />}
                 onConfirm={() => mutatePlan(
-                  () => certificationService.deletePlan(plan.product_type, plan.id),
+                  () => deletePlanByKind(plan),
                   '批次已删除',
                 )}
               >
@@ -434,25 +631,32 @@ export default function BatchOverrides(_props: BatchOverridesProps) {
               </ConfirmButton>
             </>
           )}
-          {canWrite && plan.status === 'published' && (
+          {canWrite && ['published', 'registration_closed'].includes(plan.status) && (
             <>
               <Button type="link" size="small" icon={<EditOutlined />} onClick={() => openEdit(plan)}>编辑</Button>
-              <ConfirmButton
-                title="关闭报名"
-                description="关闭后不再接受新报名，确认关闭？"
-                type="link"
-                size="small"
-                icon={<StopOutlined />}
-                onConfirm={() => mutatePlan(
-                  () => certificationService.closeRegistration(plan.product_type, plan.id),
-                  '报名已关闭',
-                )}
-              >
-                关闭报名
-              </ConfirmButton>
-              <Button type="link" size="small" danger icon={<CloseCircleOutlined />} onClick={() => confirmImpactAction(plan, 'cancel')}>
-                取消批次
-              </Button>
+              {isMultiPlan(plan) && (
+                <Button type="link" size="small" icon={<EditOutlined />} onClick={() => openProjectManager(plan)}>项目管理</Button>
+              )}
+              {plan.status === 'published' && (
+                <>
+                  <ConfirmButton
+                    title="关闭报名"
+                    description="关闭后不再接受新报名，确认关闭？"
+                    type="link"
+                    size="small"
+                    icon={<StopOutlined />}
+                    onConfirm={() => mutatePlan(
+                      () => closePlanByKind(plan),
+                      '报名已关闭',
+                    )}
+                  >
+                    关闭报名
+                  </ConfirmButton>
+                  <Button type="link" size="small" danger icon={<CloseCircleOutlined />} onClick={() => confirmImpactAction(plan, 'cancel')}>
+                    取消批次
+                  </Button>
+                </>
+              )}
             </>
           )}
           {plan.status === 'registration_closed' && isSuperAdmin && (
@@ -467,7 +671,7 @@ export default function BatchOverrides(_props: BatchOverridesProps) {
               type="link"
               size="small"
               onConfirm={() => mutatePlan(
-                () => certificationService.archivePlan(plan.product_type, plan.id),
+                () => archivePlanByKind(plan),
                 '批次已归档',
               )}
             >
@@ -515,7 +719,16 @@ export default function BatchOverrides(_props: BatchOverridesProps) {
       <Table
         rowKey="id"
         columns={columns}
-        dataSource={plans.filter(plan => plan.name.includes(keyword.trim()) && (!statusFilter || plan.status === statusFilter) && (!projectFilter || projects.find(item => item.id === projectFilter)?.code === plan.product_type))}
+        dataSource={plans.filter(plan => (
+          plan.name.includes(keyword.trim())
+          && (!statusFilter || plan.status === statusFilter)
+          && (
+            !projectFilter
+            || (isMultiPlan(plan)
+              ? (plan.projects ?? []).some(item => item.product_id === projectFilter)
+              : projects.find(item => item.id === projectFilter)?.code === plan.product_type)
+          )
+        ))}
         loading={loading}
         pagination={false}
         scroll={{ x: 1650 }}
@@ -533,18 +746,99 @@ export default function BatchOverrides(_props: BatchOverridesProps) {
         destroyOnClose
       >
         <Form form={form} layout="vertical">
-          <Form.Item name='project_code' label='报考项目' rules={[{ required: true, message: '请选择报考项目' }]}>
-            <Select showSearch optionFilterProp='label' disabled={coreLocked} placeholder='选择本期报考项目' onChange={code => { selectProject(code); if (editingPlan) message.info('已重新加载项目配置，请检查考试类型、申报类型及本期安排') }} options={projects.filter(item => item.status === 'available' || item.code === editingPlan?.product_type).map(item => ({ value: item.code, label: item.chinese_name, disabled: item.status !== 'available' && item.code !== editingPlan?.product_type }))} />
-          </Form.Item>
-          <Form.Item name='project_config_id' hidden><InputNumber /></Form.Item>
-          {selectedConfig && <>
-            <Typography.Paragraph>{selectedConfig.occupation_name} · {selectedConfig.skill_level} · {selectedConfig.application_types.join('、')} · {selectedConfig.materials.filter(item => item.required).length} 类必填材料</Typography.Paragraph>
-            {!coreLocked && editingPlan && selectedProject?.config_id !== editingPlan.renshe_config_id && configId === editingPlan.renshe_config_id && <Alert style={{ marginBottom: 16 }} type='warning' showIcon message={`项目存在新配置 V${selectedProject?.version}，本草稿仍使用原版本。`} action={<Button size='small' onClick={() => selectProject(projectCode)}>更新为最新配置</Button>} />}
-            <Space align='start' style={{ display: 'flex' }} size={16}>
-              <Form.Item name='exam_type' label='本期考试类型' rules={[{ required: true, message: '请选择考试类型' }]} style={{ flex: 1 }}><Select disabled={coreLocked} options={selectedConfig.exam_types.map(value => ({ value, label: value }))} /></Form.Item>
-              <Form.Item name='application_type' hidden><Input /></Form.Item>
-            </Space>
-          </>}
+          {!editingPlan && (
+            <Form.Item name='batch_kind' label='批次类型' initialValue='single'>
+              <Radio.Group
+                optionType='button'
+                onChange={event => {
+                  if (event.target.value === 'multi' && !(form.getFieldValue('projects') ?? []).length) {
+                    const available = projects.filter(item => item.status === 'available')
+                    form.setFieldsValue({
+                      projects: available[0] ? [{ product_id: available[0].id, price_yuan: 500 }] : [],
+                    })
+                  }
+                }}
+              >
+                <Radio.Button value='single'>单项目</Radio.Button>
+                <Radio.Button value='multi'>多项目同批次</Radio.Button>
+              </Radio.Group>
+            </Form.Item>
+          )}
+          {multiMode && !coreLocked ? (
+            <Form.Item label='报考项目' required>
+              <Form.List name='projects'>
+                {(fields, { add, remove }) => (
+                  <Space direction='vertical' size={8} style={{ display: 'flex' }}>
+                    {fields.map((field, index) => (
+                      <Space key={field.key} align='start' style={{ display: 'flex' }}>
+                        <Form.Item
+                          name={[field.name, 'product_id']}
+                          rules={[{ required: true, message: '请选择报考项目' }]}
+                          style={{ marginBottom: 0, width: 320 }}
+                        >
+                          <Select
+                            showSearch
+                            optionFilterProp='label'
+                            placeholder={`报考项目 ${index + 1}`}
+                            options={projects
+                              .filter(item => item.status === 'available')
+                              .map(item => ({ value: item.id, label: item.chinese_name }))}
+                          />
+                        </Form.Item>
+                        <Form.Item
+                          name={[field.name, 'price_yuan']}
+                          rules={[{ required: true, message: '请输入价格' }]}
+                          style={{ marginBottom: 0, width: 150 }}
+                        >
+                          <InputNumber min={0.01} precision={2} addonAfter='元' style={{ width: '100%' }} />
+                        </Form.Item>
+                        <Button
+                          danger
+                          type='text'
+                          icon={<DeleteOutlined />}
+                          disabled={fields.length <= 1}
+                          onClick={() => remove(field.name)}
+                        />
+                      </Space>
+                    ))}
+                    <Button
+                      type='dashed'
+                      icon={<PlusOutlined />}
+                      onClick={() => add({ price_yuan: 500 })}
+                    >
+                      添加报考项目
+                    </Button>
+                  </Space>
+                )}
+              </Form.List>
+            </Form.Item>
+          ) : multiMode ? (
+            <Form.Item label='报考项目'>
+              <Space direction='vertical' size={4}>
+                {(editingPlan?.projects ?? []).map(item => (
+                  <Text key={item.id}>{item.product_name} · {item.skill_level || '等级待核实'} · {formatPrice(item.price_cents)}{item.is_active ? '' : '（已下架）'}</Text>
+                ))}
+              </Space>
+              <Text type='secondary' style={{ display: 'block', marginTop: 8 }}>
+                已发布批次的项目集合与价格已锁定，可在“项目管理”中调整上下架。
+              </Text>
+            </Form.Item>
+          ) : (
+            <>
+              <Form.Item name='project_code' label='报考项目' rules={[{ required: true, message: '请选择报考项目' }]}>
+                <Select showSearch optionFilterProp='label' disabled={coreLocked} placeholder='选择本期报考项目' onChange={code => { selectProject(code); if (editingPlan) message.info('已重新加载项目配置，请检查考试类型、申报类型及本期安排') }} options={projects.filter(item => item.status === 'available' || item.code === editingPlan?.product_type).map(item => ({ value: item.code, label: item.chinese_name, disabled: item.status !== 'available' && item.code !== editingPlan?.product_type }))} />
+              </Form.Item>
+              <Form.Item name='project_config_id' hidden><InputNumber /></Form.Item>
+              {selectedConfig && <>
+                <Typography.Paragraph>{selectedConfig.occupation_name} · {selectedConfig.skill_level} · {selectedConfig.application_types.join('、')} · {selectedConfig.materials.filter(item => item.required).length} 类必填材料</Typography.Paragraph>
+                {!coreLocked && editingPlan && selectedProject?.config_id !== editingPlan.renshe_config_id && configId === editingPlan.renshe_config_id && <Alert style={{ marginBottom: 16 }} type='warning' showIcon message={`项目存在新配置 V${selectedProject?.version}，本草稿仍使用原版本。`} action={<Button size='small' onClick={() => selectProject(projectCode)}>更新为最新配置</Button>} />}
+                <Space align='start' style={{ display: 'flex' }} size={16}>
+                  <Form.Item name='exam_type' label='本期考试类型' rules={[{ required: true, message: '请选择考试类型' }]} style={{ flex: 1 }}><Select disabled={coreLocked} options={selectedConfig.exam_types.map(value => ({ value, label: value }))} /></Form.Item>
+                  <Form.Item name='application_type' hidden><Input /></Form.Item>
+                </Space>
+              </>}
+            </>
+          )}
           <Form.Item name="name" label="批次名称" rules={[{ required: true, whitespace: true, message: '请输入批次名称' }]}>
             <Input maxLength={128} showCount disabled={coreLocked} />
           </Form.Item>
@@ -563,9 +857,11 @@ export default function BatchOverrides(_props: BatchOverridesProps) {
             <RangePicker showTime style={{ width: '100%' }} />
           </Form.Item>
           <Space align="start" style={{ display: 'flex' }} size={16}>
-            <Form.Item name="price_yuan" label="价格（元）" rules={[{ required: true }]} style={{ flex: 1 }}>
-              <InputNumber min={0.01} precision={2} style={{ width: '100%' }} />
-            </Form.Item>
+            {!multiMode && (
+              <Form.Item name="price_yuan" label="价格（元）" rules={[{ required: true }]} style={{ flex: 1 }}>
+                <InputNumber min={0.01} precision={2} style={{ width: '100%' }} />
+              </Form.Item>
+            )}
             <Form.Item name="capacity" label="名额（0 表示不限）" rules={[{ required: true }]} style={{ flex: 1 }}>
               <InputNumber min={0} precision={0} style={{ width: '100%' }} />
             </Form.Item>
@@ -587,6 +883,9 @@ export default function BatchOverrides(_props: BatchOverridesProps) {
           </Form.Item>
           <Form.Item name="exam_org_code" label="考试机构代码">
             <Input maxLength={64} placeholder="选填，用于导出/对账" />
+          </Form.Item>
+          <Form.Item name="registration_notice" label="报名注意事项">
+            <Input.TextArea rows={4} maxLength={5000} showCount placeholder="退改规则、材料要求等；展示在考生报名须知中" />
           </Form.Item>
           <Form.Item name="description" label="报名说明">
             <Input.TextArea rows={4} maxLength={5000} showCount />
@@ -635,6 +934,43 @@ export default function BatchOverrides(_props: BatchOverridesProps) {
         batchName={consultationPlan?.name ?? ''}
         onClose={() => setConsultationPlan(null)}
       />
+
+      <Modal
+        title={projectManagerPlan ? `报考项目管理 · ${projectManagerPlan.name}` : '报考项目管理'}
+        open={Boolean(projectManagerPlan)}
+        footer={null}
+        width={640}
+        onCancel={closeProjectManager}
+        destroyOnClose
+      >
+        <Table
+          rowKey='id'
+          size='small'
+          pagination={false}
+          dataSource={projectManagerPlan?.projects ?? []}
+          columns={[
+            { title: '报考项目', dataIndex: 'product_name' },
+            { title: '等级', dataIndex: 'skill_level', render: (value: string | null) => value || '-' },
+            { title: '价格', dataIndex: 'price_cents', render: (value: number) => formatPrice(value) },
+            {
+              title: '启用',
+              dataIndex: 'is_active',
+              width: 80,
+              render: (value: boolean, row: CertificationPlanProject) => (
+                <Switch
+                  checked={value}
+                  loading={projectSavingId === row.id}
+                  disabled={projectSaving}
+                  onChange={checked => void toggleProjectActive(row, checked)}
+                />
+              ),
+            },
+          ]}
+        />
+        <Text type='secondary' style={{ display: 'block', marginTop: 12 }}>
+          下架项目后不再接受新报名；已报名考生不受影响。
+        </Text>
+      </Modal>
     </>
   )
 }

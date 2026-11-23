@@ -92,7 +92,7 @@ export default function PlanTable({ type, overrides }: PlanTableProps) {
   const handleEdit = (plan: CertificationPlan) => {
     setEditingPlan(plan)
     form.setFieldsValue({
-      product_code: plan.product_type,
+      product_code: plan.product_type ?? undefined,
       name: plan.name,
       apply_range: plan.apply_start && plan.apply_end
         ? [dayjs(plan.apply_start), dayjs(plan.apply_end)]
@@ -106,7 +106,7 @@ export default function PlanTable({ type, overrides }: PlanTableProps) {
   const handleSubmit = async () => {
     const values = await form.validateFields()
     const [start, end] = values.apply_range || []
-    const productCode = editingPlan ? editingPlan.product_type : values.product_code
+    const productCode = editingPlan ? editingPlan.product_type ?? undefined : values.product_code
     const payload: CertificationPlanPayload = {
       name: values.name.trim(),
       apply_start: start ? start.toISOString() : null,
@@ -139,6 +139,7 @@ export default function PlanTable({ type, overrides }: PlanTableProps) {
     plan: CertificationPlan,
     action: (productCode: string) => Promise<unknown>,
   ) => {
+    if (!plan.product_type) return
     await action(plan.product_type)
     await loadPlans()
   }
