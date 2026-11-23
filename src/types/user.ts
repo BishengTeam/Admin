@@ -186,6 +186,8 @@ export interface ReviewRecord {
   target_type: ReviewTargetType
   target_id: number
   reviewer_id: number
+  /** 审核人显示名（后端联表 admin_user.display_name；缺失时前端回退显示 #id） */
+  reviewer_name?: string | null
   action: ReviewAction
   comment: string | null
   created_at: string

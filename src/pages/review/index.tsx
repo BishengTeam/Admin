@@ -28,7 +28,12 @@ const columns: ColumnsType<ReviewRecord> = [
     render: (value: string) => <Tag>{TARGET_LABELS[value] ?? value}</Tag>,
   },
   { title: '对象 ID', dataIndex: 'target_id', width: 100 },
-  { title: '审核人', dataIndex: 'reviewer_id', width: 100 },
+  {
+    title: '审核人',
+    dataIndex: 'reviewer_name',
+    width: 140,
+    render: (value: string | null | undefined, record) => value || `#${record.reviewer_id}`,
+  },
   {
     title: '结果',
     dataIndex: 'action',
