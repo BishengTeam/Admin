@@ -170,10 +170,18 @@ export interface UserOrderSummary {
   created_at: string
 }
 
+export interface UserConversationMessage {
+  role: 'user' | 'assistant' | string
+  content: string
+}
+
+/** GET /admin/users/:id/conversations（一个会话一行，含完整问答原文） */
 export interface UserConversationSummary {
   id: number
-  message: string
-  intent: string
+  session_id: string
+  backend_type: string
+  message_count: number
+  messages: UserConversationMessage[]
   created_at: string
 }
 

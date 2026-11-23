@@ -5,19 +5,33 @@ import {
   CommentOutlined, CustomerServiceOutlined, PayCircleOutlined,
 } from '@ant-design/icons'
 import ReactECharts from 'echarts-for-react'
+import { useNavigate } from 'react-router-dom'
 import { PageContainer } from '@/components/PageContainer'
 import { useDashboardData } from '@/hooks/useDashboardData'
+import { useAuthStore } from '@/stores/authStore'
+import { checkPermissionOneOf } from '@/core/permission'
 import type { DashboardData, TrendPoint, PieDataItem } from '@/types/dashboard'
 
 const { Text } = Typography
 
-function StatCard({ title, value, icon, color, suffix, isAmount }: {
-  title: string; value: number | '—'; icon: React.ReactNode; color: string; suffix?: string; isAmount?: boolean
+/** 可下钻卡片右上角的轻量提示 */
+function DrillHint() {
+  return <span style={{ float: 'right', color: '#bfbfbf', fontWeight: 400 }}>查看 ›</span>
+}
+
+function StatCard({ title, value, icon, color, suffix, isAmount, onClick }: {
+  title: string; value: number | '—'; icon: React.ReactNode; color: string; suffix?: string; isAmount?: boolean;
+  onClick?: () => void
 }) {
   return (
-    <Card hoverable size='small'>
+    <Card hoverable={Boolean(onClick)} onClick={onClick} size='small' style={onClick ? { cursor: 'pointer' } : undefined}>
       <Statistic
-        title={<span style={{ fontSize: 13, color: '#666' }}><span style={{ color, marginRight: 6 }}>{icon}</span>{title}</span>}
+        title={
+          <span style={{ fontSize: 13, color: '#666' }}>
+            <span style={{ color, marginRight: 6 }}>{icon}</span>{title}
+            {onClick && <DrillHint />}
+          </span>
+        }
         value={isAmount && typeof value === 'number' ? value / 100 : value}
         precision={isAmount || suffix === '%' ? 2 : 0}
         prefix={isAmount ? '¥' : undefined}
@@ -104,11 +118,17 @@ function PieChart({ title, data }: { title: string; data?: PieDataItem[] }) {
   )
 }
 
-function CertStatusCard({ title, pending, approved, finalApproved, color }: {
-  title: string; pending: number; approved: number; finalApproved?: number; color: string
+function CertStatusCard({ title, pending, approved, finalApproved, color, onClick }: {
+  title: string; pending: number; approved: number; finalApproved?: number; color: string; onClick?: () => void
 }) {
   return (
-    <Card size='small' title={<Text strong style={{ color }}>{title}</Text>}>
+    <Card
+      hoverable={Boolean(onClick)}
+      onClick={onClick}
+      size='small'
+      style={onClick ? { cursor: 'pointer' } : undefined}
+      title={<Text strong style={{ color }}>{title}{onClick && <DrillHint />}</Text>}
+    >
       <Space direction='vertical' size={4}>
         <Text>待初审 {pending} 人</Text>
         <Text>初审通过 {approved} 人</Text>
@@ -159,6 +179,20 @@ function BarChart({ title, data, color }: { title: string; data?: TrendPoint[]; 
 
 export default function Dashboard() {
   const { data, loading, error, refresh } = useDashboardData()
+  const navigate = useNavigate()
+  const permissions = useAuthStore((state) => state.permissions)
+
+  /** 有权限才可下钻；无权限的卡片保持纯展示，避免跳到 403 */
+  const go = (path: string, codes: string[]) =>
+    checkPermissionOneOf(permissions, codes) ? () => navigate(path) : undefined
+
+  const goUsers = go('/admin/users', ['user:list'])
+  const goOrders = go('/admin/orders', ['order:list'])
+  const goTickets = go('/admin/tickets', ['user:list'])
+  const goQuizWorkbench = go('/admin/quiz/questions', ['quiz:list'])
+  const goQuizStats = go('/admin/quiz/stats', ['quiz:list'])
+  const goCourses = go('/admin/courses/list', ['course:read'])
+  const goCompetitions = go('/admin/operations/competitions', ['competition:list'])
 
   if (error) {
     return (
@@ -186,38 +220,38 @@ export default function Dashboard() {
       {/* ── 核心指标 ── */}
       <Row gutter={[12, 12]} style={{ marginBottom: 16 }}>
         <Col xs={12} sm={8} md={4}>
-          <StatCard title='注册用户' value={d.total_users} icon={<UserOutlined />} color='#1677ff' />
+          <StatCard title='注册用户' value={d.total_users} icon={<UserOutlined />} color='#1677ff' onClick={goUsers} />
         </Col>
         <Col xs={12} sm={8} md={4}>
-          <StatCard title='订单总数' value={d.total_orders} icon={<ShoppingCartOutlined />} color='#722ed1' />
+          <StatCard title='订单总数' value={d.total_orders} icon={<ShoppingCartOutlined />} color='#722ed1' onClick={goOrders} />
         </Col>
         <Col xs={12} sm={8} md={4}>
-          <StatCard title='已支付及完成订单' value={d.paid_orders} icon={<CheckCircleOutlined />} color='#13c2c2' />
+          <StatCard title='已支付及完成订单' value={d.paid_orders} icon={<CheckCircleOutlined />} color='#13c2c2' onClick={goOrders} />
         </Col>
         <Col xs={12} sm={8} md={4}>
-          <StatCard title='近30日净收款' value={d.recent_revenue_30d_fen} icon={<RiseOutlined />} color='#fa8c16' isAmount />
+          <StatCard title='近30日净收款' value={d.recent_revenue_30d_fen} icon={<RiseOutlined />} color='#fa8c16' isAmount onClick={goOrders} />
         </Col>
         <Col xs={12} sm={8} md={4}>
-          <StatCard title='已支付及完成订单占比' value={d.conversion_rate} icon={<PercentageOutlined />} color='#52c41a' suffix='%' />
+          <StatCard title='已支付及完成订单占比' value={d.conversion_rate} icon={<PercentageOutlined />} color='#52c41a' suffix='%' onClick={goOrders} />
         </Col>
         <Col xs={12} sm={8} md={4}>
-          <StatCard title='今日练习答题' value={d.quiz_attempts_today ?? 0} icon={<QuestionCircleOutlined />} color='#eb2f96' />
+          <StatCard title='今日练习答题' value={d.quiz_attempts_today ?? 0} icon={<QuestionCircleOutlined />} color='#eb2f96' onClick={goQuizStats} />
         </Col>
       </Row>
 
       {/* ── AI 客服与订单 ── */}
       <Row gutter={[12, 12]} style={{ marginBottom: 16 }}>
         <Col xs={12} sm={8} md={6}>
-          <StatCard title='AI 对话量（近30日）' value={d.ai_conversations_30d ?? 0} icon={<CommentOutlined />} color='#2f54eb' />
+          <StatCard title='AI 对话量（近30日）' value={d.ai_conversations_30d ?? 0} icon={<CommentOutlined />} color='#2f54eb' onClick={goUsers} />
         </Col>
         <Col xs={12} sm={8} md={6}>
-          <StatCard title='AI 对话量（累计）' value={d.ai_conversations_total ?? 0} icon={<CommentOutlined />} color='#2f54eb' />
+          <StatCard title='AI 对话量（累计）' value={d.ai_conversations_total ?? 0} icon={<CommentOutlined />} color='#2f54eb' onClick={goUsers} />
         </Col>
         <Col xs={12} sm={8} md={6}>
-          <StatCard title='待人工工单' value={d.tickets_waiting_manual ?? 0} icon={<CustomerServiceOutlined />} color='#fa541c' />
+          <StatCard title='待人工工单' value={d.tickets_waiting_manual ?? 0} icon={<CustomerServiceOutlined />} color='#fa541c' onClick={goTickets} />
         </Col>
         <Col xs={12} sm={8} md={6}>
-          <StatCard title='已退款订单' value={d.refunded_orders ?? '—'} icon={<PayCircleOutlined />} color='#52c41a' />
+          <StatCard title='已退款订单' value={d.refunded_orders ?? '—'} icon={<PayCircleOutlined />} color='#52c41a' onClick={goOrders} />
         </Col>
       </Row>
 
@@ -243,23 +277,47 @@ export default function Dashboard() {
       {/* ── 认证审核状态 ── */}
       <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
         <Col xs={24} md={6}>
-          <CertStatusCard title='H3C 认证' pending={d.h3c_pending_review ?? 0} approved={d.h3c_approved ?? 0} finalApproved={d.cert_status?.h3c?.final_approved} color='#1677ff' />
+          <CertStatusCard
+            title='H3C 认证'
+            pending={d.h3c_pending_review ?? 0}
+            approved={d.h3c_approved ?? 0}
+            finalApproved={d.cert_status?.h3c?.final_approved}
+            color='#1677ff'
+            onClick={go('/admin/certification/h3c', ['h3c:review'])}
+          />
         </Col>
         <Col xs={24} md={6}>
-          <CertStatusCard title='NISP 认证' pending={d.nisp_pending_review ?? 0} approved={d.nisp_approved ?? 0} finalApproved={d.cert_status?.nisp?.final_approved} color='#52c41a' />
+          <CertStatusCard
+            title='NISP 认证'
+            pending={d.nisp_pending_review ?? 0}
+            approved={d.nisp_approved ?? 0}
+            finalApproved={d.cert_status?.nisp?.final_approved}
+            color='#52c41a'
+            onClick={go('/admin/certification/nisp', ['nisp:review'])}
+          />
         </Col>
         <Col xs={24} md={6}>
-          <Card size='small'>
+          <Card
+            size='small'
+            hoverable={Boolean(goCourses)}
+            onClick={goCourses}
+            style={goCourses ? { cursor: 'pointer' } : undefined}
+          >
             <div style={{ marginBottom: 8 }}>
-              <Text strong style={{ fontSize: 14, color: '#722ed1' }}>📚 课程模块</Text>
+              <Text strong style={{ fontSize: 14, color: '#722ed1' }}>📚 课程模块{goCourses && <DrillHint />}</Text>
             </div>
             <Statistic title='已发布课程' value={d.courses_total ?? 0} valueStyle={{ fontSize: 22, color: '#722ed1' }} />
           </Card>
         </Col>
         <Col xs={24} md={6}>
-          <Card size='small'>
+          <Card
+            size='small'
+            hoverable={Boolean(goCompetitions)}
+            onClick={goCompetitions}
+            style={goCompetitions ? { cursor: 'pointer' } : undefined}
+          >
             <div style={{ marginBottom: 8 }}>
-              <Text strong style={{ fontSize: 14, color: '#fa8c16' }}>🏆 竞赛模块</Text>
+              <Text strong style={{ fontSize: 14, color: '#fa8c16' }}>🏆 竞赛模块{goCompetitions && <DrillHint />}</Text>
             </div>
             <Space size='large'>
               <Statistic title='已发布' value={d.competitions_active ?? 0} valueStyle={{ fontSize: 22, color: '#fa8c16' }} />
@@ -272,25 +330,61 @@ export default function Dashboard() {
       {/* ── 题库概览 ── */}
       <Row gutter={[16, 16]}>
         <Col xs={24} md={6}>
-          <Card size='small'>
-            <Statistic title='已发布题库' value={d.quiz_libraries_total ?? 0} valueStyle={{ fontSize: 22, color: '#1677ff' }} />
+          <Card
+            size='small'
+            hoverable={Boolean(goQuizWorkbench)}
+            onClick={goQuizWorkbench}
+            style={goQuizWorkbench ? { cursor: 'pointer' } : undefined}
+          >
+            <Statistic
+              title={<span>已发布题库{goQuizWorkbench && <DrillHint />}</span>}
+              value={d.quiz_libraries_total ?? 0}
+              valueStyle={{ fontSize: 22, color: '#1677ff' }}
+            />
           </Card>
         </Col>
         <Col xs={24} md={6}>
-          <Card size='small'>
-            <Statistic title='题目总数' value={d.quiz_questions_inventory_total ?? '—'} valueStyle={{ fontSize: 22, color: '#722ed1' }} />
+          <Card
+            size='small'
+            hoverable={Boolean(goQuizWorkbench)}
+            onClick={goQuizWorkbench}
+            style={goQuizWorkbench ? { cursor: 'pointer' } : undefined}
+          >
+            <Statistic
+              title={<span>题目总数{goQuizWorkbench && <DrillHint />}</span>}
+              value={d.quiz_questions_inventory_total ?? '—'}
+              valueStyle={{ fontSize: 22, color: '#722ed1' }}
+            />
             <Text type='secondary'>含草稿、已发布和停用题目</Text>
           </Card>
         </Col>
         <Col xs={24} md={6}>
-          <Card size='small'>
-            <Statistic title='可练习题数' value={d.quiz_questions_practicable_total ?? '—'} valueStyle={{ fontSize: 22, color: '#722ed1' }} />
+          <Card
+            size='small'
+            hoverable={Boolean(goQuizWorkbench)}
+            onClick={goQuizWorkbench}
+            style={goQuizWorkbench ? { cursor: 'pointer' } : undefined}
+          >
+            <Statistic
+              title={<span>可练习题数{goQuizWorkbench && <DrillHint />}</span>}
+              value={d.quiz_questions_practicable_total ?? '—'}
+              valueStyle={{ fontSize: 22, color: '#722ed1' }}
+            />
             <Text type='secondary'>已发布 {d.quiz_questions_total ?? 0} 题 · 入口状态单独统计</Text>
           </Card>
         </Col>
         <Col xs={24} md={6}>
-          <Card size='small'>
-            <Statistic title='近30日练习答题总量' value={d.quiz_attempts_30d ?? 0} valueStyle={{ fontSize: 22, color: '#eb2f96' }} />
+          <Card
+            size='small'
+            hoverable={Boolean(goQuizStats)}
+            onClick={goQuizStats}
+            style={goQuizStats ? { cursor: 'pointer' } : undefined}
+          >
+            <Statistic
+              title={<span>近30日练习答题总量{goQuizStats && <DrillHint />}</span>}
+              value={d.quiz_attempts_30d ?? 0}
+              valueStyle={{ fontSize: 22, color: '#eb2f96' }}
+            />
           </Card>
         </Col>
       </Row>

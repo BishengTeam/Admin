@@ -36,10 +36,41 @@ const orderColumns: ColumnsType<UserOrderSummary> = [
 ]
 
 const conversationColumns: ColumnsType<UserConversationSummary> = [
-  { title: '消息', dataIndex: 'message', ellipsis: true },
-  { title: '意图', dataIndex: 'intent', width: 100, render: (value: string) => <Tag>{value}</Tag> },
+  { title: '首句', dataIndex: 'messages', ellipsis: true, render: (_: unknown, record) => firstMessageText(record) },
+  { title: '消息数', dataIndex: 'message_count', width: 80, render: (value: number) => value ?? 0 },
   { title: '时间', dataIndex: 'created_at', width: 170, render: (value: string) => formatDate(value) },
 ]
+
+/** 会话首句：优先用户第一句，其次 AI 第一句 */
+function firstMessageText(conversation: UserConversationSummary): string {
+  const messages = conversation.messages || []
+  const first = messages.find(m => m.role === 'user') ?? messages[0]
+  return first?.content?.trim() || '（无内容）'
+}
+
+/** 完整多轮问答：用户靠右、AI 靠左 */
+function ConversationThread({ conversation }: { conversation: UserConversationSummary }) {
+  const messages = conversation.messages || []
+  if (messages.length === 0) return <Text type='secondary'>该会话没有可展示的对话内容</Text>
+  return (
+    <Space direction='vertical' size={8} style={{ width: '100%' }}>
+      {messages.map((item, index) => {
+        const isUser = item.role === 'user'
+        return (
+          <div key={index} style={{ display: 'flex', justifyContent: isUser ? 'flex-end' : 'flex-start' }}>
+            <div style={{
+              maxWidth: '78%', padding: '8px 12px', borderRadius: 8, whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+              background: isUser ? '#1677ff' : '#f5f5f5', color: isUser ? '#fff' : 'rgba(0,0,0,0.88)',
+            }}>
+              <div style={{ fontSize: 11, opacity: 0.7, marginBottom: 2 }}>{isUser ? '用户' : item.role || 'AI'}</div>
+              {item.content || '（空消息）'}
+            </div>
+          </div>
+        )
+      })}
+    </Space>
+  )
+}
 
 function ReviewTag({ status }: { status: string }) {
   const config = LEVEL2_STATUS_MAP[status]
@@ -257,7 +288,17 @@ export default function UserDetailDrawer({
       />
 
       <Typography.Title level={5}>AI 对话记录</Typography.Title>
-      <Table rowKey="id" columns={conversationColumns} dataSource={user.conversations || []} pagination={false} size="small" />
+      <Text type='secondary' style={{ display: 'block', marginBottom: 8 }}>
+        共 {(user.conversations || []).length} 个会话，点击行首箭头展开查看完整问答。
+      </Text>
+      <Table
+        rowKey="id"
+        columns={conversationColumns}
+        dataSource={user.conversations || []}
+        pagination={false}
+        size="small"
+        expandable={{ expandedRowRender: (record) => <ConversationThread conversation={record} /> }}
+      />
     </Drawer>
   )
 }
