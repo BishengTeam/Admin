@@ -19,6 +19,10 @@ export const classroomService = {
   async stop(id: number): Promise<void> {
     return http.post<void>(`/admin/classrooms/${id}/stop`)
   },
+  /** 删除课堂：进回收站 30 天可恢复，学生端立即不可见 */
+  async remove(id: number): Promise<void> {
+    return http.delete<void>(`/admin/classrooms/${id}`)
+  },
   async refreshCode(id: number): Promise<{ join_code: string; join_code_expires_at: string }> {
     return http.post(`/admin/classrooms/${id}/join-code/refresh`)
   },

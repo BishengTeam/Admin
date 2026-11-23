@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { Button, Input, Modal, Form, Tag, Typography, message, Row, Col, Card, Spin } from 'antd'
-import { PlusOutlined, RightOutlined, TeamOutlined } from '@ant-design/icons'
+import { DeleteOutlined, PlusOutlined, RightOutlined, TeamOutlined } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
+import { ConfirmButton } from '@/components/ConfirmButton'
 import { PageContainer } from '@/components/PageContainer'
 import { usePagination } from '@/hooks/usePagination'
 import { classroomService } from '@/services/classroom'
@@ -31,6 +32,12 @@ export default function ClassroomManagement() {
     await classroomService.create(name)
     message.success('课堂已创建，进入工作台生成课堂码')
     setModalOpen(false)
+    refresh()
+  }
+
+  const handleDelete = async (classroom: Classroom) => {
+    await classroomService.remove(classroom.id)
+    message.success(`「${classroom.name}」已删除，可在回收站恢复`)
     refresh()
   }
 
@@ -65,7 +72,20 @@ export default function ClassroomManagement() {
                     <TeamOutlined /> {c.teacher_name || '—'}
                   </Text>
                 )}
-                <div style={{ marginTop: 16, display: 'flex', justifyContent: 'flex-end' }}>
+                <div style={{ marginTop: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div onClick={(event) => event.stopPropagation()}>
+                    <ConfirmButton
+                      title='删除课堂'
+                      description={`删除后学生端立即看不到「${c.name}」，课堂数据与学生记录保留。30 天内可在「回收站 → 教学课堂」恢复，恢复后状态不变。`}
+                      type='text'
+                      danger
+                      size='small'
+                      icon={<DeleteOutlined />}
+                      onConfirm={() => handleDelete(c)}
+                    >
+                      删除
+                    </ConfirmButton>
+                  </div>
                   <Text type='secondary'>
                     进入工作台 <RightOutlined style={{ fontSize: 12 }} />
                   </Text>
