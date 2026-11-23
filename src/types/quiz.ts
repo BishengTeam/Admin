@@ -150,6 +150,7 @@ export interface QuizCourseBinding {
 export interface QuizCourseOption {
   id: number
   title: string
+  status: 'draft' | 'published' | 'offline' | 'archived'
 }
 
 export interface QuizActivationCode {

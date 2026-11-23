@@ -412,6 +412,8 @@ export const QuizCourseBindingSchema = z.object({
 export const QuizCourseOptionSchema = z.object({
   id: positiveInt,
   title: z.string().min(1),
+  // 后端窄投影固定带 status（当前只返回 published 课程），严格模式下必须声明。
+  status: z.enum(['draft', 'published', 'offline', 'archived']),
 }).strict()
 
 export const QuizKnowledgePointSchema = z.object({

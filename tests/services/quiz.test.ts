@@ -97,7 +97,7 @@ describe('quizService frozen admin contract', () => {
   it('loads course binding options from the narrow quiz endpoint with a strict response schema', async () => {
     const { quizService } = await import('@/services/quiz')
     const signal = new AbortController().signal
-    const options = [{ id: 81, title: '网络工程师课程' }]
+    const options = [{ id: 81, title: '网络工程师课程', status: 'published' }]
     http.get.mockResolvedValueOnce(options)
 
     await expect(quizService.listCourseOptions('网络', signal)).resolves.toEqual(options)
