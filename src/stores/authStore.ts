@@ -12,12 +12,14 @@ import type {
   AdminInfo,
   AdminSessionMode,
   ChangePasswordPayload,
+  QuizLibraryScope,
 } from '@/types/admin'
 
 interface AuthState {
   token: string | null
   admin: AdminInfo | null
   permissions: string[]
+  quizLibraryScope: QuizLibraryScope
   sessionMode: AdminSessionMode | null
   mustChangePassword: boolean
   initialized: boolean
@@ -32,6 +34,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   token: getToken(),
   admin: null,
   permissions: [],
+  quizLibraryScope: 'all',
   sessionMode: null,
   mustChangePassword: false,
   initialized: false,
@@ -89,6 +92,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({
         admin: data.admin,
         permissions: data.permissions,
+        quizLibraryScope: data.quiz_library_scope ?? 'all',
         sessionMode: data.session_mode,
         mustChangePassword: data.must_change_password || data.admin.must_change_password,
         initialized: true,
@@ -112,6 +116,7 @@ onAuthClear(() => {
     token: null,
     admin: null,
     permissions: [],
+    quizLibraryScope: 'all',
     sessionMode: null,
     mustChangePassword: false,
     initialized: false,

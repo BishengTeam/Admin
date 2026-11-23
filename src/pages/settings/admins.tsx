@@ -29,7 +29,7 @@ import { useReauthentication } from '@/hooks/useReauthentication'
 import { adminManagementService } from '@/services/adminManagement'
 import { isApiError, isPermissionError } from '@/core/request'
 import { clearReauthCredential } from '@/core/reauth'
-import { ADMIN_CREATABLE_ROLE_OPTIONS, getAdminRoleLabel } from '@/core/permission'
+import { ADMIN_CREATABLE_ROLE_OPTIONS, ADMIN_ROLE_LABELS, getAdminRoleLabel } from '@/core/permission'
 import { formatDate } from '@/utils/format'
 import type {
   AdminAccount,
@@ -475,10 +475,9 @@ export default function AdminAccountsPage() {
           <Input allowClear placeholder="用户名或显示名" style={{ width: 190 }} />
         </Form.Item>
         <Form.Item name="role" label="角色">
-          <Select allowClear placeholder="全部" style={{ width: 140 }} options={[
-            { value: 'super_admin', label: '超级管理员' },
-            { value: 'quiz_admin', label: '题库管理员' },
-          ]} />
+          <Select allowClear placeholder="全部" style={{ width: 160 }} options={
+            Object.entries(ADMIN_ROLE_LABELS).map(([value, label]) => ({ value, label }))
+          } />
         </Form.Item>
         <Form.Item name="is_active" label="启用">
           <Select allowClear placeholder="全部" style={{ width: 100 }} options={booleanOptions} />
@@ -556,7 +555,7 @@ export default function AdminAccountsPage() {
           </Form.Item>
           <Form.Item
             name="permissions"
-            label="权限勾选（覆盖式：勾选结果即该账号的最终权限）"
+            label="权限勾选"
           >
             {catalog ? (
               <PermissionCheckboxes catalog={catalog} />

@@ -1,6 +1,6 @@
 import type { PageParams } from './api'
 
-export type AdminRole = 'super_admin' | 'quiz_admin' | 'cert_admin' | 'course_admin' | 'teacher'
+export type AdminRole = 'super_admin' | 'quiz_admin' | 'cert_admin' | 'course_admin' | 'teacher' | 'operations_admin'
 export type AdminCreatableRole = Exclude<AdminRole, 'super_admin'>
 export type AdminSessionMode = 'normal' | 'restricted'
 
@@ -26,9 +26,12 @@ export interface AdminAuthSession {
   must_change_password: boolean
 }
 
+export type QuizLibraryScope = 'all' | 'independent' | 'course' | 'none'
+
 export interface AdminMe {
   admin: AdminInfo
   permissions: string[]
+  quiz_library_scope?: QuizLibraryScope
   session_mode: AdminSessionMode
   must_change_password: boolean
 }

@@ -12,6 +12,8 @@ export interface RouteMeta {
   hidden?: boolean
   roles?: AdminRole[]
   activeMenuKey?: string
+  /** 仅同时管理独立题库与课程题库的管理员可见（跨库统计/审计） */
+  fullQuizScope?: boolean
 }
 
 export interface AppRoute {
@@ -110,7 +112,7 @@ export const adminRoutes: AppRoute[] = [
       {
         path: 'reviews',
         element: <ReviewManagement />,
-        meta: { title: '审核记录', icon: 'AuditOutlined', permission: 'review:list' },
+        meta: { title: '审核记录', icon: 'AuditOutlined', permission: 'user:list' },
       },
       {
         path: 'agreement-templates',
@@ -345,7 +347,7 @@ export const adminRoutes: AppRoute[] = [
       {
         path: 'stats',
         element: <QuizAnalytics />,
-        meta: { title: '题库数据', icon: 'BarChartOutlined', permission: 'quiz:list' },
+        meta: { title: '题库数据', icon: 'BarChartOutlined', permission: 'quiz:list', fullQuizScope: true },
       },
       {
         path: 'behavior',
@@ -355,7 +357,7 @@ export const adminRoutes: AppRoute[] = [
       {
         path: 'audit-logs',
         element: <QuizAuditLogs />,
-        meta: { title: '审计日志', icon: 'FileSearchOutlined', permission: 'quiz:list' },
+        meta: { title: '审计日志', icon: 'FileSearchOutlined', permission: 'quiz:list', fullQuizScope: true },
       },
       {
         path: 'tasks',

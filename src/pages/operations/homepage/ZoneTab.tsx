@@ -24,7 +24,7 @@ export default function ZoneTab() {
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<ContentItem | null>(null)
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
-  const canWrite = usePermission('content:write')
+  const canWrite = usePermission('homepage:write')
 
   const { data, loading, pagination, refresh } = usePagination(
     (page) => contentService.list({ keyword: searchText || undefined, zone_type: zoneType, ...page }),

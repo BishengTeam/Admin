@@ -48,7 +48,7 @@ import type { AppRoute } from '@/routes'
 import { adminRoutes } from '@/routes'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { getAdminRoleLabel } from '@/core/permission'
-import type { AdminRole } from '@/types/admin'
+import type { AdminRole, QuizLibraryScope } from '@/types/admin'
 
 const APP_TITLE: string = import.meta.env.VITE_APP_TITLE || '运营管理后台'
 
@@ -97,8 +97,10 @@ export function hasRouteAccess(
   permissions: string[],
   initialized: boolean,
   role?: AdminRole | string,
+  quizScope: QuizLibraryScope = 'all',
 ) {
   if (!initialized) return true
+  if (route.meta?.fullQuizScope && quizScope !== 'all') return false
   if (route.meta?.roles && (!role || !route.meta.roles.includes(role as AdminRole))) return false
   if (permissions.includes('*')) return true
   const required = route.meta?.permissions ?? (route.meta?.permission ? [route.meta.permission] : [])
@@ -113,9 +115,10 @@ export function buildMenuItems(
   permissions: string[],
   initialized: boolean,
   role?: AdminRole | string,
+  quizScope: QuizLibraryScope = 'all',
 ): MenuProps['items'] {
   return routes.flatMap((route) => {
-    const item = buildRouteMenuItem(route, '', permissions, initialized, role)
+    const item = buildRouteMenuItem(route, '', permissions, initialized, role, quizScope)
     return item ? [item] : []
   }) as MenuProps['items']
 }
@@ -155,9 +158,10 @@ function buildRouteMenuItem(
   permissions: string[],
   initialized: boolean,
   role?: AdminRole | string,
+  quizScope: QuizLibraryScope = 'all',
 ): MenuTreeNode | undefined {
   if (!route.meta || route.meta.hidden) return undefined
-  if (!hasRouteAccess(route, permissions, initialized, role)) return undefined
+  if (!hasRouteAccess(route, permissions, initialized, role, quizScope)) return undefined
 
   const fullPath = route.index
     ? parentPath
@@ -167,7 +171,7 @@ function buildRouteMenuItem(
 
   if (route.children?.length) {
     const children = route.children
-      .map(child => buildRouteMenuItem(child, fullPath, permissions, initialized, role))
+      .map(child => buildRouteMenuItem(child, fullPath, permissions, initialized, role, quizScope))
       .filter((child): child is MenuTreeNode => Boolean(child))
     if (children.length) {
       return { key, icon, label: route.meta.title, children }
@@ -249,20 +253,20 @@ export default function AdminLayout({ children }: { children?: ReactNode }) {
   const location = useLocation()
   const collapsed = useAppStore((s) => s.sidebarCollapsed)
   const toggleCollapsed = useAppStore((s) => s.toggleCollapsed)
-  const { admin, permissions, initialized } = useAuth()
+  const { admin, permissions, initialized, quizLibraryScope } = useAuth()
   const logout = useAuthStore((s) => s.logout)
   const { token: { colorBgContainer, borderRadiusLG } } = theme.useToken()
 
   const menuItems = useMemo(() => {
-    return buildMenuItems(adminRoutes, permissions, initialized, admin?.role)
-  }, [permissions, initialized, admin?.role])
+    return buildMenuItems(adminRoutes, permissions, initialized, admin?.role, quizLibraryScope)
+  }, [permissions, initialized, admin?.role, quizLibraryScope])
 
   const currentRoute = useMemo(() => {
     const pathname = location.pathname.replace(/^\/admin\/?/, '')
     return findActiveRoute(pathname, adminRoutes)
   }, [location])
 
-  const routeAllowed = !currentRoute || hasRouteAccess(currentRoute, permissions, initialized, admin?.role)
+  const routeAllowed = !currentRoute || hasRouteAccess(currentRoute, permissions, initialized, admin?.role, quizLibraryScope)
 
   const breadcrumbItems = useMemo(() => {
     const relativePath = location.pathname.replace(/^\/admin\/?/, '')

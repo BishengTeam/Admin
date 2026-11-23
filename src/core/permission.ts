@@ -13,6 +13,7 @@ export function getAdminLandingPath(role: AdminRole | string | undefined): strin
   if (role === 'cert_admin') return '/admin/certification'
   if (role === 'course_admin') return '/admin/courses'
   if (role === 'teacher') return '/admin/classrooms'
+  if (role === 'operations_admin') return '/admin/points-mall'
   return '/admin/dashboard'
 }
 
@@ -22,6 +23,7 @@ export const ADMIN_ROLE_LABELS: Record<AdminRole, string> = {
   cert_admin: '认证管理员',
   course_admin: '课程管理员',
   teacher: '老师',
+  operations_admin: '运营管理员',
 }
 
 export const ADMIN_CREATABLE_ROLE_OPTIONS = [
@@ -29,6 +31,7 @@ export const ADMIN_CREATABLE_ROLE_OPTIONS = [
   { label: ADMIN_ROLE_LABELS.cert_admin, value: 'cert_admin' },
   { label: ADMIN_ROLE_LABELS.course_admin, value: 'course_admin' },
   { label: ADMIN_ROLE_LABELS.teacher, value: 'teacher' },
+  { label: ADMIN_ROLE_LABELS.operations_admin, value: 'operations_admin' },
 ] as const satisfies ReadonlyArray<{ label: string; value: AdminCreatableRole }>
 
 export function getAdminRoleLabel(role: AdminRole | string | undefined): string {

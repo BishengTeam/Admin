@@ -17,6 +17,7 @@ describe('fixed administrator role navigation', () => {
     expect(getAdminLandingPath('quiz_admin')).toBe('/admin/quiz/questions')
     expect(getAdminLandingPath('cert_admin')).toBe('/admin/certification')
     expect(getAdminLandingPath('course_admin')).toBe('/admin/courses')
+    expect(getAdminLandingPath('operations_admin')).toBe('/admin/points-mall')
   })
 
   it('only exposes preset non-super roles to the creation dialog', () => {
@@ -25,6 +26,7 @@ describe('fixed administrator role navigation', () => {
       { label: '认证管理员', value: 'cert_admin' },
       { label: '课程管理员', value: 'course_admin' },
       { label: '老师', value: 'teacher' },
+      { label: '运营管理员', value: 'operations_admin' },
     ])
   })
 
@@ -235,5 +237,27 @@ describe('fixed administrator role navigation', () => {
       '审计日志',
     ])
     expect(hasRouteAccess(imports, ['quiz:list'], true, 'quiz_admin')).toBe(true)
+  })
+
+  it('hides cross-library quiz pages from scoped quiz administrators', () => {
+    const quiz = adminRoutes.find((route) => route.path === 'quiz')!
+    const stats = quiz.children!.find((route) => route.path === 'stats')!
+    const audits = quiz.children!.find((route) => route.path === 'audit-logs')!
+
+    expect(hasRouteAccess(stats, ['quiz:list'], true, 'quiz_admin', 'all')).toBe(true)
+    expect(hasRouteAccess(stats, ['quiz:list'], true, 'quiz_admin', 'independent')).toBe(false)
+    expect(hasRouteAccess(audits, ['quiz:list'], true, 'quiz_admin', 'course')).toBe(false)
+
+    const menuLabels = (scope: 'all' | 'independent' | 'course') => {
+      const items = buildMenuItems(adminRoutes, ['quiz:list'], true, 'quiz_admin', scope) as Array<{
+        label?: string
+        children?: Array<{ label?: string }>
+      }>
+      const quizGroup = items.find((item) => item.label === '题库与考试')
+      return (quizGroup?.children ?? []).map((child) => child.label)
+    }
+
+    expect(menuLabels('all')).toEqual(['题库工作台', '导入与任务', '题库数据', '审计日志'])
+    expect(menuLabels('independent')).toEqual(['题库工作台', '导入与任务'])
   })
 })

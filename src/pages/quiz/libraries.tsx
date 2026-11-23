@@ -193,6 +193,14 @@ export default function QuizLibraries() {
   const canManage = usePermission('quiz_library_manage')
   const canBind = usePermission('course_quiz_bind')
   const isSuperAdmin = useAuthStore((s) => s.admin?.role === 'super_admin')
+  const quizLibraryScope = useAuthStore((s) => s.quizLibraryScope)
+  // 数据范围：独立题库 / 课程题库只能各建各的模式；all 不受限。
+  const allowedAccessModes = Object.keys(accessLabels).filter((mode) => {
+    if (quizLibraryScope === 'all') return true
+    if (quizLibraryScope === 'course') return mode === 'course_entitlement'
+    if (quizLibraryScope === 'independent') return mode !== 'course_entitlement'
+    return false
+  })
   const { ensureReauthenticated, reauthDialog } = useReauthentication()
   const [convertTarget, setConvertTarget] = useState<QuizLibrary | null>(null)
   const [convertMode, setConvertMode] = useState<QuizLibraryAccessMode | undefined>(undefined)
@@ -256,7 +264,7 @@ export default function QuizLibraries() {
   const openCreate = () => {
     setEditing(null)
     form.resetFields()
-    form.setFieldsValue({ access_mode: 'access_mode_pending', vendor_tag: 'none', sort_order: 0, price_cents: 0 })
+    form.setFieldsValue({ access_mode: allowedAccessModes[0] ?? 'access_mode_pending', vendor_tag: 'none', sort_order: 0, price_cents: 0 })
     setModalOpen(true)
   }
 
@@ -725,8 +733,17 @@ export default function QuizLibraries() {
             />
           </Form.Item>
           <Form.Item name="details" label="详细说明" rules={[{ max: 10000 }]}><Input.TextArea rows={5} showCount maxLength={10000} /></Form.Item>
-          <Form.Item name="access_mode" label="访问模式" rules={[{ required: true }]}>
-            <Select options={Object.entries(accessLabels).map(([value, label]) => ({ value, label }))} />
+          <Form.Item
+            name="access_mode"
+            label="访问模式"
+            rules={[{ required: true }]}
+            extra={quizLibraryScope === 'course'
+              ? '当前账号只管理课程题库。'
+              : quizLibraryScope === 'independent'
+                ? '当前账号只管理独立题库；课程题库由课程管理员维护。'
+                : undefined}
+          >
+            <Select options={allowedAccessModes.map((value) => ({ value, label: accessLabels[value as QuizLibraryAccessMode] }))} />
           </Form.Item>
           <Form.Item noStyle shouldUpdate={(prev, cur) => prev.access_mode !== cur.access_mode}>
               {({ getFieldValue }) => getFieldValue('access_mode') === 'paid' ? (

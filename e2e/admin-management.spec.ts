@@ -102,6 +102,7 @@ test.describe('管理员账号与固定角色', () => {
       .locator('.ant-select')
       .click()
     await expect(page.getByRole('option', { name: '超级管理员' })).toHaveCount(0)
+    await expect(page.getByRole('option', { name: '运营管理员' })).toBeVisible()
     await page
       .locator('.ant-select-dropdown .ant-select-item-option')
       .filter({ hasText: '题库管理员' })
