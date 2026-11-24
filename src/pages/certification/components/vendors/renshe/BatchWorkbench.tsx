@@ -188,13 +188,17 @@ export default function RensheBatchWorkbench() {
   const [jobs, setJobs] = useState<RensheExportJob[]>([])
   const [jobsLoading, setJobsLoading] = useState(false)
   const refreshJobs = useCallback(async () => {
+    if (!canExport) {
+      setJobs([])
+      return
+    }
     setJobsLoading(true)
     try {
       setJobs(await loadJobs())
     } finally {
       setJobsLoading(false)
     }
-  }, [loadJobs])
+  }, [canExport, loadJobs])
 
   useEffect(() => { void refreshJobs() }, [refreshJobs])
 

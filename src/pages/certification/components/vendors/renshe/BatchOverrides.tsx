@@ -167,6 +167,40 @@ function toPayload(values: PlanFormValues): CertificationPlanPayload {
   }
 }
 
+function ProjectPriceInput({ project, disabled, onSave }: {
+  project: CertificationPlanProject
+  disabled: boolean
+  onSave: (priceCents: number) => Promise<boolean>
+}) {
+  const [value, setValue] = useState(project.price_cents / 100)
+  useEffect(() => { setValue(project.price_cents / 100) }, [project.price_cents])
+  const commit = async () => {
+    const cents = Math.round(Number(value) * 100)
+    if (!Number.isFinite(cents) || cents <= 0) {
+      message.warning('项目价格必须大于 0 元')
+      setValue(project.price_cents / 100)
+      return
+    }
+    if (cents === project.price_cents) return
+    const saved = await onSave(cents)
+    // 保存失败时恢复服务端价格，避免界面继续显示未落库的报价。
+    if (!saved) setValue(project.price_cents / 100)
+  }
+  return (
+    <InputNumber
+      min={0.01}
+      precision={2}
+      value={value}
+      disabled={disabled}
+      addonAfter='元'
+      style={{ width: 140 }}
+      onChange={next => setValue(Number(next) || 0)}
+      onBlur={() => void commit()}
+      onPressEnter={() => void commit()}
+    />
+  )
+}
+
 export default function BatchOverrides(_props: BatchOverridesProps) {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -271,18 +305,26 @@ export default function BatchOverrides(_props: BatchOverridesProps) {
     setProjectManagerPlan(null)
   }
 
-  const toggleProjectActive = async (project: CertificationPlanProject, active: boolean) => {
-    if (!projectManagerPlan || projectWriteLock.current) return
+  const saveProjectChange = async (
+    project: CertificationPlanProject,
+    changes: { price_cents?: number; is_active?: boolean },
+    successMessage: string,
+  ): Promise<boolean> => {
+    if (!projectManagerPlan) return false
+    // 已有保存在途时忽略重复提交，不把它当作失败（调用方不应回滚输入）。
+    if (projectWriteLock.current) return true
+    let succeeded = false
     const run = async () => {
       const request = ++projectRequest.current
       projectWriteLock.current = true
       setProjectSaving(true)
       setProjectSavingId(project.id)
       try {
-        const updated = await certificationService.updateMultiProject(projectManagerPlan.id, project.id, { is_active: active })
+        const updated = await certificationService.updateMultiProject(projectManagerPlan.id, project.id, changes)
+        succeeded = true
         if (request === projectRequest.current) {
           setProjectManagerPlan(updated)
-          message.success(active ? '报考项目已启用' : '报考项目已下架')
+          message.success(successMessage)
         }
       } catch (error) {
         if (request === projectRequest.current) {
@@ -300,6 +342,11 @@ export default function BatchOverrides(_props: BatchOverridesProps) {
         setProjectSavingId(null)
       }
     }
+    await run()
+    return succeeded
+  }
+
+  const toggleProjectActive = async (project: CertificationPlanProject, active: boolean) => {
     if (!active) {
       Modal.confirm({
         title: `下架项目「${project.product_name}」`,
@@ -307,11 +354,19 @@ export default function BatchOverrides(_props: BatchOverridesProps) {
         okText: '确认下架',
         okButtonProps: { danger: true },
         cancelText: '取消',
-        onOk: run,
+        onOk: () => saveProjectChange(project, { is_active: false }, '报考项目已下架'),
       })
       return
     }
-    await run()
+    await saveProjectChange(project, { is_active: true }, '报考项目已启用')
+  }
+
+  const saveProjectPrice = async (project: CertificationPlanProject, priceCents: number): Promise<boolean> => {
+    if (priceCents <= 0) {
+      message.warning('项目价格必须大于 0 元')
+      return false
+    }
+    return await saveProjectChange(project, { price_cents: priceCents }, '项目价格已更新')
   }
 
   const publishPlanByKind = (plan: CertificationPlan) => (
@@ -951,7 +1006,17 @@ export default function BatchOverrides(_props: BatchOverridesProps) {
           columns={[
             { title: '报考项目', dataIndex: 'product_name' },
             { title: '等级', dataIndex: 'skill_level', render: (value: string | null) => value || '-' },
-            { title: '价格', dataIndex: 'price_cents', render: (value: number) => formatPrice(value) },
+            {
+              title: '价格',
+              dataIndex: 'price_cents',
+              render: (_value: number, row: CertificationPlanProject) => (
+                <ProjectPriceInput
+                  project={row}
+                  disabled={projectSaving}
+                  onSave={cents => saveProjectPrice(row, cents)}
+                />
+              ),
+            },
             {
               title: '启用',
               dataIndex: 'is_active',

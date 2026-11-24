@@ -153,6 +153,10 @@ export function rensheDisplayValue(field: string, value: unknown): string {
   if (value == null || value === '') return '未填写'
   if (typeof value === 'boolean') return value ? '是' : '否'
   const key = field.split('.').slice(-1)[0] || field
+  if (['occupation_years', 'required_years', 'effective_years'].includes(key)) {
+    const years = Number(value)
+    if (Number.isFinite(years)) return `${years.toFixed(2)} 年`
+  }
   const values = REVIEW_ENUMS[key]
   return values ? values[String(value)] || '未知类型' : String(value)
 }
