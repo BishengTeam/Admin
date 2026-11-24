@@ -116,6 +116,7 @@ function refundAmount(row: RefundWorkbenchRecord): string {
 }
 
 function nextStepText(row: RefundWorkbenchRecord): string {
+  if (row.paymentChannel === 'wechat') return '微信支付已停用，如需退款请走线下退款登记'
   if (row.status === 'requested') return '等待管理员处理'
   if (row.status === 'approved') return row.paymentChannel === 'bank_transfer' ? '已审批，等待实际退款及登记' : '已确认，等待渠道处理'
   if (row.status === 'processing') return '渠道处理中，可查询结果确认'
@@ -276,20 +277,6 @@ export function RefundWorkbench({
     })
   }
 
-  const reconcileNisp = async (row: RefundWorkbenchRecord) => {
-    setProcessingId(row.id)
-    try {
-      const updated = await nispService.reconcileRefund(row.id)
-      message.success('NISP 退款查询完成')
-      setSelectedRecord(refundWorkbenchService.normalize('nisp', updated))
-      refreshAfterChange()
-    } catch (error) {
-      uncertain(error)
-    } finally {
-      setProcessingId(null)
-    }
-  }
-
   const approveRenshe = (row: RefundWorkbenchRecord, retry = false) => {
     Modal.confirm({
       title: retry ? '重试人社退款' : '批准人社退款',
@@ -339,6 +326,9 @@ export function RefundWorkbench({
   }
 
   const primaryAction = (row: RefundWorkbenchRecord) => {
+    if (row.paymentChannel === 'wechat') {
+      return <Tag color='default'>微信渠道已停用</Tag>
+    }
     if (vendor === 'sangfor') {
       if (!canViewOffline) return null
       const label = canRecordRefund && row.status === 'approved' ? '登记线下退款'
@@ -358,18 +348,11 @@ export function RefundWorkbench({
     }
     if (vendor === 'nisp' && ['requested', 'approved', 'processing', 'failed'].includes(row.status)) {
       return (
-        <Space size={4}>
-          {row.status !== 'processing' && (
-            <Button type='primary' loading={processingId === row.id} onClick={() => confirmNisp(row)}>
-              {row.paymentChannel === 'bank_transfer' ? '审批退款' : '确认退款'}
-            </Button>
-          )}
-          {['approved', 'processing', 'failed'].includes(row.status) && (
-            <Button loading={processingId === row.id} onClick={() => void reconcileNisp(row)}>
-              查询结果
-            </Button>
-          )}
-        </Space>
+        row.status !== 'processing' ? (
+          <Button type='primary' loading={processingId === row.id} onClick={() => confirmNisp(row)}>
+            {row.paymentChannel === 'bank_transfer' ? '审批退款' : '确认退款'}
+          </Button>
+        ) : null
       )
     }
     if (vendor === 'renshe' && isSuperAdmin && row.status === 'requested') {

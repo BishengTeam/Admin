@@ -5,7 +5,7 @@ export const OFFLINE_STATUS: Record<string, { text: string; color: string }> = {
   returned: { text: '待补交', color: 'orange' }, exception: { text: '异常待处理', color: 'red' },
   refunded: { text: '款项已退回', color: 'default' }, confirmed: { text: '已确认到账', color: 'green' }, closed: { text: '已关闭', color: 'default' },
 }
-export const CHANNEL_LABELS: Record<string, string> = { bank_transfer: '银行转账', wechat: '微信支付（历史）', free: '零元', unknown: '历史渠道待核实' }
+export const CHANNEL_LABELS: Record<string, string> = { bank_transfer: '银行转账', wechat: '微信支付（已停用）', free: '零元', unknown: '历史渠道待核实' }
 export interface PaymentMaterial { id: number; filename: string; size_bytes: number; content_type: string }
 export interface PaymentSubmission {
   version: number; status: string; reason: string | null; created_at: string; payer: string

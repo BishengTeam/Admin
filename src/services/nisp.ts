@@ -305,10 +305,6 @@ export const nispService = {
     return http.post(`/admin/nisp/refunds/${id}/confirm`)
   },
 
-  reconcileRefund(id: number): Promise<NispRefund> {
-    return http.post(`/admin/nisp/refunds/${id}/reconcile`)
-  },
-
   getRegistration(id: number): Promise<NispRegistration> {
     return http.get(`/admin/nisp/registrations/${id}`)
   },

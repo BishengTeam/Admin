@@ -21,7 +21,9 @@ describe('certification refund workbench', () => {
     expect(shared).toContain('进入报名详情')
     expect(shared).toContain('h3cService.confirmRefund')
     expect(shared).toContain('nispService.confirmRefund')
-    expect(shared).toContain('nispService.reconcileRefund')
+    // WeChat Pay is retired: the NISP reconcile action must be gone.
+    expect(shared).not.toContain('reconcileRefund')
+    expect(shared).toContain('微信渠道已停用')
     expect(shared).toContain('rensheService.decideRefund')
 
     for (const vendor of ['h3c', 'nisp', 'renshe'] as const) {
