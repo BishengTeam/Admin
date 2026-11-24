@@ -19,6 +19,9 @@ describe('renshe multi-project batch editor', () => {
   it('formats professional years with two decimals', () => {
     expect(rensheDisplayValue('reporting_info.occupation_years', 11.9)).toBe('11.90 年')
     expect(rensheDisplayValue('reporting_info.occupation_years', '11.906')).toBe('11.91 年')
+    expect(rensheDisplayValue('form_data.eligibility_snapshot.effective_years', '11.906666')).toBe('11.91 年')
+    const review = read('src/pages/certification/components/vendors/renshe/ApplicationReviewContent.tsx')
+    expect(review).toContain('rensheDisplayValue(key, item)')
   })
 
   it('edits registration notice for single and multi batches', () => {
