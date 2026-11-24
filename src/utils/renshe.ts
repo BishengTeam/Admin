@@ -123,6 +123,7 @@ export function isPlanExportLocked(
 
 
 export const RENSHE_FIELD_LABELS: Record<string, string> = {
+  form_data: '报名表单数据', eligibility_snapshot: '资格与年限快照',
   realname_snapshot: '实名信息', student_snapshot: '学生信息', education_info: '毕业学历信息', qualification_info: '资格信息', reporting_info: '个人补充信息',
   real_name: '姓名', id_card: '身份证号', id_card_number: '身份证号', gender: '性别', birth_date: '出生日期',
   ethnicity: '民族', political_status: '政治面貌', user_type: '用户类型', student_status: '学籍状态', candidate_source: '考生来源',

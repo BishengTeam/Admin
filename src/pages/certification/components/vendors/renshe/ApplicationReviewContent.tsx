@@ -11,6 +11,13 @@ export function locateReviewCheck(versionId: number, key: string) {
 function getPath(value: unknown, path: string): unknown {
   return path.split('.').reduce<unknown>((current, key) => current && typeof current === 'object' ? (current as Record<string, unknown>)[key] : undefined, value)
 }
+function hasKnownChild(value: unknown): boolean {
+  if (Array.isArray(value)) return value.some(hasKnownChild)
+  if (!value || typeof value !== 'object') return false
+  return Object.entries(value as Record<string, unknown>).some(
+    ([key, item]) => key in RENSHE_FIELD_LABELS || hasKnownChild(item),
+  )
+}
 export function SnapshotFields({ value, path = '' }: { value: unknown; path?: string }) {
   const screens = Grid.useBreakpoint()
   const columns = screens.sm ? 2 : 1
@@ -19,9 +26,12 @@ export function SnapshotFields({ value, path = '' }: { value: unknown; path?: st
   const entries = Object.entries(value as Record<string, unknown>)
   const known = entries.filter(([key]) => key in RENSHE_FIELD_LABELS)
   const unknown = entries.filter(([key]) => !(key in RENSHE_FIELD_LABELS))
+  const nested = unknown.filter(([, item]) => hasKnownChild(item))
+  const raw = unknown.filter(([, item]) => !hasKnownChild(item))
   return <Space direction='vertical' size={12} style={{ width: '100%' }}>
     {!!known.length && <Descriptions bordered size='small' column={columns}>{known.map(([key, item]) => <Descriptions.Item key={key} label={RENSHE_FIELD_LABELS[key]} span={item && typeof item === 'object' ? columns : 1}>{item && typeof item === 'object' ? <SnapshotFields value={item} path={`${path}.${key}`} /> : rensheDisplayValue(key, item)}</Descriptions.Item>)}</Descriptions>}
-    {!!unknown.length && <Collapse size='small' items={[{ key: 'compatibility', label: '兼容信息', children: <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>{JSON.stringify(Object.fromEntries(unknown), null, 2)}</pre> }]} />}
+    {!!nested.length && <Descriptions bordered size='small' column={columns}>{nested.map(([key, item]) => <Descriptions.Item key={key} label={RENSHE_FIELD_LABELS[key] || key} span={columns}><SnapshotFields value={item} path={`${path}.${key}`} /></Descriptions.Item>)}</Descriptions>}
+    {!!raw.length && <Collapse size='small' items={[{ key: 'compatibility', label: '兼容信息', children: <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>{JSON.stringify(Object.fromEntries(raw), null, 2)}</pre> }]} />}
     {!entries.length && <Typography.Text type='secondary'>未填写</Typography.Text>}
   </Space>
 }
