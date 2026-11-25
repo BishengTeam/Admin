@@ -59,6 +59,9 @@ const booleanOptions = [
   { label: '否', value: false },
 ]
 
+// 默认只看启用账号：停用账号仍可查（启用选「否」或清空），只是不占默认视图
+const DEFAULT_FILTERS: AdminAccountFilters = { is_active: true }
+
 function errorMessage(error: unknown): string {
   return isApiError(error) ? error.message : '操作失败，请稍后重试'
 }
@@ -177,7 +180,7 @@ function PermissionCheckboxes({
 }
 
 export default function AdminAccountsPage() {
-  const [filters, setFilters] = useState<AdminAccountFilters>({})
+  const [filters, setFilters] = useState<AdminAccountFilters>(DEFAULT_FILTERS)
   const [createOpen, setCreateOpen] = useState(false)
   const [editing, setEditing] = useState<AdminSettingsAccount | null>(null)
   const [temporaryPassword, setTemporaryPassword] = useState<AdminAccountMutationResult | null>(null)
@@ -312,7 +315,7 @@ export default function AdminAccountsPage() {
         try {
           if (action === 'disable') {
             await adminManagementService.disableAdmin(admin.id, token)
-            await finishMutation('管理员已停用')
+            await finishMutation('管理员已停用，列表默认只显示启用账号')
           } else if (action === 'unlock') {
             await adminManagementService.unlockAdmin(admin.id, token)
             await finishMutation('临时锁定已解除')
@@ -470,7 +473,7 @@ export default function AdminAccountsPage() {
       )}
     >
 
-      <Form<AdminAccountFilters> form={searchForm} layout="inline" onFinish={applyFilters} style={{ rowGap: 12, marginBottom: 16 }}>
+      <Form<AdminAccountFilters> form={searchForm} layout="inline" initialValues={DEFAULT_FILTERS} onFinish={applyFilters} style={{ rowGap: 12, marginBottom: 16 }}>
         <Form.Item name="search" label="账号">
           <Input allowClear placeholder="用户名或显示名" style={{ width: 190 }} />
         </Form.Item>
@@ -491,7 +494,7 @@ export default function AdminAccountsPage() {
         <Form.Item>
           <Space>
             <Button type="primary" htmlType="submit">查询</Button>
-            <Button onClick={() => { searchForm.resetFields(); setFilters({}) }}>重置</Button>
+            <Button onClick={() => { searchForm.resetFields(); setFilters({ ...DEFAULT_FILTERS }) }}>重置</Button>
           </Space>
         </Form.Item>
       </Form>
