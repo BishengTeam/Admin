@@ -66,13 +66,9 @@ export const videoWebService = {
     return http.get('/admin/videoweb/codes', { params, signal })
   },
 
-  // 生成兑换码必须绑定归属人（方案决策 8：码仅本人可用）
-  createCodes(data: { course_id: number; owner_user_id: number; quantity: number; note?: string }): Promise<VideoWebCodeItem[]> {
+  // 匿名码：生成时不绑人，兑换时绑定兑换人
+  createCodes(data: { course_id: number; quantity: number; note?: string }): Promise<VideoWebCodeItem[]> {
     return http.post('/admin/videoweb/codes', data)
-  },
-
-  searchOwners(keyword: string): Promise<PageData<VideoWebCodeOwner>> {
-    return http.get('/admin/videoweb/users', { params: { keyword, page: 1, page_size: 20 } })
   },
 
   revokeCode(id: number, reason?: string): Promise<VideoWebCodeItem> {

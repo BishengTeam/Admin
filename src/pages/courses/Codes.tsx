@@ -18,7 +18,6 @@ const STATUS_META: Record<VideoWebCodeItem['status'], { text: string; color: str
 
 interface CreateForm {
   course_id: number
-  owner_user_id: number
   quantity: number
   note?: string
 }
@@ -38,29 +37,9 @@ export default function VideoWebCodesPage() {
   const [createdCodes, setCreatedCodes] = useState<VideoWebCodeItem[]>([])
   const [creating, setCreating] = useState(false)
   const [form] = Form.useForm<CreateForm>()
-  const [ownerOptions, setOwnerOptions] = useState<{ value: number; label: string }[]>([])
-  const [ownerSearching, setOwnerSearching] = useState(false)
   const [statusTarget, setStatusTarget] = useState<{ action: 'revoke' | 'refund'; record: VideoWebCodeItem } | null>(null)
   const [statusReason, setStatusReason] = useState('')
   const [statusBusy, setStatusBusy] = useState(false)
-
-  const searchOwners = useCallback(async (keyword: string) => {
-    const text = keyword.trim()
-    if (text.length < 2) { setOwnerOptions([]); return }
-    setOwnerSearching(true)
-    try {
-      const page = await videoWebService.searchOwners(text)
-      setOwnerOptions(page.items.map(item => ({
-        value: item.user_id,
-        label: `${item.display_name}（#${item.user_id}${item.phone ? ` · ${item.phone}` : ''}）`,
-      })))
-    } catch {
-      setOwnerOptions([])
-    } finally {
-      setOwnerSearching(false)
-    }
-  }, [])
-
   const loadCourses = useCallback(async () => {
     const data = await courseManagementService.listCourses({ page: 1, page_size: 100, status: 'published' })
     setCourses(data.items)
@@ -122,11 +101,11 @@ export default function VideoWebCodesPage() {
     },
     { title: '订单', dataIndex: 'source_order_id', width: 90, render: value => value ?? '-' },
     {
-      title: '归属用户',
+      title: '兑换人',
       width: 200,
       render: (_, record) => {
         const owner = record.owner
-        if (!owner) return '-'
+        if (!owner) return <Typography.Text type="secondary">未兑换</Typography.Text>
         return (
           <Space direction="vertical" size={0}>
             <Typography.Link onClick={() => window.open(`/users?user_id=${owner.user_id}`, '_blank')}>
@@ -237,23 +216,6 @@ export default function VideoWebCodesPage() {
         <Form form={form} layout="vertical" initialValues={{ quantity: 1 }}>
           <Form.Item name="course_id" label="课程" rules={[{ required: true, message: '请选择课程' }]}>
             <Select allowClear showSearch optionFilterProp="label" options={courseOptions} placeholder="请选择已发布课程" />
-          </Form.Item>
-          <Form.Item
-            name="owner_user_id"
-            label="归属用户"
-            extra="兑换码只能由本人使用；按手机号、姓名或昵称搜索（至少 2 个字符）"
-            rules={[{ required: true, message: '请选择归属用户' }]}
-          >
-            <Select
-              showSearch
-              allowClear
-              filterOption={false}
-              onSearch={value => void searchOwners(value)}
-              loading={ownerSearching}
-              options={ownerOptions}
-              placeholder="搜索并选择用户"
-              notFoundContent={ownerSearching ? '搜索中…' : '输入至少 2 个字符'}
-            />
           </Form.Item>
           <Form.Item name="quantity" label="数量" rules={[{ required: true, message: '请输入数量' }]}>
             <InputNumber min={1} max={500} precision={0} style={{ width: '100%' }} />
