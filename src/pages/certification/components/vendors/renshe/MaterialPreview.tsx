@@ -3,6 +3,7 @@ import { Button, Image, Modal, Space, Typography } from 'antd'
 import { DownloadOutlined, EyeOutlined, FilePdfOutlined, FileOutlined } from '@ant-design/icons'
 import type { RensheSignedUrl } from '@/types/renshe'
 import { formatBytes } from '@/utils/renshe'
+import { previewBlobUrl } from '@/utils/preview'
 
 interface Props {
   available: boolean; filename?: string | null; isPdf?: boolean
@@ -17,6 +18,10 @@ export default function MaterialPreview({ available, filename, isPdf = false, ge
   const [error, setError] = useState('')
   const [url, setUrl] = useState<string | null>(null)
   const [modalUrl, setModalUrl] = useState<string | null>(null)
+  const objectUrl = useRef('')
+  const releaseObjectUrl = () => {
+    if (objectUrl.current) { URL.revokeObjectURL(objectUrl.current); objectUrl.current = '' }
+  }
   const box = useRef<HTMLDivElement>(null)
   const generation = useRef(0)
   const cache = useRef<{ url: string; expires: number } | null>(null)
@@ -41,7 +46,7 @@ export default function MaterialPreview({ available, filename, isPdf = false, ge
     return request
   }
   useEffect(() => {
-    generation.current++; cache.current = null; flight.current = null; setUrl(null); setModalUrl(null); setError(''); setBusy(false); setDownloading(false)
+    generation.current++; cache.current = null; flight.current = null; releaseObjectUrl(); setUrl(null); setModalUrl(null); setError(''); setBusy(false); setDownloading(false)
     if (!thumbnail || !image || !available || cleared) return
     let active = true
     const load = () => { if (active) void acquire().catch(() => {}) }
@@ -52,8 +57,19 @@ export default function MaterialPreview({ available, filename, isPdf = false, ge
     if (box.current) observer?.observe(box.current)
     return () => { active = false; generation.current++; observer?.disconnect() }
   }, [resourceKey, filename, thumbnail, image, available, cleared])
-  useEffect(() => () => { generation.current++ }, [])
-  async function preview() { try { const result = await acquire(); setModalUrl(result) } catch { /* inline retry */ } }
+  useEffect(() => () => { generation.current++; releaseObjectUrl() }, [])
+  async function preview() {
+    try {
+      const result = await acquire()
+      releaseObjectUrl()
+      if (pdf) {
+        objectUrl.current = await previewBlobUrl(result, 'application/pdf')
+        setModalUrl(objectUrl.current)
+      } else {
+        setModalUrl(result)
+      }
+    } catch { /* inline retry */ }
+  }
   async function download() {
     const seq = generation.current
     setDownloading(true); setError('')
@@ -84,7 +100,7 @@ export default function MaterialPreview({ available, filename, isPdf = false, ge
       </>}
       {error && <Space direction='vertical'><Typography.Text type='danger'>{error}</Typography.Text><Button size='small' onClick={() => { cache.current = null; void acquire().catch(() => {}) }}>重试</Button></Space>}
     </Space>
-    <Modal title={previewTitle} open={!!modalUrl} onCancel={() => setModalUrl(null)} footer={null} width={pdf ? '90vw' : 880} destroyOnClose>
+    <Modal title={previewTitle} open={!!modalUrl} onCancel={() => { setModalUrl(null); releaseObjectUrl() }} footer={null} width={pdf ? '90vw' : 880} destroyOnClose afterClose={releaseObjectUrl}>
       {modalUrl && (pdf ? <iframe title={previewTitle} src={modalUrl} onError={failed} style={{ width: '100%', height: '75vh', border: 0 }} />
         : <Image src={modalUrl} alt={previewTitle} onError={failed} style={{ maxHeight: '70vh', objectFit: 'contain' }} />)}
     </Modal>

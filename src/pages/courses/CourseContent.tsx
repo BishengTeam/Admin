@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Alert, Button, Card, Empty, Input, Modal, Progress, Space, Table, Tag, Typography, message } from 'antd'
 import { ArrowDownOutlined, ArrowUpOutlined, ReloadOutlined, UploadOutlined } from '@ant-design/icons'
 import { courseManagementService as service } from '@/services/courseManagement'
+import { previewBlobUrl } from '@/utils/preview'
 import { PAGE_SIZE_OPTIONS } from '@/core/constants'
 import type { CourseChapter, CourseUpload } from '@/types/course'
 
@@ -22,6 +23,11 @@ export default function CourseContent({ courseId, canWrite }: { courseId: number
   const [error, setError] = useState(''), [loading, setLoading] = useState(false), [preparing, setPreparing] = useState(false)
   const [editing, setEditing] = useState<CourseChapter | null>(null), [title, setTitle] = useState(''), [saving, setSaving] = useState(false)
   const [preview, setPreview] = useState<{ chapter: CourseChapter; url: string } | null>(null)
+  const previewObjectUrl = useRef('')
+  const releasePreview = useCallback(() => {
+    if (previewObjectUrl.current) { URL.revokeObjectURL(previewObjectUrl.current); previewObjectUrl.current = '' }
+  }, [])
+  useEffect(() => () => releasePreview(), [releasePreview])
   const chooser = useRef<HTMLInputElement>(null), replacement = useRef<CourseChapter | null>(null)
   const controllers = useRef(new Map<number, AbortController>()), generation = useRef(0), active = useRef(true)
   const load = useCallback(async () => {
@@ -83,8 +89,16 @@ export default function CourseContent({ courseId, canWrite }: { courseId: number
     catch (reason) { message.error(reason instanceof Error ? reason.message : '排序失败') }
   }
   const showPreview = async (chapter: CourseChapter) => {
-    try { const result = await service.previewChapter(courseId, chapter.id); setPreview({ chapter, url: result.url }) }
-    catch (reason) { message.error(reason instanceof Error ? reason.message : '预览失败') }
+    try {
+      const result = await service.previewChapter(courseId, chapter.id)
+      releasePreview()
+      if (chapter.resource_type === 'document') {
+        previewObjectUrl.current = await previewBlobUrl(result.url, 'application/pdf')
+        setPreview({ chapter, url: previewObjectUrl.current })
+      } else {
+        setPreview({ chapter, url: result.url })
+      }
+    } catch (reason) { message.error(reason instanceof Error ? reason.message : '预览失败') }
   }
   const cancel = async (upload: CourseUpload) => {
     controllers.current.get(upload.id)?.abort()
@@ -131,7 +145,7 @@ export default function CourseContent({ courseId, canWrite }: { courseId: number
       try { await service.updateChapter(courseId, editing.id, { title: title.trim() }); setEditing(null); await load() }
       catch (reason) { message.error(reason instanceof Error ? reason.message : '保存失败') } finally { setSaving(false) }
     }}><Input value={title} onChange={event => setTitle(event.target.value)} maxLength={256} /></Modal>
-    <Modal title={preview?.chapter.title} open={!!preview} onCancel={() => setPreview(null)} footer={null} width="min(1000px, 94vw)" destroyOnClose>
+    <Modal title={preview?.chapter.title} open={!!preview} onCancel={() => { setPreview(null); releasePreview() }} footer={null} width="min(1000px, 94vw)" destroyOnClose afterClose={releasePreview}>
       {preview && (preview.chapter.resource_type === 'document' ? <iframe title={preview.chapter.title} src={preview.url} style={{ width: '100%', height: '70vh', border: 0 }} /> : <video controls src={preview.url} style={{ width: '100%' }} />)}
     </Modal>
   </Card>
