@@ -17,23 +17,24 @@ export default function OfflineDecisionModal({ payment, action, refund, onClose,
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<OfflineDecisionField, string[]>>>({})
-  const [conflict, setConflict] = useState(false)
+  const [needsRefresh, setNeedsRefresh] = useState(false)
   const lock = useRef(false)
   const request = useRef<{ fingerprint: string; key: string } | null>(null)
   const { ensureReauthenticated, reauthDialog } = useReauthentication({ description: '核账和退款会影响订单状态，请输入当前管理员密码。验证后可在当前标签页连续办理多位报名，10分钟内无需逐人输入；到期、刷新页面或退出登录后需重新验证。' })
   const labels = decisionFieldLabels(action)
-  useEffect(() => { if (action) { form.resetFields(); setMaterials([]); setError(''); setFieldErrors({}); setConflict(false); request.current = null } }, [action, payment?.order_id, form])
+  useEffect(() => { if (action) { form.resetFields(); setMaterials([]); setError(''); setFieldErrors({}); setNeedsRefresh(false); request.current = null } }, [action, payment?.order_id, form])
   async function refreshStatus() {
     if (lock.current) return
     lock.current = true; setBusy(true)
     try {
       await onChanged()
-      setError('核账状态已刷新，请核对最新凭证后关闭并重新进入处理窗口。当前输入仍保留，未重新执行资金操作。')
+      setNeedsRefresh(false)
+      setError('核账状态已刷新，请核对最新凭证后重新提交。当前输入仍保留。')
     } catch { setError('核账状态刷新失败，请稍后重试；当前输入已保留。') }
     finally { lock.current = false; setBusy(false) }
   }
   async function submit() {
-    if (!payment || !action || lock.current || conflict) return
+    if (!payment || !action || lock.current) return
     lock.current = true; setBusy(true); setError(''); setFieldErrors({})
     try {
       const values = await form.validateFields()
@@ -65,7 +66,15 @@ export default function OfflineDecisionModal({ payment, action, refund, onClose,
         setError(mapped.summary.join('；') || (!entries.length ? '提交信息校验未通过，请核对填写内容后重试。' : ''))
         if (entries[0]) form.scrollToField(entries[0][0], { block: 'center' })
       } else if (isApiError(reason) && reason.status === 409) {
-        setConflict(true); setError(`${/[\u3400-\u9fff]/.test(reason.message) ? `${reason.message}。` : ''}请刷新核账状态，核对后关闭并重新进入处理窗口。当前输入已保留，不会自动重新提交。`)
+        const text = /[\u3400-\u9fff]/.test(reason.message) ? `${reason.message}。` : ''
+        setNeedsRefresh(true)
+        setError(`${text}已尝试刷新最新核账状态，请核对并修改后重新提交；本次不会自动重复提交。`)
+        try {
+          await onChanged()
+          setNeedsRefresh(false)
+        } catch {
+          setError(`${text}最新核账状态刷新失败，请点“刷新核账状态”后再重新提交。`)
+        }
       } else if (isApiError(reason) && reason.status === 401) setError('登录已失效，请重新登录后再处理。')
       else if (isApiError(reason) && reason.status === 403) {
         clearReauthCredential()
@@ -79,7 +88,7 @@ export default function OfflineDecisionModal({ payment, action, refund, onClose,
   const timeValueProps = (value?: Dayjs) => ({ value: bankTimeToPicker(value) })
   const timeRules = (name: 'bank_time' | 'refund_bank_time') => [{ required: true, message: `请选择${labels[name]}` }, { validator: (_: unknown, value?: Dayjs) => { const text = actualBankTimeError(value, labels[name]); return text ? Promise.reject(new Error(text)) : Promise.resolve() } }]
   const summary = [error, ...Object.values(fieldErrors).flat()].filter(Boolean)
-  return <><Modal title={action ? title[action] : ''} open={!!action && !!payment} onCancel={() => { if (!busy) onClose() }} onOk={() => void submit()} confirmLoading={busy} okButtonProps={{ disabled: conflict }} destroyOnClose maskClosable={false} okText='确认保存'>
+  return <><Modal title={action ? title[action] : ''} open={!!action && !!payment} onCancel={() => { if (!busy) onClose() }} onOk={() => void submit()} confirmLoading={busy} destroyOnClose maskClosable={false} okText='确认保存'>
     <Typography.Paragraph type='secondary'>订单 {payment?.out_trade_no} · 当前凭证第 {payment?.current_version} 版</Typography.Paragraph>
     {['confirm', 'refund', 'resolve', 'refund-approval'].includes(action || '') && <Typography.Paragraph type='secondary'>身份验证在当前标签页内复用10分钟，可连续办理，无需逐人输入密码。</Typography.Paragraph>}
     <Form form={form} layout='vertical' disabled={busy} onValuesChange={changed => {
@@ -107,6 +116,6 @@ export default function OfflineDecisionModal({ payment, action, refund, onClose,
             return Upload.LIST_IGNORE
           }} onRemove={file => { if (busy) return false; setMaterials(previous => previous.filter(m => String(m.id) !== file.uid)); return true }}><Typography.Link>上传退款凭证</Typography.Link></Upload>
       </Form.Item>}
-    </Form>{!!summary.length && <Alert type='error' showIcon message='请核对本次处理信息' description={<Space direction='vertical'>{summary.map((text, index) => <Typography.Text key={index}>{text}</Typography.Text>)}{conflict && <Button disabled={busy} onClick={() => void refreshStatus()}>刷新核账状态</Button>}</Space>} />}
+    </Form>{!!summary.length && <Alert type='error' showIcon message='请核对本次处理信息' description={<Space direction='vertical'>{summary.map((text, index) => <Typography.Text key={index}>{text}</Typography.Text>)}{needsRefresh && <Button disabled={busy} onClick={() => void refreshStatus()}>刷新核账状态</Button>}</Space>} />}
   </Modal>{reauthDialog}</>
 }

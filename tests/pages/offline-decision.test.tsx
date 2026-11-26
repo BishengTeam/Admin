@@ -77,17 +77,29 @@ it('places backend field errors on the matching fields and displays their Chines
   await waitFor(() => expect(screen.queryAllByText(message)).toHaveLength(0))
 })
 
-it('blocks blind retry after 409 and refreshes only read state while preserving input', async () => {
-  mocks.decide.mockRejectedValue(new ApiError({ status: 409, message: '凭证版本已变化' }))
+it('keeps the window recoverable after 409: refreshes read state, preserves input and allows a corrected resubmit', async () => {
+  mocks.decide.mockRejectedValueOnce(new ApiError({ status: 409, message: '凭证版本已变化' })).mockResolvedValueOnce({ status: 'confirmed' })
   open(); fill(); save()
-  expect(await screen.findByText(/凭证版本已变化。请刷新核账状态/)).toBeTruthy()
-  expect(screen.getByRole('button', { name: '确认保存' })).toBeDisabled()
-  fireEvent.click(screen.getByRole('button', { name: '刷新核账状态' }))
+  expect(await screen.findByText(/凭证版本已变化。已尝试刷新最新核账状态/)).toBeTruthy()
   await waitFor(() => expect(mocks.changed).toHaveBeenCalledTimes(1))
   expect(mocks.decide).toHaveBeenCalledTimes(1); expect(mocks.close).not.toHaveBeenCalled()
   expect(screen.getByLabelText('实际到账金额（元）')).toHaveValue('1111')
   expect(screen.getByLabelText('银行实际到账时间')).toHaveValue('2026-10-29 11:30:00')
-  expect(screen.getByRole('button', { name: '确认保存' })).toBeDisabled()
+  expect(screen.getByRole('button', { name: '确认保存' })).toBeEnabled()
+  save()
+  await waitFor(() => expect(mocks.decide).toHaveBeenCalledTimes(2))
+  await waitFor(() => expect(mocks.close).toHaveBeenCalledTimes(1))
+})
+
+it('offers a manual refresh when the 409 refresh itself fails', async () => {
+  mocks.decide.mockRejectedValue(new ApiError({ status: 409, message: '实际退款金额与已付款订单不一致' }))
+  mocks.changed.mockRejectedValue(new Error('network'))
+  open(); fill(); save()
+  expect(await screen.findByText(/实际退款金额与已付款订单不一致。最新核账状态刷新失败/)).toBeTruthy()
+  expect(screen.getByRole('button', { name: '确认保存' })).toBeEnabled()
+  fireEvent.click(screen.getByRole('button', { name: '刷新核账状态' }))
+  await waitFor(() => expect(mocks.changed).toHaveBeenCalledTimes(2))
+  expect(mocks.decide).toHaveBeenCalledTimes(1)
 })
 
 it.each([[401, '登录已失效'], [403, '请重新验证当前管理员密码']] as const)('keeps inputs on status %s and explains the next step', async (status, message) => {

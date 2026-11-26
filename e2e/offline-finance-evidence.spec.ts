@@ -90,15 +90,19 @@ test('核账图片使用业务标题和缩略图，确认422明确标出到账�
   expect(state.errors).toEqual([]); expect(state.unexpected).toEqual([])
 })
 
-test('核账409保留表单并阻止原窗口盲目重复提交', async ({ page }) => {
+test('核账409保留表单并允许核对后重新提交，不锁死确认按钮', async ({ page }) => {
   const state = await prepare(page, 'conflict')
   const modal = await fillDecision(page)
   await modal.getByRole('button', { name: '确认保存' }).click()
   await reauthenticate(page)
   await expect.poll(() => state.confirms.length).toBe(1)
-  await expect(modal.getByRole('button', { name: '确认保存' })).toBeDisabled()
-  await expect(modal.getByRole('button', { name: /刷新核账状态/ })).toBeVisible()
+  await expect(modal.getByText(/凭证版本已变化/).first()).toBeVisible()
+  // 409 不再永久禁用按钮：改正信息后可以直接重试，服务端负责最终校验。
+  await expect(modal.getByRole('button', { name: '确认保存' })).toBeEnabled()
   await expect(modal.locator('#bank_reference')).toHaveValue('1')
+  await expect(modal.locator('#bank_time')).toHaveValue(/.+/)
+  await modal.getByRole('button', { name: '确认保存' }).click()
+  await expect.poll(() => state.confirms.length).toBe(2)
   expect(state.errors).toEqual([]); expect(state.unexpected).toEqual([])
 })
 

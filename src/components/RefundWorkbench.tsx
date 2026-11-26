@@ -226,6 +226,18 @@ export function RefundWorkbench({
     onChanged?.()
   }, [onChanged, refresh])
 
+  // 退款办理弹窗依赖当前凭证版本；409 后必须换到最新版本，否则改正信息也会一直冲突。
+  const refreshRefundContext = useCallback(async () => {
+    refreshAfterChange()
+    if (!offlineRefund) return
+    try {
+      const payment = await offlinePaymentService.detail(offlineRefund.payment.order_id)
+      setOfflineRefund(previous => previous ? { ...previous, payment } : previous)
+    } catch {
+      // 保留旧数据，用户可以关闭后重新进入处理窗口
+    }
+  }, [offlineRefund, refreshAfterChange])
+
   const openDetail = (row: RefundWorkbenchRecord) => {
     setSelectedId(row.id)
     setSelectedRecord(row)
@@ -458,10 +470,10 @@ export function RefundWorkbench({
           setStatus(undefined)
         }}
         items={[
+          { key: 'all', label: `全部记录（${groupCount('all')}）` },
           ...(vendor === 'sangfor' ? [] : [{ key: 'pending', label: `待处理（${groupCount('pending')}）` }]),
           { key: 'processing', label: `处理中（${groupCount('processing')}）` },
           { key: 'abnormal', label: `异常（${groupCount('abnormal')}）` },
-          { key: 'all', label: `全部记录（${groupCount('all')}）` },
         ]}
       />
       <Space style={{ marginBottom: 16 }} wrap>
@@ -632,7 +644,7 @@ export function RefundWorkbench({
           </Form.Item>
         </Form>
       </Modal>
-      <OfflineDecisionModal payment={offlineRefund?.payment || null} action={offlineRefund ? 'refund' : null} refund={offlineRefund && vendor !== 'sangfor' ? { kind: vendor, id: offlineRefund.row.id } : undefined} onClose={() => setOfflineRefund(null)} onChanged={refreshAfterChange} />
+      <OfflineDecisionModal payment={offlineRefund?.payment || null} action={offlineRefund ? 'refund' : null} refund={offlineRefund && vendor !== 'sangfor' ? { kind: vendor, id: offlineRefund.row.id } : undefined} onClose={() => setOfflineRefund(null)} onChanged={refreshRefundContext} />
       {vendor === 'sangfor' && <OfflineRefundDrawer orderId={sangforOrderId} onClose={() => setSangforOrderId(null)} onChanged={() => {
         setSelectedId(null); setSelectedRecord(null); refreshAfterChange()
       }} />}
