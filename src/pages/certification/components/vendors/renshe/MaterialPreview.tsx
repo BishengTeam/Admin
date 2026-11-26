@@ -20,7 +20,10 @@ export default function MaterialPreview({ available, filename, isPdf = false, ge
   const [modalUrl, setModalUrl] = useState<string | null>(null)
   const objectUrl = useRef('')
   const releaseObjectUrl = () => {
-    if (objectUrl.current) { URL.revokeObjectURL(objectUrl.current); objectUrl.current = '' }
+    if (objectUrl.current) {
+      if (typeof URL.revokeObjectURL === 'function') URL.revokeObjectURL(objectUrl.current)
+      objectUrl.current = ''
+    }
   }
   const box = useRef<HTMLDivElement>(null)
   const generation = useRef(0)

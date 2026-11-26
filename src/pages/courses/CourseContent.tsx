@@ -25,7 +25,10 @@ export default function CourseContent({ courseId, canWrite }: { courseId: number
   const [preview, setPreview] = useState<{ chapter: CourseChapter; url: string } | null>(null)
   const previewObjectUrl = useRef('')
   const releasePreview = useCallback(() => {
-    if (previewObjectUrl.current) { URL.revokeObjectURL(previewObjectUrl.current); previewObjectUrl.current = '' }
+    if (previewObjectUrl.current) {
+      if (typeof URL.revokeObjectURL === 'function') URL.revokeObjectURL(previewObjectUrl.current)
+      previewObjectUrl.current = ''
+    }
   }, [])
   useEffect(() => () => releasePreview(), [releasePreview])
   const chooser = useRef<HTMLInputElement>(null), replacement = useRef<CourseChapter | null>(null)
