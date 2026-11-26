@@ -45,6 +45,7 @@ const CourseDetail = lazy(() => import('@/pages/courses/Detail'))
 const CourseStudents = lazy(() => import('@/pages/courses/Students'))
 const CourseAudit = lazy(() => import('@/pages/courses/Audit'))
 const VideoWebCodes = lazy(() => import('@/pages/courses/Codes'))
+const VideoEntitlements = lazy(() => import('@/pages/courses/VideoEntitlements'))
 const CertificationOverview = lazy(() => import('@/pages/certification'))
 const TypeWorkbench = lazy(() => import('@/pages/certification/TypeWorkbench'))
 const H3cBatchExportWorkbench = lazy(() => import('@/pages/certification/components/vendors/h3c/BatchExportWorkbench'))
@@ -256,6 +257,11 @@ export const adminRoutes: AppRoute[] = [
             path: 'codes',
             element: <VideoWebCodes />,
             meta: { title: '课程兑换码', icon: 'KeyOutlined', permission: 'course:read' },
+          },
+          {
+            path: 'entitlements',
+            element: <VideoEntitlements />,
+            meta: { title: '学习授权', icon: 'LockOutlined', permission: 'course:read' },
           },
           {
             path: 'categories',

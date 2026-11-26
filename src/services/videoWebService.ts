@@ -29,6 +29,30 @@ export interface VideoWebCodeItem {
   created_at: string
 }
 
+export interface VideoWebLearner {
+  user_id: number
+  display_name: string
+  phone?: string | null
+  created_at: string
+  entitlement_count: number
+  last_learned_at?: string | null
+  access_disabled_at?: string | null
+  is_active: boolean
+}
+
+export interface VideoWebEntitlement {
+  enrollment_id: number
+  course_id: number
+  course_title: string
+  course_status: string
+  status: string
+  learning_access: boolean
+  source?: string | null
+  course_code_id?: number | null
+  access_granted_at?: string | null
+  access_revoked_at?: string | null
+}
+
 export interface VideoWebCodeFilter {
   course_id?: number
   status?: VideoWebCodeItem['status']
@@ -53,6 +77,18 @@ export const videoWebService = {
 
   revokeCode(id: number, reason?: string): Promise<VideoWebCodeItem> {
     return http.post(`/admin/videoweb/codes/${id}/revoke`, { reason })
+  },
+
+  listLearners(params: { keyword?: string; page?: number; page_size?: number }): Promise<PageData<VideoWebLearner>> {
+    return http.get('/admin/videoweb/learners', { params })
+  },
+
+  listEntitlements(userId: number): Promise<VideoWebEntitlement[]> {
+    return http.get(`/admin/videoweb/learners/${userId}/entitlements`)
+  },
+
+  setAccess(userId: number, enabled: boolean): Promise<{ user_id: number; enabled: boolean; access_disabled_at: string | null }> {
+    return http.post(`/admin/videoweb/learners/${userId}/access-status`, { enabled })
   },
 
   refundCode(id: number, reason?: string): Promise<VideoWebCodeItem> {
