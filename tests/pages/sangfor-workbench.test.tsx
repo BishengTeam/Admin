@@ -86,7 +86,7 @@ it('loads real export records and the refund list in the same workbench tabs', a
   fireEvent.click(screen.getByRole('button', { name: /查看人员/ }))
   expect(await within(screen.getByRole('dialog', { name: '导出记录人员' })).findByText('第2版')).toBeTruthy()
   fireEvent.click(within(screen.getByRole('dialog', { name: '导出记录人员' })).getByRole('button', { name: /关\s*闭/ }))
-  fireEvent.click(screen.getByRole('tab', { name: '退款记录' }))
+  fireEvent.click(screen.getByRole('tab', { name: '退款处理' }))
   await waitFor(() => expect(mocks.refunds).toHaveBeenCalledWith(expect.objectContaining({ batch_id: 5, group: undefined })))
   expect(screen.getByText('没有符合条件的退款记录')).toBeTruthy()
 })
@@ -162,5 +162,5 @@ it('does not activate the refund tab from a deep link without offline:view', asy
   render(<MemoryRouter initialEntries={['/batches/5?tab=refunds']}><Routes><Route path='/batches/:batchId' element={<BatchWorkbench />} /></Routes></MemoryRouter>)
 
   expect(await screen.findByText('报名人员')).toBeTruthy()
-  expect(screen.queryByRole('tab', { name: '退款记录' })).toBeNull()
+  expect(screen.queryByRole('tab', { name: '退款处理' })).toBeNull()
 })

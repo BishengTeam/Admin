@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({ get: vi.fn(), signed: vi.fn(), review: vi.fn()
 vi.mock('@/services/renshe', () => ({ rensheService: { getApplication: mocks.get, getMaterialSignedUrl: mocks.signed, reviewApplication: mocks.review } }))
 vi.mock('@/hooks/useAuth', () => ({ useAuth: () => ({ admin: { role: 'cert_admin' } }) }))
 vi.mock('@/hooks/usePermission', () => ({ usePermission: () => true }))
+vi.mock('@/components/RefundWorkbench', () => ({ RefundWorkbench: (props: { vendor: string; batchId?: number; registrationId?: number }) => <div data-testid='refund-workbench'>{`${props.vendor}:${props.batchId}:${props.registrationId}`}</div> }))
 const req: RensheReviewRequirements = {
   status: 'resolved', version_id: 11, project_config_id: 1, block_reason: null,
   path: { id: 'title_work_1', occupation: '信息安全管理员', level: '高级工', application_type: '复合型', label: '初级职称后工作满1年', condition: '取得初级职称后累计相关工作满1年' },
@@ -109,3 +110,12 @@ it('binds checks to the current definition and version, preserving same-version 
   await waitFor(() => expect(screen.getByRole('checkbox', { name: '身份一致' })).not.toBeChecked())
   expect(mocks.review).not.toHaveBeenCalled()
 }, 15000)
+
+it('opens the refund processing drawer in place from the application drawer', async () => {
+  mocks.get.mockResolvedValue(detail())
+  render(<MemoryRouter><ApplicationDetailDrawer applicationId={1} open onClose={() => {}} /></MemoryRouter>)
+  const button = await screen.findByRole('button', { name: /退\s*款/ })
+  fireEvent.click(button)
+  expect(await screen.findByTestId('refund-workbench')).toBeTruthy()
+  expect(screen.getByTestId('refund-workbench').textContent).toBe('renshe:1:1')
+})

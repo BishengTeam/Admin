@@ -200,7 +200,7 @@ export default function SangforBatchWorkbench() {
           { title: '操作', render: (_, row) => <Button type='link' size='small' icon={<EyeOutlined />} onClick={() => setPeopleRecord(row)}>查看人员</Button> },
         ]} />
     </Card> }] : []),
-    ...(canViewOffline ? [{ key: 'refunds', label: '退款记录', children: <Card title='退款记录'>
+    ...(canViewOffline ? [{ key: 'refunds', label: '退款处理', children: <Card title='退款处理'>
       {activeTab === 'refunds' && <RefundWorkbench key={batchId} vendor='sangfor' batchId={batchId} embedded refreshToken={refundRefresh}
         onChanged={() => { void load(); if (current) void open(current.id).catch(() => {}) }} />}
     </Card> }] : []),

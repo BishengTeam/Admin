@@ -1,10 +1,10 @@
 import { refundErrorText } from '@/utils/refund'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Alert, Button, DatePicker, Form, Input, Modal, Select, Space, Tag, Typography, message } from 'antd'
+import { Alert, Button, DatePicker, Drawer, Form, Input, Modal, Select, Space, Tag, Typography, message } from 'antd'
 import dayjs, { type Dayjs } from 'dayjs'
-import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermission } from '@/hooks/usePermission'
+import { RefundWorkbench } from '@/components/RefundWorkbench'
 import { rensheService } from '@/services/renshe'
 import type { RensheApplicationDetail, RensheReview, RensheReviewStage, RensheReviewDecision, RensheReviewPayload } from '@/types/renshe'
 import { formatDate } from '@/utils/format'
@@ -23,12 +23,12 @@ export default function ApplicationDetailDrawer({ applicationId, open, onClose, 
   const [checks, setChecks] = useState<string[]>([])
   const [rejection, setRejection] = useState<RensheReviewStage | 'return' | null>(null)
   const [correcting, setCorrecting] = useState<RensheReview | null>(null)
+  const [refundOpen, setRefundOpen] = useState(false)
   const [rejectForm] = Form.useForm<RejectionValues>()
   const [correctionForm] = Form.useForm<{ to_decision: RensheReviewDecision; reason: string }>()
   const seq = useRef(0)
   const activeId = useRef(applicationId); activeId.current = applicationId
   const confirmation = useRef<ReturnType<typeof Modal.confirm> | null>(null)
-  const navigate = useNavigate()
   const canWrite = usePermission('renshe:review')
   const canRefund = usePermission('order:list')
   const { admin } = useAuth()
@@ -52,7 +52,7 @@ export default function ApplicationDetailDrawer({ applicationId, open, onClose, 
     finally { if (request === seq.current) setLoading(false) }
   }, [applicationId])
   useEffect(() => {
-    setDetail(null); setRejection(null); setCorrecting(null)
+    setDetail(null); setRejection(null); setCorrecting(null); setRefundOpen(false)
     if (open && applicationId) void load().catch(() => message.error('报名资料加载失败，请刷新重试'))
     return () => { seq.current++; confirmation.current?.destroy() }
   }, [applicationId, open, load])
@@ -105,7 +105,12 @@ export default function ApplicationDetailDrawer({ applicationId, open, onClose, 
         {detail.frozen_at && <Alert type='warning' message='报名已冻结，暂不能审核，请先处理退款或冻结事项' />}
         {detail.correction_due_at && <Alert type='warning' message={`补正截止：${formatDate(detail.correction_due_at)}`} />}
         {detail.current_refund_status === 'failed' && detail.current_refund_last_error && <Alert type='error' message={refundErrorText(detail.current_refund_last_error)} description={`已重试 ${detail.current_refund_retry_count || 0} 次，请在退款工作台继续处理`} />}
-        {canRefund && detail.current_refund_id && <Button onClick={() => { onClose(); navigate(`/admin/certification/renshe/batches/${detail.plan_id}?tab=refunds&refundRegistrationId=${detail.id}`) }}>查看退款记录</Button>}
+        {canRefund && (
+          <Space wrap>
+            <Button onClick={() => setRefundOpen(true)}>退款</Button>
+            <Typography.Text type='secondary'>查看并处理该考生的退款：审批、登记线下退款、异常转账已退回。</Typography.Text>
+          </Space>
+        )}
         {!!missing.length && initial && <Alert type='error' message={`必填材料缺失或无效：${missing.map(rule => rule.name).join('、')}`} />}
         <Typography.Title level={5} style={{ margin: 0 }}>当前版本资料{current ? ` · 版本 ${current.version_no}` : ''}</Typography.Title>
         {current ? <ApplicationReviewContent key={current.id} version={current} checks={checked} editable={editable} onCheck={(key, selected) => setChecks(previous => selected ? [...new Set([...previous, key])] : previous.filter(item => item !== key))} /> : <Alert type='info' message='尚无正式提交的报名版本' />}
@@ -115,6 +120,23 @@ export default function ApplicationDetailDrawer({ applicationId, open, onClose, 
         {detail.versions.some(version => version.id !== current?.id) ? <ApplicationHistory versions={detail.versions.filter(version => version.id !== current?.id)} /> : <Typography.Text type='secondary'>暂无历史版本</Typography.Text>}
       </Space>}
     </RegistrationProcessingDrawer>
+    <Drawer
+      title={`退款处理 · ${current?.realname_snapshot.real_name || (applicationId ? `报名 #${applicationId}` : '')}`}
+      width='min(1120px, 94vw)'
+      open={refundOpen}
+      onClose={() => setRefundOpen(false)}
+      destroyOnClose
+    >
+      {detail && (
+        <RefundWorkbench
+          vendor='renshe'
+          batchId={detail.plan_id}
+          registrationId={detail.id}
+          embedded
+          onChanged={async () => { await refresh() }}
+        />
+      )}
+    </Drawer>
     <Modal title='打回补正' open={!!rejection} onCancel={() => setRejection(null)} onOk={() => void reject()} confirmLoading={busy} destroyOnClose>
       <Form form={rejectForm} layout='vertical'>
         <Form.Item name='reason' label='补正原因' rules={[{ required: true, whitespace: true, message: '请填写补正原因' }]}><Input.TextArea rows={3} maxLength={2000} /></Form.Item>

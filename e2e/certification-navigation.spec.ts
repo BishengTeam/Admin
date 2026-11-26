@@ -50,7 +50,7 @@ test('H3C工作台退款筛选不传0人员ID，批次状态中文显示，空�
   const state = await fixture(page)
   await page.goto('/admin/certification/h3c/batches/14')
   await expect(page.getByText('已发布', { exact: true })).toBeVisible()
-  await page.getByRole('tab', { name: '退款记录', exact: true }).click()
+  await page.getByRole('tab', { name: '退款处理', exact: true }).click()
   await expect(page.getByText('没有符合条件的退款记录')).toBeVisible()
   await page.getByRole('tab', { name: /待处理（0）/ }).click()
   await page.locator('.ant-select').filter({ has: page.getByText('退款原因', { exact: true }) }).locator('input').click()

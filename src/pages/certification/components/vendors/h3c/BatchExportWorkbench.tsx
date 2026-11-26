@@ -737,7 +737,7 @@ export default function BatchExportWorkbench() {
     }] : []),
     ...(canRefund ? [{
       key: 'refunds',
-      label: '退款记录',
+      label: '退款处理',
       children: (
         <RefundWorkbench
           vendor='h3c'

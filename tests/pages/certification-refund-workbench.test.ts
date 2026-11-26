@@ -46,23 +46,27 @@ describe('certification refund workbench', () => {
       const source = readSource(path)
       expect(source, path).toContain('RefundWorkbench')
       expect(source, path).toContain('embedded')
-      expect(source, path).toContain("'退款记录'")
+      expect(source, path).toContain("'退款处理'")
     }
+    expect(readSource('src/pages/certification/components/vendors/sangfor/BatchWorkbench.tsx'))
+      .toContain("'退款处理'")
   })
 
   it('links person refund summaries to the batch refund records', () => {
-    const paths = [
+    for (const path of [
       'src/pages/certification/components/vendors/h3c/RegistrationReviewDrawer.tsx',
       'src/pages/certification/components/vendors/nisp/RegistrationReviewDrawer.tsx',
-      'src/pages/certification/components/vendors/renshe/ApplicationDetailDrawer.tsx',
-    ]
-
-    for (const path of paths) {
+    ]) {
       const source = readSource(path)
       expect(source, path).toContain('查看退款记录')
       expect(source, path).toContain('tab=refunds')
       expect(source, path).toContain('refundRegistrationId=')
     }
+    // 人社报名办理抽屉改为在原地打开退款处理抽屉，不再跳页签。
+    const renshe = readSource('src/pages/certification/components/vendors/renshe/ApplicationDetailDrawer.tsx')
+    expect(renshe).toContain('<RefundWorkbench')
+    expect(renshe).toContain('registrationId={detail.id}')
+    expect(renshe).not.toContain('refundRegistrationId=')
   })
 
   it('makes NISP batch-first and removes the legacy export page', () => {

@@ -697,7 +697,7 @@ export default function NispBatchWorkbench() {
     }] : []),
     ...(canRefund ? [{
       key: 'refunds',
-      label: '退款记录',
+      label: '退款处理',
       children: (
         <RefundWorkbench
           vendor='nisp'
