@@ -3,7 +3,6 @@ import { Alert, Button, Form, Input, InputNumber, Modal, Select, Space, Table, T
 import { CopyOutlined, PlusOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import { PageContainer } from '@/components/PageContainer'
-import { ConfirmButton } from '@/components/ConfirmButton'
 import { usePagination } from '@/hooks/usePagination'
 import { usePermission } from '@/hooks/usePermission'
 import { courseManagementService } from '@/services/courseManagement'
@@ -19,6 +18,7 @@ const STATUS_META: Record<VideoWebCodeItem['status'], { text: string; color: str
 
 interface CreateForm {
   course_id: number
+  owner_user_id: number
   quantity: number
   note?: string
 }
@@ -38,6 +38,28 @@ export default function VideoWebCodesPage() {
   const [createdCodes, setCreatedCodes] = useState<VideoWebCodeItem[]>([])
   const [creating, setCreating] = useState(false)
   const [form] = Form.useForm<CreateForm>()
+  const [ownerOptions, setOwnerOptions] = useState<{ value: number; label: string }[]>([])
+  const [ownerSearching, setOwnerSearching] = useState(false)
+  const [statusTarget, setStatusTarget] = useState<{ action: 'revoke' | 'refund'; record: VideoWebCodeItem } | null>(null)
+  const [statusReason, setStatusReason] = useState('')
+  const [statusBusy, setStatusBusy] = useState(false)
+
+  const searchOwners = useCallback(async (keyword: string) => {
+    const text = keyword.trim()
+    if (text.length < 2) { setOwnerOptions([]); return }
+    setOwnerSearching(true)
+    try {
+      const page = await videoWebService.searchOwners(text)
+      setOwnerOptions(page.items.map(item => ({
+        value: item.user_id,
+        label: `${item.display_name}（#${item.user_id}${item.phone ? ` · ${item.phone}` : ''}）`,
+      })))
+    } catch {
+      setOwnerOptions([])
+    } finally {
+      setOwnerSearching(false)
+    }
+  }, [])
 
   const loadCourses = useCallback(async () => {
     const data = await courseManagementService.listCourses({ page: 1, page_size: 100, status: 'published' })
@@ -99,7 +121,27 @@ export default function VideoWebCodesPage() {
       ),
     },
     { title: '订单', dataIndex: 'source_order_id', width: 90, render: value => value ?? '-' },
-    { title: '兑换用户', dataIndex: 'redeemed_by', width: 100, render: value => value ?? '-' },
+    {
+      title: '归属用户',
+      width: 200,
+      render: (_, record) => {
+        const owner = record.owner
+        if (!owner) return '-'
+        return (
+          <Space direction="vertical" size={0}>
+            <Typography.Link onClick={() => window.open(`/users?user_id=${owner.user_id}`, '_blank')}>
+              {owner.display_name}
+            </Typography.Link>
+            <Typography.Text type="secondary" style={{ fontSize: 12 }}>#{owner.user_id}</Typography.Text>
+          </Space>
+        )
+      },
+    },
+    {
+      title: '兑换时间',
+      width: 170,
+      render: (_, record) => record.redeemed_at ?? record.revoked_at ?? '-',
+    },
     { title: '生成时间', dataIndex: 'created_at', width: 180 },
     {
       title: '操作',
@@ -109,36 +151,14 @@ export default function VideoWebCodesPage() {
         <Space size={0} wrap>
           <Button type="link" size="small" icon={<CopyOutlined />} onClick={() => copyCode(record.code)}>复制</Button>
           {canWrite && record.status === 'issued' && (
-            <ConfirmButton
-              title="撤销兑换码"
-              description="撤销后该码不可再兑换，已兑换授权将同步回收。"
-              danger
-              type="link"
-              size="small"
-              onConfirm={async () => {
-                await videoWebService.revokeCode(record.id, 'admin manual revoke')
-                message.success('兑换码已撤销')
-                refresh()
-              }}
-            >
+            <Button danger type="link" size="small" onClick={() => { setStatusReason(''); setStatusTarget({ action: 'revoke', record }) }}>
               撤销
-            </ConfirmButton>
+            </Button>
           )}
           {canWrite && record.status !== 'refunded' && record.status !== 'revoked' && (
-            <ConfirmButton
-              title="退款回收"
-              description="仅退款场景使用，回收后用户将失去课程观看授权。"
-              danger
-              type="link"
-              size="small"
-              onConfirm={async () => {
-                await videoWebService.refundCode(record.id, 'order refunded')
-                message.success('兑换码已退款回收')
-                refresh()
-              }}
-            >
+            <Button danger type="link" size="small" onClick={() => { setStatusReason(''); setStatusTarget({ action: 'refund', record }) }}>
               退款回收
-            </ConfirmButton>
+            </Button>
           )}
         </Space>
       ),
@@ -218,6 +238,23 @@ export default function VideoWebCodesPage() {
           <Form.Item name="course_id" label="课程" rules={[{ required: true, message: '请选择课程' }]}>
             <Select allowClear showSearch optionFilterProp="label" options={courseOptions} placeholder="请选择已发布课程" />
           </Form.Item>
+          <Form.Item
+            name="owner_user_id"
+            label="归属用户"
+            extra="兑换码只能由本人使用；按手机号、姓名或昵称搜索（至少 2 个字符）"
+            rules={[{ required: true, message: '请选择归属用户' }]}
+          >
+            <Select
+              showSearch
+              allowClear
+              filterOption={false}
+              onSearch={value => void searchOwners(value)}
+              loading={ownerSearching}
+              options={ownerOptions}
+              placeholder="搜索并选择用户"
+              notFoundContent={ownerSearching ? '搜索中…' : '输入至少 2 个字符'}
+            />
+          </Form.Item>
           <Form.Item name="quantity" label="数量" rules={[{ required: true, message: '请输入数量' }]}>
             <InputNumber min={1} max={500} precision={0} style={{ width: '100%' }} />
           </Form.Item>
@@ -225,6 +262,52 @@ export default function VideoWebCodesPage() {
             <Input.TextArea rows={3} maxLength={512} showCount placeholder="线下发放、渠道合作等备注" />
           </Form.Item>
         </Form>
+      </Modal>
+
+      <Modal
+        title={statusTarget?.action === 'refund' ? '退款回收兑换码' : '撤销兑换码'}
+        open={!!statusTarget}
+        confirmLoading={statusBusy}
+        okText={statusTarget?.action === 'refund' ? '退款回收' : '撤销'}
+        okButtonProps={{ danger: true }}
+        onCancel={() => setStatusTarget(null)}
+        onOk={async () => {
+          if (!statusTarget) return
+          setStatusBusy(true)
+          try {
+            const reason = statusReason.trim() || undefined
+            if (statusTarget.action === 'refund') {
+              await videoWebService.refundCode(statusTarget.record.id, reason)
+              message.success('兑换码已退款回收')
+            } else {
+              await videoWebService.revokeCode(statusTarget.record.id, reason)
+              message.success('兑换码已撤销')
+            }
+            setStatusTarget(null)
+            refresh()
+          } finally {
+            setStatusBusy(false)
+          }
+        }}
+      >
+        <Space direction="vertical" size={12} style={{ width: '100%' }}>
+          <Typography.Text type="secondary">
+            {statusTarget?.action === 'refund'
+              ? '仅退款场景使用；若该码已兑换，用户将立即失去课程观看授权。'
+              : '撤销后该码不可再兑换；若已兑换，对应学习授权会同步回收。'}
+          </Typography.Text>
+          <Typography.Text>
+            兑换码：<Typography.Text code>{statusTarget?.record.code}</Typography.Text>
+          </Typography.Text>
+          <Input.TextArea
+            rows={3}
+            maxLength={128}
+            showCount
+            value={statusReason}
+            onChange={event => setStatusReason(event.target.value)}
+            placeholder="处理原因（会记录到操作留痕）"
+          />
+        </Space>
       </Modal>
     </PageContainer>
   )

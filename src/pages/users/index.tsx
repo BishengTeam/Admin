@@ -105,6 +105,13 @@ const searchFields: SearchField[] = [
 
 export default function UserList() {
   const [searchFilters, setSearchFilters] = useState<UserFilter>({})
+  // 支持从其他页面深链筛选单个用户（如兑换码页「归属用户」点击）。
+  // 用 window.location 解析而非 useSearchParams：本页测试不挂 Router，保持可单元测试。
+  useEffect(() => {
+    const raw = new URLSearchParams(window.location.search).get('user_id')
+    const id = raw ? Number(raw) : NaN
+    if (Number.isFinite(id) && id > 0) setSearchFilters({ user_id: id })
+  }, [])
   const [reviewQuickFilter, setReviewQuickFilter] = useState<ReviewQuickFilter>('all')
   const [reviewSummary, setReviewSummary] = useState<UserReviewSummary | null>(null)
   const [selectedUser, setSelectedUser] = useState<UserDetail | null>(null)
